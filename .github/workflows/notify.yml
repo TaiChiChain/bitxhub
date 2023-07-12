@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Lark notify
-        uses: zhecks/lark-pr-notify-action@feat/debug
+        uses: zhecks/lark-pr-notify-action@master
         with:
           template_id: ${{ secrets.TEMPLATE_ID }}
           users: ${{ secrets.USERS }}
