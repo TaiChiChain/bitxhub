@@ -227,7 +227,9 @@ func TestChainLedger_Commit(t *testing.T) {
 	hash := types.NewHashByStr("0xe9FC370DD36C9BD5f67cCfbc031C909F53A3d8bC7084C01362c55f2D42bA841c")
 	revid := ledger.StateLedger.(*SimpleLedger).Snapshot()
 	ledger.StateLedger.(*SimpleLedger).logs.thash = hash
-	ledger.StateLedger.(*SimpleLedger).AddLog(&pb.EvmLog{})
+	ledger.StateLedger.(*SimpleLedger).AddLog(&pb.EvmLog{
+		TransactionHash: ledger.StateLedger.(*SimpleLedger).logs.thash,
+	})
 	ledger.StateLedger.(*SimpleLedger).GetLogs(*ledger.StateLedger.(*SimpleLedger).logs.thash)
 	ledger.StateLedger.(*SimpleLedger).GetCodeHash(account)
 	ledger.StateLedger.(*SimpleLedger).GetCodeSize(account)
@@ -286,9 +288,7 @@ func TestChainLedger_OpenStateDB(t *testing.T) {
 	repoRoot2, err := ioutil.TempDir("", "blockfile")
 	assert.Nil(t, err)
 	logger := log.NewWithModule("opendb_test")
-	_, err = OpenStateDB(repoRoot, "simple")
-	assert.Nil(t, err)
-	ldb, err := OpenStateDB(repoRoot1, "complex")
+	ldb, err := OpenStateDB(repoRoot, "simple")
 	assert.Nil(t, err)
 	blockFile, err := blockfile.NewBlockFile(repoRoot2, logger)
 	assert.Nil(t, err)
@@ -350,6 +350,7 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 	ledger.StateLedger.(*SimpleLedger).AddEVMPreimage(hash, []byte("1111"))
 	// ledger.StateLedger.(*SimpleLedger).PrepareEVM(hash, 1)
 	ledger.StateLedger.(*SimpleLedger).StateDB()
+	ledger.SetTxContext(types.NewHash(hash.Bytes()), 1)
 	ledger.StateLedger.(*SimpleLedger).AddEVMLog(&etherTypes.Log{})
 }
 
