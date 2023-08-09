@@ -156,6 +156,7 @@ type Genesis struct {
 	GasChangeRate float64  `mapstructure:"gas_change_rate" toml:"gas_change_rate"`
 	Balance       string   `mapstructure:"balance" toml:"balance"`
 	Admins        []*Admin `mapstructure:"admins" toml:"admins"`
+	Members       []string `mapstructure:"member" toml:"member"`
 }
 
 type Admin struct {
@@ -251,6 +252,12 @@ func DefaultConfig(repoRoot string) *Config {
 				{
 					Address: "0xc0Ff2e0b3189132D815b8eb325bE17285AC898f8",
 				},
+			},
+			Members: []string{
+				"16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+				"16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+				"16Uiu2HAmTwEET536QC9MZmYFp1NUshjRuaq5YSH1sLjW65WasvRk",
+				"16Uiu2HAmQBFTnRr84M3xNhi3EcWmgZnnBsDgewk4sNtpA3smBsHJ",
 			},
 		},
 		PProf: PProf{

@@ -2,10 +2,12 @@ package genesis
 
 import (
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom/internal/executor"
+	"github.com/axiomesh/axiom/internal/executor/system"
 	"github.com/axiomesh/axiom/internal/ledger"
 	"github.com/axiomesh/axiom/pkg/repo"
 )
@@ -18,6 +20,8 @@ func Initialize(genesis *repo.Genesis, nodes []*repo.NetworkNodes, primaryN uint
 	for _, admin := range genesis.Admins {
 		lg.SetBalance(types.NewAddressByStr(admin.Address), balance)
 	}
+	//read member config, write to Ledger
+	lg.SetState(types.NewAddressByStr(system.NodeMemberAddr), []byte(system.NodeMemberAddr), []byte(strings.Join(genesis.Members, ",")))
 
 	accounts, stateRoot := lg.FlushDirtyData()
 
