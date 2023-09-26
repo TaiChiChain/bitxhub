@@ -121,22 +121,22 @@ jobs:
       with:
         category: "/language:${{ matrix.language }}"
 
-  notify:
-    name: Lark notify
+  dingtalk:
+    name: dingtalk-notify
     runs-on: ci
-    # make self can be canceled: https://github.com/orgs/community/discussions/26303
-    if: always() && (contains(needs.*.result, 'cancelled') && fromjson('throw') || !cancelled())
     needs: [base-check, smoke-test, analyze]
+    if: always() && (contains(needs.*.result, 'cancelled') && fromjson('throw') || !cancelled())
     steps:
-      - name: Lark notify
-        uses: axiomesh/lark-pr-notify-action@master
-        with:
-          template_id: ${{ secrets.PR_TEMPLATE_ID }}
-          users: ${{ secrets.USERS }}
-          reviewers: ${{ secrets.REVIEWERS }}
-          webhook: ${{ secrets.WEBHOOK }}
-          secret: ${{ secrets.SIGNATURE_SECRET}}
-          token: ${{ secrets.TOKEN }}
-          # timeout: 8 minutes
-          timeout: 480
-          job_name: Lark notify
+     - uses: leafney/dingtalk-action@v1
+       env:
+         DINGTALK_ACCESS_TOKEN: ${{ secrets.DINGTALK_ACCESS_TOKEN }}
+       with:
+         text: '测试--钉钉消息通知测试'
+
+     - uses: leafney/dingtalk-action@v1
+       env:
+         DINGTALK_ACCESS_TOKEN: ${{ secrets.DINGTALK_ACCESS_TOKEN }}
+       with:
+         msgtype: text
+         text: '测试--钉钉消息 @15155188455 通知'
+         at_mobiles: '15155188455'

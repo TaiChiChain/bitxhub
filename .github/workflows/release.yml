@@ -45,18 +45,4 @@ jobs:
         if: ${{ failure() }}
         run: echo "status=failure" >> $GITHUB_OUTPUT
 
-  notify:
-    name: "Notify lark"
-    runs-on: ubuntu-20.04
-    needs: release-binary
-    if: ${{ always() }}
-    steps:
-      - name: Lark release notify
-        if: always()
-        uses: axiomesh/lark-release-notify-action@master
-        with:
-          status: ${{ needs.release-binary.outputs.status }}
-          template_id: ${{ secrets.RELEASE_TEMPLATE_ID }}
-          users: ${{ secrets.USERS }}
-          webhook: ${{ secrets.WEBHOOK }}
-          secret: ${{ secrets.SIGNATURE_SECRET}}
+      - uses: actions/checkout@v2
