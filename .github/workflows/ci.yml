@@ -8,6 +8,7 @@ on:
 
 env:
   GO_VERSION: 1.20.5
+  PR_NUMBER: ${{ github.event.number }}
 
 jobs:
   base-check:
@@ -122,21 +123,18 @@ jobs:
         category: "/language:${{ matrix.language }}"
 
   notify:
-    name: Lark notify
+    name: dingtalk notify
     runs-on: ci
     # make self can be canceled: https://github.com/orgs/community/discussions/26303
     if: always() && (contains(needs.*.result, 'cancelled') && fromjson('throw') || !cancelled())
-    needs: [base-check, smoke-test, analyze]
+    needs: [ base-check, smoke-test, analyze ]
     steps:
-      - name: Lark notify
-        uses: axiomesh/lark-pr-notify-action@master
+      - name: dingtalk notify
+        uses: axiomesh/notify-action@master
         with:
-          template_id: ${{ secrets.PR_TEMPLATE_ID }}
           users: ${{ secrets.USERS }}
           reviewers: ${{ secrets.REVIEWERS }}
           webhook: ${{ secrets.WEBHOOK }}
-          secret: ${{ secrets.SIGNATURE_SECRET}}
           token: ${{ secrets.TOKEN }}
-          # timeout: 8 minutes
           timeout: 480
-          job_name: Lark notify
+          job_name: dingtalk notify

@@ -46,17 +46,17 @@ jobs:
         run: echo "status=failure" >> $GITHUB_OUTPUT
 
   notify:
-    name: "Notify lark"
+    name: "dingtalk notify"
     runs-on: ubuntu-20.04
-    needs: release-binary
     if: ${{ always() }}
+    needs: release-binary
     steps:
-      - name: Lark release notify
-        if: always()
-        uses: axiomesh/lark-release-notify-action@master
+      - name: dingtalk notify
+        uses: axiomesh/notify-action@master
         with:
-          status: ${{ needs.release-binary.outputs.status }}
-          template_id: ${{ secrets.RELEASE_TEMPLATE_ID }}
           users: ${{ secrets.USERS }}
+          reviewers: ${{ secrets.REVIEWERS }}
           webhook: ${{ secrets.WEBHOOK }}
-          secret: ${{ secrets.SIGNATURE_SECRET}}
+          token: ${{ secrets.TOKEN }}
+          timeout: 480
+          job_name: "dingtalk notify"
