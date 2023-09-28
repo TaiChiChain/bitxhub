@@ -66,6 +66,10 @@ const (
 
 	// NodeRemove is a proposal for removing a node
 	NodeRemove
+
+	KycServiceAdd
+
+	KycServiceRemove
 )
 
 type VoteResult uint8

@@ -25,6 +25,7 @@ const (
 
 	// Addr2NameContractAddr for unique name mapping to address
 	Addr2NameContractAddr = "0x0000000000000000000000000000000000001003"
+	KycContractAddr       = "0x0000000000000000000000000000000000001004"
 )
 
 type SystemContractConfig struct {

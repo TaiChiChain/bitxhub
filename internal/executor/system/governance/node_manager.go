@@ -205,7 +205,7 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *NodePr
 	}
 
 	// check addr if is exist in council
-	isExist, council := checkInCouncil(nm.councilAccount, addr.String())
+	isExist, council := CheckInCouncil(nm.councilAccount, addr.String())
 	if !isExist {
 		return nil, ErrNotFoundCouncilMember
 	}
@@ -248,7 +248,7 @@ func (nm *NodeManager) proposeUpgrade(addr ethcommon.Address, args *UpgradePropo
 	}
 
 	// check addr if is exist in council
-	isExist, council := checkInCouncil(nm.councilAccount, addr.String())
+	isExist, council := CheckInCouncil(nm.councilAccount, addr.String())
 	if !isExist {
 		return nil, ErrNotFoundCouncilMember
 	}
@@ -301,7 +301,7 @@ func (nm *NodeManager) vote(user ethcommon.Address, voteArgs *VoteArgs) (*vm.Exe
 
 func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) ([]byte, error) {
 	// check user can vote
-	isExist, _ := checkInCouncil(nm.councilAccount, user.String())
+	isExist, _ := CheckInCouncil(nm.councilAccount, user.String())
 	if !isExist {
 		return nil, ErrNotFoundCouncilMember
 	}
@@ -360,7 +360,7 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 
 func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) ([]byte, error) {
 	// check user can vote
-	isExist, _ := checkInCouncil(nm.councilAccount, user.String())
+	isExist, _ := CheckInCouncil(nm.councilAccount, user.String())
 	if !isExist {
 		return nil, ErrNotFoundCouncilMember
 	}

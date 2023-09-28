@@ -61,18 +61,19 @@ func (d *Duration) String() string {
 }
 
 type Config struct {
-	Ulimit    uint64    `mapstructure:"ulimit" toml:"ulimit"`
-	Port      Port      `mapstructure:"port" toml:"port"`
-	JsonRPC   JsonRPC   `mapstructure:"jsonrpc" toml:"jsonrpc"`
-	P2P       P2P       `mapstructure:"p2p" toml:"p2p"`
-	Consensus Consensus `mapstructure:"consensus" toml:"consensus"`
-	Storage   Storage   `mapstructure:"storage" toml:"storage"`
-	Ledger    Ledger    `mapstructure:"ledger" toml:"ledger"`
-	Executor  Executor  `mapstructure:"executor" toml:"executor"`
-	Genesis   Genesis   `mapstructure:"genesis" toml:"genesis"`
-	PProf     PProf     `mapstructure:"pprof" toml:"pprof"`
-	Monitor   Monitor   `mapstructure:"monitor" toml:"monitor"`
-	Log       Log       `mapstructure:"log" toml:"log"`
+	Ulimit     uint64     `mapstructure:"ulimit" toml:"ulimit"`
+	Port       Port       `mapstructure:"port" toml:"port"`
+	JsonRPC    JsonRPC    `mapstructure:"jsonrpc" toml:"jsonrpc"`
+	P2P        P2P        `mapstructure:"p2p" toml:"p2p"`
+	Consensus  Consensus  `mapstructure:"consensus" toml:"consensus"`
+	Storage    Storage    `mapstructure:"storage" toml:"storage"`
+	Ledger     Ledger     `mapstructure:"ledger" toml:"ledger"`
+	Executor   Executor   `mapstructure:"executor" toml:"executor"`
+	Genesis    Genesis    `mapstructure:"genesis" toml:"genesis"`
+	PProf      PProf      `mapstructure:"pprof" toml:"pprof"`
+	Monitor    Monitor    `mapstructure:"monitor" toml:"monitor"`
+	Log        Log        `mapstructure:"log" toml:"log"`
+	Compliance Compliance `mapstructure:"compliance" toml:"compliance"`
 }
 
 type Port struct {
@@ -185,6 +186,10 @@ type Genesis struct {
 	Admins        []*Admin        `mapstructure:"admins" toml:"admins"`
 	Accounts      []string        `mapstructure:"accounts" toml:"accounts"`
 	EpochInfo     *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
+}
+
+type Compliance struct {
+	KycInspection uint8 `mapstructure:"kyc_inspection" toml:"kyc_inspection"`
 }
 
 type Admin struct {
@@ -405,6 +410,9 @@ func DefaultConfig(epochEnable bool) *Config {
 				Profile:    "info",
 				Finance:    "info",
 			},
+		},
+		Compliance: Compliance{
+			KycInspection: 0,
 		},
 	}
 }

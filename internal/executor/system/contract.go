@@ -6,6 +6,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/compliance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -28,6 +29,9 @@ func init() {
 		},
 		*types.NewAddressByStr(common.CouncilManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
 			return governance.NewCouncilManager(cfg)
+		},
+		*types.NewAddressByStr(common.KycContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return compliance.NewKycVerification(cfg)
 		},
 	}
 }
@@ -54,6 +58,9 @@ func InitGenesisData(genesis *repo.Genesis, lg ledger.StateLedger) error {
 		return err
 	}
 	if err := governance.InitCouncilMembers(lg, genesis.Admins, genesis.Balance); err != nil {
+		return err
+	}
+	if err := compliance.InitKycServicesAndInfos(lg, repo.DefaultNodeAddrs, genesis.Accounts); err != nil {
 		return err
 	}
 	return nil

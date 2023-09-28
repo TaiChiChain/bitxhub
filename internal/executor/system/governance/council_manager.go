@@ -176,7 +176,7 @@ func (cm *CouncilManager) propose(addr ethcommon.Address, args *CouncilProposalA
 		BaseProposal: *baseProposal,
 	}
 
-	isExist, council := checkInCouncil(cm.account, addr.String())
+	isExist, council := CheckInCouncil(cm.account, addr.String())
 	if !isExist {
 		return nil, ErrNotFoundCouncilMember
 	}
@@ -218,7 +218,7 @@ func (cm *CouncilManager) vote(user ethcommon.Address, voteArgs *CouncilVoteArgs
 	result := &vm.ExecutionResult{UsedGas: CouncilVoteGas}
 
 	// check user can vote
-	isExist, _ := checkInCouncil(cm.account, user.String())
+	isExist, _ := CheckInCouncil(cm.account, user.String())
 	if !isExist {
 		return nil, ErrNotFoundCouncilMember
 	}
@@ -383,7 +383,7 @@ func (cm *CouncilManager) checkFinishedAllProposal() bool {
 	return true
 }
 
-func checkInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
+func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
 	// check council if is exist
 	isExist, data := account.GetState([]byte(CouncilKey))
 	if !isExist {

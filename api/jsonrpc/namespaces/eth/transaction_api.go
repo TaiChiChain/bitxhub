@@ -15,6 +15,8 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/compliance"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -240,6 +242,13 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (common.Hash, 
 		return [32]byte{}, err
 	}
 
+	// kyc verify switch
+	if api.config.Compliance.KycInspection == 1 {
+		if err := verifyKyc(api.api.Broker().GetViewStateLedger().NewView(), tx.GetFrom().ETHAddress()); err != nil {
+			return [32]byte{}, err
+		}
+	}
+
 	if err := checkTransaction(tx); err != nil {
 		return [32]byte{}, fmt.Errorf("check transaction fail for %s", err.Error())
 	}
@@ -254,6 +263,14 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (common.Hash, 
 	}
 
 	return sendTransaction(api.api, tx)
+}
+
+func verifyKyc(ledger ledger.StateLedger, addr common.Address) error {
+	success, err := compliance.Verify(ledger, addr)
+	if err != nil || !success {
+		return fmt.Errorf("verify user kyc by addr failed: %s", addr.String())
+	}
+	return nil
 }
 
 func getTxByBlockInfoAndIndex(api api.CoreAPI, mode string, key string, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
