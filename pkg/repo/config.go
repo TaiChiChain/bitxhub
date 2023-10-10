@@ -61,19 +61,19 @@ func (d *Duration) String() string {
 }
 
 type Config struct {
-	Ulimit     uint64     `mapstructure:"ulimit" toml:"ulimit"`
-	Port       Port       `mapstructure:"port" toml:"port"`
-	JsonRPC    JsonRPC    `mapstructure:"jsonrpc" toml:"jsonrpc"`
-	P2P        P2P        `mapstructure:"p2p" toml:"p2p"`
-	Consensus  Consensus  `mapstructure:"consensus" toml:"consensus"`
-	Storage    Storage    `mapstructure:"storage" toml:"storage"`
-	Ledger     Ledger     `mapstructure:"ledger" toml:"ledger"`
-	Executor   Executor   `mapstructure:"executor" toml:"executor"`
-	Genesis    Genesis    `mapstructure:"genesis" toml:"genesis"`
-	PProf      PProf      `mapstructure:"pprof" toml:"pprof"`
-	Monitor    Monitor    `mapstructure:"monitor" toml:"monitor"`
-	Log        Log        `mapstructure:"log" toml:"log"`
-	Compliance Compliance `mapstructure:"compliance" toml:"compliance"`
+	Ulimit    uint64    `mapstructure:"ulimit" toml:"ulimit"`
+	Port      Port      `mapstructure:"port" toml:"port"`
+	JsonRPC   JsonRPC   `mapstructure:"jsonrpc" toml:"jsonrpc"`
+	P2P       P2P       `mapstructure:"p2p" toml:"p2p"`
+	Consensus Consensus `mapstructure:"consensus" toml:"consensus"`
+	Storage   Storage   `mapstructure:"storage" toml:"storage"`
+	Ledger    Ledger    `mapstructure:"ledger" toml:"ledger"`
+	Executor  Executor  `mapstructure:"executor" toml:"executor"`
+	Genesis   Genesis   `mapstructure:"genesis" toml:"genesis"`
+	PProf     PProf     `mapstructure:"pprof" toml:"pprof"`
+	Monitor   Monitor   `mapstructure:"monitor" toml:"monitor"`
+	Log       Log       `mapstructure:"log" toml:"log"`
+	Access    Access    `mapstructure:"access" toml:"access"`
 }
 
 type Port struct {
@@ -173,23 +173,25 @@ type LogModule struct {
 	Profile    string `mapstructure:"profile" toml:"profile"`
 	Finance    string `mapstructure:"finance" toml:"finance"`
 	TxPool     string `mapstructure:"txpool" toml:"txpool"`
+	Access     string `mapstructure:"access" toml:"access"`
 }
 
 type Genesis struct {
-	ChainID       uint64          `mapstructure:"chainid" toml:"chainid"`
-	GasLimit      uint64          `mapstructure:"gas_limit" toml:"gas_limit"`
-	GasPrice      uint64          `mapstructure:"gas_price" toml:"gas_price"`
-	MaxGasPrice   uint64          `mapstructure:"max_gas_price" toml:"max_gas_price"`
-	MinGasPrice   uint64          `mapstructure:"min_gas_price" toml:"min_gas_price"`
-	GasChangeRate float64         `mapstructure:"gas_change_rate" toml:"gas_change_rate"`
-	Balance       string          `mapstructure:"balance" toml:"balance"`
-	Admins        []*Admin        `mapstructure:"admins" toml:"admins"`
-	Accounts      []string        `mapstructure:"accounts" toml:"accounts"`
-	EpochInfo     *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
+	ChainID         uint64          `mapstructure:"chainid" toml:"chainid"`
+	GasLimit        uint64          `mapstructure:"gas_limit" toml:"gas_limit"`
+	GasPrice        uint64          `mapstructure:"gas_price" toml:"gas_price"`
+	MaxGasPrice     uint64          `mapstructure:"max_gas_price" toml:"max_gas_price"`
+	MinGasPrice     uint64          `mapstructure:"min_gas_price" toml:"min_gas_price"`
+	GasChangeRate   float64         `mapstructure:"gas_change_rate" toml:"gas_change_rate"`
+	Balance         string          `mapstructure:"balance" toml:"balance"`
+	Admins          []*Admin        `mapstructure:"admins" toml:"admins"`
+	InitKycServices []string        `mapstructure:"init_key_services" toml:"init_key_services"`
+	Accounts        []string        `mapstructure:"accounts" toml:"accounts"`
+	EpochInfo       *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
 }
 
-type Compliance struct {
-	KycInspection uint8 `mapstructure:"kyc_inspection" toml:"kyc_inspection"`
+type Access struct {
+	KycVerification uint8 `mapstructure:"kyc_verification" toml:"kyc_verification"`
 }
 
 type Admin struct {
@@ -356,6 +358,7 @@ func DefaultConfig(epochEnable bool) *Config {
 					Name:    DefaultNodeNames[idx],
 				}
 			}),
+			InitKycServices: DefaultNodeAddrs,
 			Accounts: []string{
 				"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 				"0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
@@ -409,10 +412,11 @@ func DefaultConfig(epochEnable bool) *Config {
 				Storage:    "info",
 				Profile:    "info",
 				Finance:    "info",
+				Access:     "info",
 			},
 		},
-		Compliance: Compliance{
-			KycInspection: 0,
+		Access: Access{
+			KycVerification: 0,
 		},
 	}
 }

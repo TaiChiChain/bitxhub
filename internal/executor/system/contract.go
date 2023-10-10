@@ -1,15 +1,15 @@
 package system
 
 import (
-	"github.com/sirupsen/logrus"
-
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/compliance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
 )
 
 // addr2ContractConstruct is address to system contract
@@ -30,8 +30,11 @@ func init() {
 		*types.NewAddressByStr(common.CouncilManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
 			return governance.NewCouncilManager(cfg)
 		},
-		*types.NewAddressByStr(common.KycContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
-			return compliance.NewKycVerification(cfg)
+		*types.NewAddressByStr(common.KycServiceContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return governance.NewKycServiceManager(cfg)
+		},
+		*types.NewAddressByStr(common.KycVerifyContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return access.NewKycVerification(cfg)
 		},
 	}
 }
@@ -60,7 +63,17 @@ func InitGenesisData(genesis *repo.Genesis, lg ledger.StateLedger) error {
 	if err := governance.InitCouncilMembers(lg, genesis.Admins, genesis.Balance); err != nil {
 		return err
 	}
-	if err := compliance.InitKycServicesAndInfos(lg, repo.DefaultNodeAddrs, genesis.Accounts); err != nil {
+
+	//init kyc services and kyc infos
+	admins := lo.Map[*repo.Admin, string](genesis.Admins, func(x *repo.Admin, _ int) string {
+		return x.Address
+	})
+	totalLength := len(admins) + len(genesis.InitKycServices) + len(genesis.Accounts)
+	combined := make([]string, 0, totalLength)
+	combined = append(combined, admins...)
+	combined = append(combined, genesis.InitKycServices...)
+	combined = append(combined, genesis.Accounts...)
+	if err := access.InitKycServicesAndKycInfos(lg, combined, genesis.InitKycServices); err != nil {
 		return err
 	}
 	return nil

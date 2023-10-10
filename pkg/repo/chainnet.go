@@ -189,6 +189,7 @@ func AriesConfig() *Config {
 				Storage:    "info",
 				Profile:    "info",
 				Finance:    "error",
+				Access:     "info",
 			},
 		},
 	}

@@ -23,6 +23,7 @@ const (
 	Storage    = "storage"
 	Profile    = "profile"
 	Finance    = "finance"
+	Access     = "access"
 	TxPool     = "txpool"
 )
 
@@ -38,6 +39,7 @@ var w = &LoggerWrapper{
 		Storage:    log.NewWithModule(Storage),
 		Profile:    log.NewWithModule(Profile),
 		Finance:    log.NewWithModule(Finance),
+		Access:     log.NewWithModule(Access),
 		TxPool:     log.NewWithModule(TxPool),
 	},
 }
@@ -114,6 +116,8 @@ func Initialize(ctx context.Context, rep *repo.Repo, persist bool) error {
 	m[Profile].Logger.SetLevel(log.ParseLevel(config.Log.Module.Profile))
 	m[Finance] = log.NewWithModule(Finance)
 	m[Finance].Logger.SetLevel(log.ParseLevel(config.Log.Module.Finance))
+	m[Access] = log.NewWithModule(Access)
+	m[Access].Logger.SetLevel(log.ParseLevel(config.Log.Module.Access))
 	m[TxPool] = log.NewWithModule(TxPool)
 	m[TxPool].Logger.SetLevel(log.ParseLevel(config.Log.Module.TxPool))
 

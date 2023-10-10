@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	types3 "github.com/ethereum/go-ethereum/core/types"
@@ -15,8 +17,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/compliance"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -243,8 +243,9 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (common.Hash, 
 	}
 
 	// kyc verify switch
-	if api.config.Compliance.KycInspection == 1 {
-		if err := verifyKyc(api.api.Broker().GetViewStateLedger().NewView(), tx.GetFrom().ETHAddress()); err != nil {
+	if api.rep.Config.Access.KycVerification == repo.EnableKycVerify {
+		success, err := access.Verify(api.api.Broker().GetViewStateLedger().NewView(), tx.GetFrom())
+		if err != nil || !success {
 			return [32]byte{}, err
 		}
 	}
@@ -263,14 +264,6 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (common.Hash, 
 	}
 
 	return sendTransaction(api.api, tx)
-}
-
-func verifyKyc(ledger ledger.StateLedger, addr common.Address) error {
-	success, err := compliance.Verify(ledger, addr)
-	if err != nil || !success {
-		return fmt.Errorf("verify user kyc by addr failed: %s", addr.String())
-	}
-	return nil
 }
 
 func getTxByBlockInfoAndIndex(api api.CoreAPI, mode string, key string, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
