@@ -43,11 +43,11 @@ type SimpleAccount struct {
 	// The latest state of the current transaction
 	dirtyState map[string][]byte
 
-	originCode     []byte
-	dirtyCode      []byte
-	dirtyStateHash *types.Hash
-	ldb            storage.Storage
-	cache          *AccountCache
+	originCode       []byte
+	dirtyCode        []byte
+	pendingStateHash *types.Hash
+	ldb              storage.Storage
+	cache            *AccountCache
 
 	changer  *stateChanger
 	suicided bool
@@ -326,6 +326,12 @@ func (o *SimpleAccount) Query(prefix string) (bool, [][]byte) {
 		stored[string(key)] = val
 	}
 
+	for key, value := range o.pendingState {
+		if strings.HasPrefix(key, prefix) {
+			stored[key] = value
+		}
+	}
+
 	for key, value := range o.dirtyState {
 		if strings.HasPrefix(key, prefix) {
 			stored[key] = value
@@ -349,6 +355,7 @@ func (o *SimpleAccount) Finalise() {
 	for key, value := range o.dirtyState {
 		o.pendingState[key] = value
 	}
+	// o.dirtyState = make(map[string][]byte)
 }
 
 func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
@@ -382,26 +389,26 @@ func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
 
 func (o *SimpleAccount) getStateJournalAndComputeHash() map[string][]byte {
 	prevStates := make(map[string][]byte)
-	var dirtyStateKeys []string
-	var dirtyStateData []byte
+	var pendingStateKeys []string
+	var pendingStateData []byte
 
-	for key, value := range o.dirtyState {
+	for key, value := range o.pendingState {
 		origVal := o.originState[key]
 		if !bytes.Equal(origVal, value) {
 			prevStates[key] = origVal
-			dirtyStateKeys = append(dirtyStateKeys, key)
+			pendingStateKeys = append(pendingStateKeys, key)
 		}
 	}
 
-	sort.Strings(dirtyStateKeys)
+	sort.Strings(pendingStateKeys)
 
-	for _, key := range dirtyStateKeys {
-		dirtyStateData = append(dirtyStateData, key...)
-		dirtyVal := o.dirtyState[key]
-		dirtyStateData = append(dirtyStateData, dirtyVal...)
+	for _, key := range pendingStateKeys {
+		pendingStateData = append(pendingStateData, key...)
+		pendingVal := o.pendingState[key]
+		pendingStateData = append(pendingStateData, pendingVal...)
 	}
-	hash := sha256.Sum256(dirtyStateData)
-	o.dirtyStateHash = types.NewHash(hash[:])
+	hash := sha256.Sum256(pendingStateData)
+	o.pendingStateHash = types.NewHash(hash[:])
 
 	return prevStates
 }
@@ -419,7 +426,7 @@ func (o *SimpleAccount) getDirtyData() []byte {
 		dirtyData = append(dirtyData, data...)
 	}
 
-	return append(dirtyData, o.dirtyStateHash.Bytes()...)
+	return append(dirtyData, o.pendingStateHash.Bytes()...)
 }
 
 func (o *SimpleAccount) SetSuicided(suicided bool) {

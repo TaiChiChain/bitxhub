@@ -274,7 +274,7 @@ func (l *StateLedgerImpl) Commit(height uint64, accounts map[string]IAccount, st
 			}
 		}
 
-		for key, valBytes := range account.dirtyState {
+		for key, valBytes := range account.pendingState {
 			origValBytes := account.originState[key]
 
 			if !bytes.Equal(origValBytes, valBytes) {

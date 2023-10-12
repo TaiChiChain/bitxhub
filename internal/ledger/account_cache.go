@@ -55,7 +55,7 @@ func (ac *AccountCache) add(accounts map[string]IAccount) error {
 			ac.innerAccountCache.Add(addr, account.dirtyAccount)
 		}
 
-		if len(account.dirtyState) != 0 {
+		if len(account.pendingState) != 0 {
 			value, ok := ac.stateCache.Get(addr)
 			if ok {
 				stateCache = value
@@ -68,7 +68,7 @@ func (ac *AccountCache) add(accounts map[string]IAccount) error {
 				ac.stateCache.Add(addr, stateCache)
 			}
 
-			for key, value := range account.dirtyState {
+			for key, value := range account.pendingState {
 				stateCache.Add(key, value)
 			}
 		}

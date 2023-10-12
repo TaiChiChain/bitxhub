@@ -270,6 +270,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 	account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 
 	lg.StateLedger.SetState(account, []byte("a"), []byte("b"))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot := lg.StateLedger.FlushDirtyData()
 	err := lg.StateLedger.Commit(1, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -287,6 +288,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 
 	lg.StateLedger.SetState(account, []byte("a"), []byte("3"))
 	lg.StateLedger.SetState(account, []byte("a"), []byte("2"))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot = lg.StateLedger.FlushDirtyData()
 	err = lg.StateLedger.Commit(3, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -294,6 +296,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 	assert.Equal(t, "0xe9fc370dd36c9bd5f67ccfbc031c909f53a3d8bc7084c01362c55f2d42ba841c", stateRoot.String())
 
 	lg.StateLedger.SetBalance(account, new(big.Int).SetInt64(100))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot = lg.StateLedger.FlushDirtyData()
 	err = lg.StateLedger.Commit(4, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -304,6 +307,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 	lg.StateLedger.SetCode(account, code)
 	lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
 	lg.StateLedger.SetState(account, []byte("c"), []byte("2"))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot = lg.StateLedger.FlushDirtyData()
 	err = lg.StateLedger.Commit(5, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -483,6 +487,7 @@ func testChainLedger_Rollback(t *testing.T, kvType string) {
 	ret := crypto1.Keccak256Hash(code[:])
 	codeHash := ret.Bytes()
 	ledger.StateLedger.SetCode(addr0, code[:])
+	ledger.StateLedger.Finalise()
 
 	accounts, stateRoot2 := ledger.StateLedger.FlushDirtyData()
 	ledger.PersistBlockData(genBlockData(2, accounts, stateRoot2))
@@ -500,6 +505,7 @@ func testChainLedger_Rollback(t *testing.T, kvType string) {
 	ret1 := crypto1.Keccak256Hash(code1[:])
 	codeHash1 := ret1.Bytes()
 	ledger.StateLedger.SetCode(addr0, code1[:])
+	ledger.StateLedger.Finalise()
 
 	accounts, stateRoot3 := ledger.StateLedger.FlushDirtyData()
 	ledger.PersistBlockData(genBlockData(3, accounts, stateRoot3))
@@ -611,6 +617,7 @@ func testChainLedger_QueryByPrefix(t *testing.T, kvType string) {
 	assert.Equal(t, []byte("1"), vals[1])
 	assert.Equal(t, []byte("2"), vals[2])
 
+	ledger.StateLedger.Finalise()
 	accounts, stateRoot := ledger.StateLedger.FlushDirtyData()
 	err := ledger.StateLedger.Commit(1, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -668,6 +675,7 @@ func testChainLedger_GetAccount(t *testing.T, kvType string) {
 	ledger.StateLedger.SetState(addr, key0, val0)
 	ledger.StateLedger.SetState(addr, key0, val1)
 	ledger.StateLedger.SetState(addr, key2, nil)
+	ledger.StateLedger.Finalise()
 	accounts, stateRoot = ledger.StateLedger.FlushDirtyData()
 	err = ledger.StateLedger.Commit(3, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -720,6 +728,7 @@ func testChainLedger_AddAccountsToCache(t *testing.T, kvType string) {
 	ledger.StateLedger.SetNonce(addr, 1)
 	ledger.StateLedger.SetState(addr, key, val)
 	ledger.StateLedger.SetCode(addr, code)
+	ledger.StateLedger.Finalise()
 
 	accounts, stateRoot := ledger.StateLedger.FlushDirtyData()
 	ledger.StateLedger.Clear()
@@ -778,6 +787,7 @@ func testChainLedger_AddState(t *testing.T, kvType string) {
 	key0 := "100"
 	value0 := []byte{100}
 	ledger.StateLedger.SetState(account, []byte(key0), value0)
+	ledger.StateLedger.Finalise()
 	accounts, journal := ledger.StateLedger.FlushDirtyData()
 
 	ledger.PersistBlockData(genBlockData(1, accounts, journal))
@@ -792,6 +802,7 @@ func testChainLedger_AddState(t *testing.T, kvType string) {
 	value1 := []byte{101}
 	ledger.StateLedger.SetState(account, []byte(key0), value0)
 	ledger.StateLedger.SetState(account, []byte(key1), value1)
+	ledger.StateLedger.Finalise()
 	accounts, journal = ledger.StateLedger.FlushDirtyData()
 
 	ledger.PersistBlockData(genBlockData(2, accounts, journal))
