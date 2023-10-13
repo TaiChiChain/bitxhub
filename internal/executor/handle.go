@@ -35,11 +35,11 @@ type BlockWrapper struct {
 	invalidTx map[int]InvalidReason
 }
 
-func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction) []*types.Receipt {
+func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height uint64) []*types.Receipt {
 	receipts := make([]*types.Receipt, 0, len(txs))
 
 	for i, tx := range txs {
-		receipts = append(receipts, exec.applyTransaction(i, tx))
+		receipts = append(receipts, exec.applyTransaction(i, tx, height))
 	}
 
 	exec.logger.Debugf("executor executed %d txs", len(txs))
@@ -109,7 +109,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
 	exec.ledger.StateLedger.PrepareBlock(block.BlockHash, block.Height())
-	receipts := exec.applyTransactions(block.Transactions)
+	receipts := exec.applyTransactions(block.Transactions, block.Height())
 
 	// check need turn into NewEpoch
 	epochInfo := exec.rep.EpochInfo
@@ -133,7 +133,6 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		panic(err)
 	}
 
-	exec.getLogsForReceipt(receipts, block.Height(), block.BlockHash)
 	receiptRoot, err := exec.calcReceiptMerkleRoot(receipts)
 	if err != nil {
 		panic(err)
@@ -173,7 +172,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	calcBlockSize.Observe(float64(block.Size()))
 	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 
-	exec.getLogsBlockHashForReceipt(receipts, block.BlockHash)
+	exec.getLogsForReceipt(receipts, block.BlockHash)
 	block.BlockHeader.Bloom = ledger.CreateBloom(receipts)
 
 	data := &ledger.BlockData{
@@ -243,7 +242,7 @@ func (exec *BlockExecutor) postLogsEvent(receipts []*types.Receipt) {
 	exec.logsFeed.Send(logs)
 }
 
-func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction) *types.Receipt {
+func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height uint64) *types.Receipt {
 	defer func() {
 		exec.ledger.StateLedger.SetNonce(tx.GetFrom(), tx.GetNonce()+1)
 		exec.ledger.StateLedger.Finalise()
@@ -322,6 +321,8 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction) *types
 	if msg.To == nil || bytes.Equal(msg.To.Bytes(), common.Address{}.Bytes()) {
 		receipt.ContractAddress = types.NewAddress(crypto.CreateAddress(exec.evm.TxContext.Origin, tx.GetNonce()).Bytes())
 	}
+	receipt.EvmLogs = exec.ledger.StateLedger.GetLogs(*receipt.TxHash, height, &types.Hash{})
+	receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
 
 	return receipt
 }
@@ -402,17 +403,10 @@ func (exec *BlockExecutor) getCurrentGasPrice() *big.Int {
 	return exec.ledger.ChainLedger.GetChainMeta().GasPrice
 }
 
-func (exec *BlockExecutor) getLogsForReceipt(receipts []*types.Receipt, height uint64, hash *types.Hash) {
+func (exec *BlockExecutor) getLogsForReceipt(receipts []*types.Receipt, hash *types.Hash) {
 	for _, receipt := range receipts {
-		receipt.EvmLogs = exec.ledger.StateLedger.GetLogs(*receipt.TxHash, height, hash)
-		receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
-	}
-}
-
-func (exec *BlockExecutor) getLogsBlockHashForReceipt(receipts []*types.Receipt, hash *types.Hash) {
-	for _, receipt := range receipts {
-		for _, evmLog := range receipt.EvmLogs {
-			evmLog.BlockHash = hash
+		for _, log := range receipt.EvmLogs {
+			log.BlockHash = hash
 		}
 	}
 }
