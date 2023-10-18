@@ -107,6 +107,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		txHashList = append(txHashList, tx.GetHash())
 	}
 
+	exec.cumulativeGasUsed = 0
 	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
 	exec.ledger.StateLedger.PrepareBlock(block.BlockHash, block.Height())
 	receipts := exec.applyTransactions(block.Transactions, block.Height())
@@ -325,6 +326,9 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	}
 	receipt.EvmLogs = exec.ledger.StateLedger.GetLogs(*receipt.TxHash, height, &types.Hash{})
 	receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
+	exec.cumulativeGasUsed += result.UsedGas
+	receipt.CumulativeGasUsed = exec.cumulativeGasUsed
+	receipt.EffectiveGasPrice = 0
 
 	return receipt
 }

@@ -165,20 +165,9 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (map[string]a
 		return nil, err
 	}
 
-	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
-	if err != nil {
-		api.logger.Debugf("no block found for height %d", meta.BlockHeight)
-		return nil, err
-	}
-
-	cumulativeGasUsed, err := getBlockCumulativeGas(api.api, block, meta.Index)
-	if err != nil {
-		return nil, err
-	}
-
 	fields := map[string]any{
 		"type":              hexutil.Uint(tx.GetType()),
-		"cumulativeGasUsed": hexutil.Uint64(cumulativeGasUsed),
+		"cumulativeGasUsed": receipt.CumulativeGasUsed,
 		"transactionHash":   hash,
 		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
 		"blockHash":         common.BytesToHash(meta.BlockHash.Bytes()),
@@ -219,6 +208,8 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (map[string]a
 
 	if receipt.ContractAddress != nil {
 		fields["contractAddress"] = common.BytesToAddress(receipt.ContractAddress.Bytes())
+	} else {
+		fields["contractAddress"] = nil
 	}
 
 	if tx.GetTo() != nil {
