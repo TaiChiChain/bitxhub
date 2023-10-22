@@ -177,21 +177,21 @@ type LogModule struct {
 }
 
 type Genesis struct {
-	ChainID         uint64          `mapstructure:"chainid" toml:"chainid"`
-	GasLimit        uint64          `mapstructure:"gas_limit" toml:"gas_limit"`
-	GasPrice        uint64          `mapstructure:"gas_price" toml:"gas_price"`
-	MaxGasPrice     uint64          `mapstructure:"max_gas_price" toml:"max_gas_price"`
-	MinGasPrice     uint64          `mapstructure:"min_gas_price" toml:"min_gas_price"`
-	GasChangeRate   float64         `mapstructure:"gas_change_rate" toml:"gas_change_rate"`
-	Balance         string          `mapstructure:"balance" toml:"balance"`
-	Admins          []*Admin        `mapstructure:"admins" toml:"admins"`
-	InitKycServices []string        `mapstructure:"init_key_services" toml:"init_key_services"`
-	Accounts        []string        `mapstructure:"accounts" toml:"accounts"`
-	EpochInfo       *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
+	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
+	GasLimit               uint64          `mapstructure:"gas_limit" toml:"gas_limit"`
+	GasPrice               uint64          `mapstructure:"gas_price" toml:"gas_price"`
+	MaxGasPrice            uint64          `mapstructure:"max_gas_price" toml:"max_gas_price"`
+	MinGasPrice            uint64          `mapstructure:"min_gas_price" toml:"min_gas_price"`
+	GasChangeRate          float64         `mapstructure:"gas_change_rate" toml:"gas_change_rate"`
+	Balance                string          `mapstructure:"balance" toml:"balance"`
+	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
+	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
+	Accounts               []string        `mapstructure:"accounts" toml:"accounts"`
+	EpochInfo              *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
 }
 
 type Access struct {
-	KycVerification uint8 `mapstructure:"kyc_verification" toml:"kyc_verification"`
+	EnableWhiteList uint8 `mapstructure:"enable_white_list" toml:"enable_white_list"`
 }
 
 type Admin struct {
@@ -358,7 +358,7 @@ func DefaultConfig(epochEnable bool) *Config {
 					Name:    DefaultNodeNames[idx],
 				}
 			}),
-			InitKycServices: DefaultNodeAddrs,
+			InitWhiteListProviders: DefaultNodeAddrs,
 			Accounts: []string{
 				"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 				"0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
@@ -416,7 +416,7 @@ func DefaultConfig(epochEnable bool) *Config {
 			},
 		},
 		Access: Access{
-			KycVerification: 0,
+			EnableWhiteList: 0,
 		},
 	}
 }

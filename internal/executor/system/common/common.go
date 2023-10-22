@@ -25,9 +25,9 @@ const (
 	CouncilManagerContractAddr = "0x0000000000000000000000000000000000001002"
 
 	// Addr2NameContractAddr for unique name mapping to address
-	Addr2NameContractAddr  = "0x0000000000000000000000000000000000001003"
-	KycVerifyContractAddr  = "0x0000000000000000000000000000000000001004"
-	KycServiceContractAddr = "0x0000000000000000000000000000000000001005"
+	Addr2NameContractAddr                = "0x0000000000000000000000000000000000001003"
+	WhiteListContractAddr                = "0x0000000000000000000000000000000000001004"
+	WhiteListProviderManagerContractAddr = "0x0000000000000000000000000000000000001005"
 )
 
 type SystemContractConfig struct {
@@ -58,6 +58,15 @@ func IsInSlice[T ~uint8 | ~string](value T, slice []T) bool {
 	}
 
 	return false
+}
+
+func RemoveFirstMatchStrInSlice(slice []string, val string) []string {
+	for i, v := range slice {
+		if v == val {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }
 
 type Log struct {

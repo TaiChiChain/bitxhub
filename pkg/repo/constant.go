@@ -45,7 +45,7 @@ const (
 	ExecTypeNative = "native"
 	ExecTypeDev    = "dev"
 
-	EnableKycVerify uint8 = 1
+	EnableWhiteList uint8 = 1
 )
 
 var (

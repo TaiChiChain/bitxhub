@@ -30,11 +30,11 @@ func init() {
 		*types.NewAddressByStr(common.CouncilManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
 			return governance.NewCouncilManager(cfg)
 		},
-		*types.NewAddressByStr(common.KycServiceContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
-			return governance.NewKycServiceManager(cfg)
+		*types.NewAddressByStr(common.WhiteListProviderManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return governance.NewWhiteListProviderManager(cfg)
 		},
-		*types.NewAddressByStr(common.KycVerifyContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
-			return access.NewKycVerification(cfg)
+		*types.NewAddressByStr(common.WhiteListContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return access.NewWhiteList(cfg)
 		},
 	}
 }
@@ -64,16 +64,15 @@ func InitGenesisData(genesis *repo.Genesis, lg ledger.StateLedger) error {
 		return err
 	}
 
-	//init kyc services and kyc infos
 	admins := lo.Map[*repo.Admin, string](genesis.Admins, func(x *repo.Admin, _ int) string {
 		return x.Address
 	})
-	totalLength := len(admins) + len(genesis.InitKycServices) + len(genesis.Accounts)
+	totalLength := len(admins) + len(genesis.InitWhiteListProviders) + len(genesis.Accounts)
 	combined := make([]string, 0, totalLength)
 	combined = append(combined, admins...)
-	combined = append(combined, genesis.InitKycServices...)
+	combined = append(combined, genesis.InitWhiteListProviders...)
 	combined = append(combined, genesis.Accounts...)
-	if err := access.InitKycServicesAndKycInfos(lg, combined, genesis.InitKycServices); err != nil {
+	if err := access.InitProvidersAndWhiteList(lg, combined, genesis.InitWhiteListProviders); err != nil {
 		return err
 	}
 	return nil
