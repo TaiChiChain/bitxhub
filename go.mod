@@ -5,10 +5,11 @@ go 1.20
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20231024031802-125ead063f08
-	github.com/axiomesh/axiom-kit v0.0.3-0.20231019082113-9a7c6943722d
+	github.com/axiomesh/axiom-kit v0.0.3-0.20231025085402-9b2b19378e47
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20231021124622-1a43df52dc25
 	github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53
 	github.com/cbergoon/merkletree v0.2.0
+	github.com/cockroachdb/pebble v0.0.0-20230728201528-5e7f88523982
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/gammazero/workerpool v1.1.3
@@ -45,7 +46,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.10.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/pebble v0.0.0-20230728201528-5e7f88523982 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230613231145-182959a1fad6 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect

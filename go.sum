@@ -60,8 +60,8 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/axiomesh/axiom-bft v0.0.3-0.20231024031802-125ead063f08 h1:hibfa9BTcN/qIV+wgdr5sokzBFM+J/W7cd/Gz8dmGfU=
 github.com/axiomesh/axiom-bft v0.0.3-0.20231024031802-125ead063f08/go.mod h1:FCwmVN+1RBEAr21LxZucF6rODPbqTcRHxUN4u7gi7aM=
-github.com/axiomesh/axiom-kit v0.0.3-0.20231019082113-9a7c6943722d h1:pRxTFvAi6JifIB5T1a4WGgy4V+HanVDkTm2HwlWZ1Ps=
-github.com/axiomesh/axiom-kit v0.0.3-0.20231019082113-9a7c6943722d/go.mod h1:XuDEVIAtMfrAHhgEnAE9zEnlH/5ehyZwLVZRm4/RzDU=
+github.com/axiomesh/axiom-kit v0.0.3-0.20231025085402-9b2b19378e47 h1:RagHWH79JnGqlMLCECSqM36e0RihFdKcpvYbot1i9FY=
+github.com/axiomesh/axiom-kit v0.0.3-0.20231025085402-9b2b19378e47/go.mod h1:XuDEVIAtMfrAHhgEnAE9zEnlH/5ehyZwLVZRm4/RzDU=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20231021124622-1a43df52dc25 h1:X3uxHCSaShdoTz+VbOgNFXb8wDOiissG4QVu9K5zWjA=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20231021124622-1a43df52dc25/go.mod h1:1ivoV7H5i1lblQruPNIUBt9Rud6H1jXrbOZbY2yMMPQ=
 github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53 h1:xHSy2tB4HaQL0CsiRT8XecLFKyXVwHrH01G/HgqzsUo=

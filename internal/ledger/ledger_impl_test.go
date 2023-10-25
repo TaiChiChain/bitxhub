@@ -1,12 +1,15 @@
 package ledger
 
 import (
+	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -975,7 +978,7 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 		rep.RepoRoot = repoRoot
 	}
 
-	err := storagemgr.Initialize(kv)
+	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize)
 	require.Nil(t, err)
 	rep.Config.Monitor.EnableExpensive = true
 	l, err := NewLedger(rep)
@@ -1013,4 +1016,103 @@ func TestEvmLogs(t *testing.T) {
 	logs.SetBHash(hash)
 	logs.SetTHash(hash)
 	logs.SetIndex(1)
+}
+
+func BenchmarkStateLedgerWrite(b *testing.B) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+
+	for name, tc := range testcase {
+		b.Run(name, func(b *testing.B) {
+			r, _ := repo.Default(b.TempDir())
+			storagemgr.Initialize(tc.kvType, 256)
+			l, _ := NewLedger(r)
+			benchStateLedgerWrite(b, l.StateLedger)
+		})
+	}
+}
+
+func BenchmarkStateLedgerRead(b *testing.B) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+
+	for name, tc := range testcase {
+		b.Run(name, func(b *testing.B) {
+			r, _ := repo.Default(b.TempDir())
+			storagemgr.Initialize(tc.kvType, 256)
+			l, _ := NewLedger(r)
+			benchStateLedgerRead(b, l.StateLedger)
+		})
+	}
+}
+
+func benchStateLedgerWrite(b *testing.B, sl StateLedger) {
+	var (
+		keys, vals = makeDataset(5_000_000, 32, 32, false)
+	)
+
+	b.Run("Write", func(b *testing.B) {
+		stateLedger := sl.(*StateLedgerImpl)
+		addr := types.NewAddress(LeftPadBytes([]byte{1}, 20))
+		for i := 0; i < len(keys); i++ {
+			stateLedger.SetState(addr, keys[i], vals[i])
+		}
+		accounts, stateRoot := stateLedger.FlushDirtyData()
+		b.ResetTimer()
+		b.ReportAllocs()
+		stateLedger.Commit(1, accounts, stateRoot)
+	})
+}
+
+func benchStateLedgerRead(b *testing.B, sl StateLedger) {
+	var (
+		keys, vals = makeDataset(10_000_000, 32, 32, false)
+	)
+	stateLedger := sl.(*StateLedgerImpl)
+	addr := types.NewAddress(LeftPadBytes([]byte{1}, 20))
+	for i := 0; i < len(keys); i++ {
+		stateLedger.SetState(addr, keys[i], vals[i])
+	}
+	accounts, stateRoot := stateLedger.FlushDirtyData()
+	stateLedger.Commit(1, accounts, stateRoot)
+
+	b.Run("Read", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < len(keys); i++ {
+			stateLedger.GetState(addr, keys[i])
+		}
+	})
+}
+
+func makeDataset(size, ksize, vsize int, order bool) ([][]byte, [][]byte) {
+	var keys [][]byte
+	var vals [][]byte
+	for i := 0; i < size; i += 1 {
+		keys = append(keys, randBytes(ksize))
+		vals = append(vals, randBytes(vsize))
+	}
+
+	// order generated slice according to bytes order
+	if order {
+		sort.Slice(keys, func(i, j int) bool { return bytes.Compare(keys[i], keys[j]) < 0 })
+	}
+	return keys, vals
+}
+
+// randomHash generates a random blob of data and returns it as a hash.
+func randBytes(len int) []byte {
+	buf := make([]byte, len)
+	if n, err := rand.Read(buf); n != len || err != nil {
+		panic(err)
+	}
+	return buf
 }

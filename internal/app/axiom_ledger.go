@@ -96,7 +96,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 func PrepareAxiomLedger(rep *repo.Repo) error {
 	types.InitEIP155Signer(big.NewInt(int64(rep.Config.Genesis.ChainID)))
 
-	if err := storagemgr.Initialize(rep.Config.Storage.KvType); err != nil {
+	if err := storagemgr.Initialize(rep.Config.Storage.KvType, rep.Config.Storage.KvCacheSize); err != nil {
 		return fmt.Errorf("storagemgr initialize: %w", err)
 	}
 	if err := raiseUlimit(rep.Config.Ulimit); err != nil {
