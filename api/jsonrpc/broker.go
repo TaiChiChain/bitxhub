@@ -11,6 +11,7 @@ import (
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 
+	_ "github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers/native"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/ratelimiter"

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -117,4 +118,8 @@ func (exec *ExecutorDev) postBlockEvent(block *types.Block, txHashList []*types.
 		Block:      block,
 		TxHashList: txHashList,
 	})
+}
+
+func (exec *ExecutorDev) GetChainConfig() *params.ChainConfig {
+	return nil
 }

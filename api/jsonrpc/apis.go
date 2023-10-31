@@ -7,6 +7,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/axm"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/filters"
+	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/net"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/web3"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
@@ -15,12 +16,12 @@ import (
 
 // RPC namespaces and API version
 const (
-	Web3Namespace = "web3"
-	EthNamespace  = "eth"
-	NetNamespace  = "net"
-	AxmNamespace  = "axm"
-
-	apiVersion = "1.0"
+	Web3Namespace  = "web3"
+	EthNamespace   = "eth"
+	NetNamespace   = "net"
+	AxmNamespace   = "axm"
+	DebugNamespace = "debug"
+	apiVersion     = "1.0"
 )
 
 // GetAPIs returns the list of all APIs from the Ethereum namespaces
@@ -86,6 +87,15 @@ func GetAPIs(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) ([]rpc.
 			Namespace: NetNamespace,
 			Version:   apiVersion,
 			Service:   net.NewAPI(rep),
+			Public:    true,
+		},
+	)
+
+	apis = append(apis,
+		rpc.API{
+			Namespace: DebugNamespace,
+			Version:   apiVersion,
+			Service:   tracers.NewTracerAPI(rep, api, logger),
 			Public:    true,
 		},
 	)

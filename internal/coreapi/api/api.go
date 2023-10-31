@@ -3,6 +3,7 @@ package api
 import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -34,6 +35,9 @@ type BrokerAPI interface {
 	GetSystemContract(addr *ethcommon.Address) (common.SystemContract, bool)
 	ConsensusReady() error
 	GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
+
+	ChainConfig() *params.ChainConfig
+	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error)
 }
 
 type NetworkAPI interface {

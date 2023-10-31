@@ -2,6 +2,7 @@ package executor
 
 import (
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
@@ -34,4 +35,6 @@ type Executor interface {
 	SubscribeLogsEvent(chan<- []*types.EvmLog) event.Subscription
 
 	NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error)
+
+	GetChainConfig() *params.ChainConfig
 }

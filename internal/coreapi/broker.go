@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -13,6 +14,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/eth-kit/adaptor"
 	vm "github.com/axiomesh/eth-kit/evm"
 )
 
@@ -153,4 +155,60 @@ func (b *BrokerAPI) GetSystemContract(addr *ethcommon.Address) (common.SystemCon
 		return nil, false
 	}
 	return system.GetSystemContract(types.NewAddress(addr.Bytes()))
+}
+
+func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error) {
+	if block.Height() == 1 {
+		return nil, vm.BlockContext{}, nil, errors.New("no transaction in genesis")
+	}
+	parent, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockByHash(block.BlockHeader.ParentHash)
+	if err != nil || parent == nil {
+		return nil, vm.BlockContext{}, nil, fmt.Errorf("parent %#x not found", *block.BlockHeader.ParentHash)
+	}
+
+	statedb := b.axiomLedger.ViewLedger.StateLedger.NewView(parent)
+
+	if err != nil {
+		return nil, vm.BlockContext{}, nil, err
+	}
+	if txIndex == 0 && len(block.Transactions) == 0 {
+		return nil, vm.BlockContext{}, &statedb, nil
+	}
+
+	for idx, tx := range block.Transactions {
+		// Assemble the transaction call message and return if the requested offset
+		msg := adaptor.TransactionToMessage(tx)
+		txContext := vm.NewEVMTxContext(msg)
+
+		context := vm.NewEVMBlockContext(block.Height(), uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(block))
+		if idx == txIndex {
+			return msg, context, &statedb, nil
+		}
+		// Not yet the searched for transaction, execute on top of the current state
+		vmenv := vm.NewEVM(context, txContext, statedb, b.axiomLedger.BlockExecutor.GetChainConfig(), vm.Config{})
+
+		statedb.SetTxContext(tx.GetHash(), idx)
+		if _, err := vm.ApplyMessage(vmenv, msg, new(vm.GasPool).AddGas(tx.GetGas())); err != nil {
+			return nil, vm.BlockContext{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.GetHash(), err)
+		}
+		// Ensure any modifications are committed to the state
+		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
+		statedb.Finalise()
+	}
+	return nil, vm.BlockContext{}, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
+
+}
+
+func (b *BrokerAPI) ChainConfig() *params.ChainConfig {
+	return b.axiomLedger.BlockExecutor.GetChainConfig()
+}
+
+func getBlockHashFunc(block *types.Block) vm.GetHashFunc {
+	return func(n uint64) ethcommon.Hash {
+		hash := block.BlockHash
+		if hash == nil {
+			return ethcommon.Hash{}
+		}
+		return ethcommon.BytesToHash(hash.Bytes())
+	}
 }

@@ -407,6 +407,10 @@ func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx ethvm.TxContext, vmConfig 
 	return ethvm.NewEVM(blkCtx, txCtx, lg.StateLedger, exec.evmChainCfg, vmConfig), nil
 }
 
+func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {
+	return exec.evmChainCfg
+}
+
 // getCurrentGasPrice returns the current block's gas price, which is
 // stored in the last block's blockheader
 func (exec *BlockExecutor) getCurrentGasPrice() *big.Int {
