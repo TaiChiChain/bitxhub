@@ -23,19 +23,19 @@ func TestAccountCache_clear(t *testing.T) {
 	addr := &types.Address{}
 	err = accountCache.add(map[string]IAccount{
 		addr.String(): &SimpleAccount{
-			Addr:           &types.Address{},
-			originAccount:  &InnerAccount{},
-			dirtyAccount:   &InnerAccount{},
-			originState:    make(map[string][]byte),
-			pendingState:   make(map[string][]byte),
-			dirtyState:     make(map[string][]byte),
-			originCode:     nil,
-			dirtyCode:      code,
-			dirtyStateHash: &types.Hash{},
-			ldb:            nil,
-			cache:          nil,
-			changer:        &stateChanger{},
-			suicided:       false,
+			Addr:             &types.Address{},
+			originAccount:    &InnerAccount{},
+			dirtyAccount:     &InnerAccount{},
+			originState:      make(map[string][]byte),
+			pendingState:     make(map[string][]byte),
+			dirtyState:       make(map[string][]byte),
+			originCode:       nil,
+			dirtyCode:        code,
+			pendingStateHash: &types.Hash{},
+			ldb:              nil,
+			cache:            nil,
+			changer:          &stateChanger{},
+			suicided:         false,
 		},
 	})
 	assert.Nil(t, err)
@@ -100,6 +100,11 @@ func TestAccount_GetState(t *testing.T) {
 			assert.False(t, ok)
 			assert.Nil(t, v)
 			account.GetCommittedState([]byte("a"))
+
+			account.Finalise()
+			ok, v = account.GetState([]byte("a"))
+			assert.False(t, ok)
+			assert.Nil(t, v)
 		})
 	}
 }

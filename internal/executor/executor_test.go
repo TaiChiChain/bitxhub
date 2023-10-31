@@ -112,6 +112,42 @@ func TestSubscribeLogsEvent(t *testing.T) {
 	assert.NotNil(t, subscription)
 }
 
+func TestGetLogsForReceipt(t *testing.T) {
+	executor := executor_start(t)
+	receipts := []*types.Receipt{{
+		EvmLogs: []*types.EvmLog{{
+			BlockNumber: 0,
+		}},
+	}}
+	executor.getLogsForReceipt(receipts, &types.Hash{})
+}
+
+func TestGetBlockHashFunc(t *testing.T) {
+	r, err := repo.Default(t.TempDir())
+	assert.Nil(t, err)
+
+	mockCtl := gomock.NewController(t)
+	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+	mockLedger := &ledger.Ledger{
+		ChainLedger: chainLedger,
+		StateLedger: stateLedger,
+	}
+
+	// mock data for ledger
+	chainMeta := &types.ChainMeta{
+		Height:    1,
+		BlockHash: types.NewHashByStr(from),
+	}
+	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
+	chainLedger.EXPECT().GetBlockHash(gomock.Any()).Return(nil)
+
+	executor, _ := New(r, mockLedger)
+
+	getHash := getBlockHashFunc(executor.ledger.ChainLedger)
+	getHash(10)
+}
+
 func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	r, err := repo.Default(t.TempDir())
 	assert.Nil(t, err)
@@ -320,18 +356,6 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 		exec.processExecuteEvent(rollbackCommitEvent1)
 	})
 
-	t.Run("test getLogsBlockHashForReceipt", func(t *testing.T) {
-		var evmLog []*types.EvmLog
-		evmLog = append(evmLog, &types.EvmLog{
-			BlockNumber: 1,
-		})
-		var receipt []*types.Receipt
-		receipt = append(receipt, &types.Receipt{
-			EvmLogs: evmLog,
-		})
-		exec.getLogsBlockHashForReceipt(receipt[:], genesisBlock.BlockHash)
-	})
-
 	assert.Nil(t, exec.Stop())
 }
 
@@ -462,6 +486,128 @@ func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
 	assert.Equal(t, types.ReceiptSUCCESS, res[2].Status)
 }
 
+func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
+	r, err := repo.Default(t.TempDir())
+	assert.Nil(t, err)
+	repoRoot := r.RepoRoot
+	mockCtl := gomock.NewController(t)
+	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+	mockLedger := &ledger.Ledger{
+		ChainLedger: chainLedger,
+		StateLedger: stateLedger,
+	}
+
+	// mock data for ledger
+	chainMeta := &types.ChainMeta{
+		Height:    1,
+		GasPrice:  big.NewInt(minGasPrice),
+		BlockHash: types.NewHashByStr(from),
+	}
+
+	id := fmt.Sprintf("%s-%s-%d", srcMethod, dstMethod, 1)
+
+	hash := types.NewHash([]byte{1})
+	val, err := json.Marshal(hash)
+	assert.Nil(t, err)
+
+	accountCache, err := ledger.NewAccountCache()
+	assert.Nil(t, err)
+	ld, err := leveldb.New(filepath.Join(repoRoot, "executor"), nil)
+	assert.Nil(t, err)
+	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.NodeManagerContractAddr), ledger.NewChanger())
+
+	contractAddr := types.NewAddressByStr("0xdac17f958d2ee523a2206206994597c13d831ec7")
+	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
+	stateLedger.EXPECT().Commit(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	stateLedger.EXPECT().Clear().AnyTimes()
+	stateLedger.EXPECT().GetState(contractAddr, []byte(fmt.Sprintf("index-tx-%s", id))).Return(true, val).AnyTimes()
+	chainLedger.EXPECT().PersistExecutionResult(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	stateLedger.EXPECT().FlushDirtyData().Return(make(map[string]ledger.IAccount), &types.Hash{}).AnyTimes()
+	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
+	stateLedger.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().Finalise().AnyTimes()
+	stateLedger.EXPECT().Snapshot().Return(1).AnyTimes()
+	stateLedger.EXPECT().RevertToSnapshot(1).AnyTimes()
+	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(nil, errors.New("block not found")).AnyTimes()
+	stateLedger.EXPECT().PrepareEVM(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetEVMNonce(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetEVMNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
+	stateLedger.EXPECT().GetBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
+	stateLedger.EXPECT().GetEVMBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
+	stateLedger.EXPECT().SubEVMBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().ExistEVM(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().CreateEVMAccount(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().AddEVMBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetEVMCode(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetEVMRefund().AnyTimes()
+	stateLedger.EXPECT().GetEVMCodeHash(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+
+	signer, err := types.GenerateSigner()
+	assert.Nil(t, err)
+	err = governance.InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: signer.Addr.String(),
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: "0x1220000000000000000000000000000000000000",
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: "0x1230000000000000000000000000000000000000",
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: "0x1240000000000000000000000000000000000000",
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "1000000")
+	assert.Nil(t, err)
+	err = governance.InitNodeMembers(stateLedger, []*governance.NodeMember{
+		{
+			NodeId: "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+		},
+	})
+	assert.Nil(t, err)
+
+	exec, err := New(r, mockLedger)
+	assert.Nil(t, err)
+
+	rawTx := "0xf86c8085147d35700082520894f927bb571eaab8c9a361ab405c9e4891c5024380880de0b6b3a76400008025a00b8e3b66c1e7ae870802e3ef75f1ec741f19501774bd5083920ce181c2140b99a0040c122b7ebfb3d33813927246cbbad1c6bf210474f5d28053990abff0fd4f53"
+	tx4 := &types.Transaction{}
+	err = tx4.Unmarshal(hexutil.Decode(rawTx))
+	assert.Nil(t, err)
+
+	var txs3 []*types.Transaction
+	tx5, _, err := types.GenerateTransactionAndSigner(uint64(0), types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), big.NewInt(1), nil)
+	assert.Nil(t, err)
+	// test system contract
+	data := generateNodeAddProposeData(t, NodeExtraArgs{
+		Nodes: []*NodeMember{
+			{
+				NodeId: "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
+		},
+	})
+	assert.Nil(t, err)
+	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.NodeManagerContractAddr), big.NewInt(0), data, signer)
+	assert.Nil(t, err)
+
+	txs3 = append(txs3, tx4, tx5, tx6)
+	exec.ApplyReadonlyTransactions(txs3)
+}
+
 func generateNodeAddProposeData(t *testing.T, extraArgs NodeExtraArgs) []byte {
 	// test system contract
 	gabi, err := governance.GetABI()
@@ -528,7 +674,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 
 	for kvType := range testcase {
 		t.Run(kvType, func(t *testing.T) {
-			err = storagemgr.Initialize(kvType)
+			err = storagemgr.Initialize(kvType, repo.KVStorageCacheSize)
 			require.Nil(t, err)
 			ldg, err := ledger.NewLedger(createMockRepo(t))
 			require.Nil(t, err)

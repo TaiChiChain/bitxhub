@@ -39,6 +39,7 @@ func Initialize(genesis *repo.Genesis, lg *ledger.Ledger) error {
 	if err != nil {
 		return err
 	}
+	lg.StateLedger.Finalise()
 
 	accounts, stateRoot := lg.StateLedger.FlushDirtyData()
 

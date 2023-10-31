@@ -1,6 +1,9 @@
 package system
 
 import (
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
@@ -8,8 +11,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 )
 
 // addr2ContractConstruct is address to system contract
@@ -76,11 +77,4 @@ func InitGenesisData(genesis *repo.Genesis, lg ledger.StateLedger) error {
 		return err
 	}
 	return nil
-}
-
-// CheckAndUpdateAllState check and update all system contract state if need
-func CheckAndUpdateAllState(lastHeight uint64, stateLedger ledger.StateLedger) {
-	for _, contractConstruct := range addr2ContractConstruct {
-		contractConstruct(globalCfg).CheckAndUpdateState(lastHeight, stateLedger)
-	}
 }

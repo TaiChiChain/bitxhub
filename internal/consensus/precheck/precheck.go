@@ -1,6 +1,7 @@
 package precheck
 
 import (
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 )
 
@@ -14,4 +15,6 @@ type PreCheck interface {
 
 	// CommitValidTxs returns a channel of valid transactions
 	CommitValidTxs() chan *ValidTxs
+
+	UpdateEpochInfo(epoch *rbft.EpochInfo)
 }

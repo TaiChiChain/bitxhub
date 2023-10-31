@@ -52,6 +52,10 @@ type StateLedgerImpl struct {
 	logs       *evmLogs
 
 	transientStorage transientStorage
+
+	// enableExpensiveMetric determines if costly metrics gathering is allowed or not.
+	// The goal is to separate standard metrics for health monitoring and debug metrics that might impact runtime performance.
+	enableExpensiveMetric bool
 }
 
 // NewView get a view
@@ -95,21 +99,23 @@ func newStateLedger(rep *repo.Repo, stateStorage storage.Storage) (StateLedger, 
 	if err != nil {
 		return nil, fmt.Errorf("init account cache failed: %w", err)
 	}
+	accountCache.enableExpensiveMetric = rep.Config.Monitor.EnableExpensive
 
 	ledger := &StateLedgerImpl{
-		repo:          rep,
-		logger:        loggers.Logger(loggers.Storage),
-		ldb:           stateStorage,
-		minJnlHeight:  minJnlHeight,
-		maxJnlHeight:  maxJnlHeight,
-		accounts:      make(map[string]IAccount),
-		accountCache:  accountCache,
-		prevJnlHash:   prevJnlHash,
-		preimages:     make(map[types.Hash][]byte),
-		changer:       NewChanger(),
-		accessList:    NewAccessList(),
-		logs:          NewEvmLogs(),
-		blockJournals: make(map[string]*BlockJournal),
+		repo:                  rep,
+		logger:                loggers.Logger(loggers.Storage),
+		ldb:                   stateStorage,
+		minJnlHeight:          minJnlHeight,
+		maxJnlHeight:          maxJnlHeight,
+		accounts:              make(map[string]IAccount),
+		accountCache:          accountCache,
+		prevJnlHash:           prevJnlHash,
+		preimages:             make(map[types.Hash][]byte),
+		changer:               NewChanger(),
+		accessList:            NewAccessList(),
+		logs:                  NewEvmLogs(),
+		blockJournals:         make(map[string]*BlockJournal),
+		enableExpensiveMetric: rep.Config.Monitor.EnableExpensive,
 	}
 	return ledger, nil
 }

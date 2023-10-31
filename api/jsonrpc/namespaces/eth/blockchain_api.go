@@ -40,13 +40,29 @@ func NewBlockChainAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger
 }
 
 // ChainId returns the chain's identifier in hex format
-func (api *BlockChainAPI) ChainId() (ethhexutil.Uint, error) { // nolint
+func (api *BlockChainAPI) ChainId() (ret ethhexutil.Uint, err error) { // nolint
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debug("eth_chainId")
 	return ethhexutil.Uint(api.rep.Config.Genesis.ChainID), nil
 }
 
 // BlockNumber returns the current block number.
-func (api *BlockChainAPI) BlockNumber() (ethhexutil.Uint64, error) {
+func (api *BlockChainAPI) BlockNumber() (ret ethhexutil.Uint64, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debug("eth_blockNumber")
 	meta, err := api.api.Chain().Meta()
 	if err != nil {
@@ -57,7 +73,15 @@ func (api *BlockChainAPI) BlockNumber() (ethhexutil.Uint64, error) {
 }
 
 // GetBalance returns the provided account's balance, blockNum is ignored.
-func (api *BlockChainAPI) GetBalance(address common.Address, blockNrOrHash *rpctypes.BlockNumberOrHash) (*ethhexutil.Big, error) {
+func (api *BlockChainAPI) GetBalance(address common.Address, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret *ethhexutil.Big, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getBalance, address: %s, block number : %d", address.String())
 
 	stateLedger, err := getStateLedgerAt(api.api)
@@ -89,12 +113,28 @@ type StorageResult struct {
 
 // todo
 // GetProof returns the Merkle-proof for a given account and optionally some storage keys.
-func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string, blockNrOrHash *rpctypes.BlockNumberOrHash) (*AccountResult, error) {
+func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret *AccountResult, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	return nil, ErrNotSupportApiError
 }
 
 // GetBlockByNumber returns the block identified by number.
-func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx bool) (map[string]any, error) {
+func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx bool) (ret map[string]any, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getBlockByNumber, number: %d, full: %v", blockNum, fullTx)
 
 	if blockNum == rpctypes.PendingBlockNumber || blockNum == rpctypes.LatestBlockNumber {
@@ -114,7 +154,15 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 }
 
 // GetBlockByHash returns the block identified by hash.
-func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (map[string]any, error) {
+func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map[string]any, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getBlockByHash, hash: %s, full: %v", hash.String(), fullTx)
 
 	block, err := api.api.Broker().GetBlock("HASH", hash.String())
@@ -125,7 +173,15 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (map[str
 }
 
 // GetCode returns the contract code at the given address, blockNum is ignored.
-func (api *BlockChainAPI) GetCode(address common.Address, blockNrOrHash *rpctypes.BlockNumberOrHash) (ethhexutil.Bytes, error) {
+func (api *BlockChainAPI) GetCode(address common.Address, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret ethhexutil.Bytes, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getCode, address: %s", address.String())
 
 	stateLedger, err := getStateLedgerAt(api.api)
@@ -139,7 +195,15 @@ func (api *BlockChainAPI) GetCode(address common.Address, blockNrOrHash *rpctype
 }
 
 // GetStorageAt returns the contract storage at the given address and key, blockNum is ignored.
-func (api *BlockChainAPI) GetStorageAt(address common.Address, key string, blockNrOrHash *rpctypes.BlockNumberOrHash) (ethhexutil.Bytes, error) {
+func (api *BlockChainAPI) GetStorageAt(address common.Address, key string, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret ethhexutil.Bytes, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getStorageAt, address: %s, key: %s", address, key)
 
 	stateLedger, err := getStateLedgerAt(api.api)
@@ -161,7 +225,15 @@ func (api *BlockChainAPI) GetStorageAt(address common.Address, key string, block
 }
 
 // Call performs a raw contract call.
-func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, _ *map[common.Address]rpctypes.Account) (ethhexutil.Bytes, error) {
+func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, _ *map[common.Address]rpctypes.Account) (ret ethhexutil.Bytes, err error) {
+	defer func(start time.Time) {
+		invokeCallContractDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_call, args: %v", args)
 
 	receipt, err := DoCall(api.ctx, api.rep.Config.Executor.EVM, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
@@ -200,7 +272,11 @@ func DoCall(ctx context.Context, evmCfg repo.EVM, api api.CoreAPI, args types.Ca
 	// check if call system contract
 	systemContract, ok := api.Broker().GetSystemContract(msg.To)
 	if ok {
-		systemContract.Reset(stateLedger)
+		chainMeta, err := api.Chain().Meta()
+		if err != nil {
+			return nil, err
+		}
+		systemContract.Reset(chainMeta.Height, stateLedger)
 		return systemContract.Run(msg)
 	}
 
@@ -234,7 +310,15 @@ func DoCall(ctx context.Context, evmCfg repo.EVM, api api.CoreAPI, args types.Ca
 // EstimateGas returns an estimate of gas usage for the given smart contract call.
 // It adds 2,000 gas to the returned value instead of using the gas adjustment
 // param from the SDK.
-func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash) (ethhexutil.Uint64, error) {
+func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret ethhexutil.Uint64, err error) {
+	defer func(start time.Time) {
+		invokeCallContractDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_estimateGas, args: %s", args)
 
 	// Judge whether this is system contract
@@ -258,7 +342,8 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	if args.Gas != nil && uint64(*args.Gas) >= params.TxGas {
 		hi = uint64(*args.Gas)
 	} else {
-		hi = api.rep.Config.Genesis.GasLimit
+		// todo : api need get current epochInfo
+		hi = api.rep.Config.Genesis.EpochInfo.FinanceParams.GasLimit
 	}
 
 	var feeCap *big.Int
@@ -367,11 +452,7 @@ func (s *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *rpc
 // FormatBlock creates an ethereum block from a tendermint header and ethereum-formatted
 // transactions.
 func formatBlock(api api.CoreAPI, config *repo.Config, block *types.Block, fullTx bool) (map[string]any, error) {
-	cumulativeGas, err := getBlockCumulativeGas(api, block, uint64(len(block.Transactions)-1))
-	if err != nil {
-		return nil, err
-	}
-
+	var err error
 	formatTx := func(tx *types.Transaction, index uint64) (any, error) {
 		return tx.GetHash().ETHHash(), nil
 	}
@@ -405,8 +486,8 @@ func formatBlock(api api.CoreAPI, config *repo.Config, block *types.Block, fullT
 		"miner":            block.BlockHeader.ProposerAccount,
 		"extraData":        ethhexutil.Bytes{},
 		"size":             ethhexutil.Uint64(block.Size()),
-		"gasLimit":         ethhexutil.Uint64(config.Genesis.GasLimit), // Static gas limit
-		"gasUsed":          ethhexutil.Uint64(cumulativeGas),
+		"gasLimit":         ethhexutil.Uint64(config.Genesis.EpochInfo.FinanceParams.GasLimit), // Static gas limit
+		"gasUsed":          ethhexutil.Uint64(block.BlockHeader.GasUsed),
 		"timestamp":        ethhexutil.Uint64(block.BlockHeader.Timestamp),
 		"transactions":     transactions,
 		"receiptsRoot":     block.BlockHeader.ReceiptRoot.ETHHash(),

@@ -26,17 +26,6 @@ const (
 	admin4 = "0x1240000000000000000000000000000000000000"
 )
 
-type TestCouncilProposal struct {
-	ID          uint64
-	Type        ProposalType
-	Proposer    string
-	TotalVotes  uint64
-	PassVotes   []string
-	RejectVotes []string
-	Status      ProposalStatus
-	Candidates  []*CouncilMember
-}
-
 func TestRunForPropose(t *testing.T) {
 	cm := NewCouncilManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
@@ -190,37 +179,7 @@ func TestRunForPropose(t *testing.T) {
 						},
 					},
 				})),
-				ReturnData: generateReturnData(t, &TestCouncilProposal{
-					ID:          1,
-					Type:        CouncilElect,
-					Proposer:    admin1,
-					TotalVotes:  4,
-					PassVotes:   []string{},
-					RejectVotes: []string{},
-					Status:      Voting,
-					Candidates: []*CouncilMember{
-						{
-							Address: admin1,
-							Weight:  1,
-							Name:    "111",
-						},
-						{
-							Address: admin2,
-							Weight:  1,
-							Name:    "222",
-						},
-						{
-							Address: admin3,
-							Weight:  1,
-							Name:    "333",
-						},
-						{
-							Address: admin4,
-							Weight:  1,
-							Name:    "444",
-						},
-					},
-				}),
+				ReturnData: generateReturnData(t, cm.gov, 1),
 			},
 			Err: nil,
 		},
@@ -250,38 +209,13 @@ func TestRunForPropose(t *testing.T) {
 					},
 				},
 			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateProposeData(t, CouncilExtraArgs{
-					Candidates: []*CouncilMember{
-						{
-							Address: admin1,
-							Weight:  1,
-							Name:    "111",
-						},
-						{
-							Address: admin2,
-							Weight:  1,
-							Name:    "222",
-						},
-						{
-							Address: admin3,
-							Weight:  1,
-							Name:    "333",
-						},
-						{
-							Address: admin4,
-							Weight:  1,
-							Name:    "444",
-						},
-					},
-				})),
-			},
-			Err: ErrNotFoundCouncilMember,
+			Expected: vm.ExecutionResult{},
+			Err:      ErrNotFoundCouncilMember,
 		},
 	}
 
 	for _, test := range testcases {
-		cm.Reset(stateLedger)
+		cm.Reset(1, stateLedger)
 
 		result, err := cm.Run(&vm.Message{
 			From: types.NewAddressByStr(test.Caller).ETHAddress(),
@@ -293,14 +227,7 @@ func TestRunForPropose(t *testing.T) {
 			assert.Equal(t, nil, result.Err)
 			assert.Equal(t, test.Expected.UsedGas, result.UsedGas)
 
-			expectedCouncil := &Council{}
-			err = json.Unmarshal(test.Expected.ReturnData, expectedCouncil)
-			assert.Nil(t, err)
-
-			actualCouncil := &Council{}
-			err = json.Unmarshal(result.ReturnData, actualCouncil)
-			assert.Nil(t, err)
-			assert.Equal(t, *expectedCouncil, *actualCouncil)
+			assert.EqualValues(t, test.Expected.ReturnData, result.ReturnData)
 		}
 	}
 }
@@ -349,9 +276,9 @@ func TestRunForVote(t *testing.T) {
 	}, "10000000")
 	assert.Nil(t, err)
 
-	cm.Reset(stateLedger)
+	cm.Reset(1, stateLedger)
 
-	cm.propose(types.NewAddressByStr(admin1).ETHAddress(), &CouncilProposalArgs{
+	_, err = cm.propose(types.NewAddressByStr(admin1).ETHAddress(), &CouncilProposalArgs{
 		BaseProposalArgs: BaseProposalArgs{
 			ProposalType: uint8(CouncilElect),
 			Title:        "council elect",
@@ -383,6 +310,7 @@ func TestRunForVote(t *testing.T) {
 			},
 		},
 	})
+	assert.Nil(t, err)
 
 	testcases := []struct {
 		Caller   string
@@ -395,37 +323,6 @@ func TestRunForVote(t *testing.T) {
 			Data:   generateVoteData(t, cm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
 				UsedGas: common.CalculateDynamicGas(generateVoteData(t, cm.proposalID.GetID()-1, Pass)),
-				ReturnData: generateReturnData(t, &TestCouncilProposal{
-					ID:          1,
-					Type:        CouncilElect,
-					Proposer:    admin1,
-					TotalVotes:  3,
-					PassVotes:   []string{admin1, admin2},
-					RejectVotes: []string{},
-					Status:      Voting,
-					Candidates: []*CouncilMember{
-						{
-							Address: admin1,
-							Weight:  2,
-							Name:    "111",
-						},
-						{
-							Address: admin2,
-							Weight:  2,
-							Name:    "222",
-						},
-						{
-							Address: admin3,
-							Weight:  2,
-							Name:    "333",
-						},
-						{
-							Address: admin4,
-							Weight:  2,
-							Name:    "444",
-						},
-					},
-				}),
 			},
 			Err: nil,
 		},
@@ -434,37 +331,6 @@ func TestRunForVote(t *testing.T) {
 			Data:   generateVoteData(t, cm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
 				UsedGas: common.CalculateDynamicGas(generateVoteData(t, cm.proposalID.GetID()-1, Pass)),
-				ReturnData: generateReturnData(t, &TestCouncilProposal{
-					ID:          1,
-					Type:        CouncilElect,
-					Proposer:    admin1,
-					TotalVotes:  3,
-					PassVotes:   []string{admin1, admin2, admin3},
-					RejectVotes: []string{},
-					Status:      Approved,
-					Candidates: []*CouncilMember{
-						{
-							Address: admin1,
-							Weight:  2,
-							Name:    "111",
-						},
-						{
-							Address: admin2,
-							Weight:  2,
-							Name:    "222",
-						},
-						{
-							Address: admin3,
-							Weight:  2,
-							Name:    "333",
-						},
-						{
-							Address: admin4,
-							Weight:  2,
-							Name:    "444",
-						},
-					},
-				}),
 			},
 			Err: nil,
 		},
@@ -477,7 +343,7 @@ func TestRunForVote(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		cm.Reset(stateLedger)
+		cm.Reset(1, stateLedger)
 
 		result, err := cm.Run(&vm.Message{
 			From: types.NewAddressByStr(test.Caller).ETHAddress(),
@@ -488,16 +354,129 @@ func TestRunForVote(t *testing.T) {
 		if result != nil {
 			assert.Equal(t, nil, result.Err)
 			assert.Equal(t, test.Expected.UsedGas, result.UsedGas)
-			expectedCouncil := &Council{}
-			err = json.Unmarshal(test.Expected.ReturnData, expectedCouncil)
-			assert.Nil(t, err)
-
-			actualCouncil := &Council{}
-			err = json.Unmarshal(result.ReturnData, actualCouncil)
-			assert.Nil(t, err)
-			assert.Equal(t, *expectedCouncil, *actualCouncil)
 		}
 	}
+}
+
+func TestRunForGetProposal(t *testing.T) {
+	cm := NewCouncilManager(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	accountCache, err := ledger.NewAccountCache()
+	assert.Nil(t, err)
+	repoRoot := t.TempDir()
+	assert.Nil(t, err)
+	ld, err := leveldb.New(filepath.Join(repoRoot, "council_manager"), nil)
+	assert.Nil(t, err)
+	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.NodeManagerContractAddr), ledger.NewChanger())
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err = InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10000000")
+	assert.Nil(t, err)
+
+	cm.Reset(1, stateLedger)
+
+	_, err = cm.propose(types.NewAddressByStr(admin1).ETHAddress(), &CouncilProposalArgs{
+		BaseProposalArgs: BaseProposalArgs{
+			ProposalType: uint8(CouncilElect),
+			Title:        "council elect",
+			Desc:         "desc",
+			BlockNumber:  2,
+		},
+		CouncilExtraArgs: CouncilExtraArgs{
+			Candidates: []*CouncilMember{
+				{
+					Address: admin1,
+					Weight:  2,
+					Name:    "111",
+				},
+				{
+					Address: admin2,
+					Weight:  2,
+					Name:    "222",
+				},
+				{
+					Address: admin3,
+					Weight:  2,
+					Name:    "333",
+				},
+				{
+					Address: admin4,
+					Weight:  2,
+					Name:    "444",
+				},
+			},
+		},
+	})
+	assert.Nil(t, err)
+
+	execResult, err := cm.Run(&vm.Message{
+		From: types.NewAddressByStr(admin1).ETHAddress(),
+		Data: generateProposalData(t, 1),
+	})
+	assert.Nil(t, err)
+	ret, err := cm.gov.UnpackOutputArgs(ProposalMethod, execResult.ReturnData)
+	assert.Nil(t, err)
+	assert.EqualValues(t, 1, len(ret))
+
+	proposal := &CouncilProposal{}
+	err = json.Unmarshal(ret[0].([]byte), proposal)
+	assert.Nil(t, err)
+	assert.EqualValues(t, 1, proposal.ID)
+	assert.Equal(t, "desc", proposal.Desc)
+	assert.EqualValues(t, 1, len(proposal.PassVotes))
+	assert.EqualValues(t, 0, len(proposal.RejectVotes))
+	assert.Equal(t, 4, len(proposal.Candidates))
+
+	_, err = cm.vote(types.NewAddressByStr(admin2).ETHAddress(), &CouncilVoteArgs{
+		BaseVoteArgs: BaseVoteArgs{
+			ProposalId: 1,
+			VoteResult: uint8(Pass),
+		},
+	})
+	assert.Nil(t, err)
+	execResult, err = cm.Run(&vm.Message{
+		From: types.NewAddressByStr(admin2).ETHAddress(),
+		Data: generateProposalData(t, 1),
+	})
+	assert.Nil(t, err)
+	ret, err = cm.gov.UnpackOutputArgs(ProposalMethod, execResult.ReturnData)
+	assert.Nil(t, err)
+
+	proposal = &CouncilProposal{}
+	err = json.Unmarshal(ret[0].([]byte), proposal)
+	assert.Nil(t, err)
+	assert.EqualValues(t, 1, proposal.ID)
+	assert.EqualValues(t, 2, len(proposal.PassVotes))
+	assert.EqualValues(t, 0, len(proposal.RejectVotes))
 }
 
 func TestEstimateGas(t *testing.T) {
@@ -525,7 +504,7 @@ func TestEstimateGas(t *testing.T) {
 	assert.Equal(t, common.CalculateDynamicGas(data), gas)
 
 	// test vote
-	data = hexutil.Bytes(generateVoteData(t, 1, Pass))
+	data = generateVoteData(t, 1, Pass)
 	gas, err = cm.EstimateGas(&types.CallArgs{
 		From: &from,
 		To:   &to,
@@ -558,25 +537,17 @@ func generateVoteData(t *testing.T, proposalID uint64, voteResult VoteResult) []
 	return data
 }
 
-func generateReturnData(t *testing.T, testProposal *TestCouncilProposal) []byte {
-	proposal := &CouncilProposal{
-		BaseProposal: BaseProposal{
-			ID:          testProposal.ID,
-			Type:        testProposal.Type,
-			Strategy:    NowProposalStrategy,
-			Proposer:    testProposal.Proposer,
-			Title:       "title",
-			Desc:        "desc",
-			BlockNumber: uint64(1000),
-			TotalVotes:  testProposal.TotalVotes,
-			PassVotes:   testProposal.PassVotes,
-			RejectVotes: testProposal.RejectVotes,
-			Status:      testProposal.Status,
-		},
-		Candidates: testProposal.Candidates,
-	}
+func generateProposalData(t *testing.T, proposalID uint64) []byte {
+	gabi, err := GetABI()
 
-	b, err := json.Marshal(proposal)
+	data, err := gabi.Pack(ProposalMethod, proposalID)
+	assert.Nil(t, err)
+
+	return data
+}
+
+func generateReturnData(t *testing.T, gov *Governance, id uint64) []byte {
+	b, err := gov.PackOutputArgs(ProposeMethod, id)
 	assert.Nil(t, err)
 
 	return b

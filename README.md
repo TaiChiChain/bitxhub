@@ -7,7 +7,7 @@
 ## Start
 
 `AxiomLedger` start script relies on [golang](https://golang.org/) and [tmux](https://github.com/tmux/tmux/wiki). Please
-install the software before started.
+install the software before starting.
 
 Use commands below to clone the project:
 
@@ -21,7 +21,7 @@ git clone git@github.com:axiomesh/axiom-ledger.git
 make prepare
 ```
 
-Finally, run the following commands to start a minmal nodes testnet.
+Finally, run the following commands to start a minimal nodes testnet.
 
 ```shell
 make cluster

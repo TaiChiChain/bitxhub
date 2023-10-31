@@ -129,3 +129,11 @@ func (n *NodeDev) GetTotalPendingTxCount() uint64 {
 func (n *NodeDev) GetLowWatermark() uint64 {
 	return n.lastExec
 }
+
+func (n *NodeDev) GetAccountPoolMeta(account string, full bool) *common.AccountMeta {
+	return nil
+}
+
+func (n *NodeDev) GetPoolMeta(full bool) *common.Meta {
+	return nil
+}

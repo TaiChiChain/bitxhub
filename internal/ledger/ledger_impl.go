@@ -71,7 +71,9 @@ func (l *Ledger) PersistBlockData(blockData *BlockData) {
 	if err != nil {
 		panic(err)
 	}
+	flushDirtyWorldStateDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 
+	current = time.Now()
 	if err := l.ChainLedger.PersistExecutionResult(block, receipts); err != nil {
 		panic(err)
 	}

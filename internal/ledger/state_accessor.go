@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -28,6 +29,7 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	} else {
 		l.logger.Debugf("[GetOrCreateAccount] get account, addr: %v", addr)
 	}
+	account.SetEnableExpensiveMetric(l.enableExpensiveMetric)
 
 	return account
 }
@@ -38,11 +40,15 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 
 	value, ok := l.accounts[addr]
 	if ok {
+		if l.enableExpensiveMetric {
+			accountCacheHitCounter.Inc()
+		}
 		l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
 		return value
 	}
 
 	account := NewAccount(l.ldb, l.accountCache, address, l.changer)
+	account.SetEnableExpensiveMetric(l.enableExpensiveMetric)
 
 	if innerAccount, ok := l.accountCache.getInnerAccount(address); ok {
 		account.originAccount = innerAccount
@@ -59,7 +65,11 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return account
 	}
 
+	start := time.Now()
 	if data := l.ldb.Get(compositeKey(accountKey, address)); data != nil {
+		if l.enableExpensiveMetric {
+			accountReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+		}
 		account.originAccount = &InnerAccount{Balance: big.NewInt(0)}
 		if err := account.originAccount.Unmarshal(data); err != nil {
 			panic(err)
@@ -244,15 +254,18 @@ func (l *StateLedgerImpl) FlushDirtyData() (map[string]IAccount, *types.Hash) {
 func (l *StateLedgerImpl) Commit(height uint64, accounts map[string]IAccount, stateRoot *types.Hash) error {
 	ldbBatch := l.ldb.NewBatch()
 
+	accSize := 0
 	for _, acc := range accounts {
 		account := acc.(*SimpleAccount)
 		if account.Suicided() {
+			accSize++
 			if data := l.ldb.Get(compositeKey(accountKey, account.Addr)); data != nil {
 				ldbBatch.Delete(compositeKey(accountKey, account.Addr))
 			}
 			continue
 		}
 		if InnerAccountChanged(account.originAccount, account.dirtyAccount) {
+			accSize++
 			data, err := account.dirtyAccount.Marshal()
 			if err != nil {
 				panic(err)
@@ -274,10 +287,12 @@ func (l *StateLedgerImpl) Commit(height uint64, accounts map[string]IAccount, st
 			}
 		}
 
-		for key, valBytes := range account.dirtyState {
+		stateSize := 0
+		for key, valBytes := range account.pendingState {
 			origValBytes := account.originState[key]
 
 			if !bytes.Equal(origValBytes, valBytes) {
+				stateSize++
 				if valBytes != nil {
 					ldbBatch.Put(composeStateKey(account.Addr, []byte(key)), valBytes)
 				} else {
@@ -285,6 +300,12 @@ func (l *StateLedgerImpl) Commit(height uint64, accounts map[string]IAccount, st
 				}
 			}
 		}
+		if l.enableExpensiveMetric {
+			stateFlushSize.Set(float64(stateSize))
+		}
+	}
+	if l.enableExpensiveMetric {
+		accountFlushSize.Set(float64(accSize))
 	}
 
 	blockJournal, ok := l.blockJournals[stateRoot.String()]

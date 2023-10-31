@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sirupsen/logrus"
@@ -43,14 +44,16 @@ type SimpleAccount struct {
 	// The latest state of the current transaction
 	dirtyState map[string][]byte
 
-	originCode     []byte
-	dirtyCode      []byte
-	dirtyStateHash *types.Hash
-	ldb            storage.Storage
-	cache          *AccountCache
+	originCode       []byte
+	dirtyCode        []byte
+	pendingStateHash *types.Hash
+	ldb              storage.Storage
+	cache            *AccountCache
 
 	changer  *stateChanger
 	suicided bool
+
+	enableExpensiveMetric bool
 }
 
 func NewAccount(ldb storage.Storage, cache *AccountCache, addr *types.Address, changer *stateChanger) *SimpleAccount {
@@ -65,6 +68,10 @@ func NewAccount(ldb storage.Storage, cache *AccountCache, addr *types.Address, c
 		changer:      changer,
 		suicided:     false,
 	}
+}
+
+func (o *SimpleAccount) SetEnableExpensiveMetric(enable bool) {
+	o.enableExpensiveMetric = enable
 }
 
 func (o *SimpleAccount) String() string {
@@ -94,7 +101,11 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 
 	val, ok := o.cache.getState(o.Addr, string(key))
 	if !ok {
+		start := time.Now()
 		val = o.ldb.Get(composeStateKey(o.Addr, key))
+		if o.enableExpensiveMetric {
+			stateReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+		}
 		o.logger.Debugf("[GetState] get from db, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: val})
 	} else {
 		o.logger.Debugf("[GetState] get from cache, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: val})
@@ -126,7 +137,11 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 
 	val, ok := o.cache.getState(o.Addr, string(key))
 	if !ok {
+		start := time.Now()
 		val = o.ldb.Get(composeStateKey(o.Addr, key))
+		if o.enableExpensiveMetric {
+			stateReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+		}
 		o.logger.Debugf("[GetCommittedState] get from db, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: val})
 	} else {
 		o.logger.Debugf("[GetCommittedState] get from cache, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: val})
@@ -196,7 +211,11 @@ func (o *SimpleAccount) Code() []byte {
 
 	code, ok := o.cache.getCode(o.Addr)
 	if !ok {
+		start := time.Now()
 		code = o.ldb.Get(compositeKey(codeKey, o.Addr))
+		if o.enableExpensiveMetric {
+			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+		}
 	}
 
 	o.originCode = code
@@ -326,6 +345,12 @@ func (o *SimpleAccount) Query(prefix string) (bool, [][]byte) {
 		stored[string(key)] = val
 	}
 
+	for key, value := range o.pendingState {
+		if strings.HasPrefix(key, prefix) {
+			stored[key] = value
+		}
+	}
+
 	for key, value := range o.dirtyState {
 		if strings.HasPrefix(key, prefix) {
 			stored[key] = value
@@ -349,6 +374,7 @@ func (o *SimpleAccount) Finalise() {
 	for key, value := range o.dirtyState {
 		o.pendingState[key] = value
 	}
+	o.dirtyState = make(map[string][]byte)
 }
 
 func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
@@ -382,26 +408,26 @@ func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
 
 func (o *SimpleAccount) getStateJournalAndComputeHash() map[string][]byte {
 	prevStates := make(map[string][]byte)
-	var dirtyStateKeys []string
-	var dirtyStateData []byte
+	var pendingStateKeys []string
+	var pendingStateData []byte
 
-	for key, value := range o.dirtyState {
+	for key, value := range o.pendingState {
 		origVal := o.originState[key]
 		if !bytes.Equal(origVal, value) {
 			prevStates[key] = origVal
-			dirtyStateKeys = append(dirtyStateKeys, key)
+			pendingStateKeys = append(pendingStateKeys, key)
 		}
 	}
 
-	sort.Strings(dirtyStateKeys)
+	sort.Strings(pendingStateKeys)
 
-	for _, key := range dirtyStateKeys {
-		dirtyStateData = append(dirtyStateData, key...)
-		dirtyVal := o.dirtyState[key]
-		dirtyStateData = append(dirtyStateData, dirtyVal...)
+	for _, key := range pendingStateKeys {
+		pendingStateData = append(pendingStateData, key...)
+		pendingVal := o.pendingState[key]
+		pendingStateData = append(pendingStateData, pendingVal...)
 	}
-	hash := sha256.Sum256(dirtyStateData)
-	o.dirtyStateHash = types.NewHash(hash[:])
+	hash := sha256.Sum256(pendingStateData)
+	o.pendingStateHash = types.NewHash(hash[:])
 
 	return prevStates
 }
@@ -419,7 +445,7 @@ func (o *SimpleAccount) getDirtyData() []byte {
 		dirtyData = append(dirtyData, data...)
 	}
 
-	return append(dirtyData, o.dirtyStateHash.Bytes()...)
+	return append(dirtyData, o.pendingStateHash.Bytes()...)
 }
 
 func (o *SimpleAccount) SetSuicided(suicided bool) {

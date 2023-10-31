@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,18 +31,36 @@ func NewAxiomAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) *Ax
 
 // GasPrice returns the current gas price based on dynamic adjustment strategy.
 func (api *AxiomAPI) GasPrice() *hexutil.Big {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+	}(time.Now())
+
 	api.logger.Debug("eth_gasPrice")
 	gasPrice, err := api.api.Gas().GetGasPrice()
 	if err != nil {
+		queryFailedCounter.Inc()
 		api.logger.Errorf("get gas price err: %v", err)
 	}
-	out := big.NewInt(int64(gasPrice))
+	var gasPremium int64
+	if !api.rep.Config.JsonRPC.DisableGasPriceAPIPricePremium {
+		gasPremium = int64(float64(gasPrice) * api.rep.Config.Genesis.EpochInfo.FinanceParams.GasPremiumRate)
+	}
+	out := big.NewInt(int64(gasPrice) + gasPremium)
 	return (*hexutil.Big)(out)
 }
 
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic transactions.
 // todo Supplementary gas fee
-func (api *AxiomAPI) MaxPriorityFeePerGas(ctx context.Context) (*hexutil.Big, error) {
+func (api *AxiomAPI) MaxPriorityFeePerGas(ctx context.Context) (ret *hexutil.Big, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debug("eth_maxPriorityFeePerGas")
 	return (*hexutil.Big)(new(big.Int)), nil
 }
@@ -55,14 +74,30 @@ type feeHistoryResult struct {
 
 // FeeHistory return feeHistory
 // todo Supplementary feeHsitory
-func (api *AxiomAPI) FeeHistory(blockCount rpctypes.DecimalOrHex, lastBlock rpctypes.BlockNumber, rewardPercentiles []float64) (*feeHistoryResult, error) {
+func (api *AxiomAPI) FeeHistory(blockCount rpctypes.DecimalOrHex, lastBlock rpctypes.BlockNumber, rewardPercentiles []float64) (ret *feeHistoryResult, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debug("eth_feeHistory")
 	return nil, ErrNotSupportApiError
 }
 
 // Syncing returns whether or not the current node is syncing with other peers. Returns false if not, or a struct
 // outlining the state of the sync if it is.
-func (api *AxiomAPI) Syncing() (any, error) {
+func (api *AxiomAPI) Syncing() (ret any, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debug("eth_syncing")
 
 	// TODO
@@ -70,7 +105,7 @@ func (api *AxiomAPI) Syncing() (any, error) {
 	syncBlock := make(map[string]string)
 	meta, err := api.api.Chain().Meta()
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 
 	syncBlock["startingBlock"] = fmt.Sprintf("%d", hexutil.Uint64(1))
@@ -79,7 +114,15 @@ func (api *AxiomAPI) Syncing() (any, error) {
 	return syncBlock, nil
 }
 
-func (api *AxiomAPI) Accounts() ([]common.Address, error) {
+func (api *AxiomAPI) Accounts() (ret []common.Address, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	accounts := api.rep.Config.Genesis.Accounts
 	res := make([]common.Address, 0)
 	for _, account := range accounts {

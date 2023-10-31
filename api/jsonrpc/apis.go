@@ -15,10 +15,11 @@ import (
 
 // RPC namespaces and API version
 const (
-	Web3Namespace = "web3"
-	EthNamespace  = "eth"
-	NetNamespace  = "net"
-	AxmNamespace  = "axm"
+	Web3Namespace   = "web3"
+	EthNamespace    = "eth"
+	NetNamespace    = "net"
+	AxmNamespace    = "axm"
+	TxPoolNamespace = "txpool"
 
 	apiVersion = "1.0"
 )
@@ -86,6 +87,14 @@ func GetAPIs(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) ([]rpc.
 			Namespace: NetNamespace,
 			Version:   apiVersion,
 			Service:   net.NewAPI(rep),
+			Public:    true,
+		},
+	)
+	apis = append(apis,
+		rpc.API{
+			Namespace: TxPoolNamespace,
+			Version:   apiVersion,
+			Service:   axm.NewTxPoolAPI(rep, api, logger),
 			Public:    true,
 		},
 	)

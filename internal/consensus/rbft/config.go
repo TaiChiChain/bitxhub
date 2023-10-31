@@ -38,6 +38,7 @@ func defaultRbftConfig() rbft.Config {
 		Logger:                  nil,
 		NoTxBatchTimeout:        0,
 		CheckPoolRemoveTimeout:  30 * time.Minute,
+		MinimumNumberOfBatchesToRetainAfterCheckpoint: 10,
 	}
 }
 
@@ -59,6 +60,9 @@ func generateRbftConfig(config *common.Config) (rbft.Config, txpool.Config) {
 	}
 	if readConfig.TxPool.ToleranceRemoveTime > 0 {
 		defaultConfig.CheckPoolRemoveTimeout = readConfig.TxPool.ToleranceRemoveTime.ToDuration()
+	}
+	if readConfig.TxPool.ToleranceTime > 0 {
+		defaultConfig.CheckPoolTimeout = readConfig.TxPool.ToleranceTime.ToDuration()
 	}
 	if readConfig.TxCache.SetSize > 0 {
 		defaultConfig.SetSize = readConfig.TxCache.SetSize
@@ -94,6 +98,9 @@ func generateRbftConfig(config *common.Config) (rbft.Config, txpool.Config) {
 		defaultConfig.MetricsProv = &prometheus.Provider{
 			Name: "rbft",
 		}
+	}
+	if readConfig.Rbft.MinimumNumberOfBatchesToRetainAfterCheckpoint > 0 {
+		defaultConfig.MinimumNumberOfBatchesToRetainAfterCheckpoint = readConfig.Rbft.MinimumNumberOfBatchesToRetainAfterCheckpoint
 	}
 	fn := func(addr string) uint64 {
 		return config.GetAccountNonce(types.NewAddressByStr(addr))

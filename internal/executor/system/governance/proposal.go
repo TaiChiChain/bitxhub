@@ -2,6 +2,7 @@ package governance
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -48,6 +49,18 @@ type BaseProposal struct {
 
 	RejectVotes []string
 	Status      ProposalStatus
+}
+
+func (baseProposal *BaseProposal) GetStatus() ProposalStatus {
+	return baseProposal.Status
+}
+
+func (baseProposal *BaseProposal) SetStatus(status ProposalStatus) {
+	baseProposal.Status = status
+}
+
+func (baseProposal *BaseProposal) GetBlockNumber() uint64 {
+	return baseProposal.BlockNumber
 }
 
 type ProposalID struct {
@@ -137,4 +150,43 @@ func addrKey(addr string) []byte {
 
 func nameKey(name string) []byte {
 	return []byte(strings.Join([]string{Addr2NameSystemNameKey, name}, "-"))
+}
+
+type ProposalObject interface {
+	GetStatus() ProposalStatus
+	SetStatus(status ProposalStatus)
+	GetBlockNumber() uint64
+}
+
+type ProposalObjectConstraint[T any] interface {
+	*T
+	ProposalObject
+}
+
+func CheckAndUpdateState[T any, Contraint ProposalObjectConstraint[T]](lastHeight uint64, account ledger.IAccount, proposalKey string, saveProposal func(proposal *T) ([]byte, error)) error {
+	if isExist, data := account.Query(proposalKey); isExist {
+		for _, proposalData := range data {
+			var proposal T
+			if err := json.Unmarshal(proposalData, &proposal); err != nil {
+				return err
+			}
+
+			if Contraint(&proposal).GetStatus() == Approved || Contraint(&proposal).GetStatus() == Rejected {
+				// proposal is finnished, no need update
+				continue
+			}
+
+			if Contraint(&proposal).GetBlockNumber() <= lastHeight {
+				// means proposal is out of deadline,status change to rejected
+				Contraint(&proposal).SetStatus(Rejected)
+
+				_, err := saveProposal(&proposal)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }

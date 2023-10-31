@@ -8,17 +8,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/sirupsen/logrus"
-
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	vm "github.com/axiomesh/eth-kit/evm"
 )
 
@@ -152,13 +151,15 @@ func initMethodSignature() map[string][]byte {
 	return m2sig
 }
 
-func (c *WhiteList) Reset(stateLedger ledger.StateLedger) {
+func (c *WhiteList) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
 	addr := types.NewAddressByStr(common.WhiteListContractAddr)
 	c.account = stateLedger.GetOrCreateAccount(addr)
 	c.stateLedger = stateLedger
 	c.currentLog = &common.Log{
 		Address: addr,
 	}
+
+	// TODO: lazy  load
 	state, b := c.account.GetState([]byte(WhiteListProviderKey))
 	if state {
 		var services []WhiteListProvider
@@ -202,7 +203,7 @@ func (c *WhiteList) Run(msg *vm.Message) (*vm.ExecutionResult, error) {
 	case *QueryWhiteListProviderArgs:
 		result, err = c.queryWhiteListProvider(&msg.From, v)
 	default:
-		return nil, fmt.Errorf("unknown access args")
+		return nil, errors.New("unknown access args")
 	}
 	usedGas := common.CalculateDynamicGas(msg.Data)
 	if result != nil {
@@ -262,7 +263,7 @@ func (c *WhiteList) getArgs(msg *vm.Message) (any, error) {
 		}
 		return providerArgs, nil
 	default:
-		return nil, fmt.Errorf("wrong method name")
+		return nil, errors.New("wrong method name")
 	}
 }
 
@@ -403,7 +404,7 @@ func (c *WhiteList) queryAuthInfo(addr *ethcommon.Address, args *QueryAuthInfoAr
 
 	userAddr := types.NewAddressByStr(args.User).ETHAddress().String()
 	if userAddr != args.User {
-		return nil, fmt.Errorf("user address is invalid")
+		return nil, errors.New("user address is invalid")
 	}
 
 	authInfo := c.getAuthInfo(addr.String())
@@ -430,7 +431,7 @@ func (c *WhiteList) queryWhiteListProvider(addr *ethcommon.Address, args *QueryW
 		return nil, ErrUser
 	}
 	if types.NewAddressByStr(args.WhiteListProviderAddr).ETHAddress().String() != args.WhiteListProviderAddr {
-		return nil, fmt.Errorf("provider address is invalid")
+		return nil, errors.New("provider address is invalid")
 	}
 	authInfo := c.getAuthInfo(addr.String())
 	if authInfo == nil || authInfo.Role != SuperUser {
@@ -560,10 +561,10 @@ func AddAndRemoveProviders(lg ledger.StateLedger, modifyType ModifyType, inputSe
 			existServices = filteredMembers
 			return SetProviders(lg, existServices)
 		} else {
-			return fmt.Errorf("access error: remove provider from an empty list")
+			return errors.New("access error: remove provider from an empty list")
 		}
 	default:
-		return fmt.Errorf("access error: wrong submit type")
+		return errors.New("access error: wrong submit type")
 	}
 }
 

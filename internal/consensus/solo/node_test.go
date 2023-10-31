@@ -38,6 +38,11 @@ func TestNode_Start(t *testing.T) {
 		common.WithGetAccountBalanceFunc(func(address *types.Address) *big.Int {
 			return big.NewInt(adminBalance)
 		}),
+		common.WithGetChainMetaFunc(func() *types.ChainMeta {
+			return &types.ChainMeta{
+				GasPrice: big.NewInt(0),
+			}
+		}),
 	)
 	require.Nil(t, err)
 
@@ -141,9 +146,15 @@ func TestTimedBlock(t *testing.T) {
 	ast.Nil(err)
 	defer node.Stop()
 
-	event := <-node.commitC
-	ast.NotNil(event)
-	ast.Equal(len(event.Block.Transactions), 0)
+	event1 := <-node.commitC
+	ast.NotNil(event1)
+	ast.Equal(len(event1.Block.Transactions), 0)
+	ast.Equal(event1.Block.BlockHeader.Number, uint64(1))
+
+	event2 := <-node.commitC
+	ast.NotNil(event2)
+	ast.Equal(len(event2.Block.Transactions), 0)
+	ast.Equal(event2.Block.BlockHeader.Number, uint64(2))
 }
 
 func TestNode_ReportState(t *testing.T) {
@@ -273,4 +284,30 @@ func TestNode_GetLowWatermark(t *testing.T) {
 	commitEvent := <-node.commitC
 	ast.NotNil(commitEvent)
 	ast.Equal(commitEvent.Block.Height(), node.GetLowWatermark())
+}
+
+func TestNode_GetAccountPoolMeta(t *testing.T) {
+	ast := assert.New(t)
+	node, err := mockSoloNode(t, false)
+	ast.Nil(err)
+
+	err = node.Start()
+	ast.Nil(err)
+	defer node.Stop()
+
+	accountPoolMeta := node.GetAccountPoolMeta("", true)
+	ast.Equal(uint64(0), accountPoolMeta.CommitNonce)
+}
+
+func TestNode_GetPoolMeta(t *testing.T) {
+	ast := assert.New(t)
+	node, err := mockSoloNode(t, false)
+	ast.Nil(err)
+
+	err = node.Start()
+	ast.Nil(err)
+	defer node.Stop()
+
+	poolMeta := node.GetPoolMeta(true)
+	ast.Equal(uint64(0), poolMeta.TxCount)
 }

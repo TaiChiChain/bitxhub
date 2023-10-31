@@ -167,4 +167,6 @@ type IAccount interface {
 	Suicided() bool
 
 	SetSuicided(bool)
+
+	SetEnableExpensiveMetric(bool)
 }

@@ -65,6 +65,7 @@ type Config struct {
 	Port      Port      `mapstructure:"port" toml:"port"`
 	JsonRPC   JsonRPC   `mapstructure:"jsonrpc" toml:"jsonrpc"`
 	P2P       P2P       `mapstructure:"p2p" toml:"p2p"`
+	Sync      Sync      `mapstructure:"sync" toml:"sync"`
 	Consensus Consensus `mapstructure:"consensus" toml:"consensus"`
 	Storage   Storage   `mapstructure:"storage" toml:"storage"`
 	Ledger    Ledger    `mapstructure:"ledger" toml:"ledger"`
@@ -85,10 +86,12 @@ type Port struct {
 }
 
 type JsonRPC struct {
-	GasCap                       uint64   `mapstructure:"gas_cap" toml:"gas_cap"`
-	EVMTimeout                   Duration `mapstructure:"evm_timeout" toml:"evm_timeout"`
-	Limiter                      JLimiter `mapstructure:"limiter" toml:"limiter"`
-	RejectTxsIfConsensusAbnormal bool     `mapstructure:"reject_txs_if_consensus_abnormal" toml:"reject_txs_if_consensus_abnormal"`
+	GasCap                         uint64   `mapstructure:"gas_cap" toml:"gas_cap"`
+	EVMTimeout                     Duration `mapstructure:"evm_timeout" toml:"evm_timeout"`
+	ReadLimiter                    JLimiter `mapstructure:"read_limiter" toml:"read_limiter"`
+	WriteLimiter                   JLimiter `mapstructure:"write_limiter" toml:"write_limiter"`
+	RejectTxsIfConsensusAbnormal   bool     `mapstructure:"reject_txs_if_consensus_abnormal" toml:"reject_txs_if_consensus_abnormal"`
+	DisableGasPriceAPIPricePremium bool     `mapstructure:"disable_gas_price_api_price_premium" toml:"disable_gas_price_api_price_premium"`
 }
 
 type P2PPipeGossipsub struct {
@@ -97,6 +100,7 @@ type P2PPipeGossipsub struct {
 	PeerOutboundBufferSize int      `mapstructure:"peer_outbound_buffer_size" toml:"peer_outbound_buffer_size"`
 	ValidateBufferSize     int      `mapstructure:"validate_buffer_size" toml:"validate_buffer_size"`
 	SeenMessagesTTL        Duration `mapstructure:"seen_messages_ttl" toml:"seen_messages_ttl"`
+	EnableMetrics          bool     `mapstructure:"enable_metrics" toml:"enable_metrics"`
 }
 
 type P2PPipeSimpleBroadcast struct {
@@ -121,12 +125,12 @@ type P2P struct {
 	Security               string   `mapstructure:"security" toml:"security"`
 	SendTimeout            Duration `mapstructure:"send_timeout" toml:"send_timeout"`
 	ReadTimeout            Duration `mapstructure:"read_timeout" toml:"read_timeout"`
-	Ping                   Ping     `mapstructure:"ping" toml:"ping"`
 	Pipe                   P2PPipe  `mapstructure:"pipe" toml:"pipe"`
 }
 
 type Monitor struct {
-	Enable bool `mapstructure:"enable" toml:"enable"`
+	Enable          bool `mapstructure:"enable" toml:"enable"`
+	EnableExpensive bool `mapstructure:"enable_expensive" toml:"enable_expensive"`
 }
 
 type PProf struct {
@@ -140,11 +144,7 @@ type JLimiter struct {
 	Interval Duration `mapstructure:"interval" toml:"interval"`
 	Quantum  int64    `mapstructure:"quantum" toml:"quantum"`
 	Capacity int64    `mapstructure:"capacity" toml:"capacity"`
-}
-
-type Ping struct {
 	Enable   bool     `mapstructure:"enable" toml:"enable"`
-	Duration Duration `mapstructure:"duration" toml:"duration"`
 }
 
 type Log struct {
@@ -171,21 +171,20 @@ type LogModule struct {
 	Executor   string `mapstructure:"executor" toml:"executor"`
 	Governance string `mapstructure:"governance" toml:"governance"`
 	API        string `mapstructure:"api" toml:"api"`
+	APP        string `mapstructure:"app" toml:"app"`
 	CoreAPI    string `mapstructure:"coreapi" toml:"coreapi"`
 	Storage    string `mapstructure:"storage" toml:"storage"`
 	Profile    string `mapstructure:"profile" toml:"profile"`
 	Finance    string `mapstructure:"finance" toml:"finance"`
 	TxPool     string `mapstructure:"txpool" toml:"txpool"`
 	Access     string `mapstructure:"access" toml:"access"`
+	BlockSync  string `mapstructure:"blocksync" toml:"blocksync"`
+	Epoch      string `mapstructure:"epoch" toml:"epoch"`
 }
 
 type Genesis struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
-	GasLimit               uint64          `mapstructure:"gas_limit" toml:"gas_limit"`
 	GasPrice               uint64          `mapstructure:"gas_price" toml:"gas_price"`
-	MaxGasPrice            uint64          `mapstructure:"max_gas_price" toml:"max_gas_price"`
-	MinGasPrice            uint64          `mapstructure:"min_gas_price" toml:"min_gas_price"`
-	GasChangeRate          float64         `mapstructure:"gas_change_rate" toml:"gas_change_rate"`
 	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
@@ -194,7 +193,7 @@ type Genesis struct {
 }
 
 type Access struct {
-	EnableWhiteList uint8 `mapstructure:"enable_white_list" toml:"enable_white_list"`
+	EnableWhiteList bool `mapstructure:"enable_white_list" toml:"enable_white_list"`
 }
 
 type Admin struct {
@@ -203,15 +202,24 @@ type Admin struct {
 	Name    string `mapstructure:"name" toml:"name"`
 }
 
+type Sync struct {
+	RequesterRetryTimeout Duration `mapstructure:"requester_retry_timeout" toml:"requester_retry_timeout"`
+	WaitStateTimeout      Duration `mapstructure:"wait_state_timeout" toml:"wait_state_timeout"`
+	TimeoutCountLimit     uint64   `mapstructure:"timeout_count_limit" toml:"timeout_count_limit"`
+	ConcurrencyLimit      uint64   `mapstructure:"concurrency_limit" toml:"concurrency_limit"`
+}
+
 type Consensus struct {
 	Type string `mapstructure:"type" toml:"type"`
 }
 
 type Storage struct {
-	KvType string `mapstructure:"kv_type" toml:"kv_type"`
+	KvType      string `mapstructure:"kv_type" toml:"kv_type"`
+	KvCacheSize int    `mapstructure:"kv_cache_size" toml:"kv_cache_size"`
 }
 
 type Ledger struct {
+	ChainLedgerCacheSize int `mapstructure:"chain_ledger_cache_size" toml:"chain_ledger_cache_size"`
 }
 
 type EVM struct {
@@ -244,14 +252,22 @@ func (c *Config) Bytes() ([]byte, error) {
 
 func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 	var epochPeriod uint64 = 10000000
-	var checkpointPeriod uint64 = 10
-	var highWatermarkCheckpointPeriod uint64 = 4
+	var checkpointPeriod uint64 = 1
+	var highWatermarkCheckpointPeriod uint64 = 10
 	var proposerElectionType = rbft.ProposerElectionTypeRotating
 	if epochEnable {
 		epochPeriod = 100
 		checkpointPeriod = 1
-		highWatermarkCheckpointPeriod = 40
+		highWatermarkCheckpointPeriod = 10
 		proposerElectionType = rbft.ProposerElectionTypeWRF
+	}
+
+	financeInfo := &rbft.Finance{
+		GasLimit:       0x5f5e100,
+		MaxGasPrice:    10000000000000,
+		MinGasPrice:    1000000000000,
+		GasChangeRate:  0.125,
+		GasPremiumRate: DefaultGasPremiumRate,
 	}
 
 	return &rbft.EpochInfo{
@@ -259,10 +275,11 @@ func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 		Epoch:       1,
 		EpochPeriod: epochPeriod,
 		StartBlock:  1,
-		P2PBootstrapNodeAddresses: lo.Map(defaultNodeIDs, func(item string, idx int) string {
+		P2PBootstrapNodeAddresses: lo.Map(defaultNodeIDs[0:4], func(item string, idx int) string {
 			return fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", 4001+idx, item)
 		}),
 		ConsensusParams: &rbft.ConsensusParams{
+			ValidatorElectionType:         rbft.ValidatorElectionTypeWRF,
 			CheckpointPeriod:              checkpointPeriod,
 			HighWatermarkCheckpointPeriod: highWatermarkCheckpointPeriod,
 			MaxValidatorNum:               20,
@@ -272,15 +289,28 @@ func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 			ExcludeView:                   100,
 			ProposerElectionType:          proposerElectionType,
 		},
-		CandidateSet: []*rbft.NodeInfo{},
-		ValidatorSet: lo.Map(DefaultNodeAddrs, func(item string, idx int) *rbft.NodeInfo {
+		CandidateSet: lo.Map(DefaultNodeAddrs[4:], func(item string, idx int) *rbft.NodeInfo {
+			idx += 4
 			return &rbft.NodeInfo{
 				ID:                   uint64(idx + 1),
 				AccountAddress:       DefaultNodeAddrs[idx],
 				P2PNodeID:            defaultNodeIDs[idx],
-				ConsensusVotingPower: 1000,
+				ConsensusVotingPower: int64(idx+1) * 100,
 			}
 		}),
+		ValidatorSet: lo.Map(DefaultNodeAddrs[0:4], func(item string, idx int) *rbft.NodeInfo {
+			return &rbft.NodeInfo{
+				ID:                   uint64(idx + 1),
+				AccountAddress:       DefaultNodeAddrs[idx],
+				P2PNodeID:            defaultNodeIDs[idx],
+				ConsensusVotingPower: int64(idx+1) * 100,
+			}
+		}),
+
+		FinanceParams: financeInfo,
+		ConfigParams: &rbft.ConfigParams{
+			TxMaxSize: DefaultTxMaxSize,
+		},
 	}
 }
 
@@ -300,33 +330,38 @@ func DefaultConfig(epochEnable bool) *Config {
 		JsonRPC: JsonRPC{
 			GasCap:     300000000,
 			EVMTimeout: Duration(5 * time.Second),
-			Limiter: JLimiter{
+			ReadLimiter: JLimiter{
 				Interval: 50,
 				Quantum:  500,
 				Capacity: 10000,
+				Enable:   false,
 			},
-			RejectTxsIfConsensusAbnormal: false,
+			WriteLimiter: JLimiter{
+				Interval: 50,
+				Quantum:  500,
+				Capacity: 10000,
+				Enable:   false,
+			},
+			RejectTxsIfConsensusAbnormal:   false,
+			DisableGasPriceAPIPricePremium: false,
 		},
 		P2P: P2P{
 			Security:    P2PSecurityTLS,
 			SendTimeout: Duration(5 * time.Second),
 			ReadTimeout: Duration(5 * time.Second),
-			Ping: Ping{
-				Enable:   false,
-				Duration: Duration(15 * time.Second),
-			},
 			Pipe: P2PPipe{
-				ReceiveMsgCacheSize: 1024,
+				ReceiveMsgCacheSize: 10240,
 				BroadcastType:       P2PPipeBroadcastGossip,
 				SimpleBroadcast: P2PPipeSimpleBroadcast{
 					WorkerCacheSize:        1024,
 					WorkerConcurrencyLimit: 20,
 				},
 				Gossipsub: P2PPipeGossipsub{
-					SubBufferSize:          1024,
-					PeerOutboundBufferSize: 1024,
-					ValidateBufferSize:     1024,
+					SubBufferSize:          10240,
+					PeerOutboundBufferSize: 10240,
+					ValidateBufferSize:     10240,
 					SeenMessagesTTL:        Duration(120 * time.Second),
+					EnableMetrics:          true,
 				},
 				UnicastReadTimeout:       Duration(5 * time.Second),
 				UnicastSendRetryNumber:   5,
@@ -335,13 +370,22 @@ func DefaultConfig(epochEnable bool) *Config {
 				ConnectTimeout:           Duration(1 * time.Second),
 			},
 		},
+		Sync: Sync{
+			WaitStateTimeout:      Duration(2 * time.Minute),
+			RequesterRetryTimeout: Duration(30 * time.Second),
+			TimeoutCountLimit:     uint64(10),
+			ConcurrencyLimit:      1000,
+		},
 		Consensus: Consensus{
 			Type: ConsensusTypeRbft,
 		},
 		Storage: Storage{
-			KvType: KVStorageTypeLeveldb,
+			KvType:      KVStorageTypeLeveldb,
+			KvCacheSize: 128,
 		},
-		Ledger: Ledger{},
+		Ledger: Ledger{
+			ChainLedgerCacheSize: 100,
+		},
 		Executor: Executor{
 			Type:            ExecTypeNative,
 			DisableRollback: false,
@@ -350,14 +394,10 @@ func DefaultConfig(epochEnable bool) *Config {
 			},
 		},
 		Genesis: Genesis{
-			ChainID:       1356,
-			GasLimit:      0x5f5e100,
-			GasPrice:      5000000000000,
-			MaxGasPrice:   10000000000000,
-			MinGasPrice:   1000000000000,
-			GasChangeRate: 0.125,
-			Balance:       "1000000000000000000000000000",
-			Admins: lo.Map(DefaultNodeAddrs, func(item string, idx int) *Admin {
+			ChainID:  1356,
+			GasPrice: 5000000000000,
+			Balance:  "1000000000000000000000000000",
+			Admins: lo.Map(DefaultNodeAddrs[0:4], func(item string, idx int) *Admin {
 				return &Admin{
 					Address: item,
 					Weight:  1,
@@ -396,7 +436,8 @@ func DefaultConfig(epochEnable bool) *Config {
 			Duration: Duration(30 * time.Second),
 		},
 		Monitor: Monitor{
-			Enable: true,
+			Enable:          true,
+			EnableExpensive: false,
 		},
 		Log: Log{
 			Level:            "info",
@@ -418,11 +459,15 @@ func DefaultConfig(epochEnable bool) *Config {
 				Storage:    "info",
 				Profile:    "info",
 				Finance:    "info",
+				BlockSync:  "info",
+				APP:        "info",
 				Access:     "info",
+				TxPool:     "info",
+				Epoch:      "info",
 			},
 		},
 		Access: Access{
-			EnableWhiteList: 0,
+			EnableWhiteList: false,
 		},
 	}
 }

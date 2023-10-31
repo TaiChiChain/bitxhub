@@ -86,6 +86,7 @@ type NodeManager struct {
 	stateLedger    ledger.StateLedger
 	currentLog     *common.Log
 	proposalID     *ProposalID
+	lastHeight     uint64
 }
 
 func NewNodeManager(cfg *common.SystemContractConfig) *NodeManager {
@@ -99,7 +100,7 @@ func NewNodeManager(cfg *common.SystemContractConfig) *NodeManager {
 	}
 }
 
-func (nm *NodeManager) Reset(stateLedger ledger.StateLedger) {
+func (nm *NodeManager) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
 	addr := types.NewAddressByStr(common.NodeManagerContractAddr)
 	nm.account = stateLedger.GetOrCreateAccount(addr)
 	nm.stateLedger = stateLedger
@@ -110,6 +111,10 @@ func (nm *NodeManager) Reset(stateLedger ledger.StateLedger) {
 
 	councilAddr := types.NewAddressByStr(common.CouncilManagerContractAddr)
 	nm.councilAccount = stateLedger.GetOrCreateAccount(councilAddr)
+
+	// check and update
+	nm.checkAndUpdateState(lastHeight)
+	nm.lastHeight = lastHeight
 }
 
 func (nm *NodeManager) Run(msg *vm.Message) (*vm.ExecutionResult, error) {
@@ -127,6 +132,8 @@ func (nm *NodeManager) Run(msg *vm.Message) (*vm.ExecutionResult, error) {
 		result, err = nm.propose(msg.From, v)
 	case *VoteArgs:
 		result, err = nm.vote(msg.From, v)
+	case *GetProposalArgs:
+		result, err = nm.getProposal(v.ProposalID)
 	default:
 		return nil, errors.New("unknown proposal args")
 	}
@@ -189,7 +196,7 @@ func (nm *NodeManager) propose(addr ethcommon.Address, args *ProposalArgs) (*vm.
 }
 
 func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *NodeProposalArgs) ([]byte, error) {
-	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber)
+	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, nm.lastHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -226,15 +233,19 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *NodePr
 	if err != nil {
 		return nil, err
 	}
+	returnData, err := nm.gov.PackOutputArgs(ProposeMethod, id)
+	if err != nil {
+		return nil, err
+	}
 
 	// record log
 	nm.gov.RecordLog(nm.currentLog, ProposeMethod, &proposal.BaseProposal, b)
 
-	return b, nil
+	return returnData, nil
 }
 
 func (nm *NodeManager) proposeUpgrade(addr ethcommon.Address, args *UpgradeProposalArgs) ([]byte, error) {
-	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber)
+	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, nm.lastHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -271,10 +282,15 @@ func (nm *NodeManager) proposeUpgrade(addr ethcommon.Address, args *UpgradePropo
 		return nil, err
 	}
 
+	returnData, err := nm.gov.PackOutputArgs(ProposeMethod, id)
+	if err != nil {
+		return nil, err
+	}
+
 	// record log
 	nm.gov.RecordLog(nm.currentLog, ProposeMethod, &proposal.BaseProposal, b)
 
-	return b, nil
+	return returnData, nil
 }
 
 // Vote a proposal, return vote status
@@ -352,7 +368,8 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 	// record log
 	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
 
-	return b, nil
+	// vote not return value
+	return nil, nil
 }
 
 func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) ([]byte, error) {
@@ -378,7 +395,8 @@ func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposa
 	// if approved, guardian sync log, then update node and restart
 	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
 
-	return b, nil
+	// vote not return value
+	return nil, nil
 }
 
 func (nm *NodeManager) saveNodeProposal(proposal *NodeProposal) ([]byte, error) {
@@ -406,6 +424,22 @@ func (nm *NodeManager) loadNodeProposal(proposalID uint64) (*NodeProposal, error
 	return proposal, nil
 }
 
+// getProposal view proposal details
+func (nm *NodeManager) getProposal(proposalID uint64) (*vm.ExecutionResult, error) {
+	result := &vm.ExecutionResult{}
+
+	isExist, b := nm.account.GetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposalID)))
+	if isExist {
+		packed, err := nm.gov.PackOutputArgs(ProposalMethod, b)
+		if err != nil {
+			return nil, err
+		}
+		result.ReturnData = packed
+		return result, nil
+	}
+	return nil, ErrNotFoundNodeProposal
+}
+
 func (nm *NodeManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
 	_, err := nm.gov.GetArgs(&vm.Message{Data: *callArgs.Data})
 	if err != nil {
@@ -415,40 +449,9 @@ func (nm *NodeManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
 	return common.CalculateDynamicGas(*callArgs.Data), nil
 }
 
-func (nm *NodeManager) CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) {
-	nm.Reset(stateLedger)
-
-	if isExist, data := nm.account.Query(NodeProposalKey); isExist {
-		for _, proposalData := range data {
-			proposal := &NodeProposal{}
-			if err := json.Unmarshal(proposalData, proposal); err != nil {
-				nm.gov.logger.Errorf("unmarshal council proposal error: %s", err)
-				return
-			}
-
-			if proposal.Status == Approved || proposal.Status == Rejected {
-				// proposal is finnished, no need update
-				continue
-			}
-
-			if proposal.BlockNumber != 0 && proposal.BlockNumber <= lastHeight {
-				// means proposal is out of deadline,status change to rejected
-				proposal.Status = Rejected
-
-				// remove node is special, proposal should be auto approved when out of deadline
-				if proposal.Type == NodeRemove {
-					proposal.Status = Approved
-				}
-
-				b, err := nm.saveNodeProposal(proposal)
-				if err != nil {
-					nm.gov.logger.Errorf("unmarshal node proposal error: %s", err)
-				}
-
-				nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
-				nm.gov.SaveLog(stateLedger, nm.currentLog)
-			}
-		}
+func (nm *NodeManager) checkAndUpdateState(lastHeight uint64) {
+	if err := CheckAndUpdateState[NodeProposal, *NodeProposal](lastHeight, nm.account, NodeProposalKey, nm.saveNodeProposal); err != nil {
+		nm.gov.logger.Errorf("check and update state error: %s", err)
 	}
 }
 

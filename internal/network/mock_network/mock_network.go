@@ -5,6 +5,7 @@
 //
 //	mockgen -destination mock_network/mock_network.go -package mock_network -source network.go -typed
 //
+
 // Package mock_network is a generated GoMock package.
 package mock_network
 
@@ -14,7 +15,6 @@ import (
 
 	pb "github.com/axiomesh/axiom-kit/types/pb"
 	network "github.com/axiomesh/axiom-p2p"
-	peer "github.com/libp2p/go-libp2p/core/peer"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -331,40 +331,78 @@ func (c *NetworkPeerIDCall) DoAndReturn(f func() string) *NetworkPeerIDCall {
 	return c
 }
 
-// Peers mocks base method.
-func (m *MockNetwork) Peers() []peer.AddrInfo {
+// RegisterMsgHandler mocks base method.
+func (m *MockNetwork) RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Peers")
-	ret0, _ := ret[0].([]peer.AddrInfo)
+	ret := m.ctrl.Call(m, "RegisterMsgHandler", messageType, handler)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Peers indicates an expected call of Peers.
-func (mr *MockNetworkMockRecorder) Peers() *NetworkPeersCall {
+// RegisterMsgHandler indicates an expected call of RegisterMsgHandler.
+func (mr *MockNetworkMockRecorder) RegisterMsgHandler(messageType, handler any) *NetworkRegisterMsgHandlerCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Peers", reflect.TypeOf((*MockNetwork)(nil).Peers))
-	return &NetworkPeersCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterMsgHandler", reflect.TypeOf((*MockNetwork)(nil).RegisterMsgHandler), messageType, handler)
+	return &NetworkRegisterMsgHandlerCall{Call: call}
 }
 
-// NetworkPeersCall wrap *gomock.Call
-type NetworkPeersCall struct {
+// NetworkRegisterMsgHandlerCall wrap *gomock.Call
+type NetworkRegisterMsgHandlerCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkPeersCall) Return(arg0 []peer.AddrInfo) *NetworkPeersCall {
+func (c *NetworkRegisterMsgHandlerCall) Return(arg0 error) *NetworkRegisterMsgHandlerCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkPeersCall) Do(f func() []peer.AddrInfo) *NetworkPeersCall {
+func (c *NetworkRegisterMsgHandlerCall) Do(f func(pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMsgHandlerCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkPeersCall) DoAndReturn(f func() []peer.AddrInfo) *NetworkPeersCall {
+func (c *NetworkRegisterMsgHandlerCall) DoAndReturn(f func(pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMsgHandlerCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// RegisterMultiMsgHandler mocks base method.
+func (m *MockNetwork) RegisterMultiMsgHandler(messageTypes []pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RegisterMultiMsgHandler", messageTypes, handler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RegisterMultiMsgHandler indicates an expected call of RegisterMultiMsgHandler.
+func (mr *MockNetworkMockRecorder) RegisterMultiMsgHandler(messageTypes, handler any) *NetworkRegisterMultiMsgHandlerCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterMultiMsgHandler", reflect.TypeOf((*MockNetwork)(nil).RegisterMultiMsgHandler), messageTypes, handler)
+	return &NetworkRegisterMultiMsgHandlerCall{Call: call}
+}
+
+// NetworkRegisterMultiMsgHandlerCall wrap *gomock.Call
+type NetworkRegisterMultiMsgHandlerCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *NetworkRegisterMultiMsgHandlerCall) Return(arg0 error) *NetworkRegisterMultiMsgHandlerCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *NetworkRegisterMultiMsgHandlerCall) Do(f func([]pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMultiMsgHandlerCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *NetworkRegisterMultiMsgHandlerCall) DoAndReturn(f func([]pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMultiMsgHandlerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

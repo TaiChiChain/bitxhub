@@ -19,37 +19,41 @@ import (
 )
 
 var (
-	ErrMethodName       = errors.New("no this method")
-	ErrVoteResult       = errors.New("vote result is invalid")
-	ErrProposalType     = errors.New("proposal type is invalid")
-	ErrUser             = errors.New("user is invalid")
-	ErrUseHasVoted      = errors.New("user has already voted")
-	ErrTitle            = errors.New("title is invalid")
-	ErrTooLongTitle     = errors.New("title is too long, max is 200 characters")
-	ErrDesc             = errors.New("description is invalid")
-	ErrTooLongDesc      = errors.New("description is too long, max is 10000 characters")
-	ErrBlockNumber      = errors.New("block number is invalid")
-	ErrProposalID       = errors.New("proposal id is invalid")
-	ErrProposalFinished = errors.New("proposal has already finished")
+	ErrMethodName         = errors.New("no this method")
+	ErrVoteResult         = errors.New("vote result is invalid")
+	ErrProposalType       = errors.New("proposal type is invalid")
+	ErrUser               = errors.New("user is invalid")
+	ErrUseHasVoted        = errors.New("user has already voted")
+	ErrTitle              = errors.New("title is invalid")
+	ErrTooLongTitle       = errors.New("title is too long, max is 200 characters")
+	ErrDesc               = errors.New("description is invalid")
+	ErrTooLongDesc        = errors.New("description is too long, max is 10000 characters")
+	ErrBlockNumber        = errors.New("block number is invalid")
+	ErrProposalID         = errors.New("proposal id is invalid")
+	ErrProposalFinished   = errors.New("proposal has already finished")
+	ErrBlockNumberOutDate = errors.New("block number is out of date")
 )
 
 const jsondata = `
 [
 	{"type": "function", "name": "propose", "inputs": [{"name": "proposalType", "type": "uint8"}, {"name": "title", "type": "string"}, {"name": "desc", "type": "string"}, {"name": "blockNumber", "type": "uint64"}, {"name": "extra", "type": "bytes"}], "outputs": [{"name": "proposalId", "type": "uint64"}]},
-	{"type": "function", "name": "vote", "inputs": [{"name": "proposalId", "type": "uint64"}, {"name": "voteResult", "type": "uint8"}, {"name": "extra", "type": "bytes"}]}
+	{"type": "function", "name": "vote", "inputs": [{"name": "proposalId", "type": "uint64"}, {"name": "voteResult", "type": "uint8"}, {"name": "extra", "type": "bytes"}]},
+	{"type": "function", "name": "proposal", "stateMutability": "view", "inputs": [{"name": "proposalId", "type": "uint64"}], "outputs": [{"name": "proposal", "type": "bytes"}]}
 ]
 `
 
 const (
 	ProposeMethod  = "propose"
 	VoteMethod     = "vote"
+	ProposalMethod = "proposal"
 	MaxTitleLength = 200
 	MaxDescLength  = 10000
 )
 
 var method2Sig = map[string]string{
-	ProposeMethod: "propose(uint8,string,string,uint64,bytes)",
-	VoteMethod:    "vote(uint64,uint8,bytes)",
+	ProposeMethod:  "propose(uint8,string,string,uint64,bytes)",
+	VoteMethod:     "vote(uint64,uint8,bytes)",
+	ProposalMethod: "proposal(uint64)",
 }
 
 type ProposalType uint8
@@ -99,6 +103,10 @@ type BaseVoteArgs struct {
 type VoteArgs struct {
 	BaseVoteArgs
 	Extra []byte
+}
+
+type GetProposalArgs struct {
+	ProposalID uint64
 }
 
 type Governance struct {
@@ -209,12 +217,46 @@ func (g *Governance) GetArgs(msg *vm.Message) (any, error) {
 			return nil, err
 		}
 		return voteArgs, nil
+	case ProposalMethod:
+		getProposalArgs := &GetProposalArgs{}
+		if err := g.ParseArgs(msg, ProposalMethod, getProposalArgs); err != nil {
+			return nil, err
+		}
+		return getProposalArgs, nil
 	default:
 		return nil, ErrMethodName
 	}
 }
 
-func (g *Governance) checkBeforePropose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64) (bool, error) {
+// PackOutputArgs pack the output arguments by method name
+func (g *Governance) PackOutputArgs(methodName string, outputArgs ...any) ([]byte, error) {
+	var args abi.Arguments
+	if method, ok := g.gabi.Methods[methodName]; ok {
+		args = method.Outputs
+	}
+
+	if args == nil {
+		return nil, fmt.Errorf("gabi: could not locate named method: %s", methodName)
+	}
+
+	return args.Pack(outputArgs...)
+}
+
+// UnpackOutputArgs unpack the output arguments by method name
+func (g *Governance) UnpackOutputArgs(methodName string, packed []byte) ([]any, error) {
+	var args abi.Arguments
+	if method, ok := g.gabi.Methods[methodName]; ok {
+		args = method.Outputs
+	}
+
+	if args == nil {
+		return nil, fmt.Errorf("gabi: could not locate named method: %s", methodName)
+	}
+
+	return args.Unpack(packed)
+}
+
+func (g *Governance) checkBeforePropose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64, lastHeight uint64) (bool, error) {
 	if user == nil {
 		return false, ErrUser
 	}
@@ -242,11 +284,16 @@ func (g *Governance) checkBeforePropose(user *ethcommon.Address, proposalType Pr
 		return false, ErrBlockNumber
 	}
 
+	// check out of date block number
+	if blockNumber <= lastHeight {
+		return false, ErrBlockNumberOutDate
+	}
+
 	return true, nil
 }
 
-func (g *Governance) Propose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64) (*BaseProposal, error) {
-	_, err := g.checkBeforePropose(user, proposalType, title, desc, blockNumber)
+func (g *Governance) Propose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64, lastHeight uint64) (*BaseProposal, error) {
+	_, err := g.checkBeforePropose(user, proposalType, title, desc, blockNumber, lastHeight)
 	if err != nil {
 		return nil, err
 	}

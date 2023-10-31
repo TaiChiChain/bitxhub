@@ -57,15 +57,16 @@ type Node struct {
 }
 
 func NewNode(config *common.Config) (*Node, error) {
-	node, err := newNode(config)
-	if err != nil {
-		return nil, err
-	}
-	return node, nil
-}
-
-func newNode(config *common.Config) (*Node, error) {
 	rbftConfig, txpoolConfig := generateRbftConfig(config)
+
+	lastCheckpointBlockNumber := rbftConfig.Applied / rbftConfig.GenesisEpochInfo.ConsensusParams.CheckpointPeriod * rbftConfig.GenesisEpochInfo.ConsensusParams.CheckpointPeriod
+	if lastCheckpointBlockNumber != 0 {
+		lastCheckpointBlock, err := config.GetBlockFunc(lastCheckpointBlockNumber)
+		if err != nil {
+			return nil, err
+		}
+		rbftConfig.LastCheckpointBlockDigest = lastCheckpointBlock.BlockHash.String()
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	rbftAdaptor, err := adaptor.NewRBFTAdaptor(config)
@@ -85,6 +86,7 @@ func newNode(config *common.Config) (*Node, error) {
 	if config.Config.Limit.Enable {
 		receiveMsgLimiter = rate.NewLimiter(rate.Limit(config.Config.Limit.Limit), int(config.Config.Limit.Burst))
 	}
+
 	return &Node{
 		config:            config,
 		n:                 n,
@@ -95,7 +97,7 @@ func newNode(config *common.Config) (*Node, error) {
 		cancel:            cancel,
 		txCache:           txcache.NewTxCache(rbftConfig.SetTimeout, uint64(rbftConfig.SetSize), config.Logger),
 		network:           config.Network,
-		txPreCheck:        precheck.NewTxPreCheckMgr(ctx, config.EVMConfig, config.Logger, config.GetAccountBalance),
+		txPreCheck:        precheck.NewTxPreCheckMgr(ctx, config),
 	}, nil
 }
 
@@ -380,7 +382,7 @@ func (n *Node) Commit() chan *common.CommitEvent {
 
 func (n *Node) Step(msg []byte) error {
 	m := &consensus.ConsensusMessage{}
-	if err := m.Unmarshal(msg); err != nil {
+	if err := m.UnmarshalVT(msg); err != nil {
 		return err
 	}
 	n.n.Step(context.Background(), m)
@@ -413,11 +415,20 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
+func (n *Node) GetAccountPoolMeta(account string, full bool) *common.AccountMeta {
+	return common.AccountMetaFromTxpool(n.n.GetAccountPoolMeta(account, full))
+}
+
+func (n *Node) GetPoolMeta(full bool) *common.Meta {
+	return common.MetaFromTxpool(n.n.GetPoolMeta(full))
+}
+
 func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*types.Hash, ckp *consensus.Checkpoint) {
 	// need update cached epoch info
 	epochInfo := n.stack.EpochInfo
 	epochChanged := false
-	if height == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
+	if common.NeedChangeEpoch(height, epochInfo) {
+		n.txPreCheck.UpdateEpochInfo(epochInfo)
 		err := n.stack.UpdateEpoch()
 		if err != nil {
 			panic(err)
@@ -487,8 +498,7 @@ func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *consensus.Checkpoint) er
 
 func (n *Node) Quorum() uint64 {
 	N := uint64(len(n.stack.EpochInfo.ValidatorSet))
-	f := (N - 1) / 3
-	return (N + f + 2) / 2
+	return adaptor.CalQuorum(N)
 }
 
 func (n *Node) checkQuorum() error {

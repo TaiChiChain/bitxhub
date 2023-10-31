@@ -3,14 +3,14 @@ package network
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
-	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	p2pnetwork "github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -52,8 +52,11 @@ type Network interface {
 	// CountConnectedPeers counts connected peer numbers
 	CountConnectedPeers() uint64
 
-	// Peers return all peers including local peer.
-	Peers() []peer.AddrInfo
+	// RegisterMsgHandler registers one message type handler
+	RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error
+
+	// RegisterMultiMsgHandler registers multi message type handler
+	RegisterMultiMsgHandler(messageTypes []pb.Message_Type, handler func(network.Stream, *pb.Message)) error
 }
 
 var _ Network = (*networkImpl)(nil)
@@ -64,13 +67,12 @@ type networkImpl struct {
 	p2p            network.Network
 	logger         logrus.FieldLogger
 	connectedPeers cmap.ConcurrentMap[string, bool]
-	enablePing     bool
-	pingTimeout    time.Duration
-	pingC          chan *repo.Ping
 	ctx            context.Context
 	cancel         context.CancelFunc
 	gater          connmgr.ConnectionGater
 	network.PipeManager
+
+	msgHandlers sync.Map // map[pb.Message_Type]MessageHandler
 }
 
 func New(repoConfig *repo.Repo, logger logrus.FieldLogger, ledger *ledger.Ledger) (Network, error) {
@@ -142,6 +144,7 @@ func (swarm *networkImpl) init() error {
 				PeerOutboundBufferSize: swarm.repo.Config.P2P.Pipe.Gossipsub.PeerOutboundBufferSize,
 				ValidateBufferSize:     swarm.repo.Config.P2P.Pipe.Gossipsub.ValidateBufferSize,
 				SeenMessagesTTL:        swarm.repo.Config.P2P.Pipe.Gossipsub.SeenMessagesTTL.ToDuration(),
+				EnableMetrics:          swarm.repo.Config.P2P.Pipe.Gossipsub.EnableMetrics,
 			},
 			UnicastReadTimeout:       swarm.repo.Config.P2P.Pipe.UnicastReadTimeout.ToDuration(),
 			UnicastSendRetryNumber:   swarm.repo.Config.P2P.Pipe.UnicastSendRetryNumber,
@@ -160,9 +163,6 @@ func (swarm *networkImpl) init() error {
 	p2p.SetConnectCallback(swarm.onConnected)
 	p2p.SetDisconnectCallback(swarm.onDisconnected)
 	swarm.p2p = p2p
-	swarm.enablePing = swarm.repo.Config.P2P.Ping.Enable
-	swarm.pingTimeout = swarm.repo.Config.P2P.Ping.Duration.ToDuration()
-	swarm.pingC = make(chan *repo.Ping)
 	swarm.connectedPeers = cmap.New[bool]()
 	swarm.gater = gater
 	swarm.PipeManager = p2p
@@ -176,8 +176,6 @@ func (swarm *networkImpl) Start() error {
 		return fmt.Errorf("start p2p failed: %w", err)
 	}
 
-	go swarm.Ping()
-
 	return nil
 }
 
@@ -188,54 +186,18 @@ func (swarm *networkImpl) Stop() error {
 
 func (swarm *networkImpl) onConnected(net p2pnetwork.Network, conn p2pnetwork.Conn) error {
 	peerID := conn.RemotePeer().String()
-	swarm.connectedPeers.Set(peerID, true)
-
+	validatorSet := swarm.repo.EpochInfo.ValidatorSet
+	for _, n := range validatorSet {
+		if n.P2PNodeID == peerID {
+			swarm.connectedPeers.Set(peerID, true)
+			return nil
+		}
+	}
 	return nil
 }
 
 func (swarm *networkImpl) onDisconnected(peerID string) {
 	swarm.connectedPeers.Remove(peerID)
-}
-
-func (swarm *networkImpl) Ping() {
-	if !swarm.enablePing {
-		swarm.pingTimeout = math.MaxInt64
-	}
-	ticker := time.NewTicker(swarm.pingTimeout)
-	for {
-		select {
-		case <-ticker.C:
-			fields := logrus.Fields{}
-			for key := range swarm.connectedPeers.Items() {
-				func() {
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-
-					pingCh, err := swarm.p2p.Ping(ctx, key)
-					if err != nil {
-						return
-					}
-					select {
-					case res := <-pingCh:
-						fields[fmt.Sprintf("%v", key)] = res.RTT
-					case <-time.After(time.Second * 5):
-						swarm.logger.Errorf("ping to node v timeout", key)
-					}
-				}()
-			}
-			swarm.logger.WithFields(fields).Info("ping time")
-		case pingConfig := <-swarm.pingC:
-			swarm.enablePing = pingConfig.Enable
-			swarm.pingTimeout = pingConfig.Duration.ToDuration()
-			if !swarm.enablePing {
-				swarm.pingTimeout = math.MaxInt64
-			}
-			ticker.Stop()
-			ticker = time.NewTicker(swarm.pingTimeout)
-		case <-swarm.ctx.Done():
-			return
-		}
-	}
 }
 
 func (swarm *networkImpl) SendWithStream(s network.Stream, msg *pb.Message) error {
@@ -266,14 +228,35 @@ func (swarm *networkImpl) Send(to string, msg *pb.Message) (*pb.Message, error) 
 	return m, nil
 }
 
-func (swarm *networkImpl) Peers() []peer.AddrInfo {
-	return swarm.p2p.GetPeers()
-}
-
 func (swarm *networkImpl) CountConnectedPeers() uint64 {
 	return uint64(swarm.connectedPeers.Count())
 }
 
 func (swarm *networkImpl) PeerID() string {
 	return swarm.p2p.PeerID()
+}
+
+func (swarm *networkImpl) RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
+	if handler == nil {
+		return errors.New("register msg handler: empty handler")
+	}
+
+	for msgType := range pb.Message_Type_name {
+		if msgType == int32(messageType) {
+			swarm.msgHandlers.Store(messageType, handler)
+			return nil
+		}
+	}
+
+	return errors.New("register msg handler: invalid message type")
+}
+
+func (swarm *networkImpl) RegisterMultiMsgHandler(messageTypes []pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
+	for _, typ := range messageTypes {
+		if err := swarm.RegisterMsgHandler(typ, handler); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

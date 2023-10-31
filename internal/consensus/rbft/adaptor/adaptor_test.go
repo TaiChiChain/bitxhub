@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/log"
@@ -20,7 +22,7 @@ import (
 )
 
 func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb)
+	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize)
 	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	stack, err := NewRBFTAdaptor(testutil.MockConsensusConfig(logger, ctrl, t))
@@ -84,12 +86,18 @@ func TestStateUpdate(t *testing.T) {
 	testutil.SetMockBlockLedger(block2, false)
 	defer testutil.ResetMockBlockLedger()
 
-	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), nil, nil)
-	ast.Equal(true, adaptor.StateUpdating)
+	quorumCkpt := &consensus.SignedCheckpoint{
+		Checkpoint: &consensus.Checkpoint{
+			ExecuteState: &consensus.Checkpoint_ExecuteState{
+				Height: block2.Height(),
+				Digest: block2.BlockHash.String(),
+			},
+		},
+	}
+	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), []*consensus.SignedCheckpoint{quorumCkpt}, nil)
 
 	targetB := <-adaptor.BlockC
 	ast.Equal(uint64(2), targetB.Block.BlockHeader.Number)
-	ast.Equal(true, adaptor.StateUpdating)
 
 	block3 := testutil.ConstructBlock("block3", uint64(3))
 	testutil.SetMockBlockLedger(block3, false)
@@ -104,48 +112,12 @@ func TestStateUpdate(t *testing.T) {
 		Checkpoint: ckp,
 	}
 
-	peerSet := []string{"1", "2", "3", "4"}
-	epochChange := &consensus.EpochChange{
-		Checkpoint: &consensus.QuorumCheckpoint{Checkpoint: ckp},
-		Validators: peerSet,
-	}
-
-	t.Run("StateUpdate with checkpoint and epoch change", func(t *testing.T) {
-		adaptor.StateUpdate(0, block3.BlockHeader.Number, block3.BlockHash.String(),
-			[]*consensus.SignedCheckpoint{signCkp}, epochChange)
-
-		target2 := <-adaptor.BlockC
-		ast.Equal(uint64(2), target2.Block.BlockHeader.Number)
-		ast.Equal(block2.BlockHash.String(), target2.Block.BlockHash.String())
-
-		target3 := <-adaptor.BlockC
-		ast.Equal(uint64(3), target3.Block.BlockHeader.Number)
-		ast.Equal(block3.BlockHash.String(), target3.Block.BlockHash.String())
-		ast.Equal(true, adaptor.StateUpdating)
-	})
-
-	t.Run("StateUpdate with rollback", func(t *testing.T) {
-		block4 := testutil.ConstructBlock("block4", uint64(4))
-		testutil.SetMockChainMeta(&types.ChainMeta{Height: uint64(4), BlockHash: block4.BlockHash})
-		defer testutil.ResetMockChainMeta()
-
-		testutil.SetMockBlockLedger(block3, true)
-		defer testutil.ResetMockBlockLedger()
-		adaptor.StateUpdate(2, block3.BlockHeader.Number, block3.BlockHash.String(),
-			[]*consensus.SignedCheckpoint{signCkp}, nil)
-		ast.Equal(false, adaptor.StateUpdating)
-
-		wrongBlock3 := testutil.ConstructBlock("wrong_block3", uint64(3))
-		testutil.SetMockBlockLedger(wrongBlock3, true)
-		defer testutil.ResetMockBlockLedger()
-
-		adaptor.StateUpdate(2, block3.BlockHeader.Number, block3.BlockHash.String(),
-			[]*consensus.SignedCheckpoint{signCkp}, nil)
-
-		target := <-adaptor.BlockC
-		ast.Equal(uint64(3), target.Block.BlockHeader.Number, "low watermark is 2, we should rollback to 2, and then sync to 3")
-		ast.Equal(block3.BlockHash.String(), target.Block.BlockHash.String())
-		ast.Equal(true, adaptor.StateUpdating)
+	peerSet := make([]string, 0)
+	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
+	lo.ForEach(vSet, func(item *rbft.NodeInfo, index int) {
+		if item.P2PNodeID != adaptor.config.SelfAccountAddress {
+			peerSet = append(peerSet, item.P2PNodeID)
+		}
 	})
 
 	t.Run("StateUpdate with receive stop signal", func(t *testing.T) {
@@ -155,15 +127,112 @@ func TestStateUpdate(t *testing.T) {
 		block5 := testutil.ConstructBlock("block5", uint64(5))
 		testutil.SetMockBlockLedger(block5, false)
 
-		defer testutil.ResetMockBlockLedger()
-
 		adaptor.Cancel()
+		time.Sleep(100 * time.Millisecond)
 		adaptor.StateUpdate(0, block5.BlockHeader.Number, block5.BlockHash.String(),
 			[]*consensus.SignedCheckpoint{signCkp}, nil)
-
-		ast.Equal(true, adaptor.closed)
-		ast.Equal(false, adaptor.StateUpdating)
 	})
+}
+
+func TestStateUpdateWithEpochChange(t *testing.T) {
+	ast := assert.New(t)
+	ctrl := gomock.NewController(t)
+
+	adaptor := mockAdaptor(ctrl, t)
+	block2 := testutil.ConstructBlock("block2", uint64(2))
+	testutil.SetMockBlockLedger(block2, false)
+	defer testutil.ResetMockBlockLedger()
+
+	block3 := testutil.ConstructBlock("block3", uint64(3))
+	testutil.SetMockBlockLedger(block3, false)
+
+	ckp := &consensus.Checkpoint{
+		ExecuteState: &consensus.Checkpoint_ExecuteState{
+			Height: block3.Height(),
+			Digest: block3.BlockHash.String(),
+		},
+	}
+	signCkp := &consensus.SignedCheckpoint{
+		Checkpoint: ckp,
+	}
+
+	peerSet := make([]string, 0)
+	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
+	lo.ForEach(vSet, func(item *rbft.NodeInfo, index int) {
+		if item.P2PNodeID != adaptor.config.SelfAccountAddress {
+			peerSet = append(peerSet, item.P2PNodeID)
+		}
+	})
+
+	epochChange := &consensus.EpochChange{
+		Checkpoint: &consensus.QuorumCheckpoint{Checkpoint: ckp},
+		Validators: peerSet,
+	}
+
+	adaptor.StateUpdate(0, block3.BlockHeader.Number, block3.BlockHash.String(),
+		[]*consensus.SignedCheckpoint{signCkp}, epochChange)
+
+	target2 := <-adaptor.BlockC
+	ast.Equal(uint64(2), target2.Block.BlockHeader.Number)
+	ast.Equal(block2.BlockHash.String(), target2.Block.BlockHash.String())
+
+	target3 := <-adaptor.BlockC
+	ast.Equal(uint64(3), target3.Block.BlockHeader.Number)
+	ast.Equal(block3.BlockHash.String(), target3.Block.BlockHash.String())
+}
+
+func TestStateUpdateWithRollback(t *testing.T) {
+	testutil.ResetMockBlockLedger()
+	testutil.ResetMockChainMeta()
+
+	ast := assert.New(t)
+	ctrl := gomock.NewController(t)
+
+	adaptor := mockAdaptor(ctrl, t)
+	block2 := testutil.ConstructBlock("block2", uint64(2))
+	testutil.SetMockBlockLedger(block2, false)
+	defer testutil.ResetMockBlockLedger()
+
+	block3 := testutil.ConstructBlock("block3", uint64(3))
+	testutil.SetMockBlockLedger(block3, false)
+
+	ckp := &consensus.Checkpoint{
+		ExecuteState: &consensus.Checkpoint_ExecuteState{
+			Height: block3.Height(),
+			Digest: block3.BlockHash.String(),
+		},
+	}
+	signCkp := &consensus.SignedCheckpoint{
+		Checkpoint: ckp,
+	}
+
+	peerSet := make([]string, 0)
+	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
+	lo.ForEach(vSet, func(item *rbft.NodeInfo, index int) {
+		if item.P2PNodeID != adaptor.config.SelfAccountAddress {
+			peerSet = append(peerSet, item.P2PNodeID)
+		}
+	})
+
+	block4 := testutil.ConstructBlock("block4", uint64(4))
+	testutil.SetMockChainMeta(&types.ChainMeta{Height: uint64(4), BlockHash: block4.BlockHash})
+	defer testutil.ResetMockChainMeta()
+
+	testutil.SetMockBlockLedger(block3, true)
+	defer testutil.ResetMockBlockLedger()
+	adaptor.StateUpdate(2, block3.BlockHeader.Number, block3.BlockHash.String(),
+		[]*consensus.SignedCheckpoint{signCkp}, nil)
+
+	wrongBlock3 := testutil.ConstructBlock("wrong_block3", uint64(3))
+	testutil.SetMockBlockLedger(wrongBlock3, true)
+	defer testutil.ResetMockBlockLedger()
+
+	adaptor.StateUpdate(2, block3.BlockHeader.Number, block3.BlockHash.String(),
+		[]*consensus.SignedCheckpoint{signCkp}, nil)
+
+	target := <-adaptor.BlockC
+	ast.Equal(uint64(3), target.Block.BlockHeader.Number, "low watermark is 2, we should rollback to 2, and then sync to 3")
+	ast.Equal(block3.BlockHash.String(), target.Block.BlockHash.String())
 }
 
 // refactor this unit test

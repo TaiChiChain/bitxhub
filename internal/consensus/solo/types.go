@@ -1,6 +1,9 @@
 package solo
 
-import "github.com/axiomesh/axiom-kit/types"
+import (
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+)
 
 const (
 	singleTx    = 1
@@ -38,4 +41,15 @@ type getTotalPendingTxCountReq struct {
 // getLowWatermarkReq is a type for syncer request GetLowWatermark
 type getLowWatermarkReq struct {
 	Resp chan uint64
+}
+
+type getAccountPoolMetaReq struct {
+	account string
+	full    bool
+	Resp    chan *common.AccountMeta
+}
+
+type getPoolMetaReq struct {
+	full bool
+	Resp chan *common.Meta
 }

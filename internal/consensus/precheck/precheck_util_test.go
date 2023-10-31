@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
@@ -24,6 +25,7 @@ var mockDb = make(map[string]*big.Int)
 func newMockPreCheckMgr() (*TxPreCheckMgr, *logrus.Entry, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := log.NewWithModule("precheck")
+
 	getAccountBalance := func(address *types.Address) *big.Int {
 		val, ok := mockDb[address.String()]
 		if !ok {
@@ -31,7 +33,25 @@ func newMockPreCheckMgr() (*TxPreCheckMgr, *logrus.Entry, context.CancelFunc) {
 		}
 		return val
 	}
-	return NewTxPreCheckMgr(ctx, repo.EVM{}, logger, getAccountBalance), logger, cancel
+	getChainmetaFn := func() *types.ChainMeta {
+		return &types.ChainMeta{
+			GasPrice: big.NewInt(0),
+		}
+	}
+
+	cnf := &common2.Config{
+		EVMConfig: repo.EVM{},
+		Logger:    logger,
+		GenesisEpochInfo: &rbft.EpochInfo{
+			ConfigParams: &rbft.ConfigParams{
+				TxMaxSize: repo.DefaultTxMaxSize,
+			},
+		},
+		GetChainMetaFunc:  getChainmetaFn,
+		GetAccountBalance: getAccountBalance,
+	}
+
+	return NewTxPreCheckMgr(ctx, cnf), logger, cancel
 }
 
 func cleanDb() {

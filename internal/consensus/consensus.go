@@ -52,6 +52,10 @@ type Consensus interface {
 	GetLowWatermark() uint64
 
 	SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscription
+
+	GetAccountPoolMeta(account string, full bool) *common.AccountMeta
+
+	GetPoolMeta(full bool) *common.Meta
 }
 
 func New(consensusType string, opts ...common.Option) (Consensus, error) {

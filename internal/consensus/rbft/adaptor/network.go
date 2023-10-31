@@ -16,7 +16,7 @@ func (a *RBFTAdaptor) Broadcast(ctx context.Context, msg *consensus.ConsensusMes
 		}
 	}()
 
-	data, err := msg.Marshal()
+	data, err := msg.MarshalVTStrict()
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (a *RBFTAdaptor) unicastCheck(ctx context.Context, msg *consensus.Consensus
 		}
 	}()
 
-	data, err := msg.Marshal()
+	data, err := msg.MarshalVTStrict()
 	if err != nil {
 		return nil, err
 	}

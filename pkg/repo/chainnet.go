@@ -23,6 +23,9 @@ var (
 func AriesConfig() *Config {
 	return &Config{
 		Ulimit: 65535,
+		Access: Access{
+			EnableWhiteList: false,
+		},
 		Port: Port{
 			JsonRpc:   8881,
 			WebSocket: 9991,
@@ -33,21 +36,25 @@ func AriesConfig() *Config {
 		JsonRPC: JsonRPC{
 			GasCap:     300000000,
 			EVMTimeout: Duration(5 * time.Second),
-			Limiter: JLimiter{
+			ReadLimiter: JLimiter{
 				Interval: 50,
 				Quantum:  500,
 				Capacity: 10000,
+				Enable:   true,
 			},
-			RejectTxsIfConsensusAbnormal: false,
+			WriteLimiter: JLimiter{
+				Interval: 50,
+				Quantum:  500,
+				Capacity: 10000,
+				Enable:   true,
+			},
+			RejectTxsIfConsensusAbnormal:   false,
+			DisableGasPriceAPIPricePremium: false,
 		},
 		P2P: P2P{
 			Security:    P2PSecurityTLS,
 			SendTimeout: Duration(5 * time.Second),
 			ReadTimeout: Duration(5 * time.Second),
-			Ping: Ping{
-				Enable:   false,
-				Duration: Duration(15 * time.Second),
-			},
 			Pipe: P2PPipe{
 				ReceiveMsgCacheSize: 1024,
 				BroadcastType:       P2PPipeBroadcastGossip,
@@ -60,6 +67,7 @@ func AriesConfig() *Config {
 					PeerOutboundBufferSize: 1024,
 					ValidateBufferSize:     1024,
 					SeenMessagesTTL:        Duration(120 * time.Second),
+					EnableMetrics:          false,
 				},
 				UnicastReadTimeout:       Duration(5 * time.Second),
 				UnicastSendRetryNumber:   5,
@@ -68,13 +76,21 @@ func AriesConfig() *Config {
 				ConnectTimeout:           Duration(1 * time.Second),
 			},
 		},
+		Sync: Sync{
+			WaitStateTimeout:      Duration(2 * time.Minute),
+			RequesterRetryTimeout: Duration(30 * time.Second),
+			TimeoutCountLimit:     uint64(10),
+			ConcurrencyLimit:      1000,
+		},
 		Consensus: Consensus{
 			Type: ConsensusTypeRbft,
 		},
 		Storage: Storage{
 			KvType: KVStorageTypeLeveldb,
 		},
-		Ledger: Ledger{},
+		Ledger: Ledger{
+			ChainLedgerCacheSize: 100,
+		},
 		Executor: Executor{
 			Type:            ExecTypeNative,
 			DisableRollback: false,
@@ -83,13 +99,9 @@ func AriesConfig() *Config {
 			},
 		},
 		Genesis: Genesis{
-			ChainID:       23411,
-			GasLimit:      0x5f5e100,
-			GasPrice:      5000000000000,
-			MaxGasPrice:   10000000000000,
-			MinGasPrice:   1000000000000,
-			GasChangeRate: 0.125,
-			Balance:       "1000000000000000000000000000",
+			ChainID:  23411,
+			GasPrice: 5000000000000,
+			Balance:  "1000000000000000000000000000",
 			Admins: []*Admin{
 				{
 					Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
@@ -125,6 +137,7 @@ func AriesConfig() *Config {
 					"/ip4/127.0.0.1/tcp/4004/p2p/16Uiu2HAm3ikUE3LjJeatMMgDuV2cAG9da8ZJJFLA8nBy6qcN1MMg",
 				},
 				ConsensusParams: &rbft.ConsensusParams{
+					ValidatorElectionType:         rbft.ValidatorElectionTypeWRF,
 					CheckpointPeriod:              10,
 					HighWatermarkCheckpointPeriod: 4,
 					MaxValidatorNum:               20,
@@ -161,6 +174,16 @@ func AriesConfig() *Config {
 						ConsensusVotingPower: 1000,
 					},
 				},
+				FinanceParams: &rbft.Finance{
+					GasLimit:       0x5f5e100,
+					MaxGasPrice:    10000000000000,
+					MinGasPrice:    1000000000000,
+					GasChangeRate:  0.125,
+					GasPremiumRate: DefaultGasPremiumRate,
+				},
+				ConfigParams: &rbft.ConfigParams{
+					TxMaxSize: DefaultTxMaxSize,
+				},
 			},
 		},
 		PProf: PProf{
@@ -192,7 +215,11 @@ func AriesConfig() *Config {
 				Storage:    "info",
 				Profile:    "info",
 				Finance:    "error",
+				BlockSync:  "info",
+				APP:        "info",
 				Access:     "info",
+				TxPool:     "info",
+				Epoch:      "info",
 			},
 		},
 	}
@@ -209,10 +236,6 @@ func AriesConsensusConfig() *ConsensusConfig {
 			Limit:  10000,
 			Burst:  10000,
 		},
-		Sync: ConsensusSync{
-			FetchConcurrencyLimit: 50,
-			FetchSizeLimit:        1000,
-		},
 		TxPool: TxPool{
 			PoolSize:            50000,
 			BatchTimeout:        Duration(500 * time.Millisecond),
@@ -227,6 +250,7 @@ func AriesConsensusConfig() *ConsensusConfig {
 			EnableMultiPipes: false,
 			EnableMetrics:    true,
 			CheckInterval:    Duration(3 * time.Minute),
+			MinimumNumberOfBatchesToRetainAfterCheckpoint: 10,
 			Timeout: RBFTTimeout{
 				SyncState:        Duration(3 * time.Second),
 				SyncInterval:     Duration(1 * time.Minute),

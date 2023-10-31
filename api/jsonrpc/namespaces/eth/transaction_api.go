@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -17,6 +16,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -36,6 +36,11 @@ func NewTransactionAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogge
 
 // GetBlockTransactionCountByNumber returns the number of transactions in the block identified by its height.
 func (api *TransactionAPI) GetBlockTransactionCountByNumber(blockNum rpctypes.BlockNumber) *hexutil.Uint {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+	}(time.Now())
+
 	api.logger.Debugf("eth_getBlockTransactionCountByNumber, block number: %d", blockNum)
 	if blockNum == rpctypes.PendingBlockNumber || blockNum == rpctypes.LatestBlockNumber {
 		meta, _ := api.api.Chain().Meta()
@@ -44,6 +49,7 @@ func (api *TransactionAPI) GetBlockTransactionCountByNumber(blockNum rpctypes.Bl
 
 	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNum))
 	if err != nil {
+		queryFailedCounter.Inc()
 		api.logger.Debugf("eth api GetBlockTransactionCountByNumber err:%s", err)
 		return nil
 	}
@@ -55,11 +61,17 @@ func (api *TransactionAPI) GetBlockTransactionCountByNumber(blockNum rpctypes.Bl
 
 // GetBlockTransactionCountByHash returns the number of transactions in the block identified by hash.
 func (api *TransactionAPI) GetBlockTransactionCountByHash(hash common.Hash) *hexutil.Uint {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+	}(time.Now())
+
 	api.logger.Debugf("eth_getBlockTransactionCountByHash, hash: %s", hash.String())
 
 	block, err := api.api.Broker().GetBlock("HASH", hash.String())
 	if err != nil {
 		api.logger.Debugf("eth api GetBlockTransactionCountByHash err:%s", err)
+		queryFailedCounter.Inc()
 		return nil
 	}
 
@@ -69,7 +81,15 @@ func (api *TransactionAPI) GetBlockTransactionCountByHash(hash common.Hash) *hex
 }
 
 // GetTransactionByBlockNumberAndIndex returns the transaction identified by number and index.
-func (api *TransactionAPI) GetTransactionByBlockNumberAndIndex(blockNum rpctypes.BlockNumber, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
+func (api *TransactionAPI) GetTransactionByBlockNumberAndIndex(blockNum rpctypes.BlockNumber, idx hexutil.Uint) (ret *rpctypes.RPCTransaction, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getTransactionByBlockNumberAndIndex, number: %d, index: %d", blockNum, idx)
 
 	height := uint64(0)
@@ -90,18 +110,34 @@ func (api *TransactionAPI) GetTransactionByBlockNumberAndIndex(blockNum rpctypes
 }
 
 // GetTransactionByBlockHashAndIndex returns the transaction identified by hash and index.
-func (api *TransactionAPI) GetTransactionByBlockHashAndIndex(hash common.Hash, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
+func (api *TransactionAPI) GetTransactionByBlockHashAndIndex(hash common.Hash, idx hexutil.Uint) (ret *rpctypes.RPCTransaction, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getTransactionByHashAndIndex, hash: %s, index: %d", hash.String(), idx)
 
 	return getTxByBlockInfoAndIndex(api.api, "HASH", hash.String(), idx)
 }
 
 // GetTransactionCount returns the number of transactions at the given address, blockNum is ignored.
-func (api *TransactionAPI) GetTransactionCount(address common.Address, blockNrOrHash *rpctypes.BlockNumberOrHash) (*hexutil.Uint64, error) {
+func (api *TransactionAPI) GetTransactionCount(address common.Address, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret *hexutil.Uint64, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getTransactionCount, address: %s", address)
 	if blockNrOrHash != nil {
 		if blockNumber, ok := blockNrOrHash.Number(); ok && blockNumber == rpctypes.PendingBlockNumber {
-			nonce := api.api.Broker().GetPendingTxCountByAccount(address.String())
+			nonce := api.api.TxPool().GetPendingTxCountByAccount(address.String())
 			return (*hexutil.Uint64)(&nonce), nil
 		}
 	}
@@ -116,7 +152,15 @@ func (api *TransactionAPI) GetTransactionCount(address common.Address, blockNrOr
 }
 
 // GetTransactionByHash returns the transaction identified by hash.
-func (api *TransactionAPI) GetTransactionByHash(hash common.Hash) (*rpctypes.RPCTransaction, error) {
+func (api *TransactionAPI) GetTransactionByHash(hash common.Hash) (ret *rpctypes.RPCTransaction, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getTransactionByHash, hash: %s", hash.String())
 
 	typesHash := types.NewHash(hash.Bytes())
@@ -133,7 +177,7 @@ func (api *TransactionAPI) GetTransactionByHash(hash common.Hash) (*rpctypes.RPC
 	}
 
 	// retrieve tx from the pool
-	if poolTx := api.api.Broker().GetPoolTransaction(typesHash); poolTx != nil {
+	if poolTx := api.api.TxPool().GetTransaction(typesHash); poolTx != nil {
 		return NewRPCTransaction(poolTx, common.Hash{}, 0, 0), nil
 	}
 
@@ -141,7 +185,15 @@ func (api *TransactionAPI) GetTransactionByHash(hash common.Hash) (*rpctypes.RPC
 }
 
 // GetTransactionReceipt returns the transaction receipt identified by hash.
-func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (map[string]any, error) {
+func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (ret map[string]any, err error) {
+	defer func(start time.Time) {
+		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	api.logger.Debugf("eth_getTransactionReceipt, hash: %s", hash.String())
 
 	txHash := types.NewHash(hash.Bytes())
@@ -166,20 +218,9 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (map[string]a
 		return nil, err
 	}
 
-	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
-	if err != nil {
-		api.logger.Debugf("no block found for height %d", meta.BlockHeight)
-		return nil, err
-	}
-
-	cumulativeGasUsed, err := getBlockCumulativeGas(api.api, block, meta.Index)
-	if err != nil {
-		return nil, err
-	}
-
 	fields := map[string]any{
 		"type":              hexutil.Uint(tx.GetType()),
-		"cumulativeGasUsed": hexutil.Uint64(cumulativeGasUsed),
+		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
 		"transactionHash":   hash,
 		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
 		"blockHash":         common.BytesToHash(meta.BlockHash.Bytes()),
@@ -220,6 +261,8 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (map[string]a
 
 	if receipt.ContractAddress != nil {
 		fields["contractAddress"] = common.BytesToAddress(receipt.ContractAddress.Bytes())
+	} else {
+		fields["contractAddress"] = nil
 	}
 
 	if tx.GetTo() != nil {
@@ -232,7 +275,15 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (map[string]a
 }
 
 // SendRawTransaction send a raw Ethereum transaction.
-func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (common.Hash, error) {
+func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Hash, err error) {
+	defer func(start time.Time) {
+		invokeSendRawTxDuration.Observe(time.Since(start).Seconds())
+		queryTotalCounter.Inc()
+		if err != nil {
+			queryFailedCounter.Inc()
+		}
+	}(time.Now())
+
 	if api.rep.ReadonlyMode {
 		return [32]byte{}, errors.New("readonly mode cannot process tx")
 	}
@@ -242,7 +293,7 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (common.Hash, 
 		return [32]byte{}, err
 	}
 
-	if api.rep.Config.Access.EnableWhiteList == repo.EnableWhiteList {
+	if api.rep.Config.Access.EnableWhiteList {
 		from := tx.GetFrom()
 		if from == nil {
 			return [32]byte{}, errors.New("verify tx err")

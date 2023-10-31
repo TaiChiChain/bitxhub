@@ -16,6 +16,7 @@ import (
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
+	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
@@ -39,6 +40,7 @@ type AxiomLedger struct {
 	BlockExecutor executor.Executor
 	Consensus     consensus.Consensus
 	Network       network.Network
+	Sync          block_sync.Sync
 	Monitor       *profile.Monitor
 	Pprof         *profile.Pprof
 	LoggerWrapper *loggers.LoggerWrapper
@@ -81,6 +83,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 				return base.GetCurrentEpochInfo(axm.ViewLedger.NewView().StateLedger)
 			}),
 			common.WithEVMConfig(axm.Repo.Config.Executor.EVM),
+			common.WithBlockSync(axm.Sync),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("initialize consensus failed: %w", err)
@@ -93,7 +96,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 func PrepareAxiomLedger(rep *repo.Repo) error {
 	types.InitEIP155Signer(big.NewInt(int64(rep.Config.Genesis.ChainID)))
 
-	if err := storagemgr.Initialize(rep.Config.Storage.KvType); err != nil {
+	if err := storagemgr.Initialize(rep.Config.Storage.KvType, rep.Config.Storage.KvCacheSize); err != nil {
 		return fmt.Errorf("storagemgr initialize: %w", err)
 	}
 	if err := raiseUlimit(rep.Config.Ulimit); err != nil {
@@ -142,14 +145,21 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		}
 	}
 
+	vl := rwLdg.NewView()
+	sync, err := block_sync.NewBlockSync(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetBlock, net, rep.Config.Sync)
+	if err != nil {
+		return nil, fmt.Errorf("create block sync: %w", err)
+	}
+
 	axm := &AxiomLedger{
 		Ctx:           ctx,
 		Cancel:        cancel,
 		Repo:          rep,
 		logger:        logger,
-		ViewLedger:    rwLdg.NewView(),
+		ViewLedger:    vl,
 		BlockExecutor: txExec,
 		Network:       net,
+		Sync:          sync,
 	}
 	// read current epoch info from ledger
 	axm.Repo.EpochInfo, err = base.GetCurrentEpochInfo(axm.ViewLedger.StateLedger)
@@ -163,6 +173,10 @@ func (axm *AxiomLedger) Start() error {
 	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] && !axm.Repo.ReadonlyMode {
 		if err := axm.Network.Start(); err != nil {
 			return fmt.Errorf("peer manager start: %w", err)
+		}
+
+		if err := axm.Sync.Start(); err != nil {
+			return fmt.Errorf("block sync start: %w", err)
 		}
 	}
 

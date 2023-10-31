@@ -18,13 +18,6 @@ import (
 
 type BrokerAPI CoreAPI
 
-func (b *BrokerAPI) GetTotalPendingTxCount() uint64 {
-	if b.axiomLedger.Repo.ReadonlyMode {
-		return 0
-	}
-	return b.axiomLedger.Consensus.GetTotalPendingTxCount()
-}
-
 var _ api.BrokerAPI = (*BrokerAPI)(nil)
 
 func (b *BrokerAPI) HandleTransaction(tx *types.Transaction) error {
@@ -120,20 +113,6 @@ func (b *BrokerAPI) ConsensusReady() error {
 	}
 
 	return b.axiomLedger.Consensus.Ready()
-}
-
-func (b *BrokerAPI) GetPendingTxCountByAccount(account string) uint64 {
-	if b.axiomLedger.Repo.ReadonlyMode {
-		return 0
-	}
-	return b.axiomLedger.Consensus.GetPendingTxCountByAccount(account)
-}
-
-func (b *BrokerAPI) GetPoolTransaction(hash *types.Hash) *types.Transaction {
-	if b.axiomLedger.Repo.ReadonlyMode {
-		return nil
-	}
-	return b.axiomLedger.Consensus.GetPendingTxByHash(hash)
 }
 
 func (b *BrokerAPI) GetViewStateLedger() ledger.StateLedger {

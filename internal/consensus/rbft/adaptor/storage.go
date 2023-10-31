@@ -2,9 +2,8 @@ package adaptor
 
 import (
 	"bytes"
-	"fmt"
 
-	"github.com/syndtr/goleveldb/leveldb/errors"
+	"github.com/pkg/errors"
 )
 
 // StoreState stores a key,value pair to the database with the given namespace
@@ -23,7 +22,7 @@ func (a *RBFTAdaptor) DelState(key string) error {
 func (a *RBFTAdaptor) ReadState(key string) ([]byte, error) {
 	b := a.store.Get([]byte("consensus." + key))
 	if b == nil {
-		return nil, errors.ErrNotFound
+		return nil, errors.New("not found")
 	}
 	return b, nil
 }
@@ -39,8 +38,7 @@ func (a *RBFTAdaptor) ReadStateSet(prefix string) (map[string][]byte, error) {
 	}
 
 	if !it.Seek(prefixRaw) {
-		err := fmt.Errorf("can not find key with %v in database", prefixRaw)
-		return nil, err
+		return nil, errors.New("not found")
 	}
 
 	for bytes.HasPrefix(it.Key(), prefixRaw) {

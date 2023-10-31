@@ -38,16 +38,13 @@ type SystemContractConstruct func(cfg *SystemContractConfig) SystemContract
 
 type SystemContract interface {
 	// Reset the state of the system contract
-	Reset(ledger.StateLedger)
+	Reset(uint64, ledger.StateLedger)
 
 	// Run the system contract
 	Run(*vm.Message) (*vm.ExecutionResult, error)
 
 	// EstimateGas estimate the gas cost of the system contract
 	EstimateGas(*types.CallArgs) (uint64, error)
-
-	// CheckAndUpdateState check and update state
-	CheckAndUpdateState(uint64, ledger.StateLedger)
 }
 
 func IsInSlice[T ~uint8 | ~string](value T, slice []T) bool {

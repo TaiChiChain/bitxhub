@@ -21,6 +21,8 @@ type AccountCache struct {
 	stateCache *lru.Cache[string, *lru.Cache[string, []byte]]
 
 	codeCache *lru.Cache[string, []byte]
+
+	enableExpensiveMetric bool
 }
 
 func NewAccountCache() (*AccountCache, error) {
@@ -46,6 +48,10 @@ func NewAccountCache() (*AccountCache, error) {
 	}, nil
 }
 
+func (ac *AccountCache) SetEnableExpensiveMetric(enable bool) {
+	ac.enableExpensiveMetric = enable
+}
+
 func (ac *AccountCache) add(accounts map[string]IAccount) error {
 	for addr, acc := range accounts {
 		account := acc.(*SimpleAccount)
@@ -55,7 +61,7 @@ func (ac *AccountCache) add(accounts map[string]IAccount) error {
 			ac.innerAccountCache.Add(addr, account.dirtyAccount)
 		}
 
-		if len(account.dirtyState) != 0 {
+		if len(account.pendingState) != 0 {
 			value, ok := ac.stateCache.Get(addr)
 			if ok {
 				stateCache = value
@@ -68,7 +74,7 @@ func (ac *AccountCache) add(accounts map[string]IAccount) error {
 				ac.stateCache.Add(addr, stateCache)
 			}
 
-			for key, value := range account.dirtyState {
+			for key, value := range account.pendingState {
 				stateCache.Add(key, value)
 			}
 		}
@@ -87,21 +93,42 @@ func (ac *AccountCache) rmAccount(addr *types.Address) {
 }
 
 func (ac *AccountCache) getInnerAccount(addr *types.Address) (*InnerAccount, bool) {
-	return ac.innerAccountCache.Get(addr.String())
+	ret, ok := ac.innerAccountCache.Get(addr.String())
+	if ac.enableExpensiveMetric {
+		if ok {
+			accountCacheHitCounter.Inc()
+		} else {
+			accountCacheMissCounter.Inc()
+		}
+	}
+	return ret, ok
 }
 
 func (ac *AccountCache) getState(addr *types.Address, key string) ([]byte, bool) {
 	if value, ok := ac.stateCache.Get(addr.String()); ok {
 		if val, ok := value.Get(key); ok {
+			if ac.enableExpensiveMetric {
+				accountCacheHitCounter.Inc()
+			}
 			return val, true
 		}
 	}
-
+	if ac.enableExpensiveMetric {
+		accountCacheMissCounter.Inc()
+	}
 	return nil, false
 }
 
 func (ac *AccountCache) getCode(addr *types.Address) ([]byte, bool) {
-	return ac.codeCache.Get(addr.String())
+	ret, ok := ac.codeCache.Get(addr.String())
+	if ac.enableExpensiveMetric {
+		if ok {
+			accountCacheHitCounter.Inc()
+		} else {
+			accountCacheMissCounter.Inc()
+		}
+	}
+	return ret, ok
 }
 
 func (ac *AccountCache) clear() {

@@ -10,6 +10,7 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -24,6 +25,7 @@ type Config struct {
 	SelfAccountAddress                          string
 	GenesisEpochInfo                            *rbft.EpochInfo
 	Network                                     network.Network
+	BlockSync                                   block_sync.Sync
 	Applied                                     uint64
 	Digest                                      string
 	GenesisDigest                               string
@@ -59,6 +61,12 @@ func WithConsensusType(typ string) Option {
 func WithNetwork(net network.Network) Option {
 	return func(config *Config) {
 		config.Network = net
+	}
+}
+
+func WithBlockSync(blockSync block_sync.Sync) Option {
+	return func(config *Config) {
+		config.BlockSync = blockSync
 	}
 }
 
@@ -184,4 +192,8 @@ func (lg *Logger) Notice(v ...any) {
 
 func (lg *Logger) Noticef(format string, v ...any) {
 	lg.Infof(format, v...)
+}
+
+func NeedChangeEpoch(height uint64, epochInfo *rbft.EpochInfo) bool {
+	return height == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1)
 }

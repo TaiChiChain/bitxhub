@@ -82,6 +82,7 @@ type CouncilManager struct {
 	currentLog      *common.Log
 	proposalID      *ProposalID
 	addr2NameSystem *Addr2NameSystem
+	lastHeight      uint64
 }
 
 func NewCouncilManager(cfg *common.SystemContractConfig) *CouncilManager {
@@ -95,7 +96,7 @@ func NewCouncilManager(cfg *common.SystemContractConfig) *CouncilManager {
 	}
 }
 
-func (cm *CouncilManager) Reset(stateLedger ledger.StateLedger) {
+func (cm *CouncilManager) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
 	addr := types.NewAddressByStr(common.CouncilManagerContractAddr)
 	cm.account = stateLedger.GetOrCreateAccount(addr)
 	cm.stateLedger = stateLedger
@@ -104,6 +105,10 @@ func (cm *CouncilManager) Reset(stateLedger ledger.StateLedger) {
 	}
 	cm.proposalID = NewProposalID(stateLedger)
 	cm.addr2NameSystem = NewAddr2NameSystem(stateLedger)
+
+	// check and update
+	cm.checkAndUpdateState(lastHeight)
+	cm.lastHeight = lastHeight
 }
 
 func (cm *CouncilManager) Run(msg *vm.Message) (result *vm.ExecutionResult, err error) {
@@ -135,6 +140,8 @@ func (cm *CouncilManager) Run(msg *vm.Message) (result *vm.ExecutionResult, err 
 		}
 
 		result, err = cm.vote(msg.From, voteArgs)
+	case *GetProposalArgs:
+		result, err = cm.getProposal(v.ProposalID)
 	default:
 		return nil, errors.New("unknown proposal args")
 	}
@@ -151,7 +158,7 @@ func (cm *CouncilManager) propose(addr ethcommon.Address, args *CouncilProposalA
 	for i, candidate := range args.Candidates {
 		cm.gov.logger.Debugf("candidate %d: %+v", i, *candidate)
 	}
-	baseProposal, err := cm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber)
+	baseProposal, err := cm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, cm.lastHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -198,12 +205,17 @@ func (cm *CouncilManager) propose(addr ethcommon.Address, args *CouncilProposalA
 	proposal.Candidates = args.Candidates
 
 	b, err := cm.saveProposal(proposal)
+	if err != nil {
+		return nil, err
+	}
+
+	returnData, err := cm.gov.PackOutputArgs(ProposeMethod, id)
 
 	// record log
 	cm.gov.RecordLog(cm.currentLog, ProposeMethod, &proposal.BaseProposal, b)
 
 	return &vm.ExecutionResult{
-		ReturnData: b,
+		ReturnData: returnData,
 		Err:        err,
 	}, nil
 }
@@ -267,8 +279,6 @@ func (cm *CouncilManager) vote(user ethcommon.Address, voteArgs *CouncilVoteArgs
 
 	cm.gov.RecordLog(cm.currentLog, VoteMethod, &proposal.BaseProposal, b)
 
-	// return updated proposal
-	result.ReturnData = b
 	return result, nil
 }
 
@@ -283,6 +293,22 @@ func (cm *CouncilManager) saveProposal(proposal *CouncilProposal) ([]byte, error
 	return b, nil
 }
 
+// getProposal view proposal details
+func (cm *CouncilManager) getProposal(proposalID uint64) (*vm.ExecutionResult, error) {
+	result := &vm.ExecutionResult{}
+
+	isExist, b := cm.account.GetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, proposalID)))
+	if isExist {
+		packed, err := cm.gov.PackOutputArgs(ProposalMethod, b)
+		if err != nil {
+			return nil, err
+		}
+		result.ReturnData = packed
+		return result, nil
+	}
+	return nil, ErrNotFoundCouncilProposal
+}
+
 func (cm *CouncilManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
 	_, err := cm.gov.GetArgs(&vm.Message{Data: *callArgs.Data})
 	if err != nil {
@@ -292,35 +318,9 @@ func (cm *CouncilManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) 
 	return common.CalculateDynamicGas(*callArgs.Data), nil
 }
 
-func (cm *CouncilManager) CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) {
-	cm.Reset(stateLedger)
-
-	if isExist, data := cm.account.Query(CouncilProposalKey); isExist {
-		for _, proposalData := range data {
-			proposal := &CouncilProposal{}
-			if err := json.Unmarshal(proposalData, proposal); err != nil {
-				cm.gov.logger.Errorf("unmarshal council proposal error: %s", err)
-				return
-			}
-
-			if proposal.Status == Approved || proposal.Status == Rejected {
-				// proposal is finnished, no need update
-				continue
-			}
-
-			if proposal.BlockNumber != 0 && proposal.BlockNumber <= lastHeight {
-				// means proposal is out of deadline,status change to rejected
-				proposal.Status = Rejected
-
-				b, err := cm.saveProposal(proposal)
-				if err != nil {
-					cm.gov.logger.Errorf("save proposal error: %s", err)
-				}
-
-				cm.gov.RecordLog(cm.currentLog, VoteMethod, &proposal.BaseProposal, b)
-				cm.gov.SaveLog(stateLedger, cm.currentLog)
-			}
-		}
+func (cm *CouncilManager) checkAndUpdateState(lastHeight uint64) {
+	if err := CheckAndUpdateState[CouncilProposal, *CouncilProposal](lastHeight, cm.account, CouncilProposalKey, cm.saveProposal); err != nil {
+		cm.gov.logger.Errorf("check and update state error: %s", err)
 	}
 }
 
@@ -393,13 +393,9 @@ func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
 
 func checkAddr2Name(members []*CouncilMember) bool {
 	// repeated name return false
-	if len(lo.Uniq[string](lo.Map[*CouncilMember, string](members, func(item *CouncilMember, index int) string {
+	return len(lo.Uniq[string](lo.Map[*CouncilMember, string](members, func(item *CouncilMember, index int) string {
 		return item.Name
-	}))) != len(members) {
-		return false
-	}
-
-	return true
+	}))) == len(members)
 }
 
 func setName(addr2NameSystem *Addr2NameSystem, members []*CouncilMember) {

@@ -17,6 +17,7 @@ type CoreAPI interface {
 	Chain() ChainAPI
 	Feed() FeedAPI
 	Gas() GasAPI
+	TxPool() TxPoolAPI
 }
 
 type BrokerAPI interface {
@@ -26,9 +27,6 @@ type BrokerAPI interface {
 	GetReceipt(*types.Hash) (*types.Receipt, error)
 	GetBlock(mode string, key string) (*types.Block, error)
 	GetBlocks(start uint64, end uint64) ([]*types.Block, error)
-	GetPendingTxCountByAccount(account string) uint64
-	GetTotalPendingTxCount() uint64
-	GetPoolTransaction(hash *types.Hash) *types.Transaction
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error)
 	GetSystemContract(addr *ethcommon.Address) (common.SystemContract, bool)
@@ -56,4 +54,12 @@ type FeedAPI interface {
 type GasAPI interface {
 	GetGasPrice() (uint64, error)
 	GetCurrentGasPrice(blockHeight uint64) (uint64, error)
+}
+
+type TxPoolAPI interface {
+	GetPendingTxCountByAccount(account string) uint64
+	GetTotalPendingTxCount() uint64
+	GetTransaction(hash *types.Hash) *types.Transaction
+	GetAccountMeta(account string, full bool) any
+	GetMeta(full bool) any
 }

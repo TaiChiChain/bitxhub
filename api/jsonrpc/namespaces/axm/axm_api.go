@@ -33,7 +33,3 @@ func (api *AxmAPI) Status() any {
 	syncStatus["status"] = "normal"
 	return syncStatus
 }
-
-func (api *AxmAPI) GetTotalPendingTxCount() any {
-	return api.api.Broker().GetTotalPendingTxCount()
-}

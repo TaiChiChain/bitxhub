@@ -5,6 +5,7 @@
 //
 //	mockgen -destination mock_ledger/mock_ledger.go -package mock_ledger -source ledger.go -typed
 //
+
 // Package mock_ledger is a generated GoMock package.
 package mock_ledger
 
@@ -3771,6 +3772,42 @@ func (c *IAccountSetCodeAndHashCall) Do(f func([]byte)) *IAccountSetCodeAndHashC
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *IAccountSetCodeAndHashCall) DoAndReturn(f func([]byte)) *IAccountSetCodeAndHashCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SetEnableExpensiveMetric mocks base method.
+func (m *MockIAccount) SetEnableExpensiveMetric(arg0 bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetEnableExpensiveMetric", arg0)
+}
+
+// SetEnableExpensiveMetric indicates an expected call of SetEnableExpensiveMetric.
+func (mr *MockIAccountMockRecorder) SetEnableExpensiveMetric(arg0 any) *IAccountSetEnableExpensiveMetricCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnableExpensiveMetric", reflect.TypeOf((*MockIAccount)(nil).SetEnableExpensiveMetric), arg0)
+	return &IAccountSetEnableExpensiveMetricCall{Call: call}
+}
+
+// IAccountSetEnableExpensiveMetricCall wrap *gomock.Call
+type IAccountSetEnableExpensiveMetricCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *IAccountSetEnableExpensiveMetricCall) Return() *IAccountSetEnableExpensiveMetricCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *IAccountSetEnableExpensiveMetricCall) Do(f func(bool)) *IAccountSetEnableExpensiveMetricCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *IAccountSetEnableExpensiveMetricCall) DoAndReturn(f func(bool)) *IAccountSetEnableExpensiveMetricCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

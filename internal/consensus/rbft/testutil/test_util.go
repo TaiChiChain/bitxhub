@@ -4,18 +4,17 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-kit/types/pb"
+	"github.com/axiomesh/axiom-ledger/internal/block_sync/mock_block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -25,6 +24,7 @@ var (
 	mockBlockLedger      = make(map[uint64]*types.Block)
 	mockLocalBlockLedger = make(map[uint64]*types.Block)
 	mockChainMeta        *types.ChainMeta
+	blockCacheChan       = make(chan []*types.Block, 1024)
 )
 
 func SetMockChainMeta(chainMeta *types.ChainMeta) {
@@ -44,7 +44,7 @@ func SetMockBlockLedger(block *types.Block, local bool) {
 	}
 }
 
-func getMockBlockLedger(height uint64) (*types.Block, error) {
+func getRemoteMockBlockLedger(height uint64) (*types.Block, error) {
 	if block, ok := mockBlockLedger[height]; ok {
 		return block, nil
 	}
@@ -76,7 +76,7 @@ func ConstructBlock(blockHashStr string, height uint64) *types.Block {
 	}
 }
 
-func MockMiniNetwork(ctrl *gomock.Controller) *mock_network.MockNetwork {
+func MockMiniNetwork(ctrl *gomock.Controller, selfAddr string) *mock_network.MockNetwork {
 	mock := mock_network.NewMockNetwork(ctrl)
 	mockPipe := mock_network.NewMockPipe(ctrl)
 	mockPipe.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -85,39 +85,38 @@ func MockMiniNetwork(ctrl *gomock.Controller) *mock_network.MockNetwork {
 
 	mock.EXPECT().CreatePipe(gomock.Any(), gomock.Any()).Return(mockPipe, nil).AnyTimes()
 
-	mock.EXPECT().Send(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(to string, msg *pb.Message) (*pb.Message, error) {
-			if msg.Type == pb.Message_GET_BLOCK {
-				num, err := strconv.Atoi(string(msg.Data))
-				if err != nil {
-					return nil, fmt.Errorf("convert %s string to int failed: %w", string(msg.Data), err)
-				}
-				block, err := getMockBlockLedger(uint64(num))
-				if err != nil {
-					return nil, fmt.Errorf("get block with height %d failed: %w", num, err)
-				}
-				v, err := block.Marshal()
-				if err != nil {
-					return nil, fmt.Errorf("marshal block with height %d failed: %w", num, err)
-				}
-				res := &pb.Message{Type: pb.Message_GET_BLOCK_ACK, Data: v}
-				return res, nil
-			}
-			return nil, nil
-		}).AnyTimes()
-
 	N := 3
 	f := (N - 1) / 3
 	mock.EXPECT().CountConnectedPeers().Return(uint64((N + f + 2) / 2)).AnyTimes()
+	mock.EXPECT().PeerID().Return(selfAddr).AnyTimes()
+	return mock
+}
+
+func MockMiniBlockSync(ctrl *gomock.Controller) *mock_block_sync.MockSync {
+	blockCacheChan = make(chan []*types.Block, 1024)
+	mock := mock_block_sync.NewMockSync(ctrl)
+	mock.EXPECT().StartSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(peers []string, curBlockHash string, quorum, startHeight, targetHeight uint64, quorumCheckpoint *consensus.SignedCheckpoint, epc ...*consensus.EpochChange) error {
+			blockCache := make([]*types.Block, 0)
+			for i := startHeight; i <= targetHeight; i++ {
+				block, err := getRemoteMockBlockLedger(i)
+				if err != nil {
+					return err
+				}
+				blockCache = append(blockCache, block)
+			}
+			blockCacheChan <- blockCache
+			return nil
+		}).AnyTimes()
+
+	mock.EXPECT().Commit().Return(blockCacheChan).AnyTimes()
+	mock.EXPECT().StopSync().Return(nil).AnyTimes()
 	return mock
 }
 
 func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *testing.T) *common.Config {
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
-
-	mockNetwork := MockMiniNetwork(ctrl)
-	mockNetwork.EXPECT().Peers().Return([]peer.AddrInfo{}).AnyTimes()
 
 	genesisEpochInfo := repo.GenesisEpochInfo(false)
 	conf := &common.Config{
@@ -128,7 +127,6 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		PrivKey:            s.Sk,
 		SelfAccountAddress: genesisEpochInfo.ValidatorSet[0].AccountAddress,
 		GenesisEpochInfo:   genesisEpochInfo,
-		Network:            mockNetwork,
 		Applied:            0,
 		Digest:             "",
 		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*rbft.EpochInfo, error) {
@@ -150,7 +148,12 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		},
 	}
 
-	conf.Config.Sync.FetchSizeLimit = 2
+	mockNetwork := MockMiniNetwork(ctrl, conf.SelfAccountAddress)
+	conf.Network = mockNetwork
+
+	mockBlockSync := MockMiniBlockSync(ctrl)
+	conf.BlockSync = mockBlockSync
+
 	return conf
 }
 

@@ -35,4 +35,12 @@ func TestDBStore(t *testing.T) {
 
 	err = adaptor.Destroy("t")
 	ast.Nil(err)
+
+	_, err = adaptor.ReadEpochState("epoch")
+	ast.NotNil(err)
+	err = adaptor.StoreEpochState("epoch", []byte("epochinfo"))
+	ast.Nil(err)
+	epochInfo, err := adaptor.ReadEpochState("epoch")
+	ast.Nil(err)
+	ast.Equal([]byte("epochinfo"), epochInfo)
 }

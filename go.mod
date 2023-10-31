@@ -4,11 +4,12 @@ go 1.20
 
 require (
 	github.com/Rican7/retry v0.3.1
-	github.com/axiomesh/axiom-bft v0.0.3-0.20231018065520-f63a62e0aac1
-	github.com/axiomesh/axiom-kit v0.0.3-0.20231007094145-952ce061d4d6
-	github.com/axiomesh/axiom-p2p v0.0.3-0.20231021124622-1a43df52dc25
+	github.com/axiomesh/axiom-bft v0.0.3-0.20231030080313-d3ce8003758b
+	github.com/axiomesh/axiom-kit v0.0.3-0.20231030064832-00ced6632b92
+	github.com/axiomesh/axiom-p2p v0.0.3-0.20231031015048-1589860bfb48
 	github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53
 	github.com/cbergoon/merkletree v0.2.0
+	github.com/cockroachdb/pebble v0.0.0-20230728201528-5e7f88523982
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/gammazero/workerpool v1.1.3
@@ -28,7 +29,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/urfave/cli/v2 v2.25.7
 	go.opentelemetry.io/otel/trace v1.16.0
 	go.uber.org/atomic v1.11.0
@@ -46,7 +46,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.10.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
-	github.com/cockroachdb/pebble v0.0.0-20230728201528-5e7f88523982 // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230613231145-182959a1fad6 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect
@@ -169,6 +168,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
+	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect

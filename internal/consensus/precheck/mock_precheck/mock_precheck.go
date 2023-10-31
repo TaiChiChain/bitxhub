@@ -5,12 +5,14 @@
 //
 //	mockgen -destination mock_precheck/mock_precheck.go -package mock_precheck -source precheck.go -typed
 //
+
 // Package mock_precheck is a generated GoMock package.
 package mock_precheck
 
 import (
 	reflect "reflect"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	common "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	precheck "github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	gomock "go.uber.org/mock/gomock"
@@ -145,6 +147,42 @@ func (c *PreCheckStartCall) Do(f func()) *PreCheckStartCall {
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *PreCheckStartCall) DoAndReturn(f func()) *PreCheckStartCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// UpdateEpochInfo mocks base method.
+func (m *MockPreCheck) UpdateEpochInfo(epoch *rbft.EpochInfo) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateEpochInfo", epoch)
+}
+
+// UpdateEpochInfo indicates an expected call of UpdateEpochInfo.
+func (mr *MockPreCheckMockRecorder) UpdateEpochInfo(epoch any) *PreCheckUpdateEpochInfoCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEpochInfo", reflect.TypeOf((*MockPreCheck)(nil).UpdateEpochInfo), epoch)
+	return &PreCheckUpdateEpochInfoCall{Call: call}
+}
+
+// PreCheckUpdateEpochInfoCall wrap *gomock.Call
+type PreCheckUpdateEpochInfoCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *PreCheckUpdateEpochInfoCall) Return() *PreCheckUpdateEpochInfoCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *PreCheckUpdateEpochInfoCall) Do(f func(*rbft.EpochInfo)) *PreCheckUpdateEpochInfoCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *PreCheckUpdateEpochInfoCall) DoAndReturn(f func(*rbft.EpochInfo)) *PreCheckUpdateEpochInfoCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

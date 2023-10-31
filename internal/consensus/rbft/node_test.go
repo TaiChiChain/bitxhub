@@ -14,21 +14,24 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/axiomesh/axiom-bft/txpool"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var validTxsCh = make(chan *precheck.ValidTxs, 1024)
 
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb)
+	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize)
 	assert.Nil(t, err)
 	mockRbft := rbft.NewMockMinimalNode[types.Transaction, *types.Transaction](ctrl)
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
@@ -76,6 +79,58 @@ func TestInit(t *testing.T) {
 	node.config.Config.Rbft.EnableMultiPipes = true
 	err = node.initConsensusMsgPipes()
 	ast.Nil(err)
+}
+
+func TestNewNode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize)
+	assert.Nil(t, err)
+
+	r, err := repo.Load(t.TempDir())
+	assert.Nil(t, err)
+	s, err := types.GenerateSigner()
+	assert.Nil(t, err)
+	cnf := &common.Config{
+		RepoRoot: r.RepoRoot,
+		EVMConfig: repo.EVM{
+			DisableMaxCodeSizeLimit: true,
+		},
+		Config:             r.ConsensusConfig,
+		Logger:             loggers.Logger(loggers.Consensus),
+		ConsensusType:      repo.ConsensusTypeRbft,
+		PrivKey:            s.Sk,
+		SelfAccountAddress: s.Addr.String(),
+		GenesisEpochInfo:   r.Config.Genesis.EpochInfo,
+		Applied:            100,
+		Digest:             "0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7",
+		GenesisDigest:      "0xf06a8e2fa138335436c66b7d332338b8d402fc5708604aec6959324ef6c5c1ac",
+		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*rbft.EpochInfo, error) {
+			return r.EpochInfo, nil
+		},
+		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*rbft.EpochInfo, error) {
+			return r.EpochInfo, nil
+		},
+		GetChainMetaFunc: func() *types.ChainMeta {
+			return &types.ChainMeta{
+				Height:    100,
+				GasPrice:  big.NewInt(1),
+				BlockHash: types.NewHashByStr("0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7"),
+			}
+		},
+		GetBlockFunc: func(height uint64) (*types.Block, error) {
+			return &types.Block{
+				BlockHash: types.NewHashByStr("0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7"),
+			}, nil
+		},
+		GetAccountBalance: nil,
+		GetAccountNonce:   nil,
+	}
+	mockNetwork := testutil.MockMiniNetwork(ctrl, cnf.SelfAccountAddress)
+	cnf.Network = mockNetwork
+	_, err = NewNode(cnf)
+
+	assert.Nil(t, err)
 }
 
 func TestPrepare(t *testing.T) {
@@ -171,6 +226,26 @@ func TestPrepare(t *testing.T) {
 		lowWatermark := node.GetLowWatermark()
 		ast.Equal(uint64(1), lowWatermark)
 	})
+
+	t.Run("GetAccountPoolMeta", func(t *testing.T) {
+		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetAccountPoolMeta(gomock.Any(), gomock.Any()).DoAndReturn(func(s string, b bool) *txpool.AccountMeta[types.Transaction, *types.Transaction] {
+			return &txpool.AccountMeta[types.Transaction, *types.Transaction]{
+				CommitNonce: 1,
+			}
+		}).AnyTimes()
+		accountPoolMeta := node.GetAccountPoolMeta("", true)
+		ast.Equal(uint64(1), accountPoolMeta.CommitNonce)
+	})
+
+	t.Run("GetPoolMeta", func(t *testing.T) {
+		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetPoolMeta(gomock.Any()).DoAndReturn(func(b bool) *txpool.Meta[types.Transaction, *types.Transaction] {
+			return &txpool.Meta[types.Transaction, *types.Transaction]{
+				TxCount: 1,
+			}
+		}).AnyTimes()
+		poolMeta := node.GetPoolMeta(true)
+		ast.Equal(uint64(1), poolMeta.TxCount)
+	})
 }
 
 func TestStop(t *testing.T) {
@@ -210,7 +285,7 @@ func TestReadConfig(t *testing.T) {
 	ast.Equal(uint64(500), txpoolConfig.BatchSize)
 	ast.Equal(uint64(50000), txpoolConfig.PoolSize)
 	ast.Equal(500*time.Millisecond, rbftConf.BatchTimeout)
-	ast.Equal(3*time.Minute, rbftConf.CheckPoolTimeout)
+	ast.Equal(5*time.Minute, rbftConf.CheckPoolTimeout)
 	ast.Equal(5*time.Minute, txpoolConfig.ToleranceTime)
 }
 
@@ -221,7 +296,7 @@ func TestStep(t *testing.T) {
 	err := node.Step([]byte("test"))
 	ast.NotNil(err)
 	msg := &consensus.ConsensusMessage{}
-	msgBytes, _ := msg.Marshal()
+	msgBytes, _ := msg.MarshalVT()
 	err = node.Step(msgBytes)
 	ast.Nil(err)
 }

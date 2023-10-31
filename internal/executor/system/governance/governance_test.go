@@ -294,7 +294,7 @@ func TestGovernance_Propose(t *testing.T) {
 		addr := types.NewAddressByStr(test.input.user)
 		ethaddr := addr.ETHAddress()
 
-		proposal, err := gov.Propose(&ethaddr, test.input.proposalType, test.input.title, test.input.desc, test.input.BlockNumber)
+		proposal, err := gov.Propose(&ethaddr, test.input.proposalType, test.input.title, test.input.desc, test.input.BlockNumber, 1)
 		if err != nil {
 			assert.Equal(t, test.err, err)
 		} else {
@@ -317,7 +317,7 @@ func TestGovernance_Vote(t *testing.T) {
 	anotherAddr := types.NewAddressByStr("0x2000000000000000000000000000000000000000")
 	ethAddr := addr.ETHAddress()
 	anotherEthAddr := anotherAddr.ETHAddress()
-	proposal, err := gov.Propose(&ethAddr, NodeUpgrade, "test title", "test desc", uint64(10000))
+	proposal, err := gov.Propose(&ethAddr, NodeUpgrade, "test title", "test desc", uint64(10000), 1)
 	assert.Nil(t, err)
 	assert.NotNil(t, proposal)
 
@@ -352,5 +352,56 @@ func TestGovernance_Vote(t *testing.T) {
 
 		proposal.PassVotes = nil
 		proposal.RejectVotes = nil
+	}
+}
+
+func TestGovernance_PackOutputArgs(t *testing.T) {
+	logger := logrus.New()
+	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
+	assert.Nil(t, err)
+	assert.NotNil(t, gov)
+
+	testcases := []struct {
+		Method string
+		Inputs []any
+		IsErr  bool
+	}{
+		{
+			Method: ProposeMethod,
+			Inputs: []any{[]byte("{}")},
+			IsErr:  true,
+		},
+		{
+			Method: ProposeMethod,
+			Inputs: []any{"test str"},
+			IsErr:  true,
+		},
+		{
+			Method: ProposeMethod,
+			Inputs: []any{uint64(999)},
+			IsErr:  false,
+		},
+		{
+			Method: ProposeMethod,
+			Inputs: []any{"test str", 100, []byte("bytes")},
+			IsErr:  true,
+		},
+		{
+			Method: ProposalMethod,
+			Inputs: []any{[]byte("bytes")},
+			IsErr:  false,
+		},
+	}
+	for _, testcase := range testcases {
+		packed, err := gov.PackOutputArgs(testcase.Method, testcase.Inputs...)
+		if testcase.IsErr {
+			assert.NotNil(t, err)
+		} else {
+			assert.Nil(t, err)
+
+			ret, err := gov.UnpackOutputArgs(testcase.Method, packed)
+			assert.Nil(t, err)
+			assert.Equal(t, testcase.Inputs, ret)
+		}
 	}
 }

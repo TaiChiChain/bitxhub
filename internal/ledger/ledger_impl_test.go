@@ -1,12 +1,15 @@
 package ledger
 
 import (
+	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -270,6 +273,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 	account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 
 	lg.StateLedger.SetState(account, []byte("a"), []byte("b"))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot := lg.StateLedger.FlushDirtyData()
 	err := lg.StateLedger.Commit(1, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -287,6 +291,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 
 	lg.StateLedger.SetState(account, []byte("a"), []byte("3"))
 	lg.StateLedger.SetState(account, []byte("a"), []byte("2"))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot = lg.StateLedger.FlushDirtyData()
 	err = lg.StateLedger.Commit(3, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -294,6 +299,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 	assert.Equal(t, "0xe9fc370dd36c9bd5f67ccfbc031c909f53a3d8bc7084c01362c55f2d42ba841c", stateRoot.String())
 
 	lg.StateLedger.SetBalance(account, new(big.Int).SetInt64(100))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot = lg.StateLedger.FlushDirtyData()
 	err = lg.StateLedger.Commit(4, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -304,6 +310,7 @@ func testChainLedger_Commit(t *testing.T, kv string) {
 	lg.StateLedger.SetCode(account, code)
 	lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
 	lg.StateLedger.SetState(account, []byte("c"), []byte("2"))
+	lg.StateLedger.Finalise()
 	accounts, stateRoot = lg.StateLedger.FlushDirtyData()
 	err = lg.StateLedger.Commit(5, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -483,6 +490,7 @@ func testChainLedger_Rollback(t *testing.T, kvType string) {
 	ret := crypto1.Keccak256Hash(code[:])
 	codeHash := ret.Bytes()
 	ledger.StateLedger.SetCode(addr0, code[:])
+	ledger.StateLedger.Finalise()
 
 	accounts, stateRoot2 := ledger.StateLedger.FlushDirtyData()
 	ledger.PersistBlockData(genBlockData(2, accounts, stateRoot2))
@@ -500,9 +508,13 @@ func testChainLedger_Rollback(t *testing.T, kvType string) {
 	ret1 := crypto1.Keccak256Hash(code1[:])
 	codeHash1 := ret1.Bytes()
 	ledger.StateLedger.SetCode(addr0, code1[:])
+	ledger.StateLedger.Finalise()
 
 	accounts, stateRoot3 := ledger.StateLedger.FlushDirtyData()
 	ledger.PersistBlockData(genBlockData(3, accounts, stateRoot3))
+
+	ledger.ChainLedger.(*ChainLedgerImpl).chainMeta.Height = ledger.ChainLedger.(*ChainLedgerImpl).chainMeta.Height - 1
+	ledger.ChainLedger.(*ChainLedgerImpl).checkChainMeta()
 
 	assert.Equal(t, stateRoot3, stateLedger.prevJnlHash)
 	block, err := ledger.ChainLedger.GetBlock(3)
@@ -522,7 +534,9 @@ func testChainLedger_Rollback(t *testing.T, kvType string) {
 	hash = ledger.ChainLedger.GetBlockHash(100)
 	assert.NotNil(t, hash)
 
-	num, err := ledger.ChainLedger.GetTransactionCount(3)
+	num, err := ledger.ChainLedger.GetTransactionCount(0)
+	assert.NotNil(t, err)
+	num, err = ledger.ChainLedger.GetTransactionCount(3)
 	assert.Nil(t, err)
 	assert.NotNil(t, num)
 
@@ -608,6 +622,7 @@ func testChainLedger_QueryByPrefix(t *testing.T, kvType string) {
 	assert.Equal(t, []byte("1"), vals[1])
 	assert.Equal(t, []byte("2"), vals[2])
 
+	ledger.StateLedger.Finalise()
 	accounts, stateRoot := ledger.StateLedger.FlushDirtyData()
 	err := ledger.StateLedger.Commit(1, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -665,6 +680,7 @@ func testChainLedger_GetAccount(t *testing.T, kvType string) {
 	ledger.StateLedger.SetState(addr, key0, val0)
 	ledger.StateLedger.SetState(addr, key0, val1)
 	ledger.StateLedger.SetState(addr, key2, nil)
+	ledger.StateLedger.Finalise()
 	accounts, stateRoot = ledger.StateLedger.FlushDirtyData()
 	err = ledger.StateLedger.Commit(3, accounts, stateRoot)
 	assert.Nil(t, err)
@@ -717,6 +733,7 @@ func testChainLedger_AddAccountsToCache(t *testing.T, kvType string) {
 	ledger.StateLedger.SetNonce(addr, 1)
 	ledger.StateLedger.SetState(addr, key, val)
 	ledger.StateLedger.SetCode(addr, code)
+	ledger.StateLedger.Finalise()
 
 	accounts, stateRoot := ledger.StateLedger.FlushDirtyData()
 	ledger.StateLedger.Clear()
@@ -775,6 +792,7 @@ func testChainLedger_AddState(t *testing.T, kvType string) {
 	key0 := "100"
 	value0 := []byte{100}
 	ledger.StateLedger.SetState(account, []byte(key0), value0)
+	ledger.StateLedger.Finalise()
 	accounts, journal := ledger.StateLedger.FlushDirtyData()
 
 	ledger.PersistBlockData(genBlockData(1, accounts, journal))
@@ -789,6 +807,7 @@ func testChainLedger_AddState(t *testing.T, kvType string) {
 	value1 := []byte{101}
 	ledger.StateLedger.SetState(account, []byte(key0), value0)
 	ledger.StateLedger.SetState(account, []byte(key1), value1)
+	ledger.StateLedger.Finalise()
 	accounts, journal = ledger.StateLedger.FlushDirtyData()
 
 	ledger.PersistBlockData(genBlockData(2, accounts, journal))
@@ -959,8 +978,9 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 		rep.RepoRoot = repoRoot
 	}
 
-	err := storagemgr.Initialize(kv)
+	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize)
 	require.Nil(t, err)
+	rep.Config.Monitor.EnableExpensive = true
 	l, err := NewLedger(rep)
 	require.Nil(t, err)
 
@@ -996,4 +1016,103 @@ func TestEvmLogs(t *testing.T) {
 	logs.SetBHash(hash)
 	logs.SetTHash(hash)
 	logs.SetIndex(1)
+}
+
+func BenchmarkStateLedgerWrite(b *testing.B) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+
+	for name, tc := range testcase {
+		b.Run(name, func(b *testing.B) {
+			r, _ := repo.Default(b.TempDir())
+			storagemgr.Initialize(tc.kvType, 256)
+			l, _ := NewLedger(r)
+			benchStateLedgerWrite(b, l.StateLedger)
+		})
+	}
+}
+
+func BenchmarkStateLedgerRead(b *testing.B) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+
+	for name, tc := range testcase {
+		b.Run(name, func(b *testing.B) {
+			r, _ := repo.Default(b.TempDir())
+			storagemgr.Initialize(tc.kvType, 256)
+			l, _ := NewLedger(r)
+			benchStateLedgerRead(b, l.StateLedger)
+		})
+	}
+}
+
+func benchStateLedgerWrite(b *testing.B, sl StateLedger) {
+	var (
+		keys, vals = makeDataset(5_000_000, 32, 32, false)
+	)
+
+	b.Run("Write", func(b *testing.B) {
+		stateLedger := sl.(*StateLedgerImpl)
+		addr := types.NewAddress(LeftPadBytes([]byte{1}, 20))
+		for i := 0; i < len(keys); i++ {
+			stateLedger.SetState(addr, keys[i], vals[i])
+		}
+		accounts, stateRoot := stateLedger.FlushDirtyData()
+		b.ResetTimer()
+		b.ReportAllocs()
+		stateLedger.Commit(1, accounts, stateRoot)
+	})
+}
+
+func benchStateLedgerRead(b *testing.B, sl StateLedger) {
+	var (
+		keys, vals = makeDataset(10_000_000, 32, 32, false)
+	)
+	stateLedger := sl.(*StateLedgerImpl)
+	addr := types.NewAddress(LeftPadBytes([]byte{1}, 20))
+	for i := 0; i < len(keys); i++ {
+		stateLedger.SetState(addr, keys[i], vals[i])
+	}
+	accounts, stateRoot := stateLedger.FlushDirtyData()
+	stateLedger.Commit(1, accounts, stateRoot)
+
+	b.Run("Read", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < len(keys); i++ {
+			stateLedger.GetState(addr, keys[i])
+		}
+	})
+}
+
+func makeDataset(size, ksize, vsize int, order bool) ([][]byte, [][]byte) {
+	var keys [][]byte
+	var vals [][]byte
+	for i := 0; i < size; i++ {
+		keys = append(keys, randBytes(ksize))
+		vals = append(vals, randBytes(vsize))
+	}
+
+	// order generated slice according to bytes order
+	if order {
+		sort.Slice(keys, func(i, j int) bool { return bytes.Compare(keys[i], keys[j]) < 0 })
+	}
+	return keys, vals
+}
+
+// randomHash generates a random blob of data and returns it as a hash.
+func randBytes(len int) []byte {
+	buf := make([]byte, len)
+	if n, err := rand.Read(buf); n != len || err != nil {
+		panic(err)
+	}
+	return buf
 }

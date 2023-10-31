@@ -8,8 +8,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/stretchr/testify/require"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 )
@@ -134,6 +136,86 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestTxPreCheckMgr_BasicCheck(t *testing.T) {
+	tp, lg, _ := newMockPreCheckMgr()
+	defer cleanDb()
+	tp.Start()
+
+	t.Run("test basic check too big tx size", func(t *testing.T) {
+		s, err := types.GenerateSigner()
+		require.Nil(t, err)
+
+		// Create an oversized data field with a very long string
+		oversizedData := "This is a very long string that will make the transaction data field extremely large. This should trigger the ErrOversizedData error."
+
+		inner := &types.LegacyTx{
+			Nonce: 0,
+			Data:  []byte(oversizedData),
+		}
+
+		tx := &types.Transaction{
+			Inner: inner,
+			Time:  time.Now(),
+		}
+
+		err = tx.Sign(s.Sk)
+		require.Nil(t, err)
+
+		tp.txMaxSize.Store(uint64(tx.Size()) - 1)
+
+		localEvent := &common2.UncheckedTxEvent{
+			EventType: common2.LocalTxEvent,
+			Event: &common2.TxWithResp{
+				Tx:     tx,
+				RespCh: make(chan *common2.TxResp),
+			},
+		}
+		tp.PostUncheckedTxEvent(localEvent)
+		resp := <-localEvent.Event.(*common2.TxWithResp).RespCh
+		require.False(t, resp.Status)
+		require.Contains(t, resp.ErrorMsg, txpool.ErrOversizedData.Error())
+
+		originalOutput := lg.Logger.Out
+		var logOutput bytes.Buffer
+		lg.Logger.SetOutput(&logOutput)
+
+		remoteEvent := &common2.UncheckedTxEvent{
+			EventType: common2.RemoteTxEvent,
+			Event:     []*types.Transaction{tx},
+		}
+
+		tp.PostUncheckedTxEvent(remoteEvent)
+		time.Sleep(200 * time.Millisecond)
+		lg.Logger.SetOutput(originalOutput)
+		require.True(t, bytes.Contains(logOutput.Bytes(), []byte(txpool.ErrOversizedData.Error())))
+	})
+
+	t.Run("test basic check gasPrice too low", func(t *testing.T) {
+		inner := &types.LegacyTx{
+			Nonce:    0,
+			Data:     []byte{},
+			GasPrice: new(big.Int).SetInt64(-1),
+		}
+
+		tx := &types.Transaction{
+			Inner: inner,
+			Time:  time.Now(),
+		}
+
+		localEvent := &common2.UncheckedTxEvent{
+			EventType: common2.LocalTxEvent,
+			Event: &common2.TxWithResp{
+				Tx:     tx,
+				RespCh: make(chan *common2.TxResp),
+			},
+		}
+		tp.PostUncheckedTxEvent(localEvent)
+		resp := <-localEvent.Event.(*common2.TxWithResp).RespCh
+		require.False(t, resp.Status)
+		require.Contains(t, resp.ErrorMsg, ErrGasPriceTooLow)
+	})
+}
+
 func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 	tp, _, _ := newMockPreCheckMgr()
 	defer cleanDb()
@@ -160,7 +242,6 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 		tx, sk, err := types.GenerateWrongSignTransactionAndSigner(false)
 		require.Nil(t, err)
 		require.NotEqual(t, tx.GetFrom().String(), sk.Addr.String())
-
 		event := &common2.UncheckedTxEvent{
 			EventType: common2.LocalTxEvent,
 			Event: &common2.TxWithResp{
@@ -252,11 +333,12 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 	})
 
 	t.Run("test precheck too small gasFeeCap than baseFee", func(t *testing.T) {
-		gasFeeCap := big.NewInt(-1)
-		gasTipCap := new(big.Int).Sub(gasFeeCap, big.NewInt(1))
+		gasFeeCap := big.NewInt(1)
+		gasTipCap := big.NewInt(0)
 		tx, err := generateDynamicFeeTx(s, &toAddr, nil, 0, big.NewInt(0), gasFeeCap, gasTipCap)
 		require.Nil(t, err)
 
+		tp.BaseFee = new(big.Int).Add(gasFeeCap, big.NewInt(1))
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
 		resp := <-event.Event.(*common2.TxWithResp).RespCh
@@ -306,4 +388,16 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error(),
 			"when gasFeeCap is not nil, preCheck gasFeeCap*gasLimit+value firstly")
 	})
+}
+
+func TestTxPreCheckMgr_UpdateEpochInfo(t *testing.T) {
+	tp, _, _ := newMockPreCheckMgr()
+	oldTxMaxSize := tp.txMaxSize.Load()
+	tp.UpdateEpochInfo(&rbft.EpochInfo{
+		ConfigParams: &rbft.ConfigParams{
+			TxMaxSize: oldTxMaxSize + 1,
+		},
+	})
+	newTxMaxSize := tp.txMaxSize.Load()
+	require.Equal(t, oldTxMaxSize+1, newTxMaxSize)
 }

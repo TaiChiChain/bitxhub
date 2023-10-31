@@ -2,26 +2,24 @@ package access
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	ethcommon "github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
-
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	vm "github.com/axiomesh/eth-kit/evm"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 const (
@@ -127,7 +125,7 @@ func TestWhiteList_RunForSubmit(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		cm.Reset(stateLedger)
+		cm.Reset(1, stateLedger)
 
 		result, err := cm.Run(&vm.Message{
 			From: types.NewAddressByStr(test.Caller).ETHAddress(),
@@ -241,7 +239,7 @@ func TestWhiteList_ParseErrorArgs(t *testing.T) {
 		{
 			method:   SubmitMethod,
 			data:     []byte{1, 2, 3, 4},
-			Expected: fmt.Errorf("abi: attempting to unmarshall an empty string while arguments are expected"),
+			Expected: errors.New("abi: attempting to unmarshall an empty string while arguments are expected"),
 		},
 		{
 			method:   SubmitMethod,
@@ -312,7 +310,6 @@ func TestGetArgsForRemove(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.Equal(t, removeArgs.Addresses[0], actualArgs.Addresses[0])
-
 }
 
 func TestWhiteList_GetErrArgs(t *testing.T) {
@@ -364,10 +361,10 @@ func TestAddAndRemoveProviders(t *testing.T) {
 
 	providers := []WhiteListProvider{
 		{
-			admin1,
+			WhiteListProviderAddr: admin1,
 		},
 		{
-			admin2,
+			WhiteListProviderAddr: admin2,
 		},
 	}
 
@@ -389,19 +386,18 @@ func TestAddAndRemoveProviders(t *testing.T) {
 		{
 			method: RemoveWhiteListProvider,
 			data:   providers,
-			err:    fmt.Errorf("access error: remove provider from an empty list"),
+			err:    errors.New("access error: remove provider from an empty list"),
 		},
 		{
 			method: 3,
 			data:   nil,
-			err:    fmt.Errorf("access error: wrong submit type"),
+			err:    errors.New("access error: wrong submit type"),
 		},
 	}
 	for _, test := range testcases {
 		err := AddAndRemoveProviders(stateLedger, test.method, test.data)
 		assert.Equal(t, test.err, err)
 	}
-
 }
 
 func TestGetProviders(t *testing.T) {
@@ -425,10 +421,10 @@ func TestGetProviders(t *testing.T) {
 	// case 2 not nil list
 	listProviders := []WhiteListProvider{
 		{
-			admin1,
+			WhiteListProviderAddr: admin1,
 		},
 		{
-			admin2,
+			WhiteListProviderAddr: admin2,
 		},
 	}
 	err = SetProviders(stateLedger, listProviders)
@@ -450,10 +446,10 @@ func TestSetProviders(t *testing.T) {
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	providers := []WhiteListProvider{
 		{
-			admin1,
+			WhiteListProviderAddr: admin1,
 		},
 		{
-			admin2,
+			WhiteListProviderAddr: admin2,
 		},
 	}
 	err = SetProviders(stateLedger, providers)
@@ -477,7 +473,7 @@ func TestWhiteList_SaveLog(t *testing.T) {
 		Logger: logrus.New(),
 	})
 	assert.Nil(t, cm.currentLog)
-	cm.Reset(stateLedger)
+	cm.Reset(1, stateLedger)
 	assert.NotNil(t, cm.currentLog)
 	cm.currentLog.Removed = false
 	cm.currentLog.Data = []byte{0, 1, 2}
@@ -519,7 +515,8 @@ func TestVerify(t *testing.T) {
 
 	// test others
 	admins := []string{admin1}
-	InitProvidersAndWhiteList(stateLedger, admins, admins)
+	err = InitProvidersAndWhiteList(stateLedger, admins, admins)
+	assert.Nil(t, err)
 	testcases := []struct {
 		needApprove string
 		authInfo    AuthInfo
@@ -575,9 +572,10 @@ func TestVerify(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		cm.Reset(stateLedger)
-		cm.saveAuthInfo(&test.authInfo)
-		err := Verify(stateLedger, test.needApprove)
+		cm.Reset(1, stateLedger)
+		err := cm.saveAuthInfo(&test.authInfo)
+		assert.Nil(t, err)
+		err = Verify(stateLedger, test.needApprove)
 		assert.Equal(t, test.expected, err)
 	}
 }
@@ -590,20 +588,21 @@ func TestWhiteList_ErrorSubmit(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	accountCache, expected := ledger.NewAccountCache()
-	assert.Nil(t, expected)
+	accountCache, err := ledger.NewAccountCache()
+	assert.Nil(t, err)
 	repoRoot := t.TempDir()
-	ld, expected := leveldb.New(filepath.Join(repoRoot, "white_list"), nil)
-	assert.Nil(t, expected)
+	ld, err := leveldb.New(filepath.Join(repoRoot, "white_list"), nil)
+	assert.Nil(t, err)
 	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.WhiteListContractAddr), ledger.NewChanger())
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	cm.Reset(stateLedger)
+	cm.Reset(1, stateLedger)
 	admins := []string{admin1}
-	InitProvidersAndWhiteList(stateLedger, admins, admins)
+	err = InitProvidersAndWhiteList(stateLedger, admins, admins)
+	assert.Nil(t, err)
 
 	testcases := []struct {
 		from     ethcommon.Address
@@ -665,7 +664,7 @@ func TestWhiteList_ErrorSubmit(t *testing.T) {
 		Role:      0,
 	})
 	account.SetState([]byte(AuthInfoKey+admin4), b)
-	_, err := cm.submit(&testcases[0].from, testcases[0].args)
+	_, err = cm.submit(&testcases[0].from, testcases[0].args)
 	assert.Equal(t, testcases[0].expected, err)
 
 	// test nil submit
@@ -703,9 +702,11 @@ func TestWhiteList_ErrorRemove(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	cm.Reset(stateLedger)
+	cm.Reset(1, stateLedger)
 	admins := []string{admin1}
-	InitProvidersAndWhiteList(stateLedger, admins, admins)
+	err = InitProvidersAndWhiteList(stateLedger, admins, admins)
+	assert.Nil(t, err)
+
 	// before case: auth info not exist
 	testcases := []struct {
 		from ethcommon.Address
@@ -744,7 +745,8 @@ func TestWhiteList_ErrorRemove(t *testing.T) {
 		Providers: []string{admin2},
 		Role:      BasicUser,
 	}
-	cm.saveAuthInfo(authInfo)
+	err = cm.saveAuthInfo(authInfo)
+	assert.Nil(t, err)
 	testcases = []struct {
 		from ethcommon.Address
 		args *RemoveArgs
@@ -773,7 +775,6 @@ func TestWhiteList_ErrorRemove(t *testing.T) {
 	// others: test err user
 	_, err = cm.remove(nil, testcases[0].args)
 	assert.Equal(t, ErrUser, err)
-
 }
 
 func TestCheckInServices(t *testing.T) {
@@ -887,7 +888,7 @@ func TestWhiteList_Reset(t *testing.T) {
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	account.SetState([]byte(WhiteListProviderKey), []byte{1, 2, 3})
-	cm.Reset(stateLedger)
+	cm.Reset(1, stateLedger)
 }
 
 func TestWhiteList_PackOutputArgs(t *testing.T) {

@@ -5,6 +5,7 @@
 //
 //	mockgen -destination mock_api/mock_api.go -package mock_api -source api.go -typed
 //
+
 // Package mock_api is a generated GoMock package.
 package mock_api
 
@@ -193,6 +194,44 @@ func (c *CoreAPIGasCall) Do(f func() api.GasAPI) *CoreAPIGasCall {
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *CoreAPIGasCall) DoAndReturn(f func() api.GasAPI) *CoreAPIGasCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// TxPool mocks base method.
+func (m *MockCoreAPI) TxPool() api.TxPoolAPI {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TxPool")
+	ret0, _ := ret[0].(api.TxPoolAPI)
+	return ret0
+}
+
+// TxPool indicates an expected call of TxPool.
+func (mr *MockCoreAPIMockRecorder) TxPool() *CoreAPITxPoolCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TxPool", reflect.TypeOf((*MockCoreAPI)(nil).TxPool))
+	return &CoreAPITxPoolCall{Call: call}
+}
+
+// CoreAPITxPoolCall wrap *gomock.Call
+type CoreAPITxPoolCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *CoreAPITxPoolCall) Return(arg0 api.TxPoolAPI) *CoreAPITxPoolCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *CoreAPITxPoolCall) Do(f func() api.TxPoolAPI) *CoreAPITxPoolCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *CoreAPITxPoolCall) DoAndReturn(f func() api.TxPoolAPI) *CoreAPITxPoolCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -414,82 +453,6 @@ func (c *BrokerAPIGetEvmCall) DoAndReturn(f func(*vm.Message, *vm.Config) (*vm.E
 	return c
 }
 
-// GetPendingTxCountByAccount mocks base method.
-func (m *MockBrokerAPI) GetPendingTxCountByAccount(account string) uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPendingTxCountByAccount", account)
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetPendingTxCountByAccount indicates an expected call of GetPendingTxCountByAccount.
-func (mr *MockBrokerAPIMockRecorder) GetPendingTxCountByAccount(account any) *BrokerAPIGetPendingTxCountByAccountCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTxCountByAccount", reflect.TypeOf((*MockBrokerAPI)(nil).GetPendingTxCountByAccount), account)
-	return &BrokerAPIGetPendingTxCountByAccountCall{Call: call}
-}
-
-// BrokerAPIGetPendingTxCountByAccountCall wrap *gomock.Call
-type BrokerAPIGetPendingTxCountByAccountCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *BrokerAPIGetPendingTxCountByAccountCall) Return(arg0 uint64) *BrokerAPIGetPendingTxCountByAccountCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *BrokerAPIGetPendingTxCountByAccountCall) Do(f func(string) uint64) *BrokerAPIGetPendingTxCountByAccountCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *BrokerAPIGetPendingTxCountByAccountCall) DoAndReturn(f func(string) uint64) *BrokerAPIGetPendingTxCountByAccountCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetPoolTransaction mocks base method.
-func (m *MockBrokerAPI) GetPoolTransaction(hash *types.Hash) *types.Transaction {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPoolTransaction", hash)
-	ret0, _ := ret[0].(*types.Transaction)
-	return ret0
-}
-
-// GetPoolTransaction indicates an expected call of GetPoolTransaction.
-func (mr *MockBrokerAPIMockRecorder) GetPoolTransaction(hash any) *BrokerAPIGetPoolTransactionCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPoolTransaction", reflect.TypeOf((*MockBrokerAPI)(nil).GetPoolTransaction), hash)
-	return &BrokerAPIGetPoolTransactionCall{Call: call}
-}
-
-// BrokerAPIGetPoolTransactionCall wrap *gomock.Call
-type BrokerAPIGetPoolTransactionCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *BrokerAPIGetPoolTransactionCall) Return(arg0 *types.Transaction) *BrokerAPIGetPoolTransactionCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *BrokerAPIGetPoolTransactionCall) Do(f func(*types.Hash) *types.Transaction) *BrokerAPIGetPoolTransactionCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *BrokerAPIGetPoolTransactionCall) DoAndReturn(f func(*types.Hash) *types.Transaction) *BrokerAPIGetPoolTransactionCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetReceipt mocks base method.
 func (m *MockBrokerAPI) GetReceipt(arg0 *types.Hash) (*types.Receipt, error) {
 	m.ctrl.T.Helper()
@@ -564,44 +527,6 @@ func (c *BrokerAPIGetSystemContractCall) Do(f func(*common0.Address) (common.Sys
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *BrokerAPIGetSystemContractCall) DoAndReturn(f func(*common0.Address) (common.SystemContract, bool)) *BrokerAPIGetSystemContractCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetTotalPendingTxCount mocks base method.
-func (m *MockBrokerAPI) GetTotalPendingTxCount() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTotalPendingTxCount")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetTotalPendingTxCount indicates an expected call of GetTotalPendingTxCount.
-func (mr *MockBrokerAPIMockRecorder) GetTotalPendingTxCount() *BrokerAPIGetTotalPendingTxCountCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalPendingTxCount", reflect.TypeOf((*MockBrokerAPI)(nil).GetTotalPendingTxCount))
-	return &BrokerAPIGetTotalPendingTxCountCall{Call: call}
-}
-
-// BrokerAPIGetTotalPendingTxCountCall wrap *gomock.Call
-type BrokerAPIGetTotalPendingTxCountCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *BrokerAPIGetTotalPendingTxCountCall) Return(arg0 uint64) *BrokerAPIGetTotalPendingTxCountCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *BrokerAPIGetTotalPendingTxCountCall) Do(f func() uint64) *BrokerAPIGetTotalPendingTxCountCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *BrokerAPIGetTotalPendingTxCountCall) DoAndReturn(f func() uint64) *BrokerAPIGetTotalPendingTxCountCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1234,6 +1159,219 @@ func (c *GasAPIGetGasPriceCall) Do(f func() (uint64, error)) *GasAPIGetGasPriceC
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *GasAPIGetGasPriceCall) DoAndReturn(f func() (uint64, error)) *GasAPIGetGasPriceCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// MockTxPoolAPI is a mock of TxPoolAPI interface.
+type MockTxPoolAPI struct {
+	ctrl     *gomock.Controller
+	recorder *MockTxPoolAPIMockRecorder
+}
+
+// MockTxPoolAPIMockRecorder is the mock recorder for MockTxPoolAPI.
+type MockTxPoolAPIMockRecorder struct {
+	mock *MockTxPoolAPI
+}
+
+// NewMockTxPoolAPI creates a new mock instance.
+func NewMockTxPoolAPI(ctrl *gomock.Controller) *MockTxPoolAPI {
+	mock := &MockTxPoolAPI{ctrl: ctrl}
+	mock.recorder = &MockTxPoolAPIMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTxPoolAPI) EXPECT() *MockTxPoolAPIMockRecorder {
+	return m.recorder
+}
+
+// GetAccountMeta mocks base method.
+func (m *MockTxPoolAPI) GetAccountMeta(account string, full bool) any {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountMeta", account, full)
+	ret0, _ := ret[0].(any)
+	return ret0
+}
+
+// GetAccountMeta indicates an expected call of GetAccountMeta.
+func (mr *MockTxPoolAPIMockRecorder) GetAccountMeta(account, full any) *TxPoolAPIGetAccountMetaCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountMeta", reflect.TypeOf((*MockTxPoolAPI)(nil).GetAccountMeta), account, full)
+	return &TxPoolAPIGetAccountMetaCall{Call: call}
+}
+
+// TxPoolAPIGetAccountMetaCall wrap *gomock.Call
+type TxPoolAPIGetAccountMetaCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *TxPoolAPIGetAccountMetaCall) Return(arg0 any) *TxPoolAPIGetAccountMetaCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *TxPoolAPIGetAccountMetaCall) Do(f func(string, bool) any) *TxPoolAPIGetAccountMetaCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *TxPoolAPIGetAccountMetaCall) DoAndReturn(f func(string, bool) any) *TxPoolAPIGetAccountMetaCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetMeta mocks base method.
+func (m *MockTxPoolAPI) GetMeta(full bool) any {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMeta", full)
+	ret0, _ := ret[0].(any)
+	return ret0
+}
+
+// GetMeta indicates an expected call of GetMeta.
+func (mr *MockTxPoolAPIMockRecorder) GetMeta(full any) *TxPoolAPIGetMetaCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMeta", reflect.TypeOf((*MockTxPoolAPI)(nil).GetMeta), full)
+	return &TxPoolAPIGetMetaCall{Call: call}
+}
+
+// TxPoolAPIGetMetaCall wrap *gomock.Call
+type TxPoolAPIGetMetaCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *TxPoolAPIGetMetaCall) Return(arg0 any) *TxPoolAPIGetMetaCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *TxPoolAPIGetMetaCall) Do(f func(bool) any) *TxPoolAPIGetMetaCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *TxPoolAPIGetMetaCall) DoAndReturn(f func(bool) any) *TxPoolAPIGetMetaCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetPendingTxCountByAccount mocks base method.
+func (m *MockTxPoolAPI) GetPendingTxCountByAccount(account string) uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingTxCountByAccount", account)
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetPendingTxCountByAccount indicates an expected call of GetPendingTxCountByAccount.
+func (mr *MockTxPoolAPIMockRecorder) GetPendingTxCountByAccount(account any) *TxPoolAPIGetPendingTxCountByAccountCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTxCountByAccount", reflect.TypeOf((*MockTxPoolAPI)(nil).GetPendingTxCountByAccount), account)
+	return &TxPoolAPIGetPendingTxCountByAccountCall{Call: call}
+}
+
+// TxPoolAPIGetPendingTxCountByAccountCall wrap *gomock.Call
+type TxPoolAPIGetPendingTxCountByAccountCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *TxPoolAPIGetPendingTxCountByAccountCall) Return(arg0 uint64) *TxPoolAPIGetPendingTxCountByAccountCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *TxPoolAPIGetPendingTxCountByAccountCall) Do(f func(string) uint64) *TxPoolAPIGetPendingTxCountByAccountCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *TxPoolAPIGetPendingTxCountByAccountCall) DoAndReturn(f func(string) uint64) *TxPoolAPIGetPendingTxCountByAccountCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetTotalPendingTxCount mocks base method.
+func (m *MockTxPoolAPI) GetTotalPendingTxCount() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTotalPendingTxCount")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetTotalPendingTxCount indicates an expected call of GetTotalPendingTxCount.
+func (mr *MockTxPoolAPIMockRecorder) GetTotalPendingTxCount() *TxPoolAPIGetTotalPendingTxCountCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalPendingTxCount", reflect.TypeOf((*MockTxPoolAPI)(nil).GetTotalPendingTxCount))
+	return &TxPoolAPIGetTotalPendingTxCountCall{Call: call}
+}
+
+// TxPoolAPIGetTotalPendingTxCountCall wrap *gomock.Call
+type TxPoolAPIGetTotalPendingTxCountCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *TxPoolAPIGetTotalPendingTxCountCall) Return(arg0 uint64) *TxPoolAPIGetTotalPendingTxCountCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *TxPoolAPIGetTotalPendingTxCountCall) Do(f func() uint64) *TxPoolAPIGetTotalPendingTxCountCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *TxPoolAPIGetTotalPendingTxCountCall) DoAndReturn(f func() uint64) *TxPoolAPIGetTotalPendingTxCountCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetTransaction mocks base method.
+func (m *MockTxPoolAPI) GetTransaction(hash *types.Hash) *types.Transaction {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTransaction", hash)
+	ret0, _ := ret[0].(*types.Transaction)
+	return ret0
+}
+
+// GetTransaction indicates an expected call of GetTransaction.
+func (mr *MockTxPoolAPIMockRecorder) GetTransaction(hash any) *TxPoolAPIGetTransactionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransaction", reflect.TypeOf((*MockTxPoolAPI)(nil).GetTransaction), hash)
+	return &TxPoolAPIGetTransactionCall{Call: call}
+}
+
+// TxPoolAPIGetTransactionCall wrap *gomock.Call
+type TxPoolAPIGetTransactionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *TxPoolAPIGetTransactionCall) Return(arg0 *types.Transaction) *TxPoolAPIGetTransactionCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *TxPoolAPIGetTransactionCall) Do(f func(*types.Hash) *types.Transaction) *TxPoolAPIGetTransactionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *TxPoolAPIGetTransactionCall) DoAndReturn(f func(*types.Hash) *types.Transaction) *TxPoolAPIGetTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
