@@ -77,12 +77,13 @@ var _ common.SystemContract = (*CouncilManager)(nil)
 type CouncilManager struct {
 	gov *Governance
 
-	account         ledger.IAccount
-	stateLedger     ledger.StateLedger
-	currentLog      *common.Log
-	proposalID      *ProposalID
-	addr2NameSystem *Addr2NameSystem
-	lastHeight      uint64
+	account                ledger.IAccount
+	stateLedger            ledger.StateLedger
+	currentLog             *common.Log
+	proposalID             *ProposalID
+	addr2NameSystem        *Addr2NameSystem
+	lastHeight             uint64
+	notFinishedProposalMgr *NotFinishedProposalMgr
 }
 
 func NewCouncilManager(cfg *common.SystemContractConfig) *CouncilManager {
@@ -105,6 +106,7 @@ func (cm *CouncilManager) Reset(lastHeight uint64, stateLedger ledger.StateLedge
 	}
 	cm.proposalID = NewProposalID(stateLedger)
 	cm.addr2NameSystem = NewAddr2NameSystem(stateLedger)
+	cm.notFinishedProposalMgr = NewNotFinishedProposalMgr(stateLedger)
 
 	// check and update
 	cm.checkAndUpdateState(lastHeight)
@@ -209,6 +211,15 @@ func (cm *CouncilManager) propose(addr ethcommon.Address, args *CouncilProposalA
 		return nil, err
 	}
 
+	// propose generate not finished proposal
+	if err = cm.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  proposal.ID,
+		DeadlineBlockNumber: proposal.BlockNumber,
+		ContractAddr:        common.CouncilManagerContractAddr,
+	}); err != nil {
+		return nil, err
+	}
+
 	returnData, err := cm.gov.PackOutputArgs(ProposeMethod, id)
 
 	// record log
@@ -232,15 +243,10 @@ func (cm *CouncilManager) vote(user ethcommon.Address, voteArgs *CouncilVoteArgs
 	}
 
 	// get proposal
-	isExist, data := cm.account.GetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, voteArgs.ProposalId)))
-	if !isExist {
-		result.Err = ErrNotFoundCouncilProposal
+	proposal, err := cm.loadProposal(voteArgs.ProposalId)
+	if err != nil {
+		result.Err = err
 		return result, nil
-	}
-
-	proposal := &CouncilProposal{}
-	if err := json.Unmarshal(data, proposal); err != nil {
-		return nil, err
 	}
 
 	res := VoteResult(voteArgs.VoteResult)
@@ -255,8 +261,14 @@ func (cm *CouncilManager) vote(user ethcommon.Address, voteArgs *CouncilVoteArgs
 		return nil, err
 	}
 
+	// update not finished proposal
+	if proposal.Status == Approved || proposal.Status == Rejected {
+		if err := cm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	// if proposal is approved, update the council members
-	// TODO: need check block number
 	if proposal.Status == Approved {
 		council := &Council{
 			Members: proposal.Candidates,
@@ -282,15 +294,12 @@ func (cm *CouncilManager) vote(user ethcommon.Address, voteArgs *CouncilVoteArgs
 	return result, nil
 }
 
-func (cm *CouncilManager) saveProposal(proposal *CouncilProposal) ([]byte, error) {
-	b, err := json.Marshal(proposal)
-	if err != nil {
-		return nil, err
-	}
-	// save proposal
-	cm.account.SetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, proposal.ID)), b)
+func (cm *CouncilManager) loadProposal(id uint64) (*CouncilProposal, error) {
+	return loadCouncilProposal(cm.stateLedger, id)
+}
 
-	return b, nil
+func (cm *CouncilManager) saveProposal(proposal *CouncilProposal) ([]byte, error) {
+	return saveCouncilProposal(cm.stateLedger, proposal)
 }
 
 // getProposal view proposal details
@@ -319,7 +328,7 @@ func (cm *CouncilManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) 
 }
 
 func (cm *CouncilManager) checkAndUpdateState(lastHeight uint64) {
-	if err := CheckAndUpdateState[CouncilProposal, *CouncilProposal](lastHeight, cm.account, CouncilProposalKey, cm.saveProposal); err != nil {
+	if err := CheckAndUpdateState(lastHeight, cm.stateLedger); err != nil {
 		cm.gov.logger.Errorf("check and update state error: %s", err)
 	}
 }
@@ -352,21 +361,13 @@ func InitCouncilMembers(lg ledger.StateLedger, admins []*repo.Admin, initBlance 
 }
 
 func (cm *CouncilManager) checkFinishedAllProposal() bool {
-	if isExist, data := cm.account.Query(CouncilProposalKey); isExist {
-		for _, proposalData := range data {
-			proposal := &CouncilProposal{}
-			if err := json.Unmarshal(proposalData, proposal); err != nil {
-				return false
-			}
-
-			if proposal.Status == Voting {
-				return false
-			}
-		}
+	notFinishedProposals, err := GetNotFinishedProposals(cm.stateLedger)
+	if err != nil {
+		cm.gov.logger.Errorf("get not finished proposals error: %s", err)
+		return false
 	}
 
-	// TODO: add other proposals status check
-	return true
+	return len(notFinishedProposals) == 0
 }
 
 func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
@@ -402,4 +403,34 @@ func setName(addr2NameSystem *Addr2NameSystem, members []*CouncilMember) {
 	for _, member := range members {
 		addr2NameSystem.SetName(member.Address, member.Name)
 	}
+}
+
+func loadCouncilProposal(stateLedger ledger.StateLedger, id uint64) (*CouncilProposal, error) {
+	addr := types.NewAddressByStr(common.CouncilManagerContractAddr)
+	account := stateLedger.GetOrCreateAccount(addr)
+
+	isExist, b := account.GetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, id)))
+	if isExist {
+		proposal := &CouncilProposal{}
+		if err := json.Unmarshal(b, proposal); err != nil {
+			return nil, err
+		}
+		return proposal, nil
+	}
+
+	return nil, ErrNotFoundCouncilProposal
+}
+
+func saveCouncilProposal(stateLedger ledger.StateLedger, proposal ProposalObject) ([]byte, error) {
+	addr := types.NewAddressByStr(common.CouncilManagerContractAddr)
+	account := stateLedger.GetOrCreateAccount(addr)
+
+	b, err := json.Marshal(proposal)
+	if err != nil {
+		return nil, err
+	}
+	// save proposal
+	account.SetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, proposal.GetID())), b)
+
+	return b, nil
 }

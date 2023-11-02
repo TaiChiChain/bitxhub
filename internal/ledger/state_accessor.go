@@ -200,12 +200,6 @@ func (l *StateLedgerImpl) SetNonce(addr *types.Address, nonce uint64) {
 	account.SetNonce(nonce)
 }
 
-// QueryByPrefix query value using key
-func (l *StateLedgerImpl) QueryByPrefix(addr *types.Address, prefix string) (bool, [][]byte) {
-	account := l.GetOrCreateAccount(addr)
-	return account.Query(prefix)
-}
-
 func (l *StateLedgerImpl) Clear() {
 	l.accounts = make(map[string]IAccount)
 }

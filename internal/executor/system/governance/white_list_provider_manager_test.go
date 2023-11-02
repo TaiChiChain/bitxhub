@@ -41,7 +41,7 @@ type TestWhiteListProviderProposal struct {
 }
 
 func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -160,9 +160,9 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		ks.Reset(1, stateLedger)
+		wlpm.Reset(1, stateLedger)
 
-		result, err := ks.Run(&vm.Message{
+		result, err := wlpm.Run(&vm.Message{
 			From: types.NewAddressByStr(test.Caller).ETHAddress(),
 			Data: test.Data,
 		})
@@ -188,7 +188,7 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 }
 
 func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -231,10 +231,10 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 	}, "10000000")
 	assert.Nil(t, err)
 
-	ks.Reset(1, stateLedger)
+	wlpm.Reset(1, stateLedger)
 
 	addr := types.NewAddressByStr(admin1).ETHAddress()
-	_, err = ks.propose(&addr, &WhiteListProviderProposalArgs{
+	_, err = wlpm.propose(&addr, &WhiteListProviderProposalArgs{
 		BaseProposalArgs: BaseProposalArgs{
 			ProposalType: uint8(WhiteListProviderAdd),
 			Title:        "title",
@@ -262,9 +262,9 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 	}{
 		{
 			Caller: admin2,
-			Data:   generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass),
+			Data:   generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass)),
+				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass)),
 				ReturnData: generateManagerReturnData(t, &TestWhiteListProviderProposal{
 					ID:          1,
 					Type:        WhiteListProviderAdd,
@@ -287,9 +287,9 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 		},
 		{
 			Caller: admin3,
-			Data:   generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass),
+			Data:   generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass)),
+				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass)),
 				ReturnData: generateManagerReturnData(t, &TestWhiteListProviderProposal{
 					ID:          1,
 					Type:        WhiteListProviderAdd,
@@ -312,9 +312,9 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 		},
 		{
 			Caller: "0xfff0000000000000000000000000000000000000",
-			Data:   generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass),
+			Data:   generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass)),
+				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass)),
 				Err:     ErrNotFoundCouncilMember,
 			},
 			Err: ErrNotFoundCouncilMember,
@@ -322,9 +322,9 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		ks.Reset(1, stateLedger)
+		wlpm.Reset(1, stateLedger)
 
-		result, err := ks.Run(&vm.Message{
+		result, err := wlpm.Run(&vm.Message{
 			From: types.NewAddressByStr(test.Caller).ETHAddress(),
 			Data: test.Data,
 		})
@@ -347,7 +347,7 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 }
 
 func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -390,12 +390,12 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 	}, "10000000")
 	assert.Nil(t, err)
 
-	ks.Reset(1, stateLedger)
+	wlpm.Reset(1, stateLedger)
 	err = access.InitProvidersAndWhiteList(stateLedger, []string{WhiteListProvider1, WhiteListProvider2, admin1, admin2, admin3}, []string{WhiteListProvider1, WhiteListProvider2, admin1})
 	assert.Nil(t, err)
 
 	addr := types.NewAddressByStr(admin1).ETHAddress()
-	_, err = ks.propose(&addr, &WhiteListProviderProposalArgs{
+	_, err = wlpm.propose(&addr, &WhiteListProviderProposalArgs{
 		BaseProposalArgs: BaseProposalArgs{
 			ProposalType: uint8(WhiteListProviderRemove),
 			Title:        "title",
@@ -423,9 +423,9 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 	}{
 		{
 			Caller: admin2,
-			Data:   generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass),
+			Data:   generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass)),
+				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass)),
 				ReturnData: generateManagerReturnData(t, &TestWhiteListProviderProposal{
 					ID:          1,
 					Type:        WhiteListProviderRemove,
@@ -448,9 +448,9 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 		},
 		{
 			Caller: admin3,
-			Data:   generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass),
+			Data:   generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass),
 			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, ks.proposalID.GetID()-1, Pass)),
+				UsedGas: common.CalculateDynamicGas(generateProviderVoteData(t, wlpm.proposalID.GetID()-1, Pass)),
 				ReturnData: generateManagerReturnData(t, &TestWhiteListProviderProposal{
 					ID:          1,
 					Type:        WhiteListProviderRemove,
@@ -474,8 +474,8 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		// ks.Reset(stateLedger)
-		result, err := ks.Run(&vm.Message{
+		// wlpm.Reset(stateLedger)
+		result, err := wlpm.Run(&vm.Message{
 			From: types.NewAddressByStr(test.Caller).ETHAddress(),
 			Data: test.Data,
 		})
@@ -498,7 +498,7 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 }
 
 func TestWhiteListProviderManager_EstimateGas(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -515,7 +515,7 @@ func TestWhiteListProviderManager_EstimateGas(t *testing.T) {
 		},
 	}))
 	// test propose
-	gas, err := ks.EstimateGas(&types.CallArgs{
+	gas, err := wlpm.EstimateGas(&types.CallArgs{
 		From: &from,
 		To:   &to,
 		Data: &data,
@@ -526,7 +526,7 @@ func TestWhiteListProviderManager_EstimateGas(t *testing.T) {
 
 	// test vote
 	data = generateProviderVoteData(t, 1, Pass)
-	gas, err = ks.EstimateGas(&types.CallArgs{
+	gas, err = wlpm.EstimateGas(&types.CallArgs{
 		From: &from,
 		To:   &to,
 		Data: &data,
@@ -537,7 +537,7 @@ func TestWhiteListProviderManager_EstimateGas(t *testing.T) {
 
 	// test error args
 	data = []byte{0, 1, 2, 3}
-	gas, err = ks.EstimateGas(&types.CallArgs{
+	gas, err = wlpm.EstimateGas(&types.CallArgs{
 		From: &from,
 		To:   &to,
 		Data: &data,
@@ -596,7 +596,7 @@ func generateManagerReturnData(t *testing.T, testProposal *TestWhiteListProvider
 }
 
 func TestWhiteListProviderManager_loadProviderProposal(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -612,107 +612,19 @@ func TestWhiteListProviderManager_loadProviderProposal(t *testing.T) {
 	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.WhiteListProviderManagerContractAddr), ledger.NewChanger())
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	ks.Reset(1, stateLedger)
-	_, err = ks.loadProviderProposal(1)
+	wlpm.Reset(1, stateLedger)
+	_, err = wlpm.loadProviderProposal(1)
 	assert.Equal(t, errors.New("provider proposal not found for the id"), err)
 
 	proposalID := uint64(1)
 	account.SetState([]byte(fmt.Sprintf("%s%d", WhiteListProviderProposalKey, proposalID)), []byte{1, 2, 3, 4})
 	// test unmarshal fail
-	_, err = ks.loadProviderProposal(proposalID)
+	_, err = wlpm.loadProviderProposal(proposalID)
 	assert.NotNil(t, err)
 }
 
 func TestWhiteListProviderManager_checkFinishedProposal_providerProposal(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	accountCache, err := ledger.NewAccountCache()
-	assert.Nil(t, err)
-	repoRoot := t.TempDir()
-	ld, err := leveldb.New(filepath.Join(repoRoot, "provider_manager"), nil)
-	assert.Nil(t, err)
-	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.WhiteListProviderManagerContractAddr), ledger.NewChanger())
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	ks.Reset(1, stateLedger)
-
-	proposal := &WhiteListProviderProposal{
-		BaseProposal: BaseProposal{
-			ID:          1,
-			Type:        0,
-			Strategy:    0,
-			Proposer:    "",
-			Title:       "",
-			Desc:        "",
-			BlockNumber: 0,
-			TotalVotes:  0,
-			PassVotes:   nil,
-			RejectVotes: nil,
-			Status:      Voting,
-		},
-	}
-	b, _ := json.Marshal(proposal)
-	ks.account.SetState([]byte(fmt.Sprintf("%s%d", WhiteListProviderProposalKey, proposal.ID)), b)
-	_, err = ks.checkFinishedProposal()
-	assert.Equal(t, errors.New("check finished provider proposal fail: exist voting proposal"), err)
-
-	b, _ = json.Marshal("proposal")
-	ks.account.SetState([]byte(fmt.Sprintf("%s%d", WhiteListProviderProposalKey, proposal.ID)), b)
-	_, err = ks.checkFinishedProposal()
-	assert.Equal(t, errors.New("check finished provider proposal fail: json.Unmarshal fail"), err)
-}
-
-func TestWhiteListProviderManager_checkFinishedProposal_councilProposal(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	accountCache, err := ledger.NewAccountCache()
-	assert.Nil(t, err)
-	repoRoot := t.TempDir()
-	ld, err := leveldb.New(filepath.Join(repoRoot, "provider_manager"), nil)
-	assert.Nil(t, err)
-	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.WhiteListProviderManagerContractAddr), ledger.NewChanger())
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-
-	proposal := &CouncilProposal{
-		BaseProposal: BaseProposal{
-			ID:          1,
-			Type:        0,
-			Strategy:    0,
-			Proposer:    "",
-			Title:       "",
-			Desc:        "",
-			BlockNumber: 0,
-			TotalVotes:  0,
-			PassVotes:   nil,
-			RejectVotes: nil,
-			Status:      Voting,
-		},
-	}
-	b, _ := json.Marshal(proposal)
-	ks.Reset(1, stateLedger)
-	ks.councilAccount.SetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, proposal.ID)), b)
-	_, err = ks.checkFinishedProposal()
-	assert.Equal(t, errors.New("check finished council proposal fail: exist voting proposal"), err)
-
-	b, _ = json.Marshal("proposal")
-	ks.councilAccount.SetState([]byte(fmt.Sprintf("%s%d", CouncilProposalKey, proposal.ID)), b)
-	_, err = ks.checkFinishedProposal()
-	assert.Equal(t, errors.New("check finished council proposal fail: json.Unmarshal fail"), err)
-}
-
-func TestWhiteListProviderManager_propose(t *testing.T) {
-	ks := NewWhiteListProviderManager(&common.SystemContractConfig{
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -729,7 +641,144 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	ks.Reset(1, stateLedger)
+
+	err = InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
+	assert.Nil(t, err)
+
+	err = access.InitProvidersAndWhiteList(stateLedger, []string{admin1, admin2, admin3}, []string{admin1, admin2, admin3})
+	assert.Nil(t, err)
+
+	wlpm.Reset(1, stateLedger)
+	addr := types.NewAddressByStr(admin1).ETHAddress()
+	_, err = wlpm.propose(&addr, &WhiteListProviderProposalArgs{
+		BaseProposalArgs: BaseProposalArgs{
+			ProposalType: uint8(WhiteListProviderAdd),
+			Title:        "test",
+			Desc:         "test",
+			BlockNumber:  10,
+		},
+		WhiteListProviderArgs: access.WhiteListProviderArgs{
+			Providers: []access.WhiteListProvider{
+				{
+					WhiteListProviderAddr: WhiteListProvider1,
+				},
+			},
+		},
+	})
+	assert.Nil(t, err)
+
+	_, err = wlpm.propose(&addr, &WhiteListProviderProposalArgs{
+		BaseProposalArgs: BaseProposalArgs{
+			ProposalType: uint8(WhiteListProviderAdd),
+			Title:        "test",
+			Desc:         "test",
+			BlockNumber:  10,
+		},
+		WhiteListProviderArgs: access.WhiteListProviderArgs{
+			Providers: []access.WhiteListProvider{
+				{
+					WhiteListProviderAddr: WhiteListProvider2,
+				},
+			},
+		},
+	})
+	assert.Equal(t, ErrExistVotingProposal, err)
+}
+
+func TestWhiteListProviderManager_checkFinishedProposal_councilProposal(t *testing.T) {
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	accountCache, err := ledger.NewAccountCache()
+	assert.Nil(t, err)
+	repoRoot := t.TempDir()
+	ld, err := leveldb.New(filepath.Join(repoRoot, "provider_manager"), nil)
+	assert.Nil(t, err)
+	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.WhiteListProviderManagerContractAddr), ledger.NewChanger())
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+
+	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
+	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  1,
+		DeadlineBlockNumber: 10,
+		ContractAddr:        common.CouncilManagerContractAddr,
+	})
+	assert.Nil(t, err)
+
+	wlpm.Reset(1, stateLedger)
+	_, err = wlpm.checkFinishedProposal()
+	assert.Equal(t, ErrExistVotingProposal, err)
+}
+
+func TestWhiteListProviderManager_propose(t *testing.T) {
+	wlpm := NewWhiteListProviderManager(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	accountCache, err := ledger.NewAccountCache()
+	assert.Nil(t, err)
+	repoRoot := t.TempDir()
+	ld, err := leveldb.New(filepath.Join(repoRoot, "provider_manager"), nil)
+	assert.Nil(t, err)
+	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.WhiteListProviderManagerContractAddr), ledger.NewChanger())
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	wlpm.Reset(1, stateLedger)
+
+	err = InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
+	assert.Nil(t, err)
 
 	err = access.InitProvidersAndWhiteList(stateLedger, []string{admin1, admin2, admin3}, []string{admin1, admin2, admin3})
 	assert.Nil(t, err)
@@ -743,7 +792,7 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from: types.NewAddressByStr(admin1).ETHAddress(),
 			args: &WhiteListProviderProposalArgs{
 				BaseProposalArgs: BaseProposalArgs{
-					ProposalType: 4,
+					ProposalType: uint8(WhiteListProviderAdd),
 					Title:        "title",
 					Desc:         "desc",
 					BlockNumber:  10,
@@ -762,7 +811,7 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from: types.NewAddressByStr(admin2).ETHAddress(),
 			args: &WhiteListProviderProposalArgs{
 				BaseProposalArgs: BaseProposalArgs{
-					ProposalType: 5,
+					ProposalType: uint8(WhiteListProviderRemove),
 					Title:        "title",
 					Desc:         "desc",
 					BlockNumber:  10,
@@ -781,7 +830,7 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from: types.NewAddressByStr(admin3).ETHAddress(),
 			args: &WhiteListProviderProposalArgs{
 				BaseProposalArgs: BaseProposalArgs{
-					ProposalType: 4,
+					ProposalType: uint8(WhiteListProviderAdd),
 					Title:        "title",
 					Desc:         "desc",
 					BlockNumber:  10,
@@ -796,7 +845,7 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from: types.NewAddressByStr(admin3).ETHAddress(),
 			args: &WhiteListProviderProposalArgs{
 				BaseProposalArgs: BaseProposalArgs{
-					ProposalType: 4,
+					ProposalType: uint8(WhiteListProviderAdd),
 					Title:        "title",
 					Desc:         "desc",
 					BlockNumber:  10,
@@ -817,28 +866,29 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		_, err := ks.propose(&testcase.from, testcase.args)
+		_, err := wlpm.propose(&testcase.from, testcase.args)
 		assert.Equal(t, testcase.expected, err)
 	}
 
 	// test unfinished proposal
-	providerProposal := &WhiteListProviderProposal{
-		BaseProposal: BaseProposal{
-			ID:          1,
-			Type:        0,
-			Strategy:    0,
-			Proposer:    "",
-			Title:       "",
-			Desc:        "",
-			BlockNumber: 0,
-			TotalVotes:  0,
-			PassVotes:   nil,
-			RejectVotes: nil,
-			Status:      Voting,
+	addr := types.NewAddressByStr(admin1).ETHAddress()
+	_, err = wlpm.propose(&addr, &WhiteListProviderProposalArgs{
+		BaseProposalArgs: BaseProposalArgs{
+			ProposalType: uint8(WhiteListProviderAdd),
+			Title:        "title",
+			Desc:         "desc",
+			BlockNumber:  10,
 		},
-	}
-	b, _ := json.Marshal(providerProposal)
-	ks.account.SetState([]byte(fmt.Sprintf("%s%d", WhiteListProviderProposalKey, providerProposal.ID)), b)
+		WhiteListProviderArgs: access.WhiteListProviderArgs{
+			Providers: []access.WhiteListProvider{
+				{
+					WhiteListProviderAddr: WhiteListProvider1,
+				},
+			},
+		},
+	})
+	assert.Nil(t, err)
+
 	testcases2 := []struct {
 		from     ethcommon.Address
 		args     *WhiteListProviderProposalArgs
@@ -856,14 +906,14 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 				WhiteListProviderArgs: access.WhiteListProviderArgs{
 					Providers: []access.WhiteListProvider{
 						{
-							WhiteListProviderAddr: admin1,
+							WhiteListProviderAddr: WhiteListProvider1,
 						},
 					},
 				},
 			},
-			expected: errors.New("check finished provider proposal fail: exist voting proposal"),
+			expected: ErrExistVotingProposal,
 		},
 	}
-	_, err = ks.propose(&testcases2[0].from, testcases2[0].args)
+	_, err = wlpm.propose(&testcases2[0].from, testcases2[0].args)
 	assert.Equal(t, testcases2[0].expected, err)
 }

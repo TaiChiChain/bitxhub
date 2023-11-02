@@ -21,7 +21,8 @@ const (
 )
 
 const (
-	ProposalIDKey = "proposalIDKey"
+	ProposalIDKey           = "proposalIDKey"
+	NotFinishedProposalsKey = "notFinishedProposalKey"
 
 	Addr2NameSystemAddrKey = "addrKey"
 	Addr2NameSystemNameKey = "nameKey"
@@ -49,6 +50,10 @@ type BaseProposal struct {
 
 	RejectVotes []string
 	Status      ProposalStatus
+}
+
+func (baseProposal *BaseProposal) GetID() uint64 {
+	return baseProposal.ID
 }
 
 func (baseProposal *BaseProposal) GetStatus() ProposalStatus {
@@ -152,41 +157,151 @@ func nameKey(name string) []byte {
 	return []byte(strings.Join([]string{Addr2NameSystemNameKey, name}, "-"))
 }
 
+type NotFinishedProposal struct {
+	ID                  uint64
+	DeadlineBlockNumber uint64
+	ContractAddr        string
+}
+
+type NotFinishedProposalMgr struct {
+	account ledger.IAccount
+}
+
+func NewNotFinishedProposalMgr(stateLedger ledger.StateLedger) *NotFinishedProposalMgr {
+	notFinishedProposalMgr := &NotFinishedProposalMgr{}
+
+	notFinishedProposalMgr.account = stateLedger.GetOrCreateAccount(types.NewAddressByStr(common.NotFinishedProposalContractAddr))
+
+	return notFinishedProposalMgr
+}
+
+func (nfpm *NotFinishedProposalMgr) SetProposal(proposal *NotFinishedProposal) error {
+	proposals, err := nfpm.GetProposals()
+	if err != nil {
+		return err
+	}
+
+	proposals[proposal.ID] = *proposal
+	data, err := json.Marshal(proposals)
+	if err != nil {
+		return err
+	}
+
+	nfpm.account.SetState(notFinishedProposalsKey(), data)
+	return nil
+}
+
+func (nfpm *NotFinishedProposalMgr) RemoveProposal(id uint64) error {
+	proposals, err := nfpm.GetProposals()
+	if err != nil {
+		return err
+	}
+
+	delete(proposals, id)
+	data, err := json.Marshal(proposals)
+	if err != nil {
+		return err
+	}
+
+	nfpm.account.SetState(notFinishedProposalsKey(), data)
+	return nil
+}
+
+func (nfpm *NotFinishedProposalMgr) GetProposals() (map[uint64]NotFinishedProposal, error) {
+	isExist, data := nfpm.account.GetState(notFinishedProposalsKey())
+	proposals := make(map[uint64]NotFinishedProposal, 0)
+	if isExist {
+		if err := json.Unmarshal(data, &proposals); err != nil {
+			return nil, err
+		}
+	}
+	return proposals, nil
+}
+
+func notFinishedProposalsKey() []byte {
+	return []byte(NotFinishedProposalsKey)
+}
+
+func loadProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal) (ProposalObject, error) {
+	switch nfp.ContractAddr {
+	case common.CouncilManagerContractAddr:
+		return loadCouncilProposal(stateLedger, nfp.ID)
+	case common.NodeManagerContractAddr:
+		return loadNodeProposal(stateLedger, nfp.ID)
+	case common.WhiteListProviderManagerContractAddr:
+		return loadProviderProposal(stateLedger, nfp.ID)
+	default:
+		return nil, errors.New("no this contract")
+	}
+}
+
+func saveProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal, proposal ProposalObject) error {
+	switch nfp.ContractAddr {
+	case common.CouncilManagerContractAddr:
+		_, err := saveCouncilProposal(stateLedger, proposal)
+		return err
+	case common.NodeManagerContractAddr:
+		_, err := saveNodeProposal(stateLedger, proposal)
+		return err
+	case common.WhiteListProviderManagerContractAddr:
+		_, err := saveProviderProposal(stateLedger, proposal)
+		return err
+	default:
+		return errors.New("no this contract")
+	}
+}
+
 type ProposalObject interface {
+	GetID() uint64
 	GetStatus() ProposalStatus
 	SetStatus(status ProposalStatus)
 	GetBlockNumber() uint64
 }
 
-type ProposalObjectConstraint[T any] interface {
-	*T
-	ProposalObject
-}
+func CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) error {
+	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
+	notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
+	if err != nil {
+		return err
+	}
 
-func CheckAndUpdateState[T any, Contraint ProposalObjectConstraint[T]](lastHeight uint64, account ledger.IAccount, proposalKey string, saveProposal func(proposal *T) ([]byte, error)) error {
-	if isExist, data := account.Query(proposalKey); isExist {
-		for _, proposalData := range data {
-			var proposal T
-			if err := json.Unmarshal(proposalData, &proposal); err != nil {
+	for _, notFinishedProposal := range notFinishedProposals {
+		if notFinishedProposal.DeadlineBlockNumber <= lastHeight {
+			// update original proposal status
+			proposal, err := loadProposal(stateLedger, &notFinishedProposal)
+			if err != nil {
 				return err
 			}
 
-			if Contraint(&proposal).GetStatus() == Approved || Contraint(&proposal).GetStatus() == Rejected {
+			if proposal.GetStatus() == Approved || proposal.GetStatus() == Rejected {
 				// proposal is finnished, no need update
 				continue
 			}
 
-			if Contraint(&proposal).GetBlockNumber() <= lastHeight {
-				// means proposal is out of deadline,status change to rejected
-				Contraint(&proposal).SetStatus(Rejected)
+			// means proposal is out of deadline,status change to rejected
+			proposal.SetStatus(Rejected)
 
-				_, err := saveProposal(&proposal)
-				if err != nil {
-					return err
-				}
+			err = saveProposal(stateLedger, &notFinishedProposal, proposal)
+			if err != nil {
+				return err
+			}
+
+			// remove proposal from not finished proposals
+			if err = notFinishedProposalMgr.RemoveProposal(notFinishedProposal.ID); err != nil {
+				return err
 			}
 		}
 	}
 
 	return nil
+}
+
+func GetNotFinishedProposals(stateLedger ledger.StateLedger) (map[uint64]NotFinishedProposal, error) {
+	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
+	notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
+	if err != nil {
+		return nil, err
+	}
+
+	return notFinishedProposals, nil
 }

@@ -2019,45 +2019,6 @@ func (c *StateLedgerPrepareEVMCall) DoAndReturn(f func(params.Rules, common.Addr
 	return c
 }
 
-// QueryByPrefix mocks base method.
-func (m *MockStateLedger) QueryByPrefix(address *types.Address, prefix string) (bool, [][]byte) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryByPrefix", address, prefix)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].([][]byte)
-	return ret0, ret1
-}
-
-// QueryByPrefix indicates an expected call of QueryByPrefix.
-func (mr *MockStateLedgerMockRecorder) QueryByPrefix(address, prefix any) *StateLedgerQueryByPrefixCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryByPrefix", reflect.TypeOf((*MockStateLedger)(nil).QueryByPrefix), address, prefix)
-	return &StateLedgerQueryByPrefixCall{Call: call}
-}
-
-// StateLedgerQueryByPrefixCall wrap *gomock.Call
-type StateLedgerQueryByPrefixCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerQueryByPrefixCall) Return(arg0 bool, arg1 [][]byte) *StateLedgerQueryByPrefixCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerQueryByPrefixCall) Do(f func(*types.Address, string) (bool, [][]byte)) *StateLedgerQueryByPrefixCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerQueryByPrefixCall) DoAndReturn(f func(*types.Address, string) (bool, [][]byte)) *StateLedgerQueryByPrefixCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // RevertToSnapshot mocks base method.
 func (m *MockStateLedger) RevertToSnapshot(arg0 int) {
 	m.ctrl.T.Helper()
@@ -3046,45 +3007,6 @@ func (c *StateAccessorGetStateCall) DoAndReturn(f func(*types.Address, []byte) (
 	return c
 }
 
-// QueryByPrefix mocks base method.
-func (m *MockStateAccessor) QueryByPrefix(address *types.Address, prefix string) (bool, [][]byte) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryByPrefix", address, prefix)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].([][]byte)
-	return ret0, ret1
-}
-
-// QueryByPrefix indicates an expected call of QueryByPrefix.
-func (mr *MockStateAccessorMockRecorder) QueryByPrefix(address, prefix any) *StateAccessorQueryByPrefixCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryByPrefix", reflect.TypeOf((*MockStateAccessor)(nil).QueryByPrefix), address, prefix)
-	return &StateAccessorQueryByPrefixCall{Call: call}
-}
-
-// StateAccessorQueryByPrefixCall wrap *gomock.Call
-type StateAccessorQueryByPrefixCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateAccessorQueryByPrefixCall) Return(arg0 bool, arg1 [][]byte) *StateAccessorQueryByPrefixCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateAccessorQueryByPrefixCall) Do(f func(*types.Address, string) (bool, [][]byte)) *StateAccessorQueryByPrefixCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorQueryByPrefixCall) DoAndReturn(f func(*types.Address, string) (bool, [][]byte)) *StateAccessorQueryByPrefixCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // SetBalance mocks base method.
 func (m *MockStateAccessor) SetBalance(arg0 *types.Address, arg1 *big.Int) {
 	m.ctrl.T.Helper()
@@ -3661,45 +3583,6 @@ func (c *IAccountIsEmptyCall) Do(f func() bool) *IAccountIsEmptyCall {
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *IAccountIsEmptyCall) DoAndReturn(f func() bool) *IAccountIsEmptyCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Query mocks base method.
-func (m *MockIAccount) Query(prefix string) (bool, [][]byte) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", prefix)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].([][]byte)
-	return ret0, ret1
-}
-
-// Query indicates an expected call of Query.
-func (mr *MockIAccountMockRecorder) Query(prefix any) *IAccountQueryCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockIAccount)(nil).Query), prefix)
-	return &IAccountQueryCall{Call: call}
-}
-
-// IAccountQueryCall wrap *gomock.Call
-type IAccountQueryCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *IAccountQueryCall) Return(arg0 bool, arg1 [][]byte) *IAccountQueryCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *IAccountQueryCall) Do(f func(string) (bool, [][]byte)) *IAccountQueryCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountQueryCall) DoAndReturn(f func(string) (bool, [][]byte)) *IAccountQueryCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

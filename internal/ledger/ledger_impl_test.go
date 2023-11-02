@@ -238,7 +238,6 @@ func Test_KV_Compatibility(t *testing.T) {
 			testChainLedger_Commit(t, tc.kvType)
 			testChainLedger_EVMAccessor(t, tc.kvType)
 			testChainLedger_Rollback(t, tc.kvType)
-			testChainLedger_QueryByPrefix(t, tc.kvType)
 			testChainLedger_GetAccount(t, tc.kvType)
 			testChainLedger_GetCode(t, tc.kvType)
 			testChainLedger_AddAccountsToCache(t, tc.kvType)
@@ -599,40 +598,6 @@ func testChainLedger_Rollback(t *testing.T, kvType string) {
 
 	err = ledger.Rollback(100)
 	assert.NotNil(t, err)
-}
-
-func testChainLedger_QueryByPrefix(t *testing.T, kvType string) {
-	ledger, _ := initLedger(t, "", kvType)
-
-	addr := types.NewAddress(LeftPadBytes([]byte{1}, 20))
-	key0 := []byte{100, 100}
-	key1 := []byte{100, 101}
-	key2 := []byte{100, 102}
-	key3 := []byte{10, 102}
-
-	ledger.StateLedger.SetState(addr, key0, []byte("0"))
-	ledger.StateLedger.SetState(addr, key1, []byte("1"))
-	ledger.StateLedger.SetState(addr, key2, []byte("2"))
-	ledger.StateLedger.SetState(addr, key3, []byte("2"))
-
-	ok, vals := ledger.StateLedger.QueryByPrefix(addr, string([]byte{100}))
-	assert.True(t, ok)
-	assert.Equal(t, 3, len(vals))
-	assert.Equal(t, []byte("0"), vals[0])
-	assert.Equal(t, []byte("1"), vals[1])
-	assert.Equal(t, []byte("2"), vals[2])
-
-	ledger.StateLedger.Finalise()
-	accounts, stateRoot := ledger.StateLedger.FlushDirtyData()
-	err := ledger.StateLedger.Commit(1, accounts, stateRoot)
-	assert.Nil(t, err)
-
-	ok, vals = ledger.StateLedger.QueryByPrefix(addr, string([]byte{100}))
-	assert.True(t, ok)
-	assert.Equal(t, 3, len(vals))
-	assert.Equal(t, []byte("0"), vals[0])
-	assert.Equal(t, []byte("1"), vals[1])
-	assert.Equal(t, []byte("2"), vals[2])
 }
 
 func testChainLedger_GetAccount(t *testing.T, kvType string) {

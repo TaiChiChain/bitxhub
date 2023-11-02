@@ -113,9 +113,6 @@ type StateAccessor interface {
 	// GetNonce
 	GetNonce(*types.Address) uint64
 
-	// QueryByPrefix
-	QueryByPrefix(address *types.Address, prefix string) (bool, [][]byte)
-
 	// Commit commits the state data
 	Commit(height uint64, accounts map[string]IAccount, stateRoot *types.Hash) error
 
@@ -157,8 +154,6 @@ type IAccount interface {
 	SubBalance(amount *big.Int)
 
 	AddBalance(amount *big.Int)
-
-	Query(prefix string) (bool, [][]byte)
 
 	Finalise()
 

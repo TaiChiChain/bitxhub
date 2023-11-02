@@ -232,6 +232,122 @@ func TestRunForPropose(t *testing.T) {
 	}
 }
 
+func TestRunForPropose_checkFinishedAllProposal(t *testing.T) {
+	cm := NewCouncilManager(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	accountCache, err := ledger.NewAccountCache()
+	assert.Nil(t, err)
+	repoRoot := t.TempDir()
+	ld, err := leveldb.New(filepath.Join(repoRoot, "node_manager"), nil)
+	assert.Nil(t, err)
+	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.NodeManagerContractAddr), ledger.NewChanger())
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err = InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
+	assert.Nil(t, err)
+
+	cm.Reset(1, stateLedger)
+
+	_, err = cm.Run(&vm.Message{
+		From: types.NewAddressByStr(admin1).ETHAddress(),
+		Data: generateProposeData(t, CouncilExtraArgs{
+			Candidates: []*CouncilMember{
+				{
+					Address: admin1,
+					Weight:  1,
+					Name:    "111",
+				},
+				{
+					Address: admin2,
+					Weight:  1,
+					Name:    "222",
+				},
+				{
+					Address: admin3,
+					Weight:  1,
+					Name:    "333",
+				},
+				{
+					Address: admin4,
+					Weight:  1,
+					Name:    "444",
+				},
+			},
+		}),
+	})
+	assert.Nil(t, err)
+
+	// set out of date block number
+	cm.Reset(1000, stateLedger)
+
+	_, err = cm.Run(&vm.Message{
+		From: types.NewAddressByStr(admin2).ETHAddress(),
+		Data: generateVoteData(t, 1, Reject),
+	})
+	assert.Equal(t, ErrProposalFinished, err)
+
+	// propose another proposal should be successful
+	cm.Reset(2, stateLedger)
+
+	_, err = cm.Run(&vm.Message{
+		From: types.NewAddressByStr(admin1).ETHAddress(),
+		Data: generateProposeData(t, CouncilExtraArgs{
+			Candidates: []*CouncilMember{
+				{
+					Address: admin1,
+					Weight:  1,
+					Name:    "111",
+				},
+				{
+					Address: admin2,
+					Weight:  1,
+					Name:    "222",
+				},
+				{
+					Address: admin3,
+					Weight:  1,
+					Name:    "333",
+				},
+				{
+					Address: admin4,
+					Weight:  1,
+					Name:    "444",
+				},
+			},
+		}),
+	})
+	assert.Nil(t, err)
+}
+
 func TestRunForVote(t *testing.T) {
 	cm := NewCouncilManager(&common.SystemContractConfig{
 		Logger: logrus.New(),

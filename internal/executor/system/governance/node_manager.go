@@ -81,12 +81,13 @@ var _ common.SystemContract = (*NodeManager)(nil)
 type NodeManager struct {
 	gov *Governance
 
-	account        ledger.IAccount
-	councilAccount ledger.IAccount
-	stateLedger    ledger.StateLedger
-	currentLog     *common.Log
-	proposalID     *ProposalID
-	lastHeight     uint64
+	account                ledger.IAccount
+	councilAccount         ledger.IAccount
+	stateLedger            ledger.StateLedger
+	currentLog             *common.Log
+	proposalID             *ProposalID
+	lastHeight             uint64
+	notFinishedProposalMgr *NotFinishedProposalMgr
 }
 
 func NewNodeManager(cfg *common.SystemContractConfig) *NodeManager {
@@ -111,6 +112,7 @@ func (nm *NodeManager) Reset(lastHeight uint64, stateLedger ledger.StateLedger) 
 
 	councilAddr := types.NewAddressByStr(common.CouncilManagerContractAddr)
 	nm.councilAccount = stateLedger.GetOrCreateAccount(councilAddr)
+	nm.notFinishedProposalMgr = NewNotFinishedProposalMgr(stateLedger)
 
 	// check and update
 	nm.checkAndUpdateState(lastHeight)
@@ -233,6 +235,16 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *NodePr
 	if err != nil {
 		return nil, err
 	}
+
+	// propose generate not finished proposal
+	if err = nm.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  proposal.ID,
+		DeadlineBlockNumber: proposal.BlockNumber,
+		ContractAddr:        common.NodeManagerContractAddr,
+	}); err != nil {
+		return nil, err
+	}
+
 	returnData, err := nm.gov.PackOutputArgs(ProposeMethod, id)
 	if err != nil {
 		return nil, err
@@ -279,6 +291,15 @@ func (nm *NodeManager) proposeUpgrade(addr ethcommon.Address, args *UpgradePropo
 
 	b, err := nm.saveNodeProposal(proposal)
 	if err != nil {
+		return nil, err
+	}
+
+	// propose generate not finished proposal
+	if err = nm.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  proposal.ID,
+		DeadlineBlockNumber: proposal.BlockNumber,
+		ContractAddr:        common.NodeManagerContractAddr,
+	}); err != nil {
 		return nil, err
 	}
 
@@ -329,6 +350,13 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 	b, err := nm.saveNodeProposal(proposal)
 	if err != nil {
 		return nil, err
+	}
+
+	// update not finished proposal
+	if proposal.Status == Approved || proposal.Status == Rejected {
+		if err := nm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+			return nil, err
+		}
 	}
 
 	// if proposal is approved, update the node members
@@ -391,6 +419,13 @@ func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposa
 		return nil, err
 	}
 
+	// update not finished proposal
+	if proposal.Status == Approved || proposal.Status == Rejected {
+		if err := nm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	// record log
 	// if approved, guardian sync log, then update node and restart
 	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
@@ -400,28 +435,11 @@ func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposa
 }
 
 func (nm *NodeManager) saveNodeProposal(proposal *NodeProposal) ([]byte, error) {
-	b, err := json.Marshal(proposal)
-	if err != nil {
-		return nil, err
-	}
-	// save proposal
-	nm.account.SetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposal.ID)), b)
-
-	return b, nil
+	return saveNodeProposal(nm.stateLedger, proposal)
 }
 
 func (nm *NodeManager) loadNodeProposal(proposalID uint64) (*NodeProposal, error) {
-	isExist, data := nm.account.GetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposalID)))
-	if !isExist {
-		return nil, ErrNotFoundNodeProposal
-	}
-
-	proposal := &NodeProposal{}
-	if err := json.Unmarshal(data, proposal); err != nil {
-		return nil, err
-	}
-
-	return proposal, nil
+	return loadNodeProposal(nm.stateLedger, proposalID)
 }
 
 // getProposal view proposal details
@@ -450,7 +468,7 @@ func (nm *NodeManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
 }
 
 func (nm *NodeManager) checkAndUpdateState(lastHeight uint64) {
-	if err := CheckAndUpdateState[NodeProposal, *NodeProposal](lastHeight, nm.account, NodeProposalKey, nm.saveNodeProposal); err != nil {
+	if err := CheckAndUpdateState(lastHeight, nm.stateLedger); err != nil {
 		nm.gov.logger.Errorf("check and update state error: %s", err)
 	}
 }
@@ -477,4 +495,35 @@ func GetNodeMembers(lg ledger.StateLedger) ([]*NodeMember, error) {
 		return members, nil
 	}
 	return nil, errors.New("node member should be initialized in genesis")
+}
+
+func saveNodeProposal(stateLedger ledger.StateLedger, proposal ProposalObject) ([]byte, error) {
+	addr := types.NewAddressByStr(common.NodeManagerContractAddr)
+	account := stateLedger.GetOrCreateAccount(addr)
+
+	b, err := json.Marshal(proposal)
+	if err != nil {
+		return nil, err
+	}
+	// save proposal
+	account.SetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposal.GetID())), b)
+
+	return b, nil
+}
+
+func loadNodeProposal(stateLedger ledger.StateLedger, proposalID uint64) (*NodeProposal, error) {
+	addr := types.NewAddressByStr(common.NodeManagerContractAddr)
+	account := stateLedger.GetOrCreateAccount(addr)
+
+	isExist, data := account.GetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposalID)))
+	if !isExist {
+		return nil, ErrNotFoundNodeProposal
+	}
+
+	proposal := &NodeProposal{}
+	if err := json.Unmarshal(data, proposal); err != nil {
+		return nil, err
+	}
+
+	return proposal, nil
 }

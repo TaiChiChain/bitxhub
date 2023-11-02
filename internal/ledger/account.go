@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -327,46 +326,6 @@ func (o *SimpleAccount) AddBalance(amount *big.Int) {
 	}
 	o.logger.Debugf("[AddBalance] addr: %v, add amount: %v", o.Addr, amount)
 	o.SetBalance(new(big.Int).Add(o.GetBalance(), amount))
-}
-
-// Query the value using key
-func (o *SimpleAccount) Query(prefix string) (bool, [][]byte) {
-	var ret [][]byte
-	stored := make(map[string][]byte)
-
-	begin, end := bytesPrefix(append(o.Addr.Bytes(), prefix...))
-	it := o.ldb.Iterator(begin, end)
-
-	for it.Next() {
-		key := make([]byte, len(it.Key()))
-		val := make([]byte, len(it.Value()))
-		copy(key, it.Key())
-		copy(val, it.Value())
-		stored[string(key)] = val
-	}
-
-	for key, value := range o.pendingState {
-		if strings.HasPrefix(key, prefix) {
-			stored[key] = value
-		}
-	}
-
-	for key, value := range o.dirtyState {
-		if strings.HasPrefix(key, prefix) {
-			stored[key] = value
-		}
-	}
-
-	for _, val := range stored {
-		ret = append(ret, val)
-	}
-
-	sort.Slice(ret, func(i, j int) bool {
-		return bytes.Compare(ret[i], ret[j]) < 0
-	})
-
-	o.logger.Debugf("[Query] addr: %v, query prefix: %v, ret size: %v", o.Addr, prefix, len(ret))
-	return len(ret) != 0, ret
 }
 
 // Finalise moves all dirty states into the pending states.

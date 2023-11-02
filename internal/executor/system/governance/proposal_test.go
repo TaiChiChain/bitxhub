@@ -1,20 +1,23 @@
 package governance
 
 import (
-	"encoding/json"
-	"errors"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 )
 
 func TestProposal_CheckAndUpdateState(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
 	accountCache, err := ledger.NewAccountCache()
 	assert.Nil(t, err)
 	repoRoot := t.TempDir()
@@ -23,60 +26,76 @@ func TestProposal_CheckAndUpdateState(t *testing.T) {
 	assert.Nil(t, err)
 	account := ledger.NewAccount(ld, accountCache, types.NewAddressByStr(common.NodeManagerContractAddr), ledger.NewChanger())
 
-	updateErr := errors.New("update error")
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+
 	testcases := []struct {
 		BlockNumber         uint64
 		Status              ProposalStatus
 		DeadlineBlockNumber uint64
-		SaveProposal        func(proposal *BaseProposal) ([]byte, error)
+		ExpectedResult      ProposalStatus
 		ExpectedErr         error
 	}{
 		{
 			BlockNumber:         0,
 			Status:              Voting,
 			DeadlineBlockNumber: 1,
-			SaveProposal:        func(proposal *BaseProposal) ([]byte, error) { return nil, nil },
-			ExpectedErr:         nil,
-		},
-		{
-			BlockNumber:         1,
-			Status:              Voting,
-			DeadlineBlockNumber: 1,
-			SaveProposal:        func(proposal *BaseProposal) ([]byte, error) { return nil, nil },
+			ExpectedResult:      Rejected,
 			ExpectedErr:         nil,
 		},
 		{
 			BlockNumber:         2,
 			Status:              Voting,
-			DeadlineBlockNumber: 2,
-			SaveProposal:        func(proposal *BaseProposal) ([]byte, error) { return nil, updateErr },
-			ExpectedErr:         updateErr,
+			DeadlineBlockNumber: 1,
+			ExpectedResult:      Voting,
+			ExpectedErr:         nil,
+		},
+		{
+			BlockNumber:         1,
+			Status:              Voting,
+			DeadlineBlockNumber: 1,
+			ExpectedResult:      Rejected,
+			ExpectedErr:         nil,
 		},
 		{
 			BlockNumber:         1,
 			Status:              Approved,
 			DeadlineBlockNumber: 1,
-			SaveProposal:        func(proposal *BaseProposal) ([]byte, error) { return nil, updateErr },
+			ExpectedResult:      Approved,
 			ExpectedErr:         nil,
 		},
 		{
 			BlockNumber:         1,
 			Status:              Rejected,
 			DeadlineBlockNumber: 1,
-			SaveProposal:        func(proposal *BaseProposal) ([]byte, error) { return nil, updateErr },
+			ExpectedResult:      Rejected,
 			ExpectedErr:         nil,
 		},
 	}
 
-	for _, testcase := range testcases {
-		baseProposal := &BaseProposal{BlockNumber: testcase.BlockNumber, Status: testcase.Status}
-		b, err := json.Marshal(baseProposal)
-		assert.Nil(t, err)
-		account.SetState([]byte("/proposalkey"), b)
+	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
 
-		err = CheckAndUpdateState[BaseProposal, *BaseProposal](testcase.DeadlineBlockNumber, account, "/proposalkey", testcase.SaveProposal)
+	for _, testcase := range testcases {
+		baseProposal := &BaseProposal{ID: 1, BlockNumber: testcase.BlockNumber, Status: testcase.Status}
+
+		_, err := saveCouncilProposal(stateLedger, baseProposal)
+		assert.Nil(t, err)
+
+		notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+			ID:                  baseProposal.ID,
+			DeadlineBlockNumber: baseProposal.BlockNumber,
+			ContractAddr:        common.CouncilManagerContractAddr,
+		})
+
+		err = CheckAndUpdateState(testcase.DeadlineBlockNumber, stateLedger)
 		assert.Equal(t, testcase.ExpectedErr, err)
 
-		account.SetState([]byte("/proposalkey"), nil)
+		proposal, err := loadCouncilProposal(stateLedger, 1)
+		assert.Nil(t, err)
+		assert.Equal(t, testcase.ExpectedResult, proposal.Status)
+
+		// clear
+		account.SetState(notFinishedProposalsKey(), nil)
 	}
 }

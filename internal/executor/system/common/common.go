@@ -28,6 +28,7 @@ const (
 	Addr2NameContractAddr                = "0x0000000000000000000000000000000000001003"
 	WhiteListContractAddr                = "0x0000000000000000000000000000000000001004"
 	WhiteListProviderManagerContractAddr = "0x0000000000000000000000000000000000001005"
+	NotFinishedProposalContractAddr      = "0x0000000000000000000000000000000000001006"
 )
 
 type SystemContractConfig struct {

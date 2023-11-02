@@ -203,7 +203,6 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 	evs = append(evs, ev, ev2, ev3)
 	stateLedger.EXPECT().NewView().Return(stateLedger).AnyTimes()
-	stateLedger.EXPECT().QueryByPrefix(gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
 	stateLedger.EXPECT().Commit(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	stateLedger.EXPECT().Clear().AnyTimes()
