@@ -489,8 +489,8 @@ func (l *ChainLedgerImpl) checkChainMeta() error {
 	if err != nil {
 		return fmt.Errorf("get blockfile height: %w", err)
 	}
-	if l.chainMeta.Height < bfHeight {
-		l.chainMeta.Height = bfHeight
+	if l.chainMeta.Height < bfHeight-1 {
+		l.chainMeta.Height = bfHeight - 1
 		batcher := l.blockchainStore.NewBatch()
 
 		// Get block body
