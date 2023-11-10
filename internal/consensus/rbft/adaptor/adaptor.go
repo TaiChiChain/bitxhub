@@ -63,12 +63,12 @@ type Ready struct {
 }
 
 func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
-	store, err := storagemgr.Open(repo.GetStoragePath(config.RepoRoot, storagemgr.Consensus))
+	store, err := storagemgr.OpenSpecifyType(repo.KVStorageTypeLeveldb, repo.GetStoragePath(config.RepoRoot, storagemgr.Consensus))
 	if err != nil {
 		return nil, err
 	}
 
-	epochStore, err := storagemgr.Open(repo.GetStoragePath(config.RepoRoot, storagemgr.Epoch))
+	epochStore, err := storagemgr.OpenSpecifyType(repo.KVStorageTypeLeveldb, repo.GetStoragePath(config.RepoRoot, storagemgr.Epoch))
 	if err != nil {
 		return nil, err
 	}
