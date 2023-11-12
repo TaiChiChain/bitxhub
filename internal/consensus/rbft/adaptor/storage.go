@@ -4,23 +4,28 @@ import (
 	"bytes"
 
 	"github.com/pkg/errors"
+	"github.com/rosedblabs/rosedb/v2"
 )
 
 // StoreState stores a key,value pair to the database with the given namespace
 func (a *RBFTAdaptor) StoreState(key string, value []byte) error {
-	a.store.Put([]byte("consensus."+key), value)
-	return nil
+	return a.store.Put([]byte(key), value)
 }
 
 // DelState removes a key,value pair from the database with the given namespace
 func (a *RBFTAdaptor) DelState(key string) error {
-	a.store.Delete([]byte("consensus." + key))
-	return nil
+	return a.store.Delete([]byte(key))
 }
 
 // ReadState retrieves a value to a key from the database with the given namespace
 func (a *RBFTAdaptor) ReadState(key string) ([]byte, error) {
-	b := a.store.Get([]byte("consensus." + key))
+	b, err := a.store.Get([]byte(key))
+	if err != nil {
+		if errors.Is(err, rosedb.ErrKeyNotFound) {
+			return nil, errors.New("not found")
+		}
+		return nil, err
+	}
 	if b == nil {
 		return nil, errors.New("not found")
 	}
@@ -29,25 +34,17 @@ func (a *RBFTAdaptor) ReadState(key string) ([]byte, error) {
 
 // ReadStateSet retrieves all key-value pairs where the key starts with prefix from the database with the given namespace
 func (a *RBFTAdaptor) ReadStateSet(prefix string) (map[string][]byte, error) {
-	prefixRaw := []byte("consensus." + prefix)
+	prefixRaw := []byte(prefix)
 
 	ret := make(map[string][]byte)
-	it := a.store.Prefix(prefixRaw)
-	if it == nil {
-		return nil, errors.New("can't get Iterator")
-	}
-
-	if !it.Seek(prefixRaw) {
-		return nil, errors.New("not found")
-	}
-
-	for bytes.HasPrefix(it.Key(), prefixRaw) {
-		key := string(it.Key())
-		key = key[len("consensus."):]
-		ret[key] = append([]byte(nil), it.Value()...)
-		if !it.Next() {
-			break
+	a.store.Ascend(func(k []byte, v []byte) (bool, error) {
+		if bytes.HasPrefix(k, prefixRaw) {
+			ret[string(k)] = append([]byte(nil), v...)
 		}
+		return true, nil
+	})
+	if len(ret) == 0 {
+		return nil, errors.New("not found")
 	}
 	return ret, nil
 }

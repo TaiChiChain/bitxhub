@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/rosedblabs/rosedb/v2"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -28,7 +29,7 @@ var _ rbft.EpochService = (*RBFTAdaptor)(nil)
 
 type RBFTAdaptor struct {
 	epochStore        storage.Storage
-	store             storage.Storage
+	store             *rosedb.DB
 	priv              *ecdsa.PrivateKey
 	network           network.Network
 	msgPipes          map[int32]p2p.Pipe
@@ -63,8 +64,15 @@ type Ready struct {
 }
 
 func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
-	store, err := storagemgr.Open(repo.GetStoragePath(config.RepoRoot, storagemgr.Consensus))
+	options := rosedb.DefaultOptions
+	options.DirPath = repo.GetStoragePath(config.RepoRoot, storagemgr.Consensus)
+	options.Sync = true
+	store, err := rosedb.Open(options)
 	if err != nil {
+		return nil, err
+	}
+	// merge log files
+	if err := store.Merge(true); err != nil {
 		return nil, err
 	}
 
