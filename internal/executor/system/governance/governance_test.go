@@ -294,7 +294,7 @@ func TestGovernance_Propose(t *testing.T) {
 		addr := types.NewAddressByStr(test.input.user)
 		ethaddr := addr.ETHAddress()
 
-		proposal, err := gov.Propose(&ethaddr, test.input.proposalType, test.input.title, test.input.desc, test.input.BlockNumber, 1)
+		proposal, err := gov.Propose(&ethaddr, test.input.proposalType, test.input.title, test.input.desc, test.input.BlockNumber, 1, false)
 		if err != nil {
 			assert.Equal(t, test.err, err)
 		} else {
@@ -317,7 +317,7 @@ func TestGovernance_Vote(t *testing.T) {
 	anotherAddr := types.NewAddressByStr("0x2000000000000000000000000000000000000000")
 	ethAddr := addr.ETHAddress()
 	anotherEthAddr := anotherAddr.ETHAddress()
-	proposal, err := gov.Propose(&ethAddr, NodeUpgrade, "test title", "test desc", uint64(10000), 1)
+	proposal, err := gov.Propose(&ethAddr, NodeUpgrade, "test title", "test desc", uint64(10000), 1, false)
 	assert.Nil(t, err)
 	assert.NotNil(t, proposal)
 
