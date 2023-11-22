@@ -102,7 +102,7 @@ solo:build
 
 package:build
 	cp -f ${APP_NAME} ./scripts/package/tools/bin/${APP_NAME}
-	tar czvf ./${APP_NAME}-${APP_VERSION}.tar.gz -C ./scripts/package/ .
+	tar czvf ./${APP_NAME}-${APP_VERSION}-${GOARCH}-${GOOS}.tar.gz -C ./scripts/package/ .
 
 ## make precommit: Check code like CI
 precommit: fmt test-coverage linter
