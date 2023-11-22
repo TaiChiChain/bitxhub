@@ -374,9 +374,12 @@ func (bs *BlockSync) initChunk() {
 
 	// if we have epoch change, chunk size need smaller than epoch size
 	if len(bs.epochChanges) != 0 {
-		epochSize := bs.epochChanges[0].GetCheckpoint().Checkpoint.Height() - bs.curHeight + 1
-		if epochSize < chunkSize {
-			chunkSize = epochSize
+		latestEpoch := bs.epochChanges[0]
+		if latestEpoch != nil {
+			epochSize := latestEpoch.GetCheckpoint().Checkpoint.Height() - bs.curHeight + 1
+			if epochSize < chunkSize {
+				chunkSize = epochSize
+			}
 		}
 	}
 

@@ -51,6 +51,14 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	startHeight := chain.Height + 1
 	latestBlockHash := chain.BlockHash.String()
 
+	// if we had already persist last block of min epoch, dismiss the min epoch
+	if len(epochChanges) != 0 {
+		minEpoch := epochChanges[0]
+		if minEpoch != nil && minEpoch.Checkpoint.Height() < startHeight {
+			epochChanges = epochChanges[1:]
+		}
+	}
+
 	if chain.Height >= seqNo {
 		localBlock, err := a.getBlockFunc(seqNo)
 		if err != nil {

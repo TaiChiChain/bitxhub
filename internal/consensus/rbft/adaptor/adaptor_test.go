@@ -124,7 +124,7 @@ func TestStateUpdate(t *testing.T) {
 			},
 		},
 	}
-	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), []*consensus.SignedCheckpoint{quorumCkpt}, nil)
+	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), []*consensus.SignedCheckpoint{quorumCkpt})
 
 	targetB := <-adaptor.BlockC
 	ast.Equal(uint64(2), targetB.Block.BlockHeader.Number)
@@ -160,7 +160,7 @@ func TestStateUpdate(t *testing.T) {
 		adaptor.Cancel()
 		time.Sleep(100 * time.Millisecond)
 		adaptor.StateUpdate(0, block5.BlockHeader.Number, block5.BlockHash.String(),
-			[]*consensus.SignedCheckpoint{signCkp}, nil)
+			[]*consensus.SignedCheckpoint{signCkp})
 	})
 }
 
