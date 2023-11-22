@@ -55,13 +55,21 @@ func generateRbftConfig(config *common.Config) (rbft.Config, error) {
 	defaultConfig := defaultRbftConfig()
 	defaultConfig.GenesisEpochInfo = config.GenesisEpochInfo
 	defaultConfig.SelfAccountAddress = config.SelfAccountAddress
-	defaultConfig.LastServiceState = &rbfttypes.ServiceState{
+	lastServiceState := &rbfttypes.ServiceState{
 		MetaState: &rbfttypes.MetaState{
 			Height: config.Applied,
 			Digest: config.Digest,
 		},
 		Epoch: currentEpoch.Epoch,
 	}
+	// if lastHeight is less than the start block of current epoch, it means the new epoch is not started yet
+	// for ex: epoch height is 100, current epoch is 2, last height is 100, start block is 101
+	// if we persist the last height: 100, it means the new epoch had modified to 2
+	// but the last block which height=100 is belong to the old epoch 1
+	if lastServiceState.MetaState.Height < currentEpoch.StartBlock {
+		lastServiceState.Epoch = currentEpoch.Epoch - 1
+	}
+	defaultConfig.LastServiceState = lastServiceState
 	defaultConfig.GenesisBlockDigest = config.GenesisDigest
 	defaultConfig.Logger = &common.Logger{FieldLogger: config.Logger}
 
