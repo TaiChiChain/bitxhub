@@ -86,6 +86,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	current := time.Now()
 	block := commitEvent.Block
 
+	time.Sleep(1 * time.Second)
 	// check executor handle the right block
 	if block.BlockHeader.Number != exec.currentHeight+1 {
 		exec.logger.WithFields(logrus.Fields{"block height": block.BlockHeader.Number,

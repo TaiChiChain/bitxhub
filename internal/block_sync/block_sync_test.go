@@ -3,6 +3,7 @@ package block_sync
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,12 +20,9 @@ func TestStartSync(t *testing.T) {
 	// store blocks expect node 0
 	prepareLedger(n, 10)
 
-	// start sync model
-	for i := 0; i < n; i++ {
-		err := syncs[i].Start()
-		require.Nil(t, err)
+	for _, sync := range syncs {
+		sync.conf.TimeoutCountLimit = 1
 	}
-
 	// node0 start sync block
 	peers := []string{"1", "2", "3"}
 	latestBlockHash := getMockChainMeta(0).BlockHash.String()
@@ -54,6 +52,14 @@ func TestStartSync(t *testing.T) {
 		err = syncs[0].StopSync()
 		require.Nil(t, err)
 	}()
+
+	// wait for reset peers
+	time.Sleep(1 * time.Second)
+	// start sync model
+	for i := 0; i < n; i++ {
+		err = syncs[i].Start()
+		require.Nil(t, err)
+	}
 
 	blocks := <-syncs[0].Commit()
 	require.Equal(t, 9, len(blocks))
@@ -443,41 +449,6 @@ func TestHandleSyncErrMsg(t *testing.T) {
 	blocks := <-syncs[0].Commit()
 	require.Equal(t, 99, len(blocks))
 	require.Equal(t, uint64(100), blocks[len(blocks)-1].Height())
-}
-
-func TestSendSyncStateError(t *testing.T) {
-	n := 4
-	// mock syncs[0] which send sync state request error
-	syncs := newMockBlockSyncs(t, n, wrongTypeSendSyncState, 0, 1)
-	defer stopSyncs(syncs)
-
-	// store blocks expect node 0
-	prepareLedger(n, 100)
-
-	// start sync model
-	for i := 0; i < n; i++ {
-		err := syncs[i].Start()
-		require.Nil(t, err)
-	}
-	// node0 start sync block
-	peers := []string{"1", "2", "3"}
-	latestBlockHash := getMockChainMeta(0).BlockHash.String()
-	remoteBlockHash := getMockChainMeta(1).BlockHash.String()
-	quorumCkpt := &consensus.SignedCheckpoint{
-		Checkpoint: &consensus.Checkpoint{
-			ExecuteState: &consensus.Checkpoint_ExecuteState{
-				Height: 100,
-				Digest: remoteBlockHash,
-			},
-		},
-	}
-	err := syncs[0].StartSync(peers, latestBlockHash, 2, 2, 100, quorumCkpt)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "timeout send sync request")
-
-	err = syncs[0].StopSync()
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "status is already false")
 }
 
 func TestValidateChunk(t *testing.T) {

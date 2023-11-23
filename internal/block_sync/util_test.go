@@ -418,7 +418,6 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) []*BlockSync {
 		}
 
 		conf := repo.Sync{
-			WaitStateTimeout:      repo.Duration(2 * time.Second),
 			RequesterRetryTimeout: repo.Duration(1 * time.Second),
 			TimeoutCountLimit:     5,
 			ConcurrencyLimit:      100,
