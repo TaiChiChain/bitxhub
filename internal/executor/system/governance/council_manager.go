@@ -22,6 +22,7 @@ var (
 	ErrRepeatedAddress          = errors.New("council member address repeated")
 	ErrRepeatedName             = errors.New("council member name repeated")
 	ErrNotFoundCouncilMember    = errors.New("council member is not found")
+	ErrNotFoundCouncil          = errors.New("council is not found")
 	ErrCouncilExtraArgs         = errors.New("unmarshal council extra arguments error")
 	ErrNotFoundCouncilProposal  = errors.New("council proposal not found for the id")
 	ErrExistNotFinishedProposal = errors.New("exist not finished proposal, must finished all proposal then propose council proposal")
@@ -160,7 +161,7 @@ func (cm *CouncilManager) propose(addr ethcommon.Address, args *CouncilProposalA
 	for i, candidate := range args.Candidates {
 		cm.gov.logger.Debugf("candidate %d: %+v", i, *candidate)
 	}
-	baseProposal, err := cm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, cm.lastHeight)
+	baseProposal, err := cm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, cm.lastHeight, false)
 	if err != nil {
 		return nil, err
 	}
@@ -372,17 +373,14 @@ func (cm *CouncilManager) checkFinishedAllProposal() bool {
 
 func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
 	// check council if is exist
-	isExist, data := account.GetState([]byte(CouncilKey))
-	if !isExist {
-		return false, nil
-	}
 	council := &Council{}
-	if err := json.Unmarshal(data, council); err != nil {
+	council, isExistCouncil := GetCouncil(account)
+	if !isExistCouncil {
 		return false, nil
 	}
 
 	// check addr if is exist in council
-	isExist = common.IsInSlice[string](addr, lo.Map[*CouncilMember, string](council.Members, func(item *CouncilMember, index int) string {
+	isExist := common.IsInSlice[string](addr, lo.Map[*CouncilMember, string](council.Members, func(item *CouncilMember, index int) string {
 		return item.Address
 	}))
 	if !isExist {
@@ -390,6 +388,22 @@ func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
 	}
 
 	return true, council
+}
+
+func GetCouncil(account ledger.IAccount) (*Council, bool) {
+	// Check if the council exists in the account's state
+	isExist, data := account.GetState([]byte(CouncilKey))
+	if !isExist {
+		return nil, false
+	}
+
+	// Unmarshal the data into a Council object
+	council := &Council{}
+	if err := json.Unmarshal(data, council); err != nil {
+		return nil, false
+	}
+
+	return council, true
 }
 
 func checkAddr2Name(members []*CouncilMember) bool {

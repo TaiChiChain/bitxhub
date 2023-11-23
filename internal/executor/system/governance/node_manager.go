@@ -205,7 +205,8 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *Propos
 		return nil, err
 	}
 
-	isExist, council := CheckInCouncil(nm.councilAccount, addr.String())
+	isExist, _ := CheckInCouncil(nm.councilAccount, addr.String())
+	nodeAddRole := false
 	if args.ProposalType == uint8(NodeAdd) {
 		// check addr if is exist in council
 		if !isExist {
@@ -219,11 +220,17 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *Propos
 				if !isExist {
 					return nil, ErrNotFoundCouncilMember
 				}
+			} else if !isExist {
+				nodeAddRole = true
 			}
 		}
 	}
+	council, isExistCouncil := GetCouncil(nm.councilAccount)
+	if !isExistCouncil {
+		return nil, ErrNotFoundCouncil
+	}
 
-	baseProposal, err := nm.gov.Propose(&addr, ProposalType(nodeArgs.ProposalType), nodeArgs.Title, nodeArgs.Desc, nodeArgs.BlockNumber, nm.lastHeight)
+	baseProposal, err := nm.gov.Propose(&addr, ProposalType(nodeArgs.ProposalType), nodeArgs.Title, nodeArgs.Desc, nodeArgs.BlockNumber, nm.lastHeight, nodeAddRole)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +284,7 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *Propos
 }
 
 func (nm *NodeManager) proposeUpgrade(addr ethcommon.Address, args *UpgradeProposalArgs) ([]byte, error) {
-	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, nm.lastHeight)
+	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, nm.lastHeight, false)
 	if err != nil {
 		return nil, err
 	}
