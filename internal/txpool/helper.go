@@ -34,6 +34,7 @@ func traceRejectTx(reason string) {
 	rejectTxNum.With(prometheus.Labels{"reason": reason}).Inc()
 	rejectTxNum.With(prometheus.Labels{"reason": "all"}).Inc()
 }
+
 func traceRemovedTx(reason string, count int) {
 	removeTxNum.With(prometheus.Labels{"reason": reason}).Add(float64(count))
 	removeTxNum.With(prometheus.Labels{"reason": "all"}).Add(float64(count))

@@ -7,11 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-
-	"github.com/axiomesh/axiom-kit/types"
-
 	log2 "github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool"
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 // nolint

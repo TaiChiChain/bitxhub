@@ -10,11 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-
 	rbft "github.com/axiomesh/axiom-bft"
-
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"

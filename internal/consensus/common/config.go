@@ -8,9 +8,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/network"

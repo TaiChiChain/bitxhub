@@ -14,13 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	rbft "github.com/axiomesh/axiom-bft"
-
-	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-
 	log2 "github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
-
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
 
 func TestNewTxPool(t *testing.T) {
@@ -288,6 +285,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(0, pool.txStore.parkingLotIndex.size())
 	})
 }
+
 func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 	t.Parallel()
 	t.Run("nonce is wanted", func(t *testing.T) {
@@ -562,7 +560,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 		err = pool.ReceiveMissingRequests(batchDigest, txsM)
 		ast.NotNil(err, "find a hash mismatch tx")
 		ast.Equal(1, len(pool.txStore.missingBatch))
-		//insert right txHash
+		// insert right txHash
 		missingHashList[uint64(3)] = txsM[uint64(3)].RbftGetTxHash()
 		pool.txStore.missingBatch[batchDigest] = missingHashList
 		err = pool.ReceiveMissingRequests(batchDigest, txsM)
@@ -823,7 +821,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 		batch := <-ch
 		ast.Equal(1, len(batch.TxList))
 		ast.Equal(tx.RbftGetTxHash(), batch.TxHashList[0])
-
 	})
 
 	t.Run("generate batch timeout event which tx pool is empty", func(t *testing.T) {
@@ -849,7 +846,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 
 		batch := <-ch
 		ast.Nil(batch)
-
 	})
 
 	t.Run("generate no-tx batch timeout event which tx pool is not empty", func(t *testing.T) {
@@ -1081,7 +1077,6 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 		ast.Equal(0, len(getTxs))
 		ast.Equal(0, len(localList))
 		ast.Equal(4, len(missingTxsHash))
-
 	})
 
 	t.Run("exist duplicate tx in txpool", func(t *testing.T) {
@@ -1248,7 +1243,6 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 		ast.Equal(1, len(txs))
 		ast.True(poolTx.lifeTime > firstTime)
 	})
-
 }
 
 func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
@@ -1404,7 +1398,6 @@ func TestTxPoolImpl_GetInfo(t *testing.T) {
 		count := pool.GetTotalPendingTxCount()
 		ast.Equal(uint64(4), count)
 	})
-
 }
 
 func TestTxPoolImpl_RemoveBatches(t *testing.T) {
@@ -1577,7 +1570,6 @@ func prepareTx(thread, round int, tc *txCache, t *testing.T) {
 		}(i, wg, s)
 	}
 	wg.Wait()
-
 }
 
 type txCache struct {
@@ -1615,9 +1607,9 @@ func (tc *txCache) listenPostTxs(pool *txPoolImpl[types.Transaction, *types.Tran
 		}
 	}
 }
+
 func listenBatchCache(total int, endCh chan int64, cacheCh chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction],
 	pool *txPoolImpl[types.Transaction, *types.Transaction], t *testing.T) {
-
 	seqNo := uint64(0)
 	for {
 		select {

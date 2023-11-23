@@ -10,12 +10,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
-
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 

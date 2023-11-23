@@ -10,11 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/network"
@@ -254,7 +253,6 @@ func (n *Node) listenEvent() {
 							n.logger.Errorf("start no-tx batch timeout failed: %v", err)
 						}
 					}
-
 				}
 			case *getLowWatermarkReq:
 				e.Resp <- n.lastExec

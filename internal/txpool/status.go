@@ -38,7 +38,6 @@ func (st *PoolStatusMgr) atomicSetBit(position statusType) {
 			break
 		}
 	}
-
 }
 
 // turn off a status
