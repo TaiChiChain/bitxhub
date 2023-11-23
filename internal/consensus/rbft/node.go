@@ -13,11 +13,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
@@ -167,7 +166,7 @@ func (n *Node) Start() error {
 	go n.txPreCheck.Start()
 	go n.txCache.ListenEvent()
 
-	//go n.listenValidTxs()
+	// go n.listenValidTxs()
 	go n.listenNewTxToSubmit()
 	go n.listenExecutedBlockToReport()
 	go n.listenBatchMemTxsToBroadcast()

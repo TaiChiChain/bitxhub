@@ -189,6 +189,7 @@ type respSendMissingTxs[T any, Constraint types.TXConstraint[T]] struct {
 	resp map[uint64]*T
 	err  error
 }
+
 type reqFilterReBroadcastTxs[T any, Constraint types.TXConstraint[T]] struct {
 	timeout bool
 	respCh  chan []*T

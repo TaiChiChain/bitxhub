@@ -396,7 +396,7 @@ func RemoveNodeByP2PNodeID(lg ledger.StateLedger, removeByP2PNodeID string) erro
 	return removeNodeByField(lg, removeByP2PNodeID, p2PNodeID)
 }
 
-func removeNodeByField(lg ledger.StateLedger, fieldValue interface{}, fieldName string) error {
+func removeNodeByField(lg ledger.StateLedger, fieldValue any, fieldName string) error {
 	// Get the next epoch info from the ledger
 	nextEpochInfo, err := GetNextEpochInfo(lg)
 	if err != nil {

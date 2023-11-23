@@ -14,9 +14,8 @@ import (
 	"github.com/gammazero/workerpool"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -37,6 +36,7 @@ const (
 
 var (
 	concurrencyLimit = runtime.NumCPU()
+
 	// ErrOversizedData is returned if the input data of a transaction is greater
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.

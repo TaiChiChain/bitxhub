@@ -16,10 +16,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/txpool"
-
-	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
 
 var _ txpool.TxPool[types.Transaction, *types.Transaction] = (*txPoolImpl[types.Transaction, *types.Transaction])(nil)
@@ -444,7 +442,6 @@ func (p *txPoolImpl[T, Constraint]) AddRemoteTxs(txs []*T) {
 
 func (p *txPoolImpl[T, Constraint]) addNewRequests(txs []*T, local, isReplace bool, needCompletionMissingBatch bool) (
 	bool, []string, *removeTxsEvent, error) {
-
 	completionMissingBatchHashes := make([]string, 0)
 	validTxs := make(map[string][]*internalTransaction[T, Constraint])
 
@@ -641,9 +638,8 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 			if deleteTx(p.txStore.priorityIndex) {
 				p.revertPendingNonce(pointer, revertAccounts)
 				return true
-			} else {
-				return deleteTx(p.txStore.parkingLotIndex)
 			}
+			return deleteTx(p.txStore.parkingLotIndex)
 		}
 		return true
 	})
@@ -805,16 +801,14 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (*txpool
 		}
 	case txpool.GenBatchTimeoutEvent:
 		if !p.hasPendingRequestInPool() {
-			return nil, fmt.Errorf("there is no pending tx, ignore generate batch")
-
+			return nil, errors.New("there is no pending tx, ignore generate batch")
 		}
 	case txpool.GenBatchNoTxTimeoutEvent:
 		if p.hasPendingRequestInPool() {
-			return nil, fmt.Errorf("there is pending tx, ignore generate no tx batch")
-
+			return nil, errors.New("there is pending tx, ignore generate no tx batch")
 		}
 		if !p.isTimed {
-			err := fmt.Errorf("not supported generate no tx batch")
+			err := errors.New("not supported generate no tx batch")
 			p.logger.Warning(err)
 			return nil, err
 		}
@@ -964,7 +958,7 @@ func (p *txPoolImpl[T, Constraint]) handleRestoreOneBatch(batchHash string) erro
 }
 
 func (p *txPoolImpl[T, Constraint]) RemoveBatches(batchHashList []string) {
-	req := &reqRemoveBatchedTxs{batchHashList}
+	req := &reqRemoveBatchedTxs{batchHashList: batchHashList}
 	ev := &removeTxsEvent{
 		EventType: batchedTxsEvent,
 		Event:     req,
@@ -1119,7 +1113,7 @@ func (p *txPoolImpl[T, Constraint]) updateNonceCache(pointer *txPointer, updateA
 }
 
 func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txHashList []string) {
-	req := &reqRemoveCommittedTxs{txHashList}
+	req := &reqRemoveCommittedTxs{txHashList: txHashList}
 	ev := &removeTxsEvent{
 		EventType: committedTxsEvent,
 		Event:     req,
@@ -1196,7 +1190,6 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txHashList []st
 //     transactions without error
 func (p *txPoolImpl[T, Constraint]) GetRequestsByHashList(batchHash string, timestamp int64, hashList []string,
 	deDuplicateTxHashes []string) (txs []*T, localList []bool, missingTxsHash map[uint64]string, err error) {
-
 	req := &reqGetTxsForGenBatch[T, Constraint]{
 		batchHash:           batchHash,
 		timestamp:           timestamp,
@@ -1421,7 +1414,6 @@ func (p *txPoolImpl[T, Constraint]) handleSendMissingRequests(batchHash string, 
 // ReConstructBatchByOrder reconstruct batch from empty txPool by order, must be called after RestorePool.
 func (p *txPoolImpl[T, Constraint]) ReConstructBatchByOrder(oldBatch *txpool.RequestHashBatch[T, Constraint]) (
 	deDuplicateTxHashes []string, err error) {
-
 	req := &reqReConstructBatch[T, Constraint]{
 		oldBatch: oldBatch,
 		respCh:   make(chan *respReConstructBatch),
@@ -1436,7 +1428,6 @@ func (p *txPoolImpl[T, Constraint]) ReConstructBatchByOrder(oldBatch *txpool.Req
 }
 
 func (p *txPoolImpl[T, Constraint]) handleReConstructBatchByOrder(oldBatch *txpool.RequestHashBatch[T, Constraint]) ([]string, error) {
-
 	// check if there exists duplicate batch hash.
 	if _, ok := p.txStore.batchesCache[oldBatch.BatchHash]; ok {
 		p.logger.Warningf("When re-construct batch, batch %s already exists", oldBatch.BatchHash)
@@ -1556,7 +1547,6 @@ func (p *txPoolImpl[T, Constraint]) handleRestorePool() {
 				p.logger.Warningf("Put tx[account:%s, nonce:%d] back to pool failed: %v",
 					Constraint(tx).RbftGetFrom(), Constraint(tx).RbftGetNonce(), err)
 			}
-
 		})
 		delete(p.txStore.batchesCache, batchDigest)
 	}

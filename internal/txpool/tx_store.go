@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/txpool"
-
 	"github.com/axiomesh/axiom-kit/types"
 )
 

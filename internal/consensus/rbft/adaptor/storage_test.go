@@ -1,11 +1,12 @@
 package adaptor
 
 import (
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func TestDBStore(t *testing.T) {
@@ -47,5 +48,4 @@ func TestDBStore(t *testing.T) {
 			ast.Equal([]byte("epochinfo"), epochInfo)
 		})
 	}
-
 }

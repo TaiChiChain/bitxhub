@@ -12,12 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/sirupsen/logrus"
 
-	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
-
-	"github.com/axiomesh/axiom-kit/txpool"
-
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
 	"github.com/axiomesh/axiom-ledger/internal/block_sync"
@@ -30,6 +27,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/profile"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
