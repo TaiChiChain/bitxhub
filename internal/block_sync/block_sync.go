@@ -38,6 +38,7 @@ type Sync interface {
 type BlockSync struct {
 	conf               repo.Sync
 	syncStatus         atomic.Bool         // sync status
+	initPeers          []*peer             // p2p set of latest epoch validatorSet with init
 	peers              []*peer             // p2p set of latest epoch validatorSet
 	quorum             uint64              // quorum of latest epoch validatorSet
 	curHeight          uint64              // current block which we need sync
@@ -341,12 +342,14 @@ func (bs *BlockSync) updateLatestCheckedState(height uint64, digest string) {
 func (bs *BlockSync) InitBlockSyncInfo(peers []string, latestBlockHash string, quorum, curHeight, targetHeight uint64,
 	quorumCheckpoint *consensus.SignedCheckpoint, epc ...*consensus.EpochChange) {
 	bs.peers = make([]*peer, len(peers))
+	bs.initPeers = make([]*peer, len(peers))
 	lo.ForEach(peers, func(p string, index int) {
 		bs.peers[index] = &peer{
 			peerID:       p,
 			timeoutCount: 0,
 		}
 	})
+	copy(bs.initPeers, bs.peers)
 	bs.quorum = quorum
 	bs.curHeight = curHeight
 	bs.targetHeight = targetHeight
@@ -371,9 +374,12 @@ func (bs *BlockSync) initChunk() {
 
 	// if we have epoch change, chunk size need smaller than epoch size
 	if len(bs.epochChanges) != 0 {
-		epochSize := bs.epochChanges[0].GetCheckpoint().Checkpoint.Height() - bs.curHeight + 1
-		if epochSize < chunkSize {
-			chunkSize = epochSize
+		latestEpoch := bs.epochChanges[0]
+		if latestEpoch != nil {
+			epochSize := latestEpoch.GetCheckpoint().Checkpoint.Height() - bs.curHeight + 1
+			if epochSize < chunkSize {
+				chunkSize = epochSize
+			}
 		}
 	}
 
@@ -746,7 +752,8 @@ func (bs *BlockSync) handleSyncStateResp(msg *wrapperStateResp, diffState map[st
 			wrongPeers := lo.Values(diffState)
 			lo.ForEach(lo.Flatten(wrongPeers), func(peer string, _ int) {
 				if empty := bs.removePeer(peer); empty {
-					panic("available peer is empty")
+					bs.logger.Warning("available peer is empty, will reset the peers")
+					bs.resetPeers()
 				}
 			})
 		}
@@ -909,8 +916,8 @@ func (bs *BlockSync) addPeerTimeoutCount(peerID string) error {
 			p.timeoutCount++
 			if p.timeoutCount >= bs.conf.TimeoutCountLimit {
 				if empty := bs.removePeer(p.peerID); empty {
-					err = fmt.Errorf("remove peer[id:%s] err: available peer is empty", p.peerID)
-					bs.logger.Errorf(err.Error())
+					bs.logger.Warningf("remove peer[id:%s] err: available peer is empty, will reset peer", p.peerID)
+					bs.resetPeers()
 					return
 				}
 			}
@@ -960,6 +967,10 @@ func (bs *BlockSync) removePeer(peerId string) bool {
 
 	bs.peers = newPeers
 	return len(bs.peers) == 0
+}
+
+func (bs *BlockSync) resetPeers() {
+	bs.peers = bs.initPeers
 }
 
 func (bs *BlockSync) Stop() {
