@@ -952,7 +952,7 @@ func TestTxPoolImpl_ReConstructBatchByOrder(t *testing.T) {
 
 	_, err = pool.ReConstructBatchByOrder(illegalBatch)
 	ast.NotNil(err)
-	ast.Contains(err.Error(), "TxHashList and TxList have different lengths")
+	ast.Contains(err.Error(), "TxPointerList and TxList have different lengths")
 
 	illegalTxHashList := make([]string, len(txs))
 	lo.ForEach(txHashList, func(tx string, index int) {
@@ -1448,11 +1448,15 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 	ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
 	ast.Equal(uint64(0), pool.txStore.nonceCache.commitNonces[from])
 
-	txHashList := make([]string, len(txs))
+	txPointerList := make([]*txpool.WrapperTxPointer, len(txs))
 	lo.ForEach(txs, func(tx *types.Transaction, index int) {
-		txHashList[index] = tx.RbftGetTxHash()
+		txPointerList[index] = &txpool.WrapperTxPointer{
+			TxHash:  tx.RbftGetTxHash(),
+			Account: tx.RbftGetFrom(),
+			Nonce:   tx.RbftGetNonce(),
+		}
 	})
-	pool.RemoveStateUpdatingTxs(txHashList)
+	pool.RemoveStateUpdatingTxs(txPointerList)
 	ast.Equal(uint64(4), pool.GetPendingTxCountByAccount(from))
 	ast.Equal(0, len(pool.txStore.txHashMap))
 	ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)

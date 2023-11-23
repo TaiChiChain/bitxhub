@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -55,17 +56,21 @@ func (exec *ExecutorDev) Start() error {
 }
 
 func (exec *ExecutorDev) processExecuteEvent(commitEvent *common.CommitEvent) {
-	var txHashList []*types.Hash
 	current := time.Now()
 	block := commitEvent.Block
 
-	for _, tx := range block.Transactions {
-		txHashList = append(txHashList, tx.GetHash())
-	}
-
 	block.BlockHash = block.Hash()
 
-	exec.postBlockEvent(block, txHashList)
+	txPointerList := make([]*events.TxPointer, len(block.Transactions))
+	lo.ForEach(block.Transactions, func(item *types.Transaction, index int) {
+		txPointerList[index] = &events.TxPointer{
+			Hash:    item.GetHash(),
+			Account: item.RbftGetFrom(),
+			Nonce:   item.RbftGetNonce(),
+		}
+	})
+
+	exec.postBlockEvent(block, txPointerList)
 
 	exec.logger.WithFields(logrus.Fields{
 		"height": commitEvent.Block.BlockHeader.Number,
@@ -109,14 +114,14 @@ func (exec *ExecutorDev) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Co
 	return nil, nil
 }
 
-func (exec *ExecutorDev) postBlockEvent(block *types.Block, txHashList []*types.Hash) {
+func (exec *ExecutorDev) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer) {
 	exec.blockFeed.Send(events.ExecutedEvent{
-		Block:      block,
-		TxHashList: txHashList,
+		Block:         block,
+		TxPointerList: txPointerList,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
-		Block:      block,
-		TxHashList: txHashList,
+		Block:         block,
+		TxPointerList: txPointerList,
 	})
 }
 

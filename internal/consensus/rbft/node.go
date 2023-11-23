@@ -383,7 +383,7 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*types.Hash, ckp *consensus.Checkpoint, needRemoveTxs bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint, needRemoveTxs bool) {
 	// need update cached epoch info
 	epochInfo := n.stack.EpochInfo
 	epochChanged := false
@@ -428,9 +428,13 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*t
 
 		if needRemoveTxs {
 			// notify tx pool remove these committed tx
-			committedTxHashList := make([]string, len(txHashList))
-			lo.ForEach(txHashList, func(item *types.Hash, index int) {
-				committedTxHashList[index] = item.String()
+			committedTxHashList := make([]*txpool.WrapperTxPointer, len(txPointerList))
+			lo.ForEach(txPointerList, func(item *events.TxPointer, index int) {
+				committedTxHashList[index] = &txpool.WrapperTxPointer{
+					TxHash:  item.Hash.String(),
+					Account: item.Account,
+					Nonce:   item.Nonce,
+				}
 			})
 			n.txpool.RemoveStateUpdatingTxs(committedTxHashList)
 		}

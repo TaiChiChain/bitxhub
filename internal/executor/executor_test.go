@@ -285,7 +285,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	blockRes1 := <-ch
 	assert.EqualValues(t, 2, blockRes1.Block.BlockHeader.Number)
 	assert.Equal(t, 0, len(blockRes1.Block.Transactions))
-	assert.Equal(t, 0, len(blockRes1.TxHashList))
+	assert.Equal(t, 0, len(blockRes1.TxPointerList))
 
 	remoteBlockRes1 := <-remoteCh
 	assert.Equal(t, blockRes1, remoteBlockRes1)
@@ -293,7 +293,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	blockRes2 := <-ch
 	assert.EqualValues(t, 3, blockRes2.Block.BlockHeader.Number)
 	assert.Equal(t, 2, len(blockRes2.Block.Transactions))
-	assert.Equal(t, 2, len(blockRes2.TxHashList))
+	assert.Equal(t, 2, len(blockRes2.TxPointerList))
 
 	remoteBlockRes2 := <-remoteCh
 	assert.Equal(t, blockRes2, remoteBlockRes2)

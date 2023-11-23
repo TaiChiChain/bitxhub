@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/axiomesh/axiom-ledger/pkg/events"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
@@ -99,9 +101,9 @@ func TestNode_Start(t *testing.T) {
 	require.Equal(t, 1, len(commitEvent.Block.Transactions))
 	blockHash := commitEvent.Block.Hash()
 
-	txHashList := make([]*types.Hash, 0)
-	txHashList = append(txHashList, tx.GetHash())
-	solo.ReportState(commitEvent.Block.Height(), blockHash, txHashList, nil, false)
+	txPointerList := make([]*events.TxPointer, 0)
+	txPointerList = append(txPointerList, &events.TxPointer{Hash: tx.GetHash(), Account: tx.RbftGetFrom(), Nonce: tx.RbftGetNonce()})
+	solo.ReportState(commitEvent.Block.Height(), blockHash, txPointerList, nil, false)
 	solo.Stop()
 }
 
@@ -135,7 +137,7 @@ func TestNode_ReportState(t *testing.T) {
 	ast.Nil(err)
 	defer node.Stop()
 	node.batchDigestM[10] = "test"
-	node.ReportState(10, types.NewHashByStr("0x123"), []*types.Hash{}, nil, false)
+	node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
 	time.Sleep(10 * time.Millisecond)
 	ast.Equal(0, len(node.batchDigestM))
 
@@ -172,7 +174,12 @@ func TestNode_ReportState(t *testing.T) {
 
 	ast.NotNil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be in txpool")
 	// trigger the report state
-	node.ReportState(10, types.NewHashByStr("0x123"), []*types.Hash{txList[9].GetHash()}, nil, false)
+	pointer9 := &events.TxPointer{
+		Hash:    txList[9].GetHash(),
+		Account: txList[9].RbftGetFrom(),
+		Nonce:   txList[9].RbftGetNonce(),
+	}
+	node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
 	time.Sleep(100 * time.Millisecond)
 	ast.Equal(0, len(node.batchDigestM))
 	ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")

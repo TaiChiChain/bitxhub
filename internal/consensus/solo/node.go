@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -175,7 +176,11 @@ func (n *Node) Ready() error {
 	return nil
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*types.Hash, _ *consensus.Checkpoint, _ bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensus.Checkpoint, _ bool) {
+	txHashList := make([]*types.Hash, len(txPointerList))
+	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
+		txHashList[i] = item.Hash
+	})
 	state := &chainState{
 		Height:     height,
 		BlockHash:  blockHash,

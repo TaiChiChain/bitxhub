@@ -227,7 +227,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent
 			traceRemovedTx("timeout", removeCount)
 		}
 	case committedTxsEvent:
-		removeCount = p.handleRemoveStateUpdatingTxs(event.Event.(*reqRemoveCommittedTxs).txHashList)
+		removeCount = p.handleRemoveStateUpdatingTxs(event.Event.(*reqRemoveCommittedTxs).txPointerList)
 		if removeCount > 0 {
 			p.logger.Warningf("Successfully remove committed txs, count: %d", removeCount)
 			traceRemovedTx("committed", removeCount)
@@ -1110,10 +1110,11 @@ func (p *txPoolImpl[T, Constraint]) updateNonceCache(pointer *txPointer, updateA
 			p.txStore.nonceCache.setPendingNonce(pointer.account, newCommitNonce)
 		}
 	}
+	p.logger.Debugf("update nonce cache, account:%s, preCommitNonce:%d, newCommitNonce:%d", pointer.account, preCommitNonce, p.txStore.nonceCache.getCommitNonce(pointer.account))
 }
 
-func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txHashList []string) {
-	req := &reqRemoveCommittedTxs{txHashList: txHashList}
+func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txPointerList []*txpool.WrapperTxPointer) {
+	req := &reqRemoveCommittedTxs{txPointerList: txPointerList}
 	ev := &removeTxsEvent{
 		EventType: committedTxsEvent,
 		Event:     req,
@@ -1121,21 +1122,20 @@ func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txHashList []string) 
 	p.postEvent(ev)
 }
 
-func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txHashList []string) int {
-	p.logger.Infof("start RemoveStateUpdatingTxs, len:%d", len(txHashList))
+func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList []*txpool.WrapperTxPointer) int {
+	p.logger.Infof("start RemoveStateUpdatingTxs, len:%d", len(txPointerList))
 	removeCount := 0
 	dirtyAccounts := make(map[string]bool)
 	updateAccounts := make(map[string]uint64)
 	removeTxs := make(map[string][]*internalTransaction[T, Constraint])
-	lo.ForEach(txHashList, func(txHash string, _ int) {
+	lo.ForEach(txPointerList, func(wrapperPointer *txpool.WrapperTxPointer, _ int) {
+		txHash := wrapperPointer.TxHash
 		if pointer, ok := p.txStore.txHashMap[txHash]; ok {
 			poolTx := p.txStore.getPoolTxByTxnPointer(pointer.account, pointer.nonce)
 			if poolTx == nil {
 				p.logger.Errorf("pool tx %s not found in txpool, but exists in txHashMap", txHash)
 				return
 			}
-			// update nonce when remove tx
-			p.updateNonceCache(pointer, updateAccounts)
 			// remove from txHashMap
 			p.txStore.deletePoolTx(txHash)
 			if removeTxs[pointer.account] == nil {
@@ -1145,6 +1145,9 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txHashList []st
 			removeTxs[pointer.account] = append(removeTxs[pointer.account], poolTx)
 			dirtyAccounts[pointer.account] = true
 		}
+
+		// update nonce because we had persist these txs
+		p.updateNonceCache(&txPointer{account: wrapperPointer.Account, nonce: wrapperPointer.Nonce}, updateAccounts)
 	})
 
 	for account := range dirtyAccounts {
@@ -1169,7 +1172,7 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txHashList []st
 	}
 
 	if removeCount > 0 {
-		p.logger.Infof("finish RemoveStateUpdatingTxs, len:%d, removeCount:%d", len(txHashList), removeCount)
+		p.logger.Infof("finish RemoveStateUpdatingTxs, len:%d, removeCount:%d", len(txPointerList), removeCount)
 		traceRemovedTx("RemoveStateUpdatingTxs", removeCount)
 	}
 	return removeCount
@@ -1435,10 +1438,10 @@ func (p *txPoolImpl[T, Constraint]) handleReConstructBatchByOrder(oldBatch *txpo
 		return nil, err
 	}
 
-	// TxHashList has to match TxList by length and content
+	// TxPointerList has to match TxList by length and content
 	if len(oldBatch.TxHashList) != len(oldBatch.TxList) {
-		p.logger.Warningf("Batch is invalid because TxHashList and TxList have different lengths.")
-		err := errors.New("invalid batch: TxHashList and TxList have different lengths")
+		p.logger.Warningf("Batch is invalid because TxPointerList and TxList have different lengths.")
+		err := errors.New("invalid batch: TxPointerList and TxList have different lengths")
 		return nil, err
 	}
 

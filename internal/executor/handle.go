@@ -86,7 +86,6 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	current := time.Now()
 	block := commitEvent.Block
 
-	time.Sleep(1 * time.Second)
 	// check executor handle the right block
 	if block.BlockHeader.Number != exec.currentHeight+1 {
 		exec.logger.WithFields(logrus.Fields{"block height": block.BlockHeader.Number,
@@ -240,7 +239,16 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.currentHeight = block.BlockHeader.Number
 	exec.currentBlockHash = block.BlockHash
 
-	exec.postBlockEvent(data.Block, data.TxHashList, commitEvent.StateUpdatedCheckpoint)
+	txPointerList := make([]*events.TxPointer, len(data.Block.Transactions))
+	lo.ForEach(data.Block.Transactions, func(item *types.Transaction, index int) {
+		txPointerList[index] = &events.TxPointer{
+			Hash:    item.GetHash(),
+			Account: item.RbftGetFrom(),
+			Nonce:   item.RbftGetNonce(),
+		}
+	})
+
+	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
 }
@@ -256,15 +264,15 @@ func (exec *BlockExecutor) buildTxMerkleTree(txs []*types.Transaction) (*types.H
 	return hash, nil
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txHashList []*types.Hash, ckp *consensus.Checkpoint) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint) {
 	exec.blockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
-		TxHashList:             txHashList,
+		TxPointerList:          txPointerList,
 		StateUpdatedCheckpoint: ckp,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
-		Block:      block,
-		TxHashList: txHashList,
+		Block:         block,
+		TxPointerList: txPointerList,
 	})
 }
 
