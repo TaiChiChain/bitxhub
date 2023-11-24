@@ -12,17 +12,25 @@ permissions:
   contents: write
 
 jobs:
-  release-binary:
+  build-and-release:
     name: Release binary on Linux and Macos
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
-        os: [macos-12, ubuntu-20.04]
+        include:
+          - goarch: amd64
+            goos: linux
+          - goarch: amd64
+            goos: darwin
+          - goarch: arm64
+            goos: linux
+          - goarch: arm64
+            goos: darwin
     outputs:
       status: ${{ steps.check.outputs.status }}
 
     steps:
-      - name: Check out code into the Go module directory
+      - name: Check out code
         uses: actions/checkout@v3
 
       - name: Set up Go${{ env.GO_VERSION }}
@@ -30,33 +38,37 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Build binary
-        run: make release-binary
+      - name: Extract version from tag
+        run: echo "APP_VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_ENV
 
-      - name: Release binary
+      - name: Build Binary
+        run: make package version=${{ env.APP_VERSION }}
+        env:
+          GOARCH: ${{ matrix.goarch }}
+          GOOS: ${{ matrix.goos }}
+
+      - name: Release Binary
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/**.tar.gz
+          files: ./**.tar.gz
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "If failure"
         id: check
-        if: ${{ failure() }}
-        run: echo "status=failure" >> $GITHUB_OUTPUT
+        if: failure()
+        run: echo "::set-output name=status::failure"
+
 
   notify:
     name: "dingtalk notify"
     runs-on: ubuntu-20.04
     if: ${{ always() }}
-    needs: release-binary
+    needs: build-and-release
     steps:
       - name: dingtalk notify
-        uses: axiomesh/notify-action@master
+        uses: axiomesh/release-notify-action@master
         with:
           users: ${{ secrets.USERS }}
-          reviewers: ${{ secrets.REVIEWERS }}
           webhook: ${{ secrets.WEBHOOK }}
-          token: ${{ secrets.TOKEN }}
-          timeout: 480
-          job_name: "dingtalk notify"
+          status: ${{ needs.build-and-release.outputs.status }}
