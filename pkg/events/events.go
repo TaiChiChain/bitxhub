@@ -7,6 +7,12 @@ import (
 
 type ExecutedEvent struct {
 	Block                  *types.Block
-	TxHashList             []*types.Hash
+	TxPointerList          []*TxPointer
 	StateUpdatedCheckpoint *consensus.Checkpoint
+}
+
+type TxPointer struct {
+	Hash    *types.Hash
+	Account string
+	Nonce   uint64
 }

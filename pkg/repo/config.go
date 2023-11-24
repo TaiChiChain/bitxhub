@@ -209,7 +209,6 @@ type NodeName struct {
 
 type Sync struct {
 	RequesterRetryTimeout Duration `mapstructure:"requester_retry_timeout" toml:"requester_retry_timeout"`
-	WaitStateTimeout      Duration `mapstructure:"wait_state_timeout" toml:"wait_state_timeout"`
 	TimeoutCountLimit     uint64   `mapstructure:"timeout_count_limit" toml:"timeout_count_limit"`
 	ConcurrencyLimit      uint64   `mapstructure:"concurrency_limit" toml:"concurrency_limit"`
 }
@@ -400,7 +399,6 @@ func DefaultConfig(epochEnable bool) *Config {
 			},
 		},
 		Sync: Sync{
-			WaitStateTimeout:      Duration(2 * time.Minute),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,

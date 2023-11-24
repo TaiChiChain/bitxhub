@@ -35,7 +35,7 @@ type Consensus interface {
 	Ready() error
 
 	// ReportState means block was persisted and report it to the consensus engine
-	ReportState(height uint64, blockHash *types.Hash, txHashList []*types.Hash, stateUpdatedCheckpoint *consensus.Checkpoint, needRemoveTxs bool)
+	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *consensus.Checkpoint, needRemoveTxs bool)
 
 	// Quorum means minimum number of nodes in the cluster that can work
 	Quorum() uint64

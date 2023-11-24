@@ -687,15 +687,15 @@ func (c *TxPoolRemoveBatchesCall[T, Constraint]) DoAndReturn(f func([]string)) *
 }
 
 // RemoveStateUpdatingTxs mocks base method.
-func (m *MockTxPool[T, Constraint]) RemoveStateUpdatingTxs(txHashList []string) {
+func (m *MockTxPool[T, Constraint]) RemoveStateUpdatingTxs(txPointerList []*txpool.WrapperTxPointer) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveStateUpdatingTxs", txHashList)
+	m.ctrl.Call(m, "RemoveStateUpdatingTxs", txPointerList)
 }
 
 // RemoveStateUpdatingTxs indicates an expected call of RemoveStateUpdatingTxs.
-func (mr *MockTxPoolMockRecorder[T, Constraint]) RemoveStateUpdatingTxs(txHashList any) *TxPoolRemoveStateUpdatingTxsCall[T, Constraint] {
+func (mr *MockTxPoolMockRecorder[T, Constraint]) RemoveStateUpdatingTxs(txPointerList any) *TxPoolRemoveStateUpdatingTxsCall[T, Constraint] {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveStateUpdatingTxs", reflect.TypeOf((*MockTxPool[T, Constraint])(nil).RemoveStateUpdatingTxs), txHashList)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveStateUpdatingTxs", reflect.TypeOf((*MockTxPool[T, Constraint])(nil).RemoveStateUpdatingTxs), txPointerList)
 	return &TxPoolRemoveStateUpdatingTxsCall[T, Constraint]{Call: call}
 }
 
@@ -711,13 +711,13 @@ func (c *TxPoolRemoveStateUpdatingTxsCall[T, Constraint]) Return() *TxPoolRemove
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *TxPoolRemoveStateUpdatingTxsCall[T, Constraint]) Do(f func([]string)) *TxPoolRemoveStateUpdatingTxsCall[T, Constraint] {
+func (c *TxPoolRemoveStateUpdatingTxsCall[T, Constraint]) Do(f func([]*txpool.WrapperTxPointer)) *TxPoolRemoveStateUpdatingTxsCall[T, Constraint] {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *TxPoolRemoveStateUpdatingTxsCall[T, Constraint]) DoAndReturn(f func([]string)) *TxPoolRemoveStateUpdatingTxsCall[T, Constraint] {
+func (c *TxPoolRemoveStateUpdatingTxsCall[T, Constraint]) DoAndReturn(f func([]*txpool.WrapperTxPointer)) *TxPoolRemoveStateUpdatingTxsCall[T, Constraint] {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

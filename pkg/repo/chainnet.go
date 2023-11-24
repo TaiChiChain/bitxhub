@@ -76,7 +76,6 @@ func AriesConfig() *Config {
 			},
 		},
 		Sync: Sync{
-			WaitStateTimeout:      Duration(2 * time.Minute),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,

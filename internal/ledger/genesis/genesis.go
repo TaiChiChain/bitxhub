@@ -3,7 +3,6 @@ package genesis
 import (
 	"encoding/json"
 	"math/big"
-	"time"
 
 	common2 "github.com/ethereum/go-ethereum/common"
 
@@ -56,7 +55,7 @@ func Initialize(genesis *repo.Genesis, lg *ledger.Ledger) error {
 			TxRoot:          &types.Hash{},
 			ReceiptRoot:     &types.Hash{},
 			ParentHash:      &types.Hash{},
-			Timestamp:       time.Now().Unix(),
+			Timestamp:       0,
 			GasPrice:        int64(genesis.GasPrice),
 			Epoch:           genesis.EpochInfo.Epoch,
 			Bloom:           new(types.Bloom),
