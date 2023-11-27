@@ -71,7 +71,7 @@ func TestVersionCheck(t *testing.T) {
 }
 
 func TestSwarm_OnConnected(t *testing.T) {
-	config := generateMockConfig(t)
+	config := generateMockGenesisConfig(t)
 	mockCtl := gomock.NewController(t)
 	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
@@ -87,7 +87,7 @@ func TestSwarm_OnConnected(t *testing.T) {
 	}
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
 
-	jsonBytes, err := json.Marshal(config.Genesis.EpochInfo)
+	jsonBytes, err := json.Marshal(config.EpochInfo)
 	assert.Nil(t, err)
 
 	stateLedger.EXPECT().GetState(gomock.Any(), gomock.Any()).DoAndReturn(func(addr *types.Address, key []byte) (bool, []byte) {
@@ -116,13 +116,13 @@ func TestSwarm_OnConnected(t *testing.T) {
 	}
 }
 
-func generateMockConfig(t *testing.T) *repo.Config {
+func generateMockGenesisConfig(t *testing.T) *repo.GenesisConfig {
 	r, err := repo.Default(t.TempDir())
 	assert.Nil(t, err)
-	config := r.Config
+	config := r.GenesisConfig
 
 	for i := 0; i < 4; i++ {
-		config.Genesis.Admins = append(config.Genesis.Admins, &repo.Admin{
+		config.Admins = append(config.Admins, &repo.Admin{
 			Address: types.NewAddress([]byte{byte(1)}).String(),
 		})
 	}
@@ -188,7 +188,7 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 		}
 
 		rep.Config.Port.P2P = 0
-		rep.Config.Genesis.EpochInfo.P2PBootstrapNodeAddresses = []string{}
+		rep.GenesisConfig.EpochInfo.P2PBootstrapNodeAddresses = []string{}
 		rep.EpochInfo.P2PBootstrapNodeAddresses = []string{}
 		swarm, err := newNetworkImpl(rep, log.NewWithModule(fmt.Sprintf("swarm%d", i)), mockLedger)
 		require.Nil(t, err)

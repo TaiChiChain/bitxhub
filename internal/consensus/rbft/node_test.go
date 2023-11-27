@@ -102,7 +102,7 @@ func TestNewNode(t *testing.T) {
 		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
 		PrivKey:              s.Sk,
 		SelfAccountAddress:   s.Addr.String(),
-		GenesisEpochInfo:     r.Config.Genesis.EpochInfo,
+		GenesisEpochInfo:     r.GenesisConfig.EpochInfo,
 		Applied:              100,
 		Digest:               "0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7",
 		GenesisDigest:        "0xf06a8e2fa138335436c66b7d332338b8d402fc5708604aec6959324ef6c5c1ac",

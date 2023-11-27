@@ -31,7 +31,7 @@ func TestNode_Start(t *testing.T) {
 
 	config, err := common.GenerateConfig(
 		common.WithConfig(r.RepoRoot, r.ConsensusConfig),
-		common.WithGenesisEpochInfo(r.Config.Genesis.EpochInfo),
+		common.WithGenesisEpochInfo(r.GenesisConfig.EpochInfo),
 		common.WithLogger(log.NewWithModule("consensus")),
 		common.WithApplied(1),
 		common.WithNetwork(mockNetwork),

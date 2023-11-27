@@ -2,12 +2,13 @@ package repo
 
 import (
 	"fmt"
+	"os"
+	"path"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	"os"
-	"path"
 )
 
 type GenesisConfig struct {
