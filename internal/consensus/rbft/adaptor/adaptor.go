@@ -26,6 +26,7 @@ var _ rbft.Network = (*RBFTAdaptor)(nil)
 var _ rbft.Crypto = (*RBFTAdaptor)(nil)
 var _ rbft.ServiceOutbound[types.Transaction, *types.Transaction] = (*RBFTAdaptor)(nil)
 var _ rbft.EpochService = (*RBFTAdaptor)(nil)
+var _ rbft.Ledger = (*RBFTAdaptor)(nil)
 
 type RBFTAdaptor struct {
 	epochStore        storage.Storage
@@ -61,6 +62,7 @@ type Ready struct {
 	Height          uint64
 	Timestamp       int64
 	ProposerAccount string
+	ProposerNodeID  uint64
 }
 
 func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {

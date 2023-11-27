@@ -12,8 +12,9 @@ pragma solidity >=0.7.0 <0.9.0;
         bool EnableTimedGenEmptyBlock;
         int64 NotActiveWeight;
         uint64 AbnormalNodeExcludeView;
-        uint64 AgainProposeIntervalBlock;
+        uint64 AgainProposeIntervalBlockInValidatorsNumPercentage;
         uint64 ContinuousNullRequestToleranceNumber;
+        uint64 ReBroadcastToleranceNumber;
     }
 
     struct FinanceParams {

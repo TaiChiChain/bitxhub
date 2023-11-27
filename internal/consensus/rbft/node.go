@@ -260,6 +260,7 @@ func (n *Node) listenExecutedBlockToReport() {
 					Number:          r.Height,
 					Timestamp:       r.Timestamp / int64(time.Second),
 					ProposerAccount: r.ProposerAccount,
+					ProposerNodeID:  r.ProposerNodeID,
 				},
 				Transactions: r.Txs,
 			}

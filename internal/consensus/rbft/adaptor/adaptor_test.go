@@ -102,7 +102,7 @@ func TestExecute(t *testing.T) {
 	}
 
 	txs = append(txs, tx, tx)
-	adaptor.Execute(txs, []bool{true}, uint64(2), time.Now().UnixNano(), "")
+	adaptor.Execute(txs, []bool{true}, uint64(2), time.Now().UnixNano(), "", 0)
 	ready := <-adaptor.ReadyC
 	ast.Equal(uint64(2), ready.Height)
 }
@@ -324,4 +324,19 @@ func TestRBFTAdaptor_PostCommitEvent(t *testing.T) {
 	})
 	commitEvent := <-commitC
 	ast.Equal(uint64(1), commitEvent.Block.BlockHeader.Number)
+}
+
+func TestLedger(t *testing.T) {
+	ast := assert.New(t)
+	ctrl := gomock.NewController(t)
+
+	testutil.ResetMockBlockLedger()
+	testutil.SetMockBlockLedger(testutil.ConstructBlock("block1", uint64(1)), true)
+	adaptor := mockAdaptor(ctrl, t)
+	meta, err := adaptor.GetBlockMeta(1)
+	ast.Nil(err)
+	ast.NotNil(meta)
+
+	_, err = adaptor.GetBlockMeta(2)
+	ast.Error(err)
 }

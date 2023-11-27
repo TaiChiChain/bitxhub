@@ -195,16 +195,17 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.BlockHash = block.Hash()
 
 	exec.logger.WithFields(logrus.Fields{
-		"hash":         block.BlockHash.String(),
-		"height":       block.BlockHeader.Number,
-		"epoch":        block.BlockHeader.Epoch,
-		"coinbase":     block.BlockHeader.ProposerAccount,
-		"gas_price":    block.BlockHeader.GasPrice,
-		"gas_used":     block.BlockHeader.GasUsed,
-		"parent_hash":  block.BlockHeader.ParentHash.String(),
-		"tx_root":      block.BlockHeader.TxRoot.String(),
-		"receipt_root": block.BlockHeader.ReceiptRoot.String(),
-		"state_root":   block.BlockHeader.StateRoot.String(),
+		"hash":             block.BlockHash.String(),
+		"height":           block.BlockHeader.Number,
+		"epoch":            block.BlockHeader.Epoch,
+		"coinbase":         block.BlockHeader.ProposerAccount,
+		"proposer_node_id": block.BlockHeader.ProposerNodeID,
+		"gas_price":        block.BlockHeader.GasPrice,
+		"gas_used":         block.BlockHeader.GasUsed,
+		"parent_hash":      block.BlockHeader.ParentHash.String(),
+		"tx_root":          block.BlockHeader.TxRoot.String(),
+		"receipt_root":     block.BlockHeader.ReceiptRoot.String(),
+		"state_root":       block.BlockHeader.StateRoot.String(),
 	}).Info("Block meta")
 
 	calcBlockSize.Observe(float64(block.Size()))
