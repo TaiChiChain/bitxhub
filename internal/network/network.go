@@ -92,7 +92,7 @@ func newNetworkImpl(repoConfig *repo.Repo, logger logrus.FieldLogger, ledger *le
 func (swarm *networkImpl) init() error {
 	// init peers with ips and hosts
 	bootstrap := make([]string, 0)
-	for _, a := range lo.Uniq(append(swarm.repo.Config.Genesis.EpochInfo.P2PBootstrapNodeAddresses, swarm.repo.Config.P2P.BootstrapNodeAddresses...)) {
+	for _, a := range lo.Uniq(append(swarm.repo.GenesisConfig.EpochInfo.P2PBootstrapNodeAddresses, swarm.repo.Config.P2P.BootstrapNodeAddresses...)) {
 		if !strings.Contains(a, swarm.repo.P2PID) {
 			bootstrap = append(bootstrap, a)
 		}

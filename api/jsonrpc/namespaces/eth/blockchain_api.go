@@ -50,7 +50,7 @@ func (api *BlockChainAPI) ChainId() (ret ethhexutil.Uint, err error) { // nolint
 	}(time.Now())
 
 	api.logger.Debug("eth_chainId")
-	return ethhexutil.Uint(api.rep.Config.Genesis.ChainID), nil
+	return ethhexutil.Uint(api.rep.GenesisConfig.ChainID), nil
 }
 
 // BlockNumber returns the current block number.
@@ -150,7 +150,7 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 		return nil, err
 	}
 
-	return formatBlock(api.api, api.rep.Config, block, fullTx)
+	return formatBlock(api.api, api.rep.GenesisConfig, block, fullTx)
 }
 
 // GetBlockByHash returns the block identified by hash.
@@ -169,7 +169,7 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map
 	if err != nil {
 		return nil, err
 	}
-	return formatBlock(api.api, api.rep.Config, block, fullTx)
+	return formatBlock(api.api, api.rep.GenesisConfig, block, fullTx)
 }
 
 // GetCode returns the contract code at the given address, blockNum is ignored.
@@ -347,7 +347,7 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 		hi = uint64(*args.Gas)
 	} else {
 		// todo : api need get current epochInfo
-		hi = api.rep.Config.Genesis.EpochInfo.FinanceParams.GasLimit
+		hi = api.rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit
 	}
 
 	var feeCap *big.Int
@@ -455,7 +455,7 @@ func (s *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *rpc
 
 // FormatBlock creates an ethereum block from a tendermint header and ethereum-formatted
 // transactions.
-func formatBlock(api api.CoreAPI, config *repo.Config, block *types.Block, fullTx bool) (map[string]any, error) {
+func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, block *types.Block, fullTx bool) (map[string]any, error) {
 	var err error
 	formatTx := func(tx *types.Transaction, index uint64) (any, error) {
 		return tx.GetHash().ETHHash(), nil
@@ -490,7 +490,7 @@ func formatBlock(api api.CoreAPI, config *repo.Config, block *types.Block, fullT
 		"miner":            block.BlockHeader.ProposerAccount,
 		"extraData":        ethhexutil.Bytes{},
 		"size":             ethhexutil.Uint64(block.Size()),
-		"gasLimit":         ethhexutil.Uint64(config.Genesis.EpochInfo.FinanceParams.GasLimit), // Static gas limit
+		"gasLimit":         ethhexutil.Uint64(genesisConfig.EpochInfo.FinanceParams.GasLimit), // Static gas limit
 		"gasUsed":          ethhexutil.Uint64(block.BlockHeader.GasUsed),
 		"timestamp":        ethhexutil.Uint64(block.BlockHeader.Timestamp),
 		"transactions":     transactions,

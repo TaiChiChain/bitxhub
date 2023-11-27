@@ -211,7 +211,7 @@ func getLatestChainMeta(ctx *cli.Context) error {
 
 func fetchAndExecuteBlocks(ctx context.Context, r *repo.Repo, targetLedger *ledger.Ledger, fetchBlock func(n uint64) (*types.Block, error), targetBlockNumber uint64) error {
 	if targetLedger.ChainLedger.GetChainMeta().Height == 0 {
-		if err := genesis.Initialize(&r.Config.Genesis, targetLedger); err != nil {
+		if err := genesis.Initialize(r.GenesisConfig, targetLedger); err != nil {
 			return err
 		}
 		logger := loggers.Logger(loggers.App)

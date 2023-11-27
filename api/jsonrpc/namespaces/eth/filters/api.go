@@ -404,7 +404,7 @@ func (api *FilterAPI) GetLogs(ctx context.Context, ethCrit FilterCriteria) ([]*e
 		if crit.FromBlock != nil {
 			begin = crit.FromBlock.Int64()
 			if crit.FromBlock.Int64() == rpc.EarliestBlockNumber.Int64() {
-				begin = int64(api.rep.Config.Genesis.EpochInfo.StartBlock)
+				begin = int64(api.rep.GenesisConfig.EpochInfo.StartBlock)
 			}
 		}
 		end := rpc.LatestBlockNumber.Int64()
@@ -463,7 +463,7 @@ func (api *FilterAPI) GetFilterLogs(ctx context.Context, id rpc.ID) ([]*ethereum
 		if f.crit.FromBlock != nil {
 			begin = f.crit.FromBlock.Int64()
 			if f.crit.FromBlock.Int64() == rpc.EarliestBlockNumber.Int64() {
-				begin = int64(api.rep.Config.Genesis.EpochInfo.StartBlock)
+				begin = int64(api.rep.GenesisConfig.EpochInfo.StartBlock)
 			}
 		}
 		end := rpc.LatestBlockNumber.Int64()

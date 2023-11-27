@@ -156,8 +156,8 @@ func TestGetBlockHashFunc(t *testing.T) {
 func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	r, err := repo.Default(t.TempDir())
 	assert.Nil(t, err)
-	r.Config.Genesis.EpochInfo.StartBlock = 2
-	r.Config.Genesis.EpochInfo.EpochPeriod = 1
+	r.GenesisConfig.EpochInfo.StartBlock = 2
+	r.GenesisConfig.EpochInfo.EpochPeriod = 1
 
 	mockCtl := gomock.NewController(t)
 	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
@@ -249,7 +249,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.NodeManagerContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	err = base.InitEpochInfo(stateLedger, r.Config.Genesis.EpochInfo)
+	err = base.InitEpochInfo(stateLedger, r.GenesisConfig.EpochInfo)
 	assert.Nil(t, err)
 
 	exec, err := New(r, mockLedger)
