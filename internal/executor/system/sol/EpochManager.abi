@@ -79,12 +79,17 @@
 							},
 							{
 								"internalType": "uint64",
-								"name": "AgainProposeIntervalBlock",
+								"name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
 								"type": "uint64"
 							},
 							{
 								"internalType": "uint64",
 								"name": "ContinuousNullRequestToleranceNumber",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint64",
+								"name": "ReBroadcastToleranceNumber",
 								"type": "uint64"
 							}
 						],
@@ -322,12 +327,17 @@
 							},
 							{
 								"internalType": "uint64",
-								"name": "AgainProposeIntervalBlock",
+								"name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
 								"type": "uint64"
 							},
 							{
 								"internalType": "uint64",
 								"name": "ContinuousNullRequestToleranceNumber",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint64",
+								"name": "ReBroadcastToleranceNumber",
 								"type": "uint64"
 							}
 						],
@@ -559,12 +569,17 @@
 							},
 							{
 								"internalType": "uint64",
-								"name": "AgainProposeIntervalBlock",
+								"name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
 								"type": "uint64"
 							},
 							{
 								"internalType": "uint64",
 								"name": "ContinuousNullRequestToleranceNumber",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint64",
+								"name": "ReBroadcastToleranceNumber",
 								"type": "uint64"
 							}
 						],

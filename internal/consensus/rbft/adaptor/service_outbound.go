@@ -16,13 +16,14 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
-func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerAccount string) {
+func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerAccount string, proposerNodeID uint64) {
 	a.ReadyC <- &Ready{
 		Txs:             requests,
 		LocalList:       localList,
 		Height:          seqNo,
 		Timestamp:       timestamp,
 		ProposerAccount: proposerAccount,
+		ProposerNodeID:  proposerNodeID,
 	}
 }
 
