@@ -183,7 +183,6 @@ type LogModule struct {
 
 type Genesis struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
-	GasPrice               uint64          `mapstructure:"gas_price" toml:"gas_price"`
 	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
@@ -331,11 +330,13 @@ func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 		CandidateSet: candidateSet,
 		ValidatorSet: validatorSet,
 		FinanceParams: rbft.FinanceParams{
-			GasLimit:              0x5f5e100,
-			MaxGasPrice:           10000000000000,
-			MinGasPrice:           1000000000000,
-			GasChangeRateValue:    1250,
-			GasChangeRateDecimals: 4,
+			GasLimit:               0x5f5e100,
+			StartGasPriceAvailable: true,
+			StartGasPrice:          5000000000000,
+			MaxGasPrice:            10000000000000,
+			MinGasPrice:            1000000000000,
+			GasChangeRateValue:     1250,
+			GasChangeRateDecimals:  4,
 		},
 		MiscParams: rbft.MiscParams{
 			TxMaxSize: DefaultTxMaxSize,
@@ -425,9 +426,8 @@ func DefaultConfig(epochEnable bool) *Config {
 			},
 		},
 		Genesis: Genesis{
-			ChainID:  1356,
-			GasPrice: 5000000000000,
-			Balance:  "1000000000000000000000000000",
+			ChainID: 1356,
+			Balance: "1000000000000000000000000000",
 			Admins: lo.Map(DefaultNodeAddrs[0:4], func(item string, idx int) *Admin {
 				return &Admin{
 					Address: item,

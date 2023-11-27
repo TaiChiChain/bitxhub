@@ -18,6 +18,8 @@ pragma solidity >=0.7.0 <0.9.0;
 
     struct FinanceParams {
         uint64 GasLimit;
+        bool StartGasPriceAvailable;
+        uint64 StartGasPrice;
         uint64 MaxGasPrice;
         uint64 MinGasPrice;
         uint64 GasChangeRateValue;
