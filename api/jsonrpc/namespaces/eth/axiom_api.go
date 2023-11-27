@@ -119,7 +119,7 @@ func (api *AxiomAPI) Accounts() (ret []common.Address, err error) {
 		}
 	}(time.Now())
 
-	accounts := api.rep.Config.Genesis.Accounts
+	accounts := api.rep.GenesisConfig.Accounts
 	res := make([]common.Address, 0)
 	for _, account := range accounts {
 		res = append(res, common.HexToAddress(account))

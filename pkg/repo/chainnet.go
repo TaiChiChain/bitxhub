@@ -18,6 +18,10 @@ var (
 	TestNetConsensusConfigBuilderMap = map[string]func() *ConsensusConfig{
 		AriesTestnetName: AriesConsensusConfig,
 	}
+
+	TestNetGenesisConfigBuilderMap = map[string]func() *GenesisConfig{
+		AriesTestnetName: AriesGenesisConfig,
+	}
 )
 
 func AriesConfig() *Config {
@@ -97,98 +101,6 @@ func AriesConfig() *Config {
 			DisableRollback: false,
 			EVM: EVM{
 				DisableMaxCodeSizeLimit: false,
-			},
-		},
-		Genesis: Genesis{
-			ChainID: 23411,
-			Balance: "1000000000000000000000000000",
-			Admins: []*Admin{
-				{
-					Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
-					Weight:  1,
-					Name:    "S2luZw==",
-				},
-				{
-					Address: "0x13f30647b99Edeb8CF3725eCd1Eaf545D9283335",
-					Weight:  1,
-					Name:    "UmVk",
-				},
-				{
-					Address: "0x6cdB717de826334faD8FB0ce0547Bac0230ba5a4",
-					Weight:  1,
-					Name:    "QXBwbGU=",
-				},
-				{
-					Address: "0xAc7DD5009788f2CB14db8dCd6728d94Cbd4d705e",
-					Weight:  1,
-					Name:    "Q2F0",
-				},
-			},
-			Accounts: []string{},
-			EpochInfo: &rbft.EpochInfo{
-				Version:     1,
-				Epoch:       1,
-				EpochPeriod: 100000000,
-				StartBlock:  1,
-				P2PBootstrapNodeAddresses: []string{
-					"/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAm9VjBKpMJyzXUzLCd4wWigkPD9HHUEmg628pPxGhkyoVg",
-					"/ip4/127.0.0.1/tcp/4002/p2p/16Uiu2HAmQ2EnGWAeRLNB8ZfiPAQxwofWbCpA7sfQymTGbbe64z4G",
-					"/ip4/127.0.0.1/tcp/4003/p2p/16Uiu2HAkwWBiECscWVK3mp3xTUpGdx5qkBs91RbhT2psQAZHkx5i",
-					"/ip4/127.0.0.1/tcp/4004/p2p/16Uiu2HAm3ikUE3LjJeatMMgDuV2cAG9da8ZJJFLA8nBy6qcN1MMg",
-				},
-				ConsensusParams: rbft.ConsensusParams{
-					ValidatorElectionType:                rbft.ValidatorElectionTypeWRF,
-					ProposerElectionType:                 rbft.ProposerElectionTypeAbnormalRotation,
-					CheckpointPeriod:                     10,
-					HighWatermarkCheckpointPeriod:        4,
-					MaxValidatorNum:                      20,
-					BlockMaxTxNum:                        500,
-					EnableTimedGenEmptyBlock:             false,
-					NotActiveWeight:                      1,
-					AbnormalNodeExcludeView:              1,
-					AgainProposeIntervalBlock:            0,
-					ContinuousNullRequestToleranceNumber: 3,
-					ReBroadcastToleranceNumber:           2,
-				},
-				CandidateSet: []rbft.NodeInfo{},
-				ValidatorSet: []rbft.NodeInfo{
-					{
-						ID:                   1,
-						AccountAddress:       "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
-						P2PNodeID:            "16Uiu2HAm9VjBKpMJyzXUzLCd4wWigkPD9HHUEmg628pPxGhkyoVg",
-						ConsensusVotingPower: 1000,
-					},
-					{
-						ID:                   2,
-						AccountAddress:       "0x13f30647b99Edeb8CF3725eCd1Eaf545D9283335",
-						P2PNodeID:            "16Uiu2HAmQ2EnGWAeRLNB8ZfiPAQxwofWbCpA7sfQymTGbbe64z4G",
-						ConsensusVotingPower: 1000,
-					},
-					{
-						ID:                   3,
-						AccountAddress:       "0x6cdB717de826334faD8FB0ce0547Bac0230ba5a4",
-						P2PNodeID:            "16Uiu2HAkwWBiECscWVK3mp3xTUpGdx5qkBs91RbhT2psQAZHkx5i",
-						ConsensusVotingPower: 1000,
-					},
-					{
-						ID:                   4,
-						AccountAddress:       "0xAc7DD5009788f2CB14db8dCd6728d94Cbd4d705e",
-						P2PNodeID:            "16Uiu2HAm3ikUE3LjJeatMMgDuV2cAG9da8ZJJFLA8nBy6qcN1MMg",
-						ConsensusVotingPower: 1000,
-					},
-				},
-				FinanceParams: rbft.FinanceParams{
-					GasLimit:               0x5f5e100,
-					StartGasPriceAvailable: true,
-					StartGasPrice:          5000000000000,
-					MaxGasPrice:            10000000000000,
-					MinGasPrice:            1000000000000,
-					GasChangeRateValue:     1250,
-					GasChangeRateDecimals:  4,
-				},
-				MiscParams: rbft.MiscParams{
-					TxMaxSize: DefaultTxMaxSize,
-				},
 			},
 		},
 		PProf: PProf{
@@ -272,6 +184,101 @@ func AriesConsensusConfig() *ConsensusConfig {
 		Solo: Solo{
 			BatchTimeout:     Duration(500 * time.Millisecond),
 			CheckpointPeriod: 10,
+		},
+	}
+}
+
+func AriesGenesisConfig() *GenesisConfig {
+	return &GenesisConfig{
+		ChainID: 23411,
+		Balance: "1000000000000000000000000000",
+		Admins: []*Admin{
+			{
+				Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
+				Weight:  1,
+				Name:    "S2luZw==",
+			},
+			{
+				Address: "0x13f30647b99Edeb8CF3725eCd1Eaf545D9283335",
+				Weight:  1,
+				Name:    "UmVk",
+			},
+			{
+				Address: "0x6cdB717de826334faD8FB0ce0547Bac0230ba5a4",
+				Weight:  1,
+				Name:    "QXBwbGU=",
+			},
+			{
+				Address: "0xAc7DD5009788f2CB14db8dCd6728d94Cbd4d705e",
+				Weight:  1,
+				Name:    "Q2F0",
+			},
+		},
+		Accounts: []string{},
+		EpochInfo: &rbft.EpochInfo{
+			Version:     1,
+			Epoch:       1,
+			EpochPeriod: 100000000,
+			StartBlock:  1,
+			P2PBootstrapNodeAddresses: []string{
+				"/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAm9VjBKpMJyzXUzLCd4wWigkPD9HHUEmg628pPxGhkyoVg",
+				"/ip4/127.0.0.1/tcp/4002/p2p/16Uiu2HAmQ2EnGWAeRLNB8ZfiPAQxwofWbCpA7sfQymTGbbe64z4G",
+				"/ip4/127.0.0.1/tcp/4003/p2p/16Uiu2HAkwWBiECscWVK3mp3xTUpGdx5qkBs91RbhT2psQAZHkx5i",
+				"/ip4/127.0.0.1/tcp/4004/p2p/16Uiu2HAm3ikUE3LjJeatMMgDuV2cAG9da8ZJJFLA8nBy6qcN1MMg",
+			},
+			ConsensusParams: rbft.ConsensusParams{
+				ValidatorElectionType:                rbft.ValidatorElectionTypeWRF,
+				ProposerElectionType:                 rbft.ProposerElectionTypeAbnormalRotation,
+				CheckpointPeriod:                     10,
+				HighWatermarkCheckpointPeriod:        4,
+				MaxValidatorNum:                      20,
+				BlockMaxTxNum:                        500,
+				EnableTimedGenEmptyBlock:             false,
+				NotActiveWeight:                      1,
+				AbnormalNodeExcludeView:              1,
+				AgainProposeIntervalBlock:            0,
+				ContinuousNullRequestToleranceNumber: 3,
+				ReBroadcastToleranceNumber:           2,
+			},
+			CandidateSet: []rbft.NodeInfo{},
+			ValidatorSet: []rbft.NodeInfo{
+				{
+					ID:                   1,
+					AccountAddress:       "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
+					P2PNodeID:            "16Uiu2HAm9VjBKpMJyzXUzLCd4wWigkPD9HHUEmg628pPxGhkyoVg",
+					ConsensusVotingPower: 1000,
+				},
+				{
+					ID:                   2,
+					AccountAddress:       "0x13f30647b99Edeb8CF3725eCd1Eaf545D9283335",
+					P2PNodeID:            "16Uiu2HAmQ2EnGWAeRLNB8ZfiPAQxwofWbCpA7sfQymTGbbe64z4G",
+					ConsensusVotingPower: 1000,
+				},
+				{
+					ID:                   3,
+					AccountAddress:       "0x6cdB717de826334faD8FB0ce0547Bac0230ba5a4",
+					P2PNodeID:            "16Uiu2HAkwWBiECscWVK3mp3xTUpGdx5qkBs91RbhT2psQAZHkx5i",
+					ConsensusVotingPower: 1000,
+				},
+				{
+					ID:                   4,
+					AccountAddress:       "0xAc7DD5009788f2CB14db8dCd6728d94Cbd4d705e",
+					P2PNodeID:            "16Uiu2HAm3ikUE3LjJeatMMgDuV2cAG9da8ZJJFLA8nBy6qcN1MMg",
+					ConsensusVotingPower: 1000,
+				},
+			},
+			FinanceParams: rbft.FinanceParams{
+				GasLimit:               0x5f5e100,
+				StartGasPriceAvailable: true,
+				StartGasPrice:          5000000000000,
+				MaxGasPrice:            10000000000000,
+				MinGasPrice:            1000000000000,
+				GasChangeRateValue:     1250,
+				GasChangeRateDecimals:  4,
+			},
+			MiscParams: rbft.MiscParams{
+				TxMaxSize: DefaultTxMaxSize,
+			},
 		},
 	}
 }

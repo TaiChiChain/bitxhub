@@ -628,7 +628,7 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 					count++
 					// remove txHashMap
 					txHash := poolTx.getHash()
-					p.txStore.deletePoolTx(txHash)
+					p.txStore.deletePoolTxPointer(txHash)
 					return true
 				}
 				return false
@@ -989,7 +989,7 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveBatches(batchHashList []string) 
 				continue
 			}
 			p.updateNonceCache(pointer, updateAccounts)
-			p.txStore.deletePoolTx(txHash)
+			p.txStore.deletePoolTxPointer(txHash)
 			delete(p.txStore.batchedTxs, *pointer)
 			dirtyAccounts[pointer.account] = true
 			count++
@@ -1043,6 +1043,7 @@ func (p *txPoolImpl[T, Constraint]) cleanTxsByAccount(account string, list *txSo
 		} else {
 			lo.ForEach(txs, func(tx *internalTransaction[T, Constraint], _ int) {
 				delete(list.items, tx.getNonce())
+				poolTxNum.WithLabelValues("tx").Dec()
 			})
 		}
 	}(removedTxs)
@@ -1137,7 +1138,7 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList [
 				return
 			}
 			// remove from txHashMap
-			p.txStore.deletePoolTx(txHash)
+			p.txStore.deletePoolTxPointer(txHash)
 			if removeTxs[pointer.account] == nil {
 				removeTxs[pointer.account] = make([]*internalTransaction[T, Constraint], 0)
 			}
@@ -1269,7 +1270,7 @@ func (p *txPoolImpl[T, Constraint]) handleGetRequestsByHashList(batchHash string
 		poolTx := p.txStore.getPoolTxByTxnPointer(pointer.account, pointer.nonce)
 		if poolTx == nil {
 			p.logger.Warningf("Transaction %s exist in txHashMap but not in allTxs", txHash)
-			p.txStore.deletePoolTx(txHash)
+			p.txStore.deletePoolTxPointer(txHash)
 			missingTxsHash[uint64(index)] = txHash
 			hasMissing = true
 			continue
@@ -1627,7 +1628,7 @@ func (p *txPoolImpl[T, Constraint]) removeTxsByAccount(account string, nonce uin
 		// 1. remove all txs in txHashMap
 		lo.ForEach(removeTxs, func(poolTx *internalTransaction[T, Constraint], index int) {
 			txHash := poolTx.getHash()
-			p.txStore.deletePoolTx(txHash)
+			p.txStore.deletePoolTxPointer(txHash)
 		})
 
 		// 2. remove index from removedTxs
@@ -1678,7 +1679,7 @@ func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local, ready bool) {
 
 	// remove old tx from txHashMap、priorityIndex、parkingLotIndex、localTTLIndex and removeTTLIndex
 	if oldPoolTx != nil {
-		p.txStore.deletePoolTx(oldPoolTx.getHash())
+		p.txStore.deletePoolTxPointer(oldPoolTx.getHash())
 		p.txStore.priorityIndex.removeByOrderedQueueKey(oldPoolTx)
 		p.txStore.parkingLotIndex.removeByOrderedQueueKey(oldPoolTx)
 		p.txStore.removeTTLIndex.removeByOrderedQueueKey(oldPoolTx)
@@ -1690,15 +1691,9 @@ func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local, ready bool) {
 		return
 	}
 	// insert new tx
-	p.txStore.insertPoolTx(txHash, pointer)
+	p.txStore.insertPoolTxPointer(txHash, pointer)
 
 	// update txPointer in allTxs
-	list, ok := p.txStore.allTxs[account]
-	if !ok {
-		list = newTxSortedMap[T, Constraint]()
-		p.txStore.allTxs[account] = list
-	}
-	list.index.insertBySortedNonceKey(txNonce)
 	now := time.Now().UnixNano()
 	newPoolTx := &internalTransaction[T, Constraint]{
 		local:       false,
@@ -1706,7 +1701,7 @@ func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local, ready bool) {
 		lifeTime:    Constraint(tx).RbftGetTimeStamp(),
 		arrivedTime: now,
 	}
-	list.items[txNonce] = newPoolTx
+	p.txStore.insertPoolTx(account, newPoolTx)
 
 	// insert new tx received from remote vp
 	p.txStore.priorityIndex.insertByOrderedQueueKey(newPoolTx)

@@ -63,9 +63,9 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 		cumulativeGasUsed: 0,
 		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
 		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,
-		evmChainCfg:       newEVMChainCfg(rep.Config),
+		evmChainCfg:       newEVMChainCfg(rep.GenesisConfig),
 		rep:               rep,
-		gasLimit:          rep.Config.Genesis.EpochInfo.FinanceParams.GasLimit,
+		gasLimit:          rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
 		lock:              &sync.Mutex{},
 	}
 
@@ -166,13 +166,13 @@ func (exec *BlockExecutor) listenExecuteEvent() {
 	}
 }
 
-func newEVMChainCfg(config *repo.Config) *params.ChainConfig {
+func newEVMChainCfg(genesisConfig *repo.GenesisConfig) *params.ChainConfig {
 	shanghaiTime := uint64(0)
 	CancunTime := uint64(0)
 	PragueTime := uint64(0)
 
 	return &params.ChainConfig{
-		ChainID:                 big.NewInt(int64(config.Genesis.ChainID)),
+		ChainID:                 big.NewInt(int64(genesisConfig.ChainID)),
 		HomesteadBlock:          big.NewInt(0),
 		EIP150Block:             big.NewInt(0),
 		EIP155Block:             big.NewInt(0),
