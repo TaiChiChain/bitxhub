@@ -68,20 +68,39 @@ func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNo
 	}
 }
 
-func (txStore *transactionStore[T, Constraint]) insertPoolTx(txHash string, pointer *txPointer) {
+func (txStore *transactionStore[T, Constraint]) insertPoolTxPointer(txHash string, pointer *txPointer) {
 	if _, ok := txStore.txHashMap[txHash]; !ok {
 		txStore.txHashMap[txHash] = pointer
-		poolTxNum.Inc()
+		poolTxNum.WithLabelValues("txHash").Inc()
 		return
 	}
 	txStore.logger.Warningf("tx %s already exists in txpool", txHash)
-	txStore.txHashMap[txHash] = pointer
 }
 
-func (txStore *transactionStore[T, Constraint]) deletePoolTx(txHash string) {
+func (txStore *transactionStore[T, Constraint]) deletePoolTxPointer(txHash string) {
 	if _, ok := txStore.txHashMap[txHash]; ok {
 		delete(txStore.txHashMap, txHash)
-		poolTxNum.Dec()
+		poolTxNum.WithLabelValues("txHash").Dec()
+	}
+}
+
+func (txStore *transactionStore[T, Constraint]) insertPoolTx(account string, txItem *internalTransaction[T, Constraint]) {
+	txList, ok := txStore.allTxs[account]
+	if !ok {
+		// if this is new account to send tx, create a new txSortedMap
+		txStore.allTxs[account] = newTxSortedMap[T, Constraint]()
+	}
+	txList = txStore.allTxs[account]
+	if txList.items[txItem.getNonce()] == nil {
+		poolTxNum.WithLabelValues("tx").Inc()
+	} else {
+		txStore.logger.Warningf("old tx will be replaced[account: %s, nonce: %d]", account, txItem.getNonce())
+	}
+	txList.items[txItem.getNonce()] = txItem
+	txList.index.insertBySortedNonceKey(txItem.getNonce())
+	// if the account is empty, we need to set the empty flag to false because we insert a new tx
+	if txList.isEmpty() {
+		txList.setNotEmpty()
 	}
 }
 
@@ -94,19 +113,8 @@ func (txStore *transactionStore[T, Constraint]) insertTxs(txItems map[string][]*
 				account: account,
 				nonce:   txItem.getNonce(),
 			}
-			txStore.insertPoolTx(txHash, pointer)
-			txList, ok := txStore.allTxs[account]
-			if !ok {
-				// if this is new account to send tx, create a new txSortedMap
-				txStore.allTxs[account] = newTxSortedMap[T, Constraint]()
-			}
-			txList = txStore.allTxs[account]
-			txList.items[txItem.getNonce()] = txItem
-			txList.index.insertBySortedNonceKey(txItem.getNonce())
-			// if the account is empty, we need to set the empty flag to false because we insert a new tx
-			if txList.isEmpty() {
-				txList.setNotEmpty()
-			}
+			txStore.insertPoolTxPointer(txHash, pointer)
+			txStore.insertPoolTx(account, txItem)
 			if isLocal {
 				txStore.localTTLIndex.insertByOrderedQueueKey(txItem)
 			}
