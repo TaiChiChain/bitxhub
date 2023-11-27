@@ -100,9 +100,8 @@ func AriesConfig() *Config {
 			},
 		},
 		Genesis: Genesis{
-			ChainID:  23411,
-			GasPrice: 5000000000000,
-			Balance:  "1000000000000000000000000000",
+			ChainID: 23411,
+			Balance: "1000000000000000000000000000",
 			Admins: []*Admin{
 				{
 					Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
@@ -179,11 +178,13 @@ func AriesConfig() *Config {
 					},
 				},
 				FinanceParams: rbft.FinanceParams{
-					GasLimit:              0x5f5e100,
-					MaxGasPrice:           10000000000000,
-					MinGasPrice:           1000000000000,
-					GasChangeRateValue:    1250,
-					GasChangeRateDecimals: 4,
+					GasLimit:               0x5f5e100,
+					StartGasPriceAvailable: true,
+					StartGasPrice:          5000000000000,
+					MaxGasPrice:            10000000000000,
+					MinGasPrice:            1000000000000,
+					GasChangeRateValue:     1250,
+					GasChangeRateDecimals:  4,
 				},
 				MiscParams: rbft.MiscParams{
 					TxMaxSize: DefaultTxMaxSize,

@@ -100,6 +100,16 @@
 								"type": "uint64"
 							},
 							{
+								"internalType": "bool",
+								"name": "StartGasPriceAvailable",
+								"type": "bool"
+							},
+							{
+								"internalType": "uint64",
+								"name": "StartGasPrice",
+								"type": "uint64"
+							},
+							{
 								"internalType": "uint64",
 								"name": "MaxGasPrice",
 								"type": "uint64"
@@ -333,6 +343,16 @@
 								"type": "uint64"
 							},
 							{
+								"internalType": "bool",
+								"name": "StartGasPriceAvailable",
+								"type": "bool"
+							},
+							{
+								"internalType": "uint64",
+								"name": "StartGasPrice",
+								"type": "uint64"
+							},
+							{
 								"internalType": "uint64",
 								"name": "MaxGasPrice",
 								"type": "uint64"
@@ -557,6 +577,16 @@
 							{
 								"internalType": "uint64",
 								"name": "GasLimit",
+								"type": "uint64"
+							},
+							{
+								"internalType": "bool",
+								"name": "StartGasPriceAvailable",
+								"type": "bool"
+							},
+							{
+								"internalType": "uint64",
+								"name": "StartGasPrice",
 								"type": "uint64"
 							},
 							{

@@ -172,12 +172,18 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.BlockHeader.ParentHash = exec.currentBlockHash
 
 	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
-	gasPrice, err := exec.gas.CalNextGasPrice(parentChainMeta.GasPrice.Uint64(), len(block.Transactions))
+
+	currentGasPrice := parentChainMeta.GasPrice.Uint64()
+	// epoch changed gas price
+	if block.Height() == exec.rep.EpochInfo.StartBlock && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
+		currentGasPrice = exec.rep.EpochInfo.FinanceParams.StartGasPrice
+	}
+	nextGasPrice, err := exec.gas.CalNextGasPrice(currentGasPrice, len(block.Transactions))
 	if err != nil {
-		panic(fmt.Errorf("calculate current gas failed: %w", err))
+		panic(fmt.Errorf("calculate next block gas price failed: %w", err))
 	}
 
-	block.BlockHeader.GasPrice = int64(gasPrice)
+	block.BlockHeader.GasPrice = int64(nextGasPrice)
 
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {
@@ -301,7 +307,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	var err error
 
 	msg := adaptor.TransactionToMessage(tx)
-	msg.GasPrice = exec.getCurrentGasPrice()
+	msg.GasPrice = exec.getCurrentGasPrice(height)
 
 	statedb := exec.ledger.StateLedger
 	// TODO: Move to system contract
@@ -446,7 +452,11 @@ func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {
 
 // getCurrentGasPrice returns the current block's gas price, which is
 // stored in the last block's blockheader
-func (exec *BlockExecutor) getCurrentGasPrice() *big.Int {
+func (exec *BlockExecutor) getCurrentGasPrice(height uint64) *big.Int {
+	// epoch changed gas price
+	if height == exec.rep.EpochInfo.StartBlock && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
+		return big.NewInt(int64(exec.rep.EpochInfo.FinanceParams.StartGasPrice))
+	}
 	return exec.ledger.ChainLedger.GetChainMeta().GasPrice
 }
 
