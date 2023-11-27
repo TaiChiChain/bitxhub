@@ -19,7 +19,7 @@ func (a *RBFTAdaptor) Verify(address string, signature []byte, msg []byte) error
 	}
 
 	if address != crypto.PubkeyToAddress(*pubKey).String() {
-		return errors.New("valid signature")
+		return errors.New("invalid signature")
 	}
 	return nil
 }

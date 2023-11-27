@@ -14,6 +14,7 @@ var _ api.FeedAPI = (*FeedAPI)(nil)
 
 var emptyTxFeed event.Feed
 
+// todo: subscribe from txpool?
 func (api *FeedAPI) SubscribeNewTxEvent(ch chan<- []*types.Transaction) event.Subscription {
 	if api.axiomLedger.Repo.ReadonlyMode {
 		return emptyTxFeed.Subscribe(ch)

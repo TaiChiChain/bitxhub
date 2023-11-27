@@ -20,6 +20,10 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
+var (
+	ErrNotFound = errors.New("not found in DB")
+)
+
 var _ ChainLedger = (*ChainLedgerImpl)(nil)
 
 type ChainLedgerImpl struct {
@@ -99,6 +103,10 @@ func NewChainLedger(rep *repo.Repo, storageDir string) (*ChainLedgerImpl, error)
 
 // GetBlock get block with height
 func (l *ChainLedgerImpl) GetBlock(height uint64) (*types.Block, error) {
+	if height > l.chainMeta.Height {
+		return nil, ErrNotFound
+	}
+
 	if block, ok := l.blockCache.Get(height); ok {
 		return block, nil
 	}
@@ -142,6 +150,10 @@ func (l *ChainLedgerImpl) GetBlock(height uint64) (*types.Block, error) {
 }
 
 func (l *ChainLedgerImpl) GetBlockHash(height uint64) *types.Hash {
+	if height > l.chainMeta.Height {
+		return &types.Hash{}
+	}
+
 	hash := l.blockchainStore.Get(compositeKey(blockHeightKey, height))
 	if hash == nil {
 		return &types.Hash{}
@@ -163,7 +175,7 @@ func (l *ChainLedgerImpl) GetBlockSign(height uint64) ([]byte, error) {
 func (l *ChainLedgerImpl) GetBlockByHash(hash *types.Hash) (*types.Block, error) {
 	data := l.blockchainStore.Get(compositeKey(blockHashKey, hash.String()))
 	if data == nil {
-		return nil, storage.ErrorNotFound
+		return nil, ErrNotFound
 	}
 
 	height, err := strconv.Atoi(string(data))
@@ -178,7 +190,7 @@ func (l *ChainLedgerImpl) GetBlockByHash(hash *types.Hash) (*types.Block, error)
 func (l *ChainLedgerImpl) GetTransaction(hash *types.Hash) (*types.Transaction, error) {
 	metaBytes := l.blockchainStore.Get(compositeKey(transactionMetaKey, hash.String()))
 	if metaBytes == nil {
-		return nil, storage.ErrorNotFound
+		return nil, ErrNotFound
 	}
 	meta := &types.TransactionMeta{}
 	if err := meta.Unmarshal(metaBytes); err != nil {
@@ -216,7 +228,7 @@ func (l *ChainLedgerImpl) GetTransactionCount(height uint64) (uint64, error) {
 func (l *ChainLedgerImpl) GetTransactionMeta(hash *types.Hash) (*types.TransactionMeta, error) {
 	data := l.blockchainStore.Get(compositeKey(transactionMetaKey, hash.String()))
 	if data == nil {
-		return nil, storage.ErrorNotFound
+		return nil, ErrNotFound
 	}
 
 	meta := &types.TransactionMeta{}
@@ -231,7 +243,7 @@ func (l *ChainLedgerImpl) GetTransactionMeta(hash *types.Hash) (*types.Transacti
 func (l *ChainLedgerImpl) GetReceipt(hash *types.Hash) (*types.Receipt, error) {
 	metaBytes := l.blockchainStore.Get(compositeKey(transactionMetaKey, hash.String()))
 	if metaBytes == nil {
-		return nil, storage.ErrorNotFound
+		return nil, ErrNotFound
 	}
 	meta := &types.TransactionMeta{}
 	if err := meta.Unmarshal(metaBytes); err != nil {

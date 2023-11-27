@@ -3,15 +3,18 @@ package precheck
 import (
 	"context"
 	"math/big"
+	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
+	"go.uber.org/mock/gomock"
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -24,7 +27,7 @@ type mockDb struct {
 	db map[string]*big.Int
 }
 
-func newMockPreCheckMgr(ledger *mockDb) (*TxPreCheckMgr, *logrus.Entry, context.CancelFunc) {
+func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.Entry, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := log.NewWithModule("precheck")
 
@@ -41,6 +44,9 @@ func newMockPreCheckMgr(ledger *mockDb) (*TxPreCheckMgr, *logrus.Entry, context.
 		}
 	}
 
+	ctrl := gomock.NewController(t)
+	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](ctrl)
+
 	cnf := &common2.Config{
 		EVMConfig: repo.EVM{},
 		Logger:    logger,
@@ -51,6 +57,7 @@ func newMockPreCheckMgr(ledger *mockDb) (*TxPreCheckMgr, *logrus.Entry, context.
 		},
 		GetChainMetaFunc:  getChainmetaFn,
 		GetAccountBalance: getAccountBalance,
+		TxPool:            mockPool,
 	}
 
 	return NewTxPreCheckMgr(ctx, cnf), logger, cancel

@@ -64,6 +64,9 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	if err := governance.InitCouncilMembers(lg, genesis.Admins, genesis.Balance); err != nil {
 		return err
 	}
+	if err := governance.InitNodeMembers(lg, genesis.NodeNames, genesis.EpochInfo); err != nil {
+		return err
+	}
 
 	admins := lo.Map[*repo.Admin, string](genesis.Admins, func(x *repo.Admin, _ int) string {
 		return x.Address

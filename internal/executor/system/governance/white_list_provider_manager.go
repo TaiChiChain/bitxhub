@@ -276,7 +276,7 @@ func (wlpm *WhiteListProviderManager) getProposalArgs(args *ProposalArgs) (*Whit
 }
 
 func (wlpm *WhiteListProviderManager) proposeProvidersAddRemove(addr *ethcommon.Address, args *WhiteListProviderProposalArgs) ([]byte, error) {
-	baseProposal, err := wlpm.gov.Propose(addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, wlpm.lastHeight)
+	baseProposal, err := wlpm.gov.Propose(addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, wlpm.lastHeight, false)
 	if err != nil {
 		return nil, err
 	}

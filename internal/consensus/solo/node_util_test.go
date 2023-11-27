@@ -9,13 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-bft/txpool"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -28,6 +30,28 @@ const (
 
 var validTxsCh = make(chan *precheck.ValidTxs, maxChanSize)
 
+func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transaction] {
+	logger := log.NewWithModule("consensus")
+	logger.Logger.SetLevel(logrus.DebugLevel)
+	repoRoot := t.TempDir()
+	r, err := repo.Load(repoRoot)
+	require.Nil(t, err)
+	txpoolConf := txpool2.Config{
+		IsTimed:             false,
+		Logger:              &common.Logger{FieldLogger: logger},
+		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
+		PoolSize:            poolSize,
+		ToleranceRemoveTime: removeTxTimeout,
+		GetAccountNonce: func(address string) uint64 {
+			return 0
+		},
+	}
+
+	txpoolInst, err := txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
+	require.Nil(t, err)
+	return txpoolInst
+}
+
 func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	logger := log.NewWithModule("consensus")
 	logger.Logger.SetLevel(logrus.DebugLevel)
@@ -37,16 +61,14 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	cfg := r.ConsensusConfig
 
 	recvCh := make(chan consensusEvent, maxChanSize)
-	batchTimerMgr := NewTimerManager(recvCh, logger)
-	batchTimerMgr.newTimer(Batch, batchTimeout)
 	mockCtl := gomock.NewController(t)
 	mockNetwork := mock_network.NewMockNetwork(mockCtl)
 	mockPrecheck := mock_precheck.NewMockMinPreCheck(mockCtl, validTxsCh)
 
-	txpoolConf := txpool.Config{
-		IsTimed:             r.Config.Genesis.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+	txpoolConf := txpool2.Config{
+		IsTimed:             r.GenesisConfig.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 		Logger:              &common.Logger{FieldLogger: logger},
-		BatchSize:           r.Config.Genesis.EpochInfo.ConsensusParams.BlockMaxTxNum,
+		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
 		PoolSize:            poolSize,
 		ToleranceRemoveTime: removeTxTimeout,
 		GetAccountNonce: func(address string) uint64 {
@@ -61,9 +83,8 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		txpoolConf.IsTimed = false
 		noTxBatchTimeout = cfg.TimedGenBlock.NoTxBatchTimeout.ToDuration()
 	}
-	batchTimerMgr.newTimer(NoTxBatch, noTxBatchTimeout)
-	batchTimerMgr.newTimer(RemoveTx, txpoolConf.ToleranceRemoveTime)
-	txpoolInst := txpool.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
+	txpoolInst, err := txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
+	require.Nil(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	soloNode := &Node{
@@ -73,11 +94,10 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		lastExec:         uint64(0),
 		isTimed:          txpoolConf.IsTimed,
 		noTxBatchTimeout: noTxBatchTimeout,
-		batchTimeout:     cfg.TxPool.BatchTimeout.ToDuration(),
+		batchTimeout:     cfg.Solo.BatchTimeout.ToDuration(),
 		commitC:          make(chan *common.CommitEvent, maxChanSize),
 		blockCh:          make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
 		txpool:           txpoolInst,
-		batchMgr:         batchTimerMgr,
 		network:          mockNetwork,
 		batchDigestM:     make(map[uint64]string),
 		checkpoint:       10,
@@ -87,5 +107,34 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		cancel:           cancel,
 		txPreCheck:       mockPrecheck,
 	}
+	batchTimerMgr := timer.NewTimerManager(logger)
+	err = batchTimerMgr.CreateTimer(timer.Batch, batchTimeout, soloNode.handleTimeoutEvent)
+	require.Nil(t, err)
+	err = batchTimerMgr.CreateTimer(timer.NoTxBatch, noTxBatchTimeout, soloNode.handleTimeoutEvent)
+	require.Nil(t, err)
+	soloNode.batchMgr = &batchTimerManager{Timer: batchTimerMgr}
 	return soloNode, nil
+}
+
+func mockAddTx(node *Node, ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case txs := <-node.txPreCheck.CommitValidTxs():
+				err := node.txpool.AddLocalTx(txs.Txs[0])
+				if err != nil {
+					txs.LocalRespCh <- &common.TxResp{
+						Status:   false,
+						ErrorMsg: err.Error(),
+					}
+				} else {
+					txs.LocalRespCh <- &common.TxResp{
+						Status: true,
+					}
+				}
+			}
+		}
+	}()
 }

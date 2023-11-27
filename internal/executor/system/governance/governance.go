@@ -292,7 +292,7 @@ func (g *Governance) checkBeforePropose(user *ethcommon.Address, proposalType Pr
 	return true, nil
 }
 
-func (g *Governance) Propose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64, lastHeight uint64) (*BaseProposal, error) {
+func (g *Governance) Propose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64, lastHeight uint64, nodeAddRole bool) (*BaseProposal, error) {
 	_, err := g.checkBeforePropose(user, proposalType, title, desc, blockNumber, lastHeight)
 	if err != nil {
 		return nil, err
@@ -309,7 +309,9 @@ func (g *Governance) Propose(user *ethcommon.Address, proposalType ProposalType,
 	}
 
 	// proposer vote pass by default
-	proposal.PassVotes = []string{user.String()}
+	if !nodeAddRole {
+		proposal.PassVotes = []string{user.String()}
+	}
 
 	return proposal, nil
 }

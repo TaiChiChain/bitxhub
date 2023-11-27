@@ -172,12 +172,18 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.BlockHeader.ParentHash = exec.currentBlockHash
 
 	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
-	gasPrice, err := exec.gas.CalNextGasPrice(parentChainMeta.GasPrice.Uint64(), len(block.Transactions))
+
+	currentGasPrice := parentChainMeta.GasPrice.Uint64()
+	// epoch changed gas price
+	if block.Height() == exec.rep.EpochInfo.StartBlock && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
+		currentGasPrice = exec.rep.EpochInfo.FinanceParams.StartGasPrice
+	}
+	nextGasPrice, err := exec.gas.CalNextGasPrice(currentGasPrice, len(block.Transactions))
 	if err != nil {
-		panic(fmt.Errorf("calculate current gas failed: %w", err))
+		panic(fmt.Errorf("calculate next block gas price failed: %w", err))
 	}
 
-	block.BlockHeader.GasPrice = int64(gasPrice)
+	block.BlockHeader.GasPrice = int64(nextGasPrice)
 
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {
@@ -189,16 +195,17 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.BlockHash = block.Hash()
 
 	exec.logger.WithFields(logrus.Fields{
-		"hash":         block.BlockHash.String(),
-		"height":       block.BlockHeader.Number,
-		"epoch":        block.BlockHeader.Epoch,
-		"coinbase":     block.BlockHeader.ProposerAccount,
-		"gas_price":    block.BlockHeader.GasPrice,
-		"gas_used":     block.BlockHeader.GasUsed,
-		"parent_hash":  block.BlockHeader.ParentHash.String(),
-		"tx_root":      block.BlockHeader.TxRoot.String(),
-		"receipt_root": block.BlockHeader.ReceiptRoot.String(),
-		"state_root":   block.BlockHeader.StateRoot.String(),
+		"hash":             block.BlockHash.String(),
+		"height":           block.BlockHeader.Number,
+		"epoch":            block.BlockHeader.Epoch,
+		"coinbase":         block.BlockHeader.ProposerAccount,
+		"proposer_node_id": block.BlockHeader.ProposerNodeID,
+		"gas_price":        block.BlockHeader.GasPrice,
+		"gas_used":         block.BlockHeader.GasUsed,
+		"parent_hash":      block.BlockHeader.ParentHash.String(),
+		"tx_root":          block.BlockHeader.TxRoot.String(),
+		"receipt_root":     block.BlockHeader.ReceiptRoot.String(),
+		"state_root":       block.BlockHeader.StateRoot.String(),
 	}).Info("Block meta")
 
 	calcBlockSize.Observe(float64(block.Size()))
@@ -239,7 +246,16 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.currentHeight = block.BlockHeader.Number
 	exec.currentBlockHash = block.BlockHash
 
-	exec.postBlockEvent(data.Block, data.TxHashList, commitEvent.StateUpdatedCheckpoint)
+	txPointerList := make([]*events.TxPointer, len(data.Block.Transactions))
+	lo.ForEach(data.Block.Transactions, func(item *types.Transaction, index int) {
+		txPointerList[index] = &events.TxPointer{
+			Hash:    item.GetHash(),
+			Account: item.RbftGetFrom(),
+			Nonce:   item.RbftGetNonce(),
+		}
+	})
+
+	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
 }
@@ -255,15 +271,15 @@ func (exec *BlockExecutor) buildTxMerkleTree(txs []*types.Transaction) (*types.H
 	return hash, nil
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txHashList []*types.Hash, ckp *consensus.Checkpoint) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint) {
 	exec.blockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
-		TxHashList:             txHashList,
+		TxPointerList:          txPointerList,
 		StateUpdatedCheckpoint: ckp,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
-		Block:      block,
-		TxHashList: txHashList,
+		Block:         block,
+		TxPointerList: txPointerList,
 	})
 }
 
@@ -292,7 +308,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	var err error
 
 	msg := adaptor.TransactionToMessage(tx)
-	msg.GasPrice = exec.getCurrentGasPrice()
+	msg.GasPrice = exec.getCurrentGasPrice(height)
 
 	statedb := exec.ledger.StateLedger
 	// TODO: Move to system contract
@@ -383,7 +399,8 @@ func (exec *BlockExecutor) calcReceiptMerkleRoot(receipts []*types.Receipt) (*ty
 
 func calcMerkleRoot(contents []merkletree.Content) (*types.Hash, error) {
 	if len(contents) == 0 {
-		return &types.Hash{}, nil
+		// compatible with Ethereum
+		return types.NewHashByStr("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"), nil
 	}
 
 	tree, err := merkletree.NewTree(contents)
@@ -436,7 +453,11 @@ func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {
 
 // getCurrentGasPrice returns the current block's gas price, which is
 // stored in the last block's blockheader
-func (exec *BlockExecutor) getCurrentGasPrice() *big.Int {
+func (exec *BlockExecutor) getCurrentGasPrice(height uint64) *big.Int {
+	// epoch changed gas price
+	if height == exec.rep.EpochInfo.StartBlock && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
+		return big.NewInt(int64(exec.rep.EpochInfo.FinanceParams.StartGasPrice))
+	}
 	return exec.ledger.ChainLedger.GetChainMeta().GasPrice
 }
 

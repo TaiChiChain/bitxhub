@@ -3,6 +3,7 @@ package block_sync
 import (
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,12 +20,9 @@ func TestStartSync(t *testing.T) {
 	// store blocks expect node 0
 	prepareLedger(n, 10)
 
-	// start sync model
-	for i := 0; i < n; i++ {
-		err := syncs[i].Start()
-		require.Nil(t, err)
+	for _, sync := range syncs {
+		sync.conf.TimeoutCountLimit = 1
 	}
-
 	// node0 start sync block
 	peers := []string{"1", "2", "3"}
 	latestBlockHash := getMockChainMeta(0).BlockHash.String()
@@ -54,6 +52,14 @@ func TestStartSync(t *testing.T) {
 		err = syncs[0].StopSync()
 		require.Nil(t, err)
 	}()
+
+	// wait for reset peers
+	time.Sleep(1 * time.Second)
+	// start sync model
+	for i := 0; i < n; i++ {
+		err = syncs[i].Start()
+		require.Nil(t, err)
+	}
 
 	blocks := <-syncs[0].Commit()
 	require.Equal(t, 9, len(blocks))
@@ -181,101 +187,6 @@ func TestMultiEpochSync(t *testing.T) {
 	err = syncs[0].StopSync()
 	require.Nil(t, err)
 	require.False(t, syncs[0].syncStatus.Load())
-
-	t.Run("TestMultiEpochSyncWithWrongBlock, wrong block is not epoch block", func(t *testing.T) {
-		// mock wrong block
-		wrongHeight := uint64(7)
-		oldRightBlock, err := getMockBlockLedger(wrongHeight, 1)
-		require.Nil(t, err)
-		parentBlock, err := getMockBlockLedger(wrongHeight-1, 1)
-		require.Nil(t, err)
-		wrongBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
-				Number:     wrongHeight,
-				ParentHash: parentBlock.BlockHash,
-			},
-			BlockHash: types.NewHash([]byte("wrong_block")),
-		}
-		id, err := strconv.Atoi(syncs[0].pickPeer(wrongHeight))
-		require.Nil(t, err)
-		setMockBlockLedger(wrongBlock, id)
-
-		block10, err := getMockBlockLedger(10, 1)
-		require.Nil(t, err)
-
-		quorumCkpt10 := &consensus.SignedCheckpoint{
-			Checkpoint: &consensus.Checkpoint{
-				ExecuteState: &consensus.Checkpoint_ExecuteState{
-					Height: block10.Height(),
-					Digest: block10.BlockHash.String(),
-				},
-			},
-		}
-		// start sync
-		err = syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt10)
-		require.Nil(t, err)
-
-		blocks1 = <-syncs[0].Commit()
-		require.Equal(t, 9, len(blocks1))
-		require.Equal(t, uint64(10), blocks1[len(blocks1)-1].Height())
-		require.Equal(t, block10.BlockHash, blocks1[len(blocks1)-1].BlockHash)
-		require.True(t, syncs[0].syncStatus.Load())
-
-		// reset right block
-		setMockBlockLedger(oldRightBlock, id)
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
-		require.False(t, syncs[0].syncStatus.Load())
-	})
-
-	t.Run("TestMultiEpochSyncWithWrongBlock, wrong block is epoch block", func(t *testing.T) {
-		// mock wrong block
-		wrongHeight := uint64(100)
-		oldRightBlock, err := getMockBlockLedger(wrongHeight, 1)
-		require.Nil(t, err)
-		parentBlock, err := getMockBlockLedger(wrongHeight-1, 1)
-		require.Nil(t, err)
-		wrongBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
-				Number:     wrongHeight,
-				ParentHash: parentBlock.BlockHash,
-			},
-			BlockHash: types.NewHash([]byte("wrong_block")),
-		}
-		id, err := strconv.Atoi(syncs[0].pickPeer(wrongHeight))
-		require.Nil(t, err)
-		setMockBlockLedger(wrongBlock, id)
-
-		block101, err := getMockBlockLedger(101, 1)
-		require.Nil(t, err)
-
-		quorumCkpt101 := &consensus.SignedCheckpoint{
-			Checkpoint: &consensus.Checkpoint{
-				ExecuteState: &consensus.Checkpoint_ExecuteState{
-					Height: block101.Height(),
-					Digest: block101.BlockHash.String(),
-				},
-			},
-		}
-
-		// start sync
-		err = syncs[0].StartSync(peers, latestBlockHash, 2, 2, 101, quorumCkpt101, epc1)
-		require.Nil(t, err)
-
-		blocks1 = <-syncs[0].Commit()
-		require.Equal(t, 99, len(blocks1))
-		require.Equal(t, uint64(100), blocks1[len(blocks1)-1].Height())
-		require.True(t, syncs[0].syncStatus.Load())
-		blocks2 = <-syncs[0].Commit()
-		require.Equal(t, 1, len(blocks2))
-		require.Equal(t, uint64(101), blocks2[len(blocks2)-1].Height())
-
-		// reset right block
-		setMockBlockLedger(oldRightBlock, id)
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
-		require.False(t, syncs[0].syncStatus.Load())
-	})
 }
 
 func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
@@ -538,41 +449,6 @@ func TestHandleSyncErrMsg(t *testing.T) {
 	blocks := <-syncs[0].Commit()
 	require.Equal(t, 99, len(blocks))
 	require.Equal(t, uint64(100), blocks[len(blocks)-1].Height())
-}
-
-func TestSendSyncStateError(t *testing.T) {
-	n := 4
-	// mock syncs[0] which send sync state request error
-	syncs := newMockBlockSyncs(t, n, wrongTypeSendSyncState, 0, 1)
-	defer stopSyncs(syncs)
-
-	// store blocks expect node 0
-	prepareLedger(n, 100)
-
-	// start sync model
-	for i := 0; i < n; i++ {
-		err := syncs[i].Start()
-		require.Nil(t, err)
-	}
-	// node0 start sync block
-	peers := []string{"1", "2", "3"}
-	latestBlockHash := getMockChainMeta(0).BlockHash.String()
-	remoteBlockHash := getMockChainMeta(1).BlockHash.String()
-	quorumCkpt := &consensus.SignedCheckpoint{
-		Checkpoint: &consensus.Checkpoint{
-			ExecuteState: &consensus.Checkpoint_ExecuteState{
-				Height: 100,
-				Digest: remoteBlockHash,
-			},
-		},
-	}
-	err := syncs[0].StartSync(peers, latestBlockHash, 2, 2, 100, quorumCkpt)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "timeout send sync request")
-
-	err = syncs[0].StopSync()
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "status is already false")
 }
 
 func TestValidateChunk(t *testing.T) {

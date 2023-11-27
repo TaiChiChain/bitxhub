@@ -62,12 +62,12 @@ func generateMockConfig(t *testing.T) *repo.Repo {
 
 func checkResult(t *testing.T, block *types.Block, config *repo.Repo, parentGasPrice int64, gas uint64) uint64 {
 	percentage := 2 * (float64(len(block.Transactions)) - float64(config.EpochInfo.ConsensusParams.BlockMaxTxNum)/2) / float64(config.EpochInfo.ConsensusParams.BlockMaxTxNum)
-	actualGas := uint64(float64(parentGasPrice) * (1 + percentage*float64(config.Config.Genesis.EpochInfo.FinanceParams.GasChangeRateValue)/math.Pow10(int(config.Config.Genesis.EpochInfo.FinanceParams.GasChangeRateDecimals))))
-	if actualGas > config.Config.Genesis.EpochInfo.FinanceParams.MaxGasPrice {
-		actualGas = config.Config.Genesis.EpochInfo.FinanceParams.MaxGasPrice
+	actualGas := uint64(float64(parentGasPrice) * (1 + percentage*float64(config.GenesisConfig.EpochInfo.FinanceParams.GasChangeRateValue)/math.Pow10(int(config.GenesisConfig.EpochInfo.FinanceParams.GasChangeRateDecimals))))
+	if actualGas > config.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice {
+		actualGas = config.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice
 	}
-	if actualGas < config.Config.Genesis.EpochInfo.FinanceParams.MinGasPrice {
-		actualGas = config.Config.Genesis.EpochInfo.FinanceParams.MinGasPrice
+	if actualGas < config.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice {
+		actualGas = config.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice
 	}
 	assert.Equal(t, actualGas, gas, "Gas price is not correct")
 	return gas

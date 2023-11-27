@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"path/filepath"
 	"sort"
@@ -16,6 +15,7 @@ import (
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	crypto1 "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -545,7 +545,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.Equal(t, uint64(4), account0.GetBalance().Uint64())
 
 			err = ledger.Rollback(4)
-			assert.Equal(t, fmt.Sprintf("rollback state to height 4 failed: get bodies with height 4 from blockfile failed: out of bounds"), err.Error())
+			assert.True(t, errors.Is(err, ErrNotFound))
 
 			hash := ledger.ChainLedger.GetBlockHash(3)
 			assert.NotNil(t, hash)
@@ -585,7 +585,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			err = ledger.Rollback(2)
 			assert.Nil(t, err)
 			block, err = ledger.ChainLedger.GetBlock(3)
-			assert.Equal(t, "get bodies with height 3 from blockfile failed: out of bounds", err.Error())
+			assert.Equal(t, ErrNotFound, err)
 			assert.Nil(t, block)
 			block2, err := ledger.ChainLedger.GetBlock(2)
 			assert.Nil(t, err)
@@ -812,7 +812,7 @@ func TestGetBlockByHash(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
-			assert.Equal(t, storage.ErrorNotFound, err)
+			assert.True(t, errors.Is(err, ErrNotFound))
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(blockHashKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -831,7 +831,7 @@ func TestGetTransaction(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
-			assert.Equal(t, storage.ErrorNotFound, err)
+			assert.True(t, errors.Is(err, ErrNotFound))
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -854,7 +854,7 @@ func TestGetTransaction1(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
-			assert.Equal(t, storage.ErrorNotFound, err)
+			assert.True(t, errors.Is(err, ErrNotFound))
 			meta := types.TransactionMeta{
 				BlockHeight: 0,
 			}
@@ -882,7 +882,7 @@ func TestGetTransactionMeta(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetTransactionMeta(types.NewHash([]byte("1")))
-			assert.Equal(t, storage.ErrorNotFound, err)
+			assert.True(t, errors.Is(err, ErrNotFound))
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetTransactionMeta(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -905,7 +905,7 @@ func TestGetReceipt(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
-			assert.Equal(t, storage.ErrorNotFound, err)
+			assert.True(t, errors.Is(err, ErrNotFound))
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), []byte("0"))
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -928,7 +928,7 @@ func TestGetReceipt1(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
-			assert.Equal(t, storage.ErrorNotFound, err)
+			assert.True(t, errors.Is(err, ErrNotFound))
 			meta := types.TransactionMeta{
 				BlockHeight: 0,
 			}

@@ -80,13 +80,13 @@ func AriesConfig() *Config {
 			},
 		},
 		Sync: Sync{
-			WaitStateTimeout:      Duration(2 * time.Minute),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,
 		},
 		Consensus: Consensus{
-			Type: ConsensusTypeRbft,
+			Type:        ConsensusTypeRbft,
+			StorageType: ConsensusStorageTypeMinifile,
 		},
 		Storage: Storage{
 			KvType: KVStorageTypeLeveldb,
@@ -154,10 +154,11 @@ func AriesConsensusConfig() *ConsensusConfig {
 			Burst:  10000,
 		},
 		TxPool: TxPool{
-			PoolSize:            50000,
-			BatchTimeout:        Duration(500 * time.Millisecond),
-			ToleranceTime:       Duration(5 * time.Minute),
-			ToleranceRemoveTime: Duration(15 * time.Minute),
+			PoolSize:              50000,
+			ToleranceTime:         Duration(5 * time.Minute),
+			ToleranceRemoveTime:   Duration(15 * time.Minute),
+			CleanEmptyAccountTime: Duration(10 * time.Minute),
+			ToleranceNonceGap:     1000,
 		},
 		TxCache: TxCache{
 			SetSize:    50,
@@ -177,9 +178,11 @@ func AriesConsensusConfig() *ConsensusConfig {
 				SyncStateRestart: Duration(10 * time.Minute),
 				FetchCheckpoint:  Duration(5 * time.Second),
 				FetchView:        Duration(1 * time.Second),
+				BatchTimeout:     Duration(500 * time.Millisecond),
 			},
 		},
 		Solo: Solo{
+			BatchTimeout:     Duration(500 * time.Millisecond),
 			CheckpointPeriod: 10,
 		},
 	}
@@ -187,9 +190,8 @@ func AriesConsensusConfig() *ConsensusConfig {
 
 func AriesGenesisConfig() *GenesisConfig {
 	return &GenesisConfig{
-		ChainID:  23411,
-		GasPrice: 5000000000000,
-		Balance:  "1000000000000000000000000000",
+		ChainID: 23411,
+		Balance: "1000000000000000000000000000",
 		Admins: []*Admin{
 			{
 				Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
@@ -225,17 +227,18 @@ func AriesGenesisConfig() *GenesisConfig {
 				"/ip4/127.0.0.1/tcp/4004/p2p/16Uiu2HAm3ikUE3LjJeatMMgDuV2cAG9da8ZJJFLA8nBy6qcN1MMg",
 			},
 			ConsensusParams: rbft.ConsensusParams{
-				ValidatorElectionType:                rbft.ValidatorElectionTypeWRF,
-				ProposerElectionType:                 rbft.ProposerElectionTypeAbnormalRotation,
-				CheckpointPeriod:                     10,
-				HighWatermarkCheckpointPeriod:        4,
-				MaxValidatorNum:                      20,
-				BlockMaxTxNum:                        500,
-				EnableTimedGenEmptyBlock:             false,
-				NotActiveWeight:                      1,
-				AbnormalNodeExcludeView:              1,
-				AgainProposeIntervalBlock:            0,
-				ContinuousNullRequestToleranceNumber: 3,
+				ValidatorElectionType:         rbft.ValidatorElectionTypeWRF,
+				ProposerElectionType:          rbft.ProposerElectionTypeAbnormalRotation,
+				CheckpointPeriod:              10,
+				HighWatermarkCheckpointPeriod: 4,
+				MaxValidatorNum:               20,
+				BlockMaxTxNum:                 500,
+				EnableTimedGenEmptyBlock:      false,
+				NotActiveWeight:               1,
+				AbnormalNodeExcludeView:       1,
+				AgainProposeIntervalBlockInValidatorsNumPercentage: 30,
+				ContinuousNullRequestToleranceNumber:               3,
+				ReBroadcastToleranceNumber:                         2,
 			},
 			CandidateSet: []rbft.NodeInfo{},
 			ValidatorSet: []rbft.NodeInfo{
@@ -265,11 +268,13 @@ func AriesGenesisConfig() *GenesisConfig {
 				},
 			},
 			FinanceParams: rbft.FinanceParams{
-				GasLimit:              0x5f5e100,
-				MaxGasPrice:           10000000000000,
-				MinGasPrice:           1000000000000,
-				GasChangeRateValue:    1250,
-				GasChangeRateDecimals: 4,
+				GasLimit:               0x5f5e100,
+				StartGasPriceAvailable: true,
+				StartGasPrice:          5000000000000,
+				MaxGasPrice:            10000000000000,
+				MinGasPrice:            1000000000000,
+				GasChangeRateValue:     1250,
+				GasChangeRateDecimals:  4,
 			},
 			MiscParams: rbft.MiscParams{
 				TxMaxSize: DefaultTxMaxSize,

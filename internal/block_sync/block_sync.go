@@ -38,6 +38,7 @@ type Sync interface {
 type BlockSync struct {
 	conf               repo.Sync
 	syncStatus         atomic.Bool         // sync status
+	initPeers          []*peer             // p2p set of latest epoch validatorSet with init
 	peers              []*peer             // p2p set of latest epoch validatorSet
 	quorum             uint64              // quorum of latest epoch validatorSet
 	curHeight          uint64              // current block which we need sync
@@ -265,12 +266,7 @@ func (bs *BlockSync) StartSync(peers []string, latestBlockHash string, quorum, c
 }
 
 func (bs *BlockSync) validateChunkState(localHeight uint64, localHash string) error {
-	err := bs.requestSyncState(localHeight, localHash)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return bs.requestSyncState(localHeight, localHash)
 }
 
 func (bs *BlockSync) validateChunk() ([]*invalidMsg, error) {
@@ -341,12 +337,14 @@ func (bs *BlockSync) updateLatestCheckedState(height uint64, digest string) {
 func (bs *BlockSync) InitBlockSyncInfo(peers []string, latestBlockHash string, quorum, curHeight, targetHeight uint64,
 	quorumCheckpoint *consensus.SignedCheckpoint, epc ...*consensus.EpochChange) {
 	bs.peers = make([]*peer, len(peers))
+	bs.initPeers = make([]*peer, len(peers))
 	lo.ForEach(peers, func(p string, index int) {
 		bs.peers[index] = &peer{
 			peerID:       p,
 			timeoutCount: 0,
 		}
 	})
+	copy(bs.initPeers, bs.peers)
 	bs.quorum = quorum
 	bs.curHeight = curHeight
 	bs.targetHeight = targetHeight
@@ -371,9 +369,12 @@ func (bs *BlockSync) initChunk() {
 
 	// if we have epoch change, chunk size need smaller than epoch size
 	if len(bs.epochChanges) != 0 {
-		epochSize := bs.epochChanges[0].GetCheckpoint().Checkpoint.Height() - bs.curHeight + 1
-		if epochSize < chunkSize {
-			chunkSize = epochSize
+		latestEpoch := bs.epochChanges[0]
+		if latestEpoch != nil {
+			epochSize := latestEpoch.GetCheckpoint().Checkpoint.Height() - bs.curHeight + 1
+			if epochSize < chunkSize {
+				chunkSize = epochSize
+			}
 		}
 	}
 
@@ -442,7 +443,8 @@ func (bs *BlockSync) requestSyncState(height uint64, localHash string) error {
 	}
 
 	// 2. send sync state request to all validators asynchronously
-	lo.ForEach(bs.peers, func(p *peer, index int) {
+	// because peers num maybe too small to cannot reach quorum, so we use initPeers to send sync state
+	lo.ForEach(bs.initPeers, func(p *peer, index int) {
 		select {
 		case <-stateCtx.Done():
 			wp.Stop()
@@ -506,7 +508,7 @@ func (bs *BlockSync) requestSyncState(height uint64, localHash string) error {
 						}
 						return nil
 					}
-				}, strategy.Limit(10), strategy.Backoff(backoff.Fibonacci(500*time.Millisecond))); err != nil {
+				}, strategy.Backoff(backoff.Fibonacci(500*time.Millisecond))); err != nil {
 					bs.logger.Errorf("Retry send sync state request failed: %s", err)
 					return
 				}
@@ -518,9 +520,6 @@ func (bs *BlockSync) requestSyncState(height uint64, localHash string) error {
 		}
 	})
 
-	// 3. waiting for quorum response
-	ticker := time.NewTicker(bs.conf.WaitStateTimeout.ToDuration())
-	defer ticker.Stop()
 	for {
 		select {
 		case success := <-bs.quitStateCh:
@@ -528,9 +527,6 @@ func (bs *BlockSync) requestSyncState(height uint64, localHash string) error {
 				return fmt.Errorf("receive invalid state response: height:%d", height)
 			}
 			return nil
-
-		case <-ticker.C:
-			return fmt.Errorf("timeout send sync request: height:%d", height)
 		}
 	}
 }
@@ -631,7 +627,8 @@ func (bs *BlockSync) listenSyncBlockResponse() {
 				continue
 			}
 
-			if err := bs.addBlock(block, msg.From); err != nil {
+			err, updated := bs.addBlock(block, msg.From)
+			if err != nil {
 				bs.logger.WithFields(logrus.Fields{
 					"from": msg.From,
 					"err":  err,
@@ -639,14 +636,16 @@ func (bs *BlockSync) listenSyncBlockResponse() {
 				continue
 			}
 
-			if bs.collectChunkTaskDone() {
-				bs.logger.WithFields(logrus.Fields{
-					"latest block": block.Height(),
-					"hash":         block.Hash(),
-					"peer":         msg.From,
-				}).Debug("Receive chunk block success")
-				// send valid chunk task signal
-				bs.validChunkTaskCh <- struct{}{}
+			if updated {
+				if bs.collectChunkTaskDone() {
+					bs.logger.WithFields(logrus.Fields{
+						"latest block": block.Height(),
+						"hash":         block.Hash(),
+						"peer":         msg.From,
+					}).Debug("Receive chunk block success")
+					// send valid chunk task signal
+					bs.validChunkTaskCh <- struct{}{}
+				}
 			}
 		}
 	}
@@ -660,20 +659,23 @@ func (bs *BlockSync) verifyChunkCheckpoint(checkBlock *types.Block) error {
 	return nil
 }
 
-func (bs *BlockSync) addBlock(block *types.Block, from string) error {
+func (bs *BlockSync) addBlock(block *types.Block, from string) (error, bool) {
 	req := bs.getRequester(block.Height())
 	if req == nil {
-		return fmt.Errorf("requester[height:%d] is nil", block.Height())
+		return fmt.Errorf("requester[height:%d] is nil", block.Height()), false
 	}
 
 	if req.peerID != from {
-		return fmt.Errorf("receive block which not distribute requester, height:%d, "+
-			"receive from:%s, expect from:%s", block.Height(), from, req.peerID)
+		bs.logger.Warningf("receive block which not distribute requester, height:%d, "+
+			"receive from:%s, expect from:%s, we will ignore this block", block.Height(), from, req.peerID)
+		return nil, false
 	}
 
+	updated := false
 	if req.block == nil {
 		req.setBlock(block)
 		bs.increaseBlockSize()
+		updated = true
 	}
 	bs.logger.WithFields(logrus.Fields{
 		"height":    block.Height(),
@@ -681,7 +683,7 @@ func (bs *BlockSync) addBlock(block *types.Block, from string) error {
 		"add_block": block.BlockHash.String(),
 		"hash":      req.block.BlockHash.String(),
 	}).Debug("Receive block success")
-	return nil
+	return nil, updated
 }
 
 func (bs *BlockSync) collectChunkTaskDone() bool {
@@ -746,7 +748,8 @@ func (bs *BlockSync) handleSyncStateResp(msg *wrapperStateResp, diffState map[st
 			wrongPeers := lo.Values(diffState)
 			lo.ForEach(lo.Flatten(wrongPeers), func(peer string, _ int) {
 				if empty := bs.removePeer(peer); empty {
-					panic("available peer is empty")
+					bs.logger.Warning("available peer is empty, will reset the peers")
+					bs.resetPeers()
 				}
 			})
 		}
@@ -909,8 +912,8 @@ func (bs *BlockSync) addPeerTimeoutCount(peerID string) error {
 			p.timeoutCount++
 			if p.timeoutCount >= bs.conf.TimeoutCountLimit {
 				if empty := bs.removePeer(p.peerID); empty {
-					err = fmt.Errorf("remove peer[id:%s] err: available peer is empty", p.peerID)
-					bs.logger.Errorf(err.Error())
+					bs.logger.Warningf("remove peer[id:%s] err: available peer is empty, will reset peer", p.peerID)
+					bs.resetPeers()
 					return
 				}
 			}
@@ -938,7 +941,8 @@ func (bs *BlockSync) pickRandomPeer(exceptPeerId string) (string, error) {
 			return p.peerID != exceptPeerId
 		})
 		if len(newPeers) == 0 {
-			return "", fmt.Errorf("no peer except %s", exceptPeerId)
+			bs.resetPeers()
+			newPeers = bs.peers
 		}
 		return newPeers[rand.Intn(len(newPeers))].peerID, nil
 	}
@@ -960,6 +964,10 @@ func (bs *BlockSync) removePeer(peerId string) bool {
 
 	bs.peers = newPeers
 	return len(bs.peers) == 0
+}
+
+func (bs *BlockSync) resetPeers() {
+	bs.peers = bs.initPeers
 }
 
 func (bs *BlockSync) Stop() {

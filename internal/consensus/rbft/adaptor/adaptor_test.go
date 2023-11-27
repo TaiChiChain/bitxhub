@@ -42,6 +42,29 @@ func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
 	return stack
 }
 
+func mockAdaptorWithStorageType(ctrl *gomock.Controller, t *testing.T, typ string) *RBFTAdaptor {
+	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync)
+	assert.Nil(t, err)
+	logger := log.NewWithModule("consensus")
+	cfg := testutil.MockConsensusConfig(logger, ctrl, t)
+	cfg.ConsensusStorageType = typ
+	stack, err := NewRBFTAdaptor(cfg)
+	assert.Nil(t, err)
+
+	consensusMsgPipes := make(map[int32]network.Pipe, len(consensus.Type_name))
+	for id, name := range consensus.Type_name {
+		msgPipe, err := stack.config.Network.CreatePipe(context.Background(), "test_pipe_"+name)
+		assert.Nil(t, err)
+		consensusMsgPipes[id] = msgPipe
+	}
+	globalMsgPipe, err := stack.config.Network.CreatePipe(context.Background(), "test_pipe_global")
+	assert.Nil(t, err)
+	stack.SetMsgPipes(consensusMsgPipes, globalMsgPipe)
+	err = stack.UpdateEpoch()
+	assert.Nil(t, err)
+	return stack
+}
+
 func TestSignAndVerify(t *testing.T) {
 	ast := assert.New(t)
 	ctrl := gomock.NewController(t)
@@ -79,7 +102,7 @@ func TestExecute(t *testing.T) {
 	}
 
 	txs = append(txs, tx, tx)
-	adaptor.Execute(txs, []bool{true}, uint64(2), time.Now().UnixNano(), "")
+	adaptor.Execute(txs, []bool{true}, uint64(2), time.Now().UnixNano(), "", 0)
 	ready := <-adaptor.ReadyC
 	ast.Equal(uint64(2), ready.Height)
 }
@@ -101,7 +124,7 @@ func TestStateUpdate(t *testing.T) {
 			},
 		},
 	}
-	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), []*consensus.SignedCheckpoint{quorumCkpt}, nil)
+	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), []*consensus.SignedCheckpoint{quorumCkpt})
 
 	targetB := <-adaptor.BlockC
 	ast.Equal(uint64(2), targetB.Block.BlockHeader.Number)
@@ -137,7 +160,7 @@ func TestStateUpdate(t *testing.T) {
 		adaptor.Cancel()
 		time.Sleep(100 * time.Millisecond)
 		adaptor.StateUpdate(0, block5.BlockHeader.Number, block5.BlockHash.String(),
-			[]*consensus.SignedCheckpoint{signCkp}, nil)
+			[]*consensus.SignedCheckpoint{signCkp})
 	})
 }
 
@@ -301,4 +324,19 @@ func TestRBFTAdaptor_PostCommitEvent(t *testing.T) {
 	})
 	commitEvent := <-commitC
 	ast.Equal(uint64(1), commitEvent.Block.BlockHeader.Number)
+}
+
+func TestLedger(t *testing.T) {
+	ast := assert.New(t)
+	ctrl := gomock.NewController(t)
+
+	testutil.ResetMockBlockLedger()
+	testutil.SetMockBlockLedger(testutil.ConstructBlock("block1", uint64(1)), true)
+	adaptor := mockAdaptor(ctrl, t)
+	meta, err := adaptor.GetBlockMeta(1)
+	ast.Nil(err)
+	ast.NotNil(meta)
+
+	_, err = adaptor.GetBlockMeta(2)
+	ast.Error(err)
 }

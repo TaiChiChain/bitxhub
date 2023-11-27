@@ -12,11 +12,11 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -166,7 +166,7 @@ func (api *TransactionAPI) GetTransactionByHash(hash common.Hash) (ret *rpctypes
 
 	typesHash := types.NewHash(hash.Bytes())
 	tx, err := api.api.Broker().GetTransaction(typesHash)
-	if err != nil && err != storage.ErrorNotFound {
+	if err != nil && !errors.Is(err, ledger.ErrNotFound) {
 		return nil, err
 	}
 	if tx != nil {
@@ -337,6 +337,9 @@ func getTxByBlockInfoAndIndex(api api.CoreAPI, mode string, key string, idx hexu
 
 	meta, err := api.Broker().GetTransactionMeta(tx.GetHash())
 	if err != nil {
+		if errors.Is(err, ledger.ErrNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 

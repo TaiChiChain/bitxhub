@@ -2,28 +2,34 @@ package repo
 
 import (
 	"fmt"
+	"os"
+	"path"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	"os"
-	"path"
 )
 
 type GenesisConfig struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
-	GasPrice               uint64          `mapstructure:"gas_price" toml:"gas_price"`
 	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
 	Accounts               []string        `mapstructure:"accounts" toml:"accounts"`
 	EpochInfo              *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
+	NodeNames              []*NodeName     `mapstructure:"node_names" toml:"node_names"`
 }
 
 type Admin struct {
 	Address string `mapstructure:"address" toml:"address"`
 	Weight  uint64 `mapstructure:"weight" toml:"weight"`
 	Name    string `mapstructure:"name" toml:"name"`
+}
+
+type NodeName struct {
+	ID   uint64 `mapstructure:"id" toml:"id"`
+	Name string `mapstructure:"name" toml:"name"`
 }
 
 func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
@@ -66,26 +72,29 @@ func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 			return fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", 4001+idx, item)
 		}),
 		ConsensusParams: rbft.ConsensusParams{
-			ProposerElectionType:                 rbft.ProposerElectionTypeWRF,
-			ValidatorElectionType:                rbft.ValidatorElectionTypeWRF,
-			CheckpointPeriod:                     1,
-			HighWatermarkCheckpointPeriod:        10,
-			MaxValidatorNum:                      4,
-			BlockMaxTxNum:                        500,
-			EnableTimedGenEmptyBlock:             false,
-			NotActiveWeight:                      1,
-			AbnormalNodeExcludeView:              10,
-			AgainProposeIntervalBlock:            0,
-			ContinuousNullRequestToleranceNumber: 3,
+			ProposerElectionType:          rbft.ProposerElectionTypeWRF,
+			ValidatorElectionType:         rbft.ValidatorElectionTypeWRF,
+			CheckpointPeriod:              1,
+			HighWatermarkCheckpointPeriod: 10,
+			MaxValidatorNum:               4,
+			BlockMaxTxNum:                 500,
+			EnableTimedGenEmptyBlock:      false,
+			NotActiveWeight:               1,
+			AbnormalNodeExcludeView:       10,
+			AgainProposeIntervalBlockInValidatorsNumPercentage: 30,
+			ContinuousNullRequestToleranceNumber:               3,
+			ReBroadcastToleranceNumber:                         2,
 		},
 		CandidateSet: candidateSet,
 		ValidatorSet: validatorSet,
 		FinanceParams: rbft.FinanceParams{
-			GasLimit:              0x5f5e100,
-			MaxGasPrice:           10000000000000,
-			MinGasPrice:           1000000000000,
-			GasChangeRateValue:    1250,
-			GasChangeRateDecimals: 4,
+			GasLimit:               0x5f5e100,
+			StartGasPriceAvailable: true,
+			StartGasPrice:          5000000000000,
+			MaxGasPrice:            10000000000000,
+			MinGasPrice:            1000000000000,
+			GasChangeRateValue:     1250,
+			GasChangeRateDecimals:  4,
 		},
 		MiscParams: rbft.MiscParams{
 			TxMaxSize: DefaultTxMaxSize,
@@ -98,16 +107,16 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 		return testNetGenesisBuilder()
 	}
 	return &GenesisConfig{
-		ChainID:  1356,
-		GasPrice: 5000000000000,
-		Balance:  "1000000000000000000000000000",
+		ChainID: 1356,
+		Balance: "1000000000000000000000000000",
 		Admins: lo.Map(DefaultNodeAddrs[0:4], func(item string, idx int) *Admin {
 			return &Admin{
 				Address: item,
 				Weight:  1,
-				Name:    DefaultNodeNames[idx],
+				Name:    DefaultAdminNames[idx],
 			}
 		}),
+		NodeNames:              GenesisNodeNameInfo(epochEnable),
 		InitWhiteListProviders: DefaultNodeAddrs,
 		Accounts: []string{
 			"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -164,4 +173,21 @@ func LoadGenesisConfig(repoRoot string) (*GenesisConfig, error) {
 		return nil, errors.Wrap(err, "failed to load genesis config")
 	}
 	return genesis, nil
+}
+
+func GenesisNodeNameInfo(epochEnable bool) []*NodeName {
+	var nodes []*NodeName
+	var sliceLength int
+	if epochEnable {
+		sliceLength = len(DefaultNodeAddrs)
+	} else {
+		sliceLength = 4
+	}
+	nodes = lo.Map(DefaultNodeAddrs[:sliceLength], func(item string, idx int) *NodeName {
+		return &NodeName{
+			Name: DefaultNodeNames[idx],
+			ID:   uint64(idx + 1),
+		}
+	})
+	return nodes
 }

@@ -1,0 +1,293 @@
+package txpool
+
+import (
+	"sync"
+	"time"
+
+	"github.com/google/btree"
+	"github.com/sirupsen/logrus"
+
+	"github.com/axiomesh/axiom-kit/txpool"
+	"github.com/axiomesh/axiom-kit/types"
+)
+
+type transactionStore[T any, Constraint types.TXConstraint[T]] struct {
+	logger logrus.FieldLogger
+
+	// track all valid tx hashes cached in txpool
+	txHashMap map[string]*txPointer
+
+	// track all valid tx, mapping user' account to all related transactions.
+	allTxs map[string]*txSortedMap[T, Constraint]
+
+	// track the commit nonce and pending nonce of each account.
+	nonceCache *nonceCache
+
+	// keeps track of "non-ready" txs (txs that can't be included in next block)
+	// only used to help remove some txs if pool is full.
+	parkingLotIndex *btreeIndex[T, Constraint]
+
+	// keeps track of "ready" txs
+	priorityIndex *btreeIndex[T, Constraint]
+
+	// cache all the batched txs which haven't executed.
+	batchedTxs map[txPointer]bool
+
+	// cache all batches created by current primary in order, removed after they are been executed.
+	batchesCache map[string]*txpool.RequestHashBatch[T, Constraint]
+
+	// trace the missing transaction
+	missingBatch map[string]map[uint64]string
+
+	// track the non-batch priority transaction.
+	priorityNonBatchSize uint64
+
+	// localTTLIndex based on the tolerance time to track all the remained txs
+	// that generate by itself and rebroadcast to other vps.
+	localTTLIndex *btreeIndex[T, Constraint]
+
+	// removeTTLIndex based on the remove tolerance time to track all the remained txs
+	// that arrived in txpool and remove these txs from memPoll cache in case these exist too long.
+	removeTTLIndex *btreeIndex[T, Constraint]
+}
+
+func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNonceFunc, logger logrus.FieldLogger) *transactionStore[T, Constraint] {
+	return &transactionStore[T, Constraint]{
+		logger:               logger,
+		priorityNonBatchSize: 0,
+		txHashMap:            make(map[string]*txPointer),
+		allTxs:               make(map[string]*txSortedMap[T, Constraint]),
+		batchedTxs:           make(map[txPointer]bool),
+		missingBatch:         make(map[string]map[uint64]string),
+		batchesCache:         make(map[string]*txpool.RequestHashBatch[T, Constraint]),
+		parkingLotIndex:      newBtreeIndex[T, Constraint](Ordered),
+		priorityIndex:        newBtreeIndex[T, Constraint](Ordered),
+		localTTLIndex:        newBtreeIndex[T, Constraint](Rebroadcast),
+		removeTTLIndex:       newBtreeIndex[T, Constraint](Remove),
+		nonceCache:           newNonceCache(f),
+	}
+}
+
+func (txStore *transactionStore[T, Constraint]) insertPoolTxPointer(txHash string, pointer *txPointer) {
+	if _, ok := txStore.txHashMap[txHash]; !ok {
+		txStore.txHashMap[txHash] = pointer
+		poolTxNum.WithLabelValues("txHash").Inc()
+		return
+	}
+	txStore.logger.Warningf("tx %s already exists in txpool", txHash)
+}
+
+func (txStore *transactionStore[T, Constraint]) deletePoolTxPointer(txHash string) {
+	if _, ok := txStore.txHashMap[txHash]; ok {
+		delete(txStore.txHashMap, txHash)
+		poolTxNum.WithLabelValues("txHash").Dec()
+	}
+}
+
+func (txStore *transactionStore[T, Constraint]) insertPoolTx(account string, txItem *internalTransaction[T, Constraint]) {
+	txList, ok := txStore.allTxs[account]
+	if !ok {
+		// if this is new account to send tx, create a new txSortedMap
+		txStore.allTxs[account] = newTxSortedMap[T, Constraint]()
+	}
+	txList = txStore.allTxs[account]
+	if txList.items[txItem.getNonce()] == nil {
+		poolTxNum.WithLabelValues("tx").Inc()
+	} else {
+		txStore.logger.Warningf("old tx will be replaced[account: %s, nonce: %d]", account, txItem.getNonce())
+	}
+	txList.items[txItem.getNonce()] = txItem
+	txList.index.insertBySortedNonceKey(txItem.getNonce())
+	// if the account is empty, we need to set the empty flag to false because we insert a new tx
+	if txList.isEmpty() {
+		txList.setNotEmpty()
+	}
+}
+
+func (txStore *transactionStore[T, Constraint]) insertTxs(txItems map[string][]*internalTransaction[T, Constraint], isLocal bool) map[string]bool {
+	dirtyAccounts := make(map[string]bool)
+	for account, list := range txItems {
+		for _, txItem := range list {
+			txHash := txItem.getHash()
+			pointer := &txPointer{
+				account: account,
+				nonce:   txItem.getNonce(),
+			}
+			txStore.insertPoolTxPointer(txHash, pointer)
+			txStore.insertPoolTx(account, txItem)
+			if isLocal {
+				txStore.localTTLIndex.insertByOrderedQueueKey(txItem)
+			}
+			// record the tx arrived timestamp
+			txStore.removeTTLIndex.insertByOrderedQueueKey(txItem)
+		}
+		dirtyAccounts[account] = true
+	}
+	return dirtyAccounts
+}
+
+// getPoolTxByTxnPointer gets transaction by account address + nonce
+func (txStore *transactionStore[T, Constraint]) getPoolTxByTxnPointer(account string, nonce uint64) *internalTransaction[T, Constraint] {
+	if list, ok := txStore.allTxs[account]; ok {
+		return list.items[nonce]
+	}
+	return nil
+}
+
+// todo: gc the empty account in txpool(delete key)
+type txSortedMap[T any, Constraint types.TXConstraint[T]] struct {
+	items     map[uint64]*internalTransaction[T, Constraint] // map nonce to transaction
+	index     *btreeIndex[T, Constraint]                     // index for items' nonce
+	empty     bool                                           // whether the account is empty in pool
+	emptyTime int64                                          // the latest timestamp when the account is empty
+}
+
+func newTxSortedMap[T any, Constraint types.TXConstraint[T]]() *txSortedMap[T, Constraint] {
+	return &txSortedMap[T, Constraint]{
+		items: make(map[uint64]*internalTransaction[T, Constraint]),
+		index: newBtreeIndex[T, Constraint](SortNonce),
+	}
+}
+
+func (m *txSortedMap[T, Constraint]) setEmpty() {
+	m.empty = true
+	m.emptyTime = time.Now().UnixNano()
+}
+
+func (m *txSortedMap[T, Constraint]) getEmptyTime() int64 {
+	return m.emptyTime
+}
+
+func (m *txSortedMap[T, Constraint]) setNotEmpty() {
+	m.empty = false
+}
+
+func (m *txSortedMap[T, Constraint]) isEmpty() bool {
+	return m.empty
+}
+
+func (m *txSortedMap[T, Constraint]) checkIfGc(now, cleanTimeout int64) bool {
+	return m.isEmpty() && now-m.getEmptyTime() > cleanTimeout
+}
+
+func (m *txSortedMap[T, Constraint]) filterReady(demandNonce uint64) ([]*internalTransaction[T, Constraint], []*internalTransaction[T, Constraint], uint64) {
+	var readyTxs, nonReadyTxs []*internalTransaction[T, Constraint]
+	if m.index.data.Len() == 0 {
+		return nil, nil, demandNonce
+	}
+	demandKey := makeSortedNonceKey(demandNonce)
+	m.index.data.AscendGreaterOrEqual(demandKey, func(i btree.Item) bool {
+		nonce := i.(*sortedNonceKey).nonce
+		if nonce == demandNonce {
+			readyTxs = append(readyTxs, m.items[demandNonce])
+			demandNonce++
+		} else {
+			nonReadyTxs = append(nonReadyTxs, m.items[nonce])
+		}
+		return true
+	})
+
+	return readyTxs, nonReadyTxs, demandNonce
+}
+
+// forward removes all allTxs from the map with a nonce lower than the
+// provided commitNonce.
+func (m *txSortedMap[T, Constraint]) forward(commitNonce uint64) []*internalTransaction[T, Constraint] {
+	removedTxs := make([]*internalTransaction[T, Constraint], 0)
+	commitNonceKey := makeSortedNonceKey(commitNonce)
+	m.index.data.AscendLessThan(commitNonceKey, func(i btree.Item) bool {
+		// delete tx from map.
+		nonce := i.(*sortedNonceKey).nonce
+		txItem := m.items[nonce]
+		removedTxs = append(removedTxs, txItem)
+		delete(m.items, nonce)
+		return true
+	})
+	return removedTxs
+}
+
+func (m *txSortedMap[T, Constraint]) behind(highestNonce uint64) []*internalTransaction[T, Constraint] {
+	removedTxs := make([]*internalTransaction[T, Constraint], 0)
+	highestNonceKey := makeSortedNonceKey(highestNonce)
+	m.index.data.AscendGreaterOrEqual(highestNonceKey, func(i btree.Item) bool {
+		// delete tx from map.
+		nonce := i.(*sortedNonceKey).nonce
+		txItem := m.items[nonce]
+		removedTxs = append(removedTxs, txItem)
+		delete(m.items, nonce)
+		return true
+	})
+	return removedTxs
+}
+
+type nonceCache struct {
+	// commitNonces records each account's latest committed nonce in ledger.
+	commitNonces map[string]uint64
+
+	// pendingNonces records each account's latest nonce which has been included in
+	// priority queue. Invariant: pendingNonces[account] >= commitNonces[account]
+	pendingNonces map[string]uint64
+
+	pendingMu       sync.RWMutex
+	commitMu        sync.Mutex
+	getAccountNonce GetAccountNonceFunc
+}
+
+func newNonceCache(f GetAccountNonceFunc) *nonceCache {
+	return &nonceCache{
+		commitNonces:    make(map[string]uint64),
+		pendingNonces:   make(map[string]uint64),
+		getAccountNonce: f,
+	}
+}
+
+func (nc *nonceCache) getCommitNonce(account string) uint64 {
+	nc.commitMu.Lock()
+	defer nc.commitMu.Unlock()
+
+	nonce, ok := nc.commitNonces[account]
+	if !ok {
+		cn := nc.getAccountNonce(account)
+		nc.commitNonces[account] = cn
+		return cn
+	}
+	return nonce
+}
+
+func (nc *nonceCache) setCommitNonce(account string, nonce uint64) {
+	nc.commitNonces[account] = nonce
+}
+
+func (nc *nonceCache) getPendingNonce(account string) uint64 {
+	nc.pendingMu.RLock()
+	defer nc.pendingMu.RUnlock()
+	nonce, ok := nc.pendingNonces[account]
+	if !ok {
+		// if nonce is unknown, check if there is committed nonce persisted in db
+		// cause there are no pending txs in txpool now, pending nonce is equal to committed nonce
+		return nc.getCommitNonce(account)
+	}
+	return nonce
+}
+
+func (nc *nonceCache) setPendingNonce(account string, nonce uint64) {
+	nc.pendingMu.Lock()
+	nc.pendingNonces[account] = nonce
+	nc.pendingMu.Unlock()
+}
+
+func (tx *internalTransaction[T, Constraint]) getRawTimestamp() int64 {
+	return Constraint(tx.rawTx).RbftGetTimeStamp()
+}
+
+func (tx *internalTransaction[T, Constraint]) getAccount() string {
+	return Constraint(tx.rawTx).RbftGetFrom()
+}
+
+func (tx *internalTransaction[T, Constraint]) getNonce() uint64 {
+	return Constraint(tx.rawTx).RbftGetNonce()
+}
+
+func (tx *internalTransaction[T, Constraint]) getHash() string {
+	return Constraint(tx.rawTx).RbftGetTxHash()
+}

@@ -17,6 +17,8 @@ coverage.out
 pid
 scripts/prepare
 logs
+integration
+profile.txt
 
 .fabric-samples
 coverage.txt

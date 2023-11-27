@@ -23,19 +23,11 @@ func (bnh *BlockNumberOrHash) UnmarshalJSON(data []byte) error {
 	e := erased{}
 	err := json.Unmarshal(data, &e)
 	if err == nil {
-		if e.BlockNumber == nil && e.BlockHash != nil {
-			return errors.New("only support blockNumber")
-		}
-		if e.BlockNumber != nil && *e.BlockNumber != LatestBlockNumber && *e.BlockNumber != PendingBlockNumber {
-			return errors.New("only support latest and pending")
+		if e.BlockNumber != nil && e.BlockHash != nil {
+			return errors.New("cannot specify both BlockHash and BlockNumber, choose one or the other")
 		}
 		bnh.BlockNumber = e.BlockNumber
-
-		/*if e.BlockNumber != nil && e.BlockHash != nil {
-			return fmt.Errorf("cannot specify both BlockHash and BlockNumber, choose one or the other")
-		}
-		bnh.BlockNumber = e.BlockNumber
-		bnh.BlockHash = e.BlockHash*/
+		bnh.BlockHash = e.BlockHash
 		return nil
 	}
 	var input string
@@ -44,11 +36,11 @@ func (bnh *BlockNumberOrHash) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	switch input {
-	// case "earliest":
-	// 	bn := EarliestBlockNumber
-	// 	bnh.BlockNumber = &bn
-	// 	return nil
-	case "latest":
+	case "earliest":
+		bn := EarliestBlockNumber
+		bnh.BlockNumber = &bn
+		return nil
+	case "latest", "safe", "finalized":
 		bn := LatestBlockNumber
 		bnh.BlockNumber = &bn
 		return nil
@@ -57,32 +49,26 @@ func (bnh *BlockNumberOrHash) UnmarshalJSON(data []byte) error {
 		bnh.BlockNumber = &bn
 		return nil
 	default:
-		// todo Default to use the LatestBlockNumber
-		//	   Improved after modifying the accounting module
-		bn := LatestBlockNumber
-		bnh.BlockNumber = &bn
-		return nil
-
-		// if len(input) == 66 {
-		// 	hash := common.Hash{}
-		// 	err := hash.UnmarshalText([]byte(input))
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	bnh.BlockHash = &hash
-		// 	return nil
-		// } else {
-		// 	blckNum, err := hexutil.DecodeUint64(input)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	if blckNum > math.MaxInt64 {
-		// 		return fmt.Errorf("blocknumber too high")
-		// 	}
-		// 	bn := BlockNumber(blckNum)
-		// 	bnh.BlockNumber = &bn
-		// 	return nil
-		// }
+		if len(input) == 66 {
+			hash := common.Hash{}
+			err := hash.UnmarshalText([]byte(input))
+			if err != nil {
+				return err
+			}
+			bnh.BlockHash = &hash
+			return nil
+		} else {
+			blckNum, err := hexutil.DecodeUint64(input)
+			if err != nil {
+				return err
+			}
+			if blckNum > math.MaxInt64 {
+				return errors.New("blocknumber too high")
+			}
+			bn := BlockNumber(blckNum)
+			bnh.BlockNumber = &bn
+			return nil
+		}
 	}
 }
 
@@ -90,7 +76,7 @@ func (bnh *BlockNumberOrHash) Number() (BlockNumber, bool) {
 	if bnh.BlockNumber != nil {
 		return *bnh.BlockNumber, true
 	}
-	return BlockNumber(0), false
+	return BlockNumber(1), false
 }
 
 func (bnh *BlockNumberOrHash) String() string {
@@ -159,7 +145,7 @@ func (bn *BlockNumber) UnmarshalJSON(data []byte) error {
 	case "earliest":
 		*bn = EarliestBlockNumber
 		return nil
-	case "latest":
+	case "latest", "safe", "finalized":
 		*bn = LatestBlockNumber
 		return nil
 	case "pending":

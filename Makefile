@@ -41,6 +41,8 @@ endif
 
 
 COVERAGE_TEST_PKGS := $(shell ${GO_BIN} list ./... | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd'| grep -v 'api')
+INTEGRATION_COVERAGE_TEST_PKGS :=$(shell ${GO_BIN} list -f '{{if not .Standard}}{{.ImportPath}}{{end}}' -deps ./... |grep -E 'github.com/axiomesh/axiom-ledger|github.com/axiomesh/axiom-bft|github.com/axiomesh/axiom-kit|github.com/axiomesh/axiom-p2p|github.com/axiomesh/eth-kit' | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd'| paste -sd ",")
+INTEGRATION_COVERAGE_DIR = $(CURRENT_PATH)/integration
 
 RED=\033[0;31m
 GREEN=\033[0;32m
@@ -57,6 +59,10 @@ prepare:
 	${GO_BIN} install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.3
 	${GO_BIN} install github.com/fsgo/go_fmt/cmd/gorgeous@latest
 
+## make generate-mock: Run go generate
+generate-mock:
+	${GO_BIN} generate ./...
+
 ## make linter: Run golanci-lint
 linter:
 	golangci-lint run --timeout=5m --new-from-rev=HEAD~1 -v
@@ -66,19 +72,27 @@ fmt:
 	gorgeous -local github.com/axiomesh -mi
 
 ## make test: Run go unittest
-test: prepare
-	${GO_BIN} generate ./...
+test:
 	${GO_BIN} test -timeout 300s ./... -count=1
 
 ## make test-coverage: Test project with cover
-test-coverage: prepare
-	${GO_BIN} generate ./...
+test-coverage:
 	${GO_BIN} test -timeout 300s -short -coverprofile cover.out -covermode=atomic ${COVERAGE_TEST_PKGS}
 	cat cover.out | grep -v "pb.go" >> coverage.txt
 
 ## make smoke-test: Run smoke test
-smoke-test: prepare
-	cd scripts && bash smoke_test.sh -b ${BRANCH}
+smoke-test:
+	@mkdir -p ${INTEGRATION_COVERAGE_DIR}
+	cd scripts && bash smoke_test.sh -b ${BRANCH} -i ${INTEGRATION_COVERAGE_DIR}
+	${GO_BIN} tool covdata textfmt -i=${INTEGRATION_COVERAGE_DIR} -pkg=${INTEGRATION_COVERAGE_TEST_PKGS} -o=profile.txt
+	${GO_BIN} tool cover -func=profile.txt
+
+## make build-coverage: Go build the project for integration test
+build-coverage:
+	@mkdir -p bin
+	${GO_BIN} build -cover -ldflags '${GOLDFLAGS}' ./cmd/${APP_NAME}
+	@cp -f ./${APP_NAME} bin
+	@printf "${GREEN}Build ${APP_NAME} successfully!${NC}\n"
 
 ## make build: Go build the project
 build:

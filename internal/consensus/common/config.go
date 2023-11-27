@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/network"
@@ -21,11 +22,13 @@ type Config struct {
 	Config                                      *repo.ConsensusConfig
 	Logger                                      logrus.FieldLogger
 	ConsensusType                               string
+	ConsensusStorageType                        string
 	PrivKey                                     *ecdsa.PrivateKey
 	SelfAccountAddress                          string
 	GenesisEpochInfo                            *rbft.EpochInfo
 	Network                                     network.Network
 	BlockSync                                   block_sync.Sync
+	TxPool                                      txpool.TxPool[types.Transaction, *types.Transaction]
 	Applied                                     uint64
 	Digest                                      string
 	GenesisDigest                               string
@@ -46,6 +49,12 @@ func WithConfig(repoRoot string, cfg *repo.ConsensusConfig) Option {
 	}
 }
 
+func WithTxPool(tp txpool.TxPool[types.Transaction, *types.Transaction]) Option {
+	return func(config *Config) {
+		config.TxPool = tp
+	}
+}
+
 func WithGenesisEpochInfo(genesisEpochInfo *rbft.EpochInfo) Option {
 	return func(config *Config) {
 		config.GenesisEpochInfo = genesisEpochInfo
@@ -55,6 +64,12 @@ func WithGenesisEpochInfo(genesisEpochInfo *rbft.EpochInfo) Option {
 func WithConsensusType(typ string) Option {
 	return func(config *Config) {
 		config.ConsensusType = typ
+	}
+}
+
+func WithConsensusStorageType(consensusStorageType string) Option {
+	return func(config *Config) {
+		config.ConsensusStorageType = consensusStorageType
 	}
 }
 

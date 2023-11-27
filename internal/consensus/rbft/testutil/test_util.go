@@ -18,6 +18,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/block_sync/mock_block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -88,7 +89,7 @@ func MockMiniNetwork(ctrl *gomock.Controller, selfAddr string) *mock_network.Moc
 
 	N := 3
 	f := (N - 1) / 3
-	mock.EXPECT().CountConnectedPeers().Return(uint64((N + f + 2) / 2)).AnyTimes()
+	mock.EXPECT().CountConnectedValidators().Return(uint64((N + f + 2) / 2)).AnyTimes()
 	mock.EXPECT().PeerID().Return(selfAddr).AnyTimes()
 	return mock
 }
@@ -121,15 +122,16 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 
 	genesisEpochInfo := repo.GenesisEpochInfo(false)
 	conf := &common.Config{
-		RepoRoot:           t.TempDir(),
-		Config:             repo.DefaultConsensusConfig(),
-		Logger:             logger,
-		ConsensusType:      "",
-		PrivKey:            s.Sk,
-		SelfAccountAddress: crypto.PubkeyToAddress(s.Sk.PublicKey).String(),
-		GenesisEpochInfo:   genesisEpochInfo,
-		Applied:            0,
-		Digest:             "",
+		RepoRoot:             t.TempDir(),
+		Config:               repo.DefaultConsensusConfig(),
+		Logger:               logger,
+		ConsensusType:        "",
+		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
+		PrivKey:              s.Sk,
+		SelfAccountAddress:   crypto.PubkeyToAddress(s.Sk.PublicKey).String(),
+		GenesisEpochInfo:     genesisEpochInfo,
+		Applied:              0,
+		Digest:               "",
 		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*rbft.EpochInfo, error) {
 			return genesisEpochInfo, nil
 		},
@@ -154,6 +156,9 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 
 	mockBlockSync := MockMiniBlockSync(ctrl)
 	conf.BlockSync = mockBlockSync
+
+	mockTxpool := mock_txpool.NewMockTxPool[types.Transaction, *types.Transaction](ctrl)
+	conf.TxPool = mockTxpool
 
 	return conf
 }

@@ -60,12 +60,12 @@ func TestContractInitGenesisData(t *testing.T) {
 		StateLedger: stateLedger,
 	}
 
-	genesis := repo.DefaultConfig(false)
+	genesis := repo.DefaultGenesisConfig(false)
 
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.NodeManagerContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitGenesisData(&genesis.Genesis, mockLedger.StateLedger)
+	err := InitGenesisData(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)
 }

@@ -29,11 +29,11 @@ type TimedGenBlock struct {
 }
 
 type TxPool struct {
-	PoolSize            uint64   `mapstructure:"pool_size" toml:"pool_size"`
-	BatchTimeout        Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
-	ToleranceTime       Duration `mapstructure:"tolerance_time" toml:"tolerance_time"`
-	ToleranceRemoveTime Duration `mapstructure:"tolerance_remove_time" toml:"tolerance_remove_time"`
-	ToleranceNonceGap   uint64   `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
+	PoolSize              uint64   `mapstructure:"pool_size" toml:"pool_size"`
+	ToleranceTime         Duration `mapstructure:"tolerance_time" toml:"tolerance_time"`
+	ToleranceRemoveTime   Duration `mapstructure:"tolerance_remove_time" toml:"tolerance_remove_time"`
+	CleanEmptyAccountTime Duration `mapstructure:"clean_empty_account_time" toml:"clean_empty_account_time"`
+	ToleranceNonceGap     uint64   `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
 }
 
 type TxCache struct {
@@ -58,10 +58,12 @@ type RBFTTimeout struct {
 	SyncStateRestart Duration `mapstructure:"sync_state_restart" toml:"sync_state_restart"`
 	FetchCheckpoint  Duration `mapstructure:"fetch_checkpoint" toml:"fetch_checkpoint"`
 	FetchView        Duration `mapstructure:"fetch_view" toml:"fetch_view"`
+	BatchTimeout     Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
 }
 
 type Solo struct {
-	CheckpointPeriod uint64 `mapstructure:"checkpoint_period" toml:"checkpoint_period"`
+	BatchTimeout     Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
+	CheckpointPeriod uint64   `mapstructure:"checkpoint_period" toml:"checkpoint_period"`
 }
 
 func DefaultConsensusConfig() *ConsensusConfig {
@@ -80,11 +82,11 @@ func DefaultConsensusConfig() *ConsensusConfig {
 			Burst:  10000,
 		},
 		TxPool: TxPool{
-			PoolSize:            50000,
-			BatchTimeout:        Duration(500 * time.Millisecond),
-			ToleranceTime:       Duration(5 * time.Minute),
-			ToleranceRemoveTime: Duration(15 * time.Minute),
-			ToleranceNonceGap:   1000,
+			PoolSize:              50000,
+			ToleranceTime:         Duration(5 * time.Minute),
+			ToleranceRemoveTime:   Duration(15 * time.Minute),
+			CleanEmptyAccountTime: Duration(10 * time.Minute),
+			ToleranceNonceGap:     1000,
 		},
 		TxCache: TxCache{
 			SetSize:    50,
@@ -104,9 +106,11 @@ func DefaultConsensusConfig() *ConsensusConfig {
 				SyncStateRestart: Duration(10 * time.Minute),
 				FetchCheckpoint:  Duration(5 * time.Second),
 				FetchView:        Duration(1 * time.Second),
+				BatchTimeout:     Duration(500 * time.Millisecond),
 			},
 		},
 		Solo: Solo{
+			BatchTimeout:     Duration(500 * time.Millisecond),
 			CheckpointPeriod: 10,
 		},
 	}

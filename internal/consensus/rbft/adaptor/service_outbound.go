@@ -16,13 +16,14 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
-func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerAccount string) {
+func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerAccount string, proposerNodeID uint64) {
 	a.ReadyC <- &Ready{
 		Txs:             requests,
 		LocalList:       localList,
 		Height:          seqNo,
 		Timestamp:       timestamp,
 		ProposerAccount: proposerAccount,
+		ProposerNodeID:  proposerNodeID,
 	}
 }
 
@@ -51,6 +52,14 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	startHeight := chain.Height + 1
 	latestBlockHash := chain.BlockHash.String()
 
+	// if we had already persist last block of min epoch, dismiss the min epoch
+	if len(epochChanges) != 0 {
+		minEpoch := epochChanges[0]
+		if minEpoch != nil && minEpoch.Checkpoint.Height() < startHeight {
+			epochChanges = epochChanges[1:]
+		}
+	}
+
 	if chain.Height >= seqNo {
 		localBlock, err := a.getBlockFunc(seqNo)
 		if err != nil {
@@ -66,13 +75,17 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			startHeight = lowWatermark + 1
 			latestBlockHash = localBlock.BlockHash.String()
 		} else {
-			txHashList := make([]*types.Hash, len(localBlock.Transactions))
+			txPointerList := make([]*events.TxPointer, len(localBlock.Transactions))
 			lo.ForEach(localBlock.Transactions, func(tx *types.Transaction, index int) {
-				txHashList[index] = tx.GetHash()
+				txPointerList[index] = &events.TxPointer{
+					Hash:    tx.GetHash(),
+					Account: tx.RbftGetFrom(),
+					Nonce:   tx.RbftGetNonce(),
+				}
 			})
 
 			// notify rbft report State Updated
-			a.postMockBlockEvent(localBlock, txHashList, checkpoints[0].GetCheckpoint())
+			a.postMockBlockEvent(localBlock, txPointerList, checkpoints[0].GetCheckpoint())
 			a.logger.WithFields(logrus.Fields{
 				"remote": digest,
 				"local":  localBlock.BlockHash.String(),
@@ -90,6 +103,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		"target":      a.StateUpdateHeight,
 		"target_hash": digest,
 		"start":       startHeight,
+		"epochChange": epochChanges,
 	}).Info("State update start")
 
 	if err := retry.Retry(func(attempt uint) error {
@@ -166,10 +180,10 @@ func (a *RBFTAdaptor) GetCommitChannel() chan *common.CommitEvent {
 	return a.BlockC
 }
 
-func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*types.Hash, ckp *consensus.Checkpoint) {
+func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *consensus.Checkpoint) {
 	a.MockBlockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
-		TxHashList:             txHashList,
+		TxPointerList:          txHashList,
 		StateUpdatedCheckpoint: ckp,
 	})
 }

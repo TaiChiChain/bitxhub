@@ -40,18 +40,18 @@ var (
 		Help:      "The size of flush dirty state into db",
 	})
 
-	accountCacheHitCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	accountCacheHitCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
-		Name:      "account_cache_hit_counter",
-		Help:      "The total number of account cache hit",
+		Name:      "account_cache_hit_counter_per_block",
+		Help:      "The total number of account cache hit per block",
 	})
 
-	accountCacheMissCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	accountCacheMissCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
-		Name:      "account_cache_miss_counter",
-		Help:      "The total number of account cache miss",
+		Name:      "account_cache_miss_counter_per_block",
+		Help:      "The total number of account cache miss per block",
 	})
 
 	accountReadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -83,8 +83,8 @@ func init() {
 	prometheus.MustRegister(persistBlockDuration)
 	prometheus.MustRegister(blockHeightMetric)
 	prometheus.MustRegister(flushDirtyWorldStateDuration)
-	prometheus.MustRegister(accountCacheHitCounter)
-	prometheus.MustRegister(accountCacheMissCounter)
+	prometheus.MustRegister(accountCacheHitCounterPerBlock)
+	prometheus.MustRegister(accountCacheMissCounterPerBlock)
 	prometheus.MustRegister(accountReadDuration)
 	prometheus.MustRegister(stateReadDuration)
 	prometheus.MustRegister(accountFlushSize)

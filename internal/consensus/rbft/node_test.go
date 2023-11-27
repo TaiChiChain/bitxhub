@@ -14,7 +14,6 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
-	"github.com/axiomesh/axiom-bft/txpool"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
@@ -51,7 +50,7 @@ func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 
 	mockPrecheckMgr := mock_precheck.NewMockMinPreCheck(ctrl, validTxsCh)
 
-	_, _, err = generateRbftConfig(consensusConf)
+	_, err = generateRbftConfig(consensusConf)
 	assert.Nil(t, err)
 	node := &Node{
 		config:     consensusConf,
@@ -97,15 +96,16 @@ func TestNewNode(t *testing.T) {
 		EVMConfig: repo.EVM{
 			DisableMaxCodeSizeLimit: true,
 		},
-		Config:             r.ConsensusConfig,
-		Logger:             loggers.Logger(loggers.Consensus),
-		ConsensusType:      repo.ConsensusTypeRbft,
-		PrivKey:            s.Sk,
-		SelfAccountAddress: s.Addr.String(),
-		GenesisEpochInfo:   r.Config.Genesis.EpochInfo,
-		Applied:            100,
-		Digest:             "0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7",
-		GenesisDigest:      "0xf06a8e2fa138335436c66b7d332338b8d402fc5708604aec6959324ef6c5c1ac",
+		Config:               r.ConsensusConfig,
+		Logger:               loggers.Logger(loggers.Consensus),
+		ConsensusType:        repo.ConsensusTypeRbft,
+		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
+		PrivKey:              s.Sk,
+		SelfAccountAddress:   s.Addr.String(),
+		GenesisEpochInfo:     r.GenesisConfig.EpochInfo,
+		Applied:              100,
+		Digest:               "0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7",
+		GenesisDigest:        "0xf06a8e2fa138335436c66b7d332338b8d402fc5708604aec6959324ef6c5c1ac",
 		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*rbft.EpochInfo, error) {
 			return r.EpochInfo, nil
 		},
@@ -170,22 +170,6 @@ func TestPrepare(t *testing.T) {
 		return nil
 	}).Return(nil).AnyTimes()
 
-	node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetPendingTxCountByAccount(gomock.Any()).DoAndReturn(func(addr string) uint64 {
-		if _, ok := nonceCache[addr]; !ok {
-			return 0
-		}
-		return nonceCache[addr] + 1
-	}).AnyTimes()
-
-	node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetPendingTxByHash(gomock.Any()).DoAndReturn(func(hash string) *types.Transaction {
-		data := txCache[hash]
-		return data
-	}).AnyTimes()
-
-	node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetTotalPendingTxCount().DoAndReturn(func() uint64 {
-		return uint64(len(txCache))
-	}).AnyTimes()
-
 	sk, err := crypto.GenerateKey()
 	ast.Nil(err)
 
@@ -195,30 +179,22 @@ func TestPrepare(t *testing.T) {
 
 	err = node.Start()
 	ast.Nil(err)
+
+	txSubscribeCh := make(chan []*types.Transaction, 1)
+	sub := node.SubscribeTxEvent(txSubscribeCh)
+	defer sub.Unsubscribe()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mockAddTx(node, ctx)
+
 	err = node.Prepare(tx1)
 	ast.Nil(err)
+	<-txSubscribeCh
 	tx2, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(toAddr.String()), big.NewInt(0), []byte("hello"), singer)
 	ast.Nil(err)
 	err = node.Prepare(tx2)
 	ast.Nil(err)
-
-	t.Run("GetPendingTxCountByAccount", func(t *testing.T) {
-		pendingNonce := node.GetPendingTxCountByAccount(tx1.GetFrom().String())
-		ast.Equal(uint64(2), pendingNonce)
-	})
-
-	t.Run("GetPendingTxByHash", func(t *testing.T) {
-		tx := node.GetPendingTxByHash(tx1.GetHash())
-		ast.NotNil(tx.Inner)
-		ast.Equal(tx1.GetHash().String(), tx.GetHash().String())
-		wrongTx := node.GetPendingTxByHash(types.NewHashByStr("0x123"))
-		ast.Nil(wrongTx)
-	})
-
-	t.Run("GetTotalPendingTxCount", func(t *testing.T) {
-		count := node.GetTotalPendingTxCount()
-		ast.Equal(uint64(2), count)
-	})
+	<-txSubscribeCh
 
 	t.Run("GetLowWatermark", func(t *testing.T) {
 		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetLowWatermark().DoAndReturn(func() uint64 {
@@ -226,26 +202,6 @@ func TestPrepare(t *testing.T) {
 		}).AnyTimes()
 		lowWatermark := node.GetLowWatermark()
 		ast.Equal(uint64(1), lowWatermark)
-	})
-
-	t.Run("GetAccountPoolMeta", func(t *testing.T) {
-		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetAccountPoolMeta(gomock.Any(), gomock.Any()).DoAndReturn(func(s string, b bool) *txpool.AccountMeta[types.Transaction, *types.Transaction] {
-			return &txpool.AccountMeta[types.Transaction, *types.Transaction]{
-				CommitNonce: 1,
-			}
-		}).AnyTimes()
-		accountPoolMeta := node.GetAccountPoolMeta("", true)
-		ast.Equal(uint64(1), accountPoolMeta.CommitNonce)
-	})
-
-	t.Run("GetPoolMeta", func(t *testing.T) {
-		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetPoolMeta(gomock.Any()).DoAndReturn(func(b bool) *txpool.Meta[types.Transaction, *types.Transaction] {
-			return &txpool.Meta[types.Transaction, *types.Transaction]{
-				TxCount: 1,
-			}
-		}).AnyTimes()
-		poolMeta := node.GetPoolMeta(true)
-		ast.Equal(uint64(1), poolMeta.TxCount)
 	})
 }
 
@@ -279,17 +235,14 @@ func TestReadConfig(t *testing.T) {
 	ast := assert.New(t)
 	ctrl := gomock.NewController(t)
 	logger := log.NewWithModule("consensus")
-	rbftConf, txpoolConfig, err := generateRbftConfig(testutil.MockConsensusConfig(logger, ctrl, t))
+	rbftConf, err := generateRbftConfig(testutil.MockConsensusConfig(logger, ctrl, t))
 	assert.Nil(t, err)
 
 	rbftConf.Logger.Notice()
 	rbftConf.Logger.Noticef("test notice")
-	ast.Equal(50, rbftConf.SetSize)
-	ast.Equal(uint64(500), txpoolConfig.BatchSize)
-	ast.Equal(uint64(50000), txpoolConfig.PoolSize)
+	ast.Equal(1000, rbftConf.SetSize)
 	ast.Equal(500*time.Millisecond, rbftConf.BatchTimeout)
 	ast.Equal(5*time.Minute, rbftConf.CheckPoolTimeout)
-	ast.Equal(5*time.Minute, txpoolConfig.ToleranceTime)
 }
 
 func TestStep(t *testing.T) {
@@ -384,4 +337,19 @@ func TestStatus2String(t *testing.T) {
 		statusStr := status2String(status)
 		ast.Equal(assertStatusStr, statusStr)
 	}
+}
+
+func mockAddTx(node *Node, ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case txs := <-node.txPreCheck.CommitValidTxs():
+				txs.LocalRespCh <- &common.TxResp{
+					Status: true,
+				}
+			}
+		}
+	}()
 }

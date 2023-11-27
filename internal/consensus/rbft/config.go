@@ -8,11 +8,8 @@ import (
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/metrics/disabled"
 	"github.com/axiomesh/axiom-bft/common/metrics/prometheus"
-	"github.com/axiomesh/axiom-bft/txpool"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
 
 func defaultRbftConfig() rbft.Config {
@@ -48,23 +45,31 @@ func defaultRbftConfig() rbft.Config {
 	}
 }
 
-func generateRbftConfig(config *common.Config) (rbft.Config, txpool.Config, error) {
+func generateRbftConfig(config *common.Config) (rbft.Config, error) {
 	readConfig := config.Config
 
 	currentEpoch, err := config.GetCurrentEpochInfoFromEpochMgrContractFunc()
 	if err != nil {
-		return rbft.Config{}, txpool.Config{}, err
+		return rbft.Config{}, err
 	}
 	defaultConfig := defaultRbftConfig()
 	defaultConfig.GenesisEpochInfo = config.GenesisEpochInfo
 	defaultConfig.SelfAccountAddress = config.SelfAccountAddress
-	defaultConfig.LastServiceState = &rbfttypes.ServiceState{
+	lastServiceState := &rbfttypes.ServiceState{
 		MetaState: &rbfttypes.MetaState{
 			Height: config.Applied,
 			Digest: config.Digest,
 		},
 		Epoch: currentEpoch.Epoch,
 	}
+	// if lastHeight is less than the start block of current epoch, it means the new epoch is not started yet
+	// for ex: epoch height is 100, current epoch is 2, last height is 100, start block is 101
+	// if we persist the last height: 100, it means the new epoch had modified to 2
+	// but the last block which height=100 is belong to the old epoch 1
+	if lastServiceState.MetaState.Height < currentEpoch.StartBlock {
+		lastServiceState.Epoch = currentEpoch.Epoch - 1
+	}
+	defaultConfig.LastServiceState = lastServiceState
 	defaultConfig.GenesisBlockDigest = config.GenesisDigest
 	defaultConfig.Logger = &common.Logger{FieldLogger: config.Logger}
 
@@ -95,22 +100,11 @@ func generateRbftConfig(config *common.Config) (rbft.Config, txpool.Config, erro
 	if readConfig.Rbft.Timeout.FetchView > 0 {
 		defaultConfig.FetchViewTimeout = readConfig.Rbft.Timeout.FetchView.ToDuration()
 	}
-
-	// txpool
-	if readConfig.TxPool.BatchTimeout > 0 {
-		defaultConfig.BatchTimeout = readConfig.TxPool.BatchTimeout.ToDuration()
+	if readConfig.Rbft.Timeout.BatchTimeout > 0 {
+		defaultConfig.BatchTimeout = readConfig.Rbft.Timeout.BatchTimeout.ToDuration()
 	}
 	if readConfig.TxPool.ToleranceTime > 0 {
 		defaultConfig.CheckPoolTimeout = readConfig.TxPool.ToleranceTime.ToDuration()
-	}
-	if readConfig.TxCache.SetSize > 0 {
-		defaultConfig.SetSize = readConfig.TxCache.SetSize
-	}
-	if readConfig.TimedGenBlock.NoTxBatchTimeout > 0 {
-		defaultConfig.NoTxBatchTimeout = readConfig.TimedGenBlock.NoTxBatchTimeout.ToDuration()
-	}
-	if readConfig.TxPool.ToleranceRemoveTime > 0 {
-		defaultConfig.CheckPoolRemoveTimeout = readConfig.TxPool.ToleranceRemoveTime.ToDuration()
 	}
 	if readConfig.Rbft.EnableMetrics {
 		defaultConfig.MetricsProv = &prometheus.Provider{
@@ -121,18 +115,6 @@ func generateRbftConfig(config *common.Config) (rbft.Config, txpool.Config, erro
 	if readConfig.Rbft.CommittedBlockCacheNumber > 0 {
 		defaultConfig.CommittedBlockCacheNumber = readConfig.Rbft.CommittedBlockCacheNumber
 	}
-	fn := func(addr string) uint64 {
-		return config.GetAccountNonce(types.NewAddressByStr(addr))
-	}
-	txpoolConf := txpool.Config{
-		Logger:              &common.Logger{FieldLogger: loggers.Logger(loggers.TxPool)},
-		BatchSize:           defaultConfig.GenesisEpochInfo.ConsensusParams.BlockMaxTxNum,
-		PoolSize:            readConfig.TxPool.PoolSize,
-		ToleranceTime:       readConfig.TxPool.ToleranceTime.ToDuration(),
-		ToleranceRemoveTime: readConfig.TxPool.ToleranceRemoveTime.ToDuration(),
-		ToleranceNonceGap:   readConfig.TxPool.ToleranceNonceGap,
-		GetAccountNonce:     fn,
-		IsTimed:             defaultConfig.GenesisEpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
-	}
-	return defaultConfig, txpoolConf, nil
+
+	return defaultConfig, nil
 }

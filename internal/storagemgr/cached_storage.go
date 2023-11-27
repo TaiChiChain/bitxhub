@@ -2,9 +2,44 @@ package storagemgr
 
 import (
 	"github.com/VictoriaMetrics/fastcache"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/axiomesh/axiom-kit/storage"
 )
+
+var (
+	kvCacheHitCountPerBlock  int
+	kvCacheMissCountPerBlock int
+
+	kvCacheHitCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "storage",
+		Name:      "kv_cache_hit_counter_per_block",
+		Help:      "The total number of kv cache hit per block",
+	})
+
+	kvCacheMissCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "storage",
+		Name:      "kv_cache_miss_counter_per_block",
+		Help:      "The total number of kv cache miss per block",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(kvCacheHitCounterPerBlock)
+	prometheus.MustRegister(kvCacheMissCounterPerBlock)
+}
+
+func ExportCachedStorageMetrics() {
+	kvCacheHitCounterPerBlock.Set(float64(kvCacheHitCountPerBlock))
+	kvCacheMissCounterPerBlock.Set(float64(kvCacheMissCountPerBlock))
+}
+
+func ResetCachedStorageMetrics() {
+	kvCacheHitCountPerBlock = 0
+	kvCacheMissCountPerBlock = 0
+}
 
 type CachedStorage struct {
 	storage.Storage
@@ -24,13 +59,14 @@ func NewCachedStorage(s storage.Storage, megabytesLimit int) (storage.Storage, e
 func (c *CachedStorage) Get(key []byte) []byte {
 	value, ok := c.cache.HasGet(nil, key)
 	if ok {
+		kvCacheHitCountPerBlock++
 		if value == nil {
 			return []byte{}
 		}
 		return value
 	}
-
 	v := c.Storage.Get(key)
+	kvCacheMissCountPerBlock++
 	if v != nil {
 		c.cache.Set(key, v)
 	}
@@ -40,8 +76,10 @@ func (c *CachedStorage) Get(key []byte) []byte {
 func (c *CachedStorage) Has(key []byte) bool {
 	has := c.cache.Has(key)
 	if has {
+		kvCacheHitCountPerBlock++
 		return true
 	}
+	kvCacheMissCountPerBlock++
 	return c.Storage.Has(key)
 }
 

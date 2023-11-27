@@ -5,20 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
-	"github.com/axiomesh/axiom-bft/txpool"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -36,7 +36,7 @@ type Node struct {
 	poolFull         int32                                                                // pool full symbol
 	recvCh           chan consensusEvent                                                  // receive message from consensus engine
 	blockCh          chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction] // receive batch from txpool
-	batchMgr         *timerManager
+	batchMgr         *batchTimerManager
 	noTxBatchTimeout time.Duration   // generate no-tx block period
 	batchTimeout     time.Duration   // generate block period
 	lastExec         uint64          // the index of the last-applied block
@@ -52,33 +52,20 @@ type Node struct {
 }
 
 func NewNode(config *common.Config) (*Node, error) {
-	fn := func(addr string) uint64 {
-		account := types.NewAddressByStr(addr)
-		return config.GetAccountNonce(account)
+	currentEpoch, err := config.GetCurrentEpochInfoFromEpochMgrContractFunc()
+	if err != nil {
+		return nil, err
 	}
 
-	txpoolConf := txpool.Config{
-		Logger:              &common.Logger{FieldLogger: loggers.Logger(loggers.TxPool)},
-		BatchSize:           config.GenesisEpochInfo.ConsensusParams.BlockMaxTxNum,
-		PoolSize:            config.Config.TxPool.PoolSize,
-		GetAccountNonce:     fn,
-		IsTimed:             config.GenesisEpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
-		ToleranceRemoveTime: config.Config.TxPool.ToleranceRemoveTime.ToDuration(),
-	}
-	txpoolInst := txpool.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
 	// init batch timer manager
-	recvCh := make(chan consensusEvent)
-	batchTimerMgr := NewTimerManager(recvCh, config.Logger)
-	batchTimerMgr.newTimer(Batch, config.Config.TxPool.BatchTimeout.ToDuration())
-	batchTimerMgr.newTimer(NoTxBatch, config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration())
-	batchTimerMgr.newTimer(RemoveTx, config.Config.TxPool.ToleranceRemoveTime.ToDuration())
+	recvCh := make(chan consensusEvent, maxChanSize)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	soloNode := &Node{
 		config:           config,
-		isTimed:          txpoolConf.IsTimed,
+		isTimed:          currentEpoch.ConsensusParams.EnableTimedGenEmptyBlock,
 		noTxBatchTimeout: config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration(),
-		batchTimeout:     config.Config.TxPool.BatchTimeout.ToDuration(),
+		batchTimeout:     config.Config.Solo.BatchTimeout.ToDuration(),
 		blockCh:          make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
 		commitC:          make(chan *common.CommitEvent, maxChanSize),
 		batchDigestM:     make(map[uint64]string),
@@ -86,20 +73,30 @@ func NewNode(config *common.Config) (*Node, error) {
 		poolFull:         0,
 		recvCh:           recvCh,
 		lastExec:         config.Applied,
-		txpool:           txpoolInst,
-		batchMgr:         batchTimerMgr,
+		txpool:           config.TxPool,
 		network:          config.Network,
 		ctx:              ctx,
 		cancel:           cancel,
 		txPreCheck:       precheck.NewTxPreCheckMgr(ctx, config),
 		logger:           config.Logger,
 	}
+	batchTimerMgr := &batchTimerManager{Timer: timer.NewTimerManager(config.Logger)}
+
+	err = batchTimerMgr.CreateTimer(timer.Batch, config.Config.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	if err != nil {
+		return nil, err
+	}
+	err = batchTimerMgr.CreateTimer(timer.NoTxBatch, config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	if err != nil {
+		return nil, err
+	}
+	soloNode.batchMgr = batchTimerMgr
 	soloNode.logger.Infof("SOLO lastExec = %d", soloNode.lastExec)
 	soloNode.logger.Infof("SOLO epoch period = %d", config.GenesisEpochInfo.EpochPeriod)
 	soloNode.logger.Infof("SOLO checkpoint period = %d", config.GenesisEpochInfo.ConsensusParams.CheckpointPeriod)
 	soloNode.logger.Infof("SOLO enable timed gen empty block = %v", config.GenesisEpochInfo.ConsensusParams.EnableTimedGenEmptyBlock)
 	soloNode.logger.Infof("SOLO no-tx batch timeout = %v", config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration())
-	soloNode.logger.Infof("SOLO batch timeout = %v", config.Config.TxPool.BatchTimeout.ToDuration())
+	soloNode.logger.Infof("SOLO batch timeout = %v", config.Config.Solo.BatchTimeout.ToDuration())
 	soloNode.logger.Infof("SOLO batch size = %d", config.GenesisEpochInfo.ConsensusParams.BlockMaxTxNum)
 	soloNode.logger.Infof("SOLO pool size = %d", config.Config.TxPool.PoolSize)
 	soloNode.logger.Infof("SOLO tolerance time = %v", config.Config.TxPool.ToleranceTime.ToDuration())
@@ -108,41 +105,37 @@ func NewNode(config *common.Config) (*Node, error) {
 	return soloNode, nil
 }
 
-func (n *Node) GetPendingTxByHash(hash *types.Hash) *types.Transaction {
-	request := &getTxReq{
-		Hash: hash.String(),
-		Resp: make(chan *types.Transaction),
-	}
-	n.recvCh <- request
-	return <-request.Resp
-}
-
-func (n *Node) GetTotalPendingTxCount() uint64 {
-	req := &getTotalPendingTxCountReq{
-		Resp: make(chan uint64),
-	}
-	n.recvCh <- req
-	return <-req.Resp
-}
-
 func (n *Node) GetLowWatermark() uint64 {
 	req := &getLowWatermarkReq{
 		Resp: make(chan uint64),
 	}
-	n.recvCh <- req
+	n.postMsg(req)
 	return <-req.Resp
 }
 
 func (n *Node) Start() error {
-	n.logger.Info("Consensus started")
-	if n.isTimed {
-		n.batchMgr.startTimer(NoTxBatch)
+	n.txpool.Init(txpool.ConsensusConfig{
+		NotifyGenerateBatchFn: n.notifyGenerateBatch,
+	})
+	err := n.txpool.Start()
+	if err != nil {
+		return err
 	}
-	n.batchMgr.startTimer(RemoveTx)
+	err = n.batchMgr.StartTimer(timer.Batch)
+	if err != nil {
+		return err
+	}
+
+	if n.isTimed {
+		err = n.batchMgr.StartTimer(timer.NoTxBatch)
+		if err != nil {
+			return err
+		}
+	}
 	n.txPreCheck.Start()
-	go n.listenValidTxs()
 	go n.listenEvent()
 	go n.listenReadyBlock()
+	n.logger.Info("Consensus started")
 	return nil
 }
 
@@ -151,16 +144,8 @@ func (n *Node) Stop() {
 	n.logger.Info("Consensus stopped")
 }
 
-func (n *Node) GetPendingTxCountByAccount(account string) uint64 {
-	request := &getNonceReq{
-		account: account,
-		Resp:    make(chan uint64),
-	}
-	n.recvCh <- request
-	return <-request.Resp
-}
-
 func (n *Node) Prepare(tx *types.Transaction) error {
+	defer n.txFeed.Send([]*types.Transaction{tx})
 	if err := n.Ready(); err != nil {
 		return fmt.Errorf("node get ready failed: %w", err)
 	}
@@ -168,7 +153,7 @@ func (n *Node) Prepare(tx *types.Transaction) error {
 		Tx:     tx,
 		RespCh: make(chan *common.TxResp),
 	}
-	n.recvCh <- txWithResp
+	n.postMsg(txWithResp)
 	resp := <-txWithResp.RespCh
 	if !resp.Status {
 		return fmt.Errorf(resp.ErrorMsg)
@@ -185,19 +170,23 @@ func (n *Node) Step([]byte) error {
 }
 
 func (n *Node) Ready() error {
-	if n.isPoolFull() {
+	if n.txpool.IsPoolFull() {
 		return fmt.Errorf(ErrPoolFull)
 	}
 	return nil
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*types.Hash, _ *consensus.Checkpoint, _ bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensus.Checkpoint, _ bool) {
+	txHashList := make([]*types.Hash, len(txPointerList))
+	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
+		txHashList[i] = item.Hash
+	})
 	state := &chainState{
 		Height:     height,
 		BlockHash:  blockHash,
 		TxHashList: txHashList,
 	}
-	n.recvCh <- state
+	n.postMsg(state)
 }
 
 func (n *Node) Quorum() uint64 {
@@ -214,25 +203,6 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 
 func (n *Node) SubmitTxsFromRemote(_ [][]byte) error {
 	return nil
-}
-
-func (n *Node) GetAccountPoolMeta(account string, full bool) *common.AccountMeta {
-	request := &getAccountPoolMetaReq{
-		account: account,
-		full:    full,
-		Resp:    make(chan *common.AccountMeta),
-	}
-	n.recvCh <- request
-	return <-request.Resp
-}
-
-func (n *Node) GetPoolMeta(full bool) *common.Meta {
-	request := &getPoolMetaReq{
-		full: full,
-		Resp: make(chan *common.Meta),
-	}
-	n.recvCh <- request
-	return <-request.Resp
 }
 
 func (n *Node) listenEvent() {
@@ -262,9 +232,6 @@ func (n *Node) listenEvent() {
 					}
 
 					n.txpool.RemoveBatches(digestList)
-					if !n.txpool.IsPoolFull() {
-						n.setPoolNotFull()
-					}
 				}
 
 			// receive tx from api
@@ -275,78 +242,58 @@ func (n *Node) listenEvent() {
 				}
 				n.txPreCheck.PostUncheckedTxEvent(unCheckedEv)
 
-			case *precheck.ValidTxs:
-				if !e.Local {
-					n.logger.Errorf("Receive remote type tx")
-					continue
-				}
-				if n.txpool.IsPoolFull() {
-					n.logger.Warn("TxPool is full")
-					n.setPoolFull()
-					e.LocalRespCh <- &common.TxResp{
-						Status:   false,
-						ErrorMsg: ErrPoolFull,
-					}
-					continue
-				}
-				// stop no-tx batch timer when this node receives the first transaction
-				n.batchMgr.stopTimer(NoTxBatch)
-				// start batch timer when this node receives the first transaction
-				if !n.batchMgr.isTimerActive(Batch) {
-					n.batchMgr.startTimer(Batch)
-				}
-
-				if len(e.Txs) != singleTx {
-					n.logger.Warningf("Receive wrong txs length from local, expect:%d, actual:%d", singleTx, len(e.Txs))
-				}
-
-				if batches, _ := n.txpool.AddNewRequests(e.Txs, true, true, false, true); batches != nil {
-					n.batchMgr.stopTimer(Batch)
-					if len(batches) != 1 {
-						n.logger.Errorf("Batch size is not 1, actual: %d", len(batches))
-						continue
-					}
-					n.postProposal(batches[0])
-					// start no-tx batch timer when this node handle the last transaction
-					if n.isTimed && !n.txpool.HasPendingRequestInPool() {
-						n.batchMgr.startTimer(NoTxBatch)
-					}
-				}
-
-				// post tx event to websocket
-				go n.txFeed.Send(e.Txs)
-				e.LocalRespCh <- &common.TxResp{Status: true}
-
 			// handle timeout event
-			case batchTimeoutEvent:
+			case timer.TimeoutEvent:
 				if err := n.processBatchTimeout(e); err != nil {
 					n.logger.Errorf("Process batch timeout failed: %v", err)
-					continue
 				}
-			case *getTxReq:
-				e.Resp <- n.txpool.GetPendingTxByHash(e.Hash)
-			case *getNonceReq:
-				e.Resp <- n.txpool.GetPendingTxCountByAccount(e.account)
-			case *getTotalPendingTxCountReq:
-				e.Resp <- n.txpool.GetTotalPendingTxCount()
+				if err := n.batchMgr.RestartTimer(timer.Batch); err != nil {
+					n.logger.Errorf("restart batch timeout failed: %v", err)
+				}
+
+				// check if there is no tx in the txpool, start the no tx batch timer
+				if n.isTimed && !n.txpool.HasPendingRequestInPool() {
+					if !n.batchMgr.IsTimerActive(timer.NoTxBatch) {
+						if err := n.batchMgr.StartTimer(timer.NoTxBatch); err != nil {
+							n.logger.Errorf("start no-tx batch timeout failed: %v", err)
+						}
+					}
+				}
 			case *getLowWatermarkReq:
 				e.Resp <- n.lastExec
-			case *getPoolMetaReq:
-				e.Resp <- common.MetaFromTxpool(n.txpool.GetMeta(e.full))
-			case *getAccountPoolMetaReq:
-				e.Resp <- common.AccountMetaFromTxpool(n.txpool.GetAccountMeta(e.account, e.full))
+			case *genBatchReq:
+				n.batchMgr.StopTimer(timer.Batch)
+				batch, err := n.txpool.GenerateRequestBatch(e.typ)
+				if err != nil {
+					n.logger.Errorf("Generate batch failed: %v", err)
+				} else if batch != nil {
+					n.postProposal(batch)
+				}
+				// start no-tx batch timer when this node handle the last transaction
+				if n.isTimed && !n.txpool.HasPendingRequestInPool() {
+					if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
+						n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
+					}
+				}
+				if err = n.batchMgr.RestartTimer(timer.Batch); err != nil {
+					n.logger.Errorf("restart batch timeout failed: %v", err)
+				}
 			}
 		}
 	}
 }
 
-func (n *Node) processBatchTimeout(e batchTimeoutEvent) error {
+func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 	switch e {
-	case Batch:
-		n.batchMgr.stopTimer(Batch)
+	case timer.Batch:
+		n.batchMgr.StopTimer(timer.Batch)
 		n.logger.Debug("Batch timer expired, try to create a batch")
 		if n.txpool.HasPendingRequestInPool() {
-			if batches := n.txpool.GenerateRequestBatch(); batches != nil {
+			batch, err := n.txpool.GenerateRequestBatch(txpool.GenBatchTimeoutEvent)
+			if err != nil {
+				return err
+			}
+			if batch != nil {
 				now := time.Now().UnixNano()
 				if n.batchMgr.lastBatchTime != 0 {
 					interval := time.Duration(now - n.batchMgr.lastBatchTime).Seconds()
@@ -359,36 +306,27 @@ func (n *Node) processBatchTimeout(e batchTimeoutEvent) error {
 					}
 				}
 				n.batchMgr.lastBatchTime = now
-				for _, batch := range batches {
-					n.postProposal(batch)
-				}
-				n.batchMgr.startTimer(Batch)
-
-				// check if there is no tx in the txpool, start the no tx batch timer
-				if n.isTimed && !n.txpool.HasPendingRequestInPool() {
-					if !n.batchMgr.isTimerActive(NoTxBatch) {
-						n.batchMgr.startTimer(NoTxBatch)
-					}
-				}
+				n.postProposal(batch)
 			}
 		} else {
 			n.logger.Debug("The length of priorityIndex is 0, skip the batch timer")
 		}
-	case NoTxBatch:
+	case timer.NoTxBatch:
+		if n.txpool.HasPendingRequestInPool() {
+			n.logger.Debugf("TxPool is not empty, skip handle the no-tx batch timer event")
+			return nil
+		}
 		if !n.isTimed {
+			n.batchMgr.StopTimer(timer.NoTxBatch)
 			return errors.New("the node is not support the no-tx batch, skip the timer")
 		}
-		if !n.txpool.HasPendingRequestInPool() {
-			n.batchMgr.stopTimer(NoTxBatch)
-			n.logger.Debug("Start create empty block")
-			batches := n.txpool.GenerateRequestBatch()
-			if batches == nil {
-				return errors.New("create empty block failed, the length of batches is 0")
-			}
-			if len(batches) != 1 {
-				return fmt.Errorf("create empty block failed, the expect length of batches is 1, but actual is %d", len(batches))
-			}
-
+		n.batchMgr.StopTimer(timer.NoTxBatch)
+		n.logger.Debug("Start create empty block")
+		batch, err := n.txpool.GenerateRequestBatch(txpool.GenBatchNoTxTimeoutEvent)
+		if err != nil {
+			return err
+		}
+		if batch != nil {
 			now := time.Now().UnixNano()
 			if n.batchMgr.lastBatchTime != 0 {
 				interval := time.Duration(now - n.batchMgr.lastBatchTime).Seconds()
@@ -402,37 +340,13 @@ func (n *Node) processBatchTimeout(e batchTimeoutEvent) error {
 			}
 			n.batchMgr.lastBatchTime = now
 
-			n.postProposal(batches[0])
-			if !n.batchMgr.isTimerActive(NoTxBatch) {
-				n.batchMgr.startTimer(NoTxBatch)
+			n.postProposal(batch)
+			if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
+				n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
 			}
 		}
-	case RemoveTx:
-		n.batchMgr.stopTimer(RemoveTx)
-		n.processNeedRemoveReqs()
-		n.batchMgr.startTimer(RemoveTx)
 	}
 	return nil
-}
-
-// processNeedRemoveReqs process the checkPoolRemove timeout requests in requestPool, get the remained reqs from pool,
-// then remove these txs in local pool
-func (n *Node) processNeedRemoveReqs() {
-	n.logger.Info("RemoveTx timer expired, start remove tx in local txpool")
-	reqLen, err := n.txpool.RemoveTimeoutRequests()
-	if err != nil {
-		n.logger.Warningf("Node get the remained reqs failed, error: %v", err)
-	}
-
-	if reqLen == 0 {
-		n.logger.Infof("Node in normal finds 0 tx to remove")
-		return
-	}
-
-	if !n.txpool.IsPoolFull() {
-		n.setPoolNotFull()
-	}
-	n.logger.Warningf("Node successful remove %d tx in local txpool ", reqLen)
 }
 
 // Schedule to collect txs to the listenReadyBlock channel
@@ -476,29 +390,22 @@ func (n *Node) postProposal(batch *txpool.RequestHashBatch[types.Transaction, *t
 	n.blockCh <- batch
 }
 
-func (n *Node) listenValidTxs() {
-	for {
-		select {
-		case <-n.ctx.Done():
-			return
-		case requests := <-n.txPreCheck.CommitValidTxs():
-			n.postValidTx(requests)
-		}
+func (n *Node) notifyGenerateBatch(typ int) {
+	req := &genBatchReq{typ: typ}
+	n.postMsg(req)
+}
+
+func (n *Node) postMsg(ev consensusEvent) {
+	n.recvCh <- ev
+}
+
+func (n *Node) handleTimeoutEvent(typ timer.TimeoutEvent) {
+	switch typ {
+	case timer.Batch:
+		n.postMsg(timer.Batch)
+	case timer.NoTxBatch:
+		n.postMsg(timer.NoTxBatch)
+	default:
+		n.logger.Errorf("receive wrong timeout event type: %s", typ)
 	}
-}
-
-func (n *Node) postValidTx(txs *precheck.ValidTxs) {
-	n.recvCh <- txs
-}
-
-func (n *Node) isPoolFull() bool {
-	return atomic.LoadInt32(&n.poolFull) == 1
-}
-
-func (n *Node) setPoolNotFull() {
-	atomic.StoreInt32(&n.poolFull, 0)
-}
-
-func (n *Node) setPoolFull() {
-	atomic.StoreInt32(&n.poolFull, 1)
 }

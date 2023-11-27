@@ -20,6 +20,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/axiomesh/eth-kit/adaptor"
 	vm "github.com/axiomesh/eth-kit/evm"
@@ -147,6 +148,9 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 
 	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNum))
 	if err != nil {
+		if errors.Is(err, ledger.ErrNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -167,6 +171,9 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map
 
 	block, err := api.api.Broker().GetBlock("HASH", hash.String())
 	if err != nil {
+		if errors.Is(err, ledger.ErrNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return formatBlock(api.api, api.rep.GenesisConfig, block, fullTx)

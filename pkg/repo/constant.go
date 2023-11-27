@@ -30,6 +30,9 @@ const (
 	ConsensusTypeRbft    = "rbft"
 	ConsensusTypeSoloDev = "solo_dev"
 
+	ConsensusStorageTypeMinifile = "minifile"
+	ConsensusStorageTypeRosedb   = "rosedb"
+
 	KVStorageTypeLeveldb = "leveldb"
 	KVStorageTypePebble  = "pebble"
 	KVStorageCacheSize   = 16
@@ -63,11 +66,24 @@ const (
 )
 
 var (
+	DefaultAdminNames = []string{
+		"S2luZw==", // base64 encode King
+		"UmVk",     // base64 encode Red
+		"QXBwbGU=", // base64 encode Apple
+		"Q2F0",     // base64 encode Cat
+	}
+
 	DefaultNodeNames = []string{
 		"S2luZw==", // base64 encode King
 		"UmVk",     // base64 encode Red
 		"QXBwbGU=", // base64 encode Apple
 		"Q2F0",     // base64 encode Cat
+
+		// candidates
+		"bm9kZTU=", // base64 encode node5
+		"bm9kZTY=", // base64 encode node6
+		"bm9kZTc=", // base64 encode node7
+		"bm9kZTg=", // base64 encode node8
 	}
 
 	DefaultNodeKeys = []string{

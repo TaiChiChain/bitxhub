@@ -7,21 +7,22 @@ cd $CURRENT_PATH
 
 function printHelp() {
     print_blue "Usage:  "
-    echo "  smoke_test.sh [-b <BRANCH_NAME>]"
+    echo "  smoke_test.sh [-b <BRANCH_NAME>] [-i <INTEGRATION_DIR>]"
     echo "  -'b' - the branch of base ref"
+    echo "  -'i' - the integration test coverage directory"
     echo "  smoke_test.sh -h (print this message)"
 }
 
 function start_solo() {
     print_blue "===> 1. Start solo axiom-ledger"
-    cd ../ && make build && cd scripts
-    nohup bash solo.sh 2>error.log 1>solo.log &
+    cd ../ && make build-coverage && cd scripts
+    GOCOVERDIR=$INTEGRATION_DIR nohup bash solo.sh 2>error.log 1>solo.log &
 }
 
 function start_rbft() {
     print_blue "===> 1. Start rbft axiom-ledger"
-    cd ../ && make build && cd scripts
-    bash cluster.sh background
+    cd ../ && make build-coverage && cd scripts
+    GOCOVERDIR=$INTEGRATION_DIR bash cluster.sh background
 }
 
 function start_tester() {
@@ -35,7 +36,7 @@ function start_tester() {
 }
 
 BRANCH_NAME="main"
-while getopts "h?b:" opt; do
+while getopts ":h:b:i:" opt; do
   case "$opt" in
   h | \?)
     printHelp
@@ -43,6 +44,9 @@ while getopts "h?b:" opt; do
     ;;
   b)
     BRANCH_NAME=$OPTARG
+    ;;
+  i)
+    INTEGRATION_DIR=$OPTARG
     ;;
   esac
 done

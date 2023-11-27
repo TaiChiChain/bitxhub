@@ -216,40 +216,40 @@ func (m *MockNetwork) EXPECT() *MockNetworkMockRecorder {
 	return m.recorder
 }
 
-// CountConnectedPeers mocks base method.
-func (m *MockNetwork) CountConnectedPeers() uint64 {
+// CountConnectedValidators mocks base method.
+func (m *MockNetwork) CountConnectedValidators() uint64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountConnectedPeers")
+	ret := m.ctrl.Call(m, "CountConnectedValidators")
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// CountConnectedPeers indicates an expected call of CountConnectedPeers.
-func (mr *MockNetworkMockRecorder) CountConnectedPeers() *NetworkCountConnectedPeersCall {
+// CountConnectedValidators indicates an expected call of CountConnectedValidators.
+func (mr *MockNetworkMockRecorder) CountConnectedValidators() *NetworkCountConnectedValidatorsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectedPeers", reflect.TypeOf((*MockNetwork)(nil).CountConnectedPeers))
-	return &NetworkCountConnectedPeersCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectedValidators", reflect.TypeOf((*MockNetwork)(nil).CountConnectedValidators))
+	return &NetworkCountConnectedValidatorsCall{Call: call}
 }
 
-// NetworkCountConnectedPeersCall wrap *gomock.Call
-type NetworkCountConnectedPeersCall struct {
+// NetworkCountConnectedValidatorsCall wrap *gomock.Call
+type NetworkCountConnectedValidatorsCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkCountConnectedPeersCall) Return(arg0 uint64) *NetworkCountConnectedPeersCall {
+func (c *NetworkCountConnectedValidatorsCall) Return(arg0 uint64) *NetworkCountConnectedValidatorsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkCountConnectedPeersCall) Do(f func() uint64) *NetworkCountConnectedPeersCall {
+func (c *NetworkCountConnectedValidatorsCall) Do(f func() uint64) *NetworkCountConnectedValidatorsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkCountConnectedPeersCall) DoAndReturn(f func() uint64) *NetworkCountConnectedPeersCall {
+func (c *NetworkCountConnectedValidatorsCall) DoAndReturn(f func() uint64) *NetworkCountConnectedValidatorsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

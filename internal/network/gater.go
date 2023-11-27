@@ -26,10 +26,9 @@ func newConnectionGater(logger logrus.FieldLogger, ledger *ledger.Ledger) *conne
 	}
 }
 
-func (g *connectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
-	peerID := p.String()
+func (g *connectionGater) VerifyRemotePeer(peerID string) (allow bool) {
 	// Use the latest EpochInfo for node connection
-	epoch, err := base.GetNextEpochInfo(g.ledger.NewView().StateLedger)
+	epoch, err := base.GetCurrentEpochInfo(g.ledger.NewView().StateLedger)
 	if err != nil {
 		g.logger.Errorf("InterceptSecured, auth node %s failed, get node members error: %v", peerID, err)
 		return false
@@ -38,6 +37,8 @@ func (g *connectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
 		return item.P2PNodeID == peerID
 	}) && !lo.ContainsBy(epoch.CandidateSet, func(item rbft.NodeInfo) bool {
 		return item.P2PNodeID == peerID
+	}) && !lo.ContainsBy(epoch.DataSyncerSet, func(item rbft.NodeInfo) bool {
+		return item.P2PNodeID == peerID
 	}) {
 		g.logger.Warnf("InterceptSecured, auth node %s failed, unavailable node", peerID)
 		return false
@@ -45,8 +46,12 @@ func (g *connectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
 	return true
 }
 
+func (g *connectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
+	return g.VerifyRemotePeer(p.String())
+}
+
 func (g *connectionGater) InterceptAddrDial(p peer.ID, addr ma.Multiaddr) (allow bool) {
-	return true
+	return g.VerifyRemotePeer(p.String())
 }
 
 func (g *connectionGater) InterceptAccept(addr network.ConnMultiaddrs) (allow bool) {
@@ -54,7 +59,7 @@ func (g *connectionGater) InterceptAccept(addr network.ConnMultiaddrs) (allow bo
 }
 
 func (g *connectionGater) InterceptSecured(d network.Direction, p peer.ID, addr network.ConnMultiaddrs) (allow bool) {
-	return true
+	return g.VerifyRemotePeer(p.String())
 }
 
 func (g *connectionGater) InterceptUpgraded(conn network.Conn) (allow bool, reason control.DisconnectReason) {

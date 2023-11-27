@@ -56,11 +56,18 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 
@@ -293,11 +300,18 @@ func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 
@@ -382,11 +396,18 @@ func TestNodeManager_GetNodeMembers(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 
@@ -432,11 +453,18 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 
@@ -447,13 +475,25 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 		Data: generateNodeAddProposeData(t, NodeExtraArgs{
 			Nodes: []*NodeMember{
 				{
-					NodeId:  "26Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+					NodeId:  "16Uiu2HAmTMVkvoGdwjHkqSEhdSM5P7L8ronFfnDePhmQSN6CvR8m",
 					Address: admin1,
 					Name:    "111",
 				},
 			},
 		}),
 	})
+	assert.Nil(t, err)
+
+	g := repo.GenesisEpochInfo(true)
+	g.EpochPeriod = 100
+	g.StartBlock = 1
+	g.DataSyncerSet = append(g.DataSyncerSet, rbft.NodeInfo{
+		ID:                   9,
+		AccountAddress:       "0x88E9A1cE92b4D6e4d860CFBB5bB7aC44d9b548f8",
+		P2PNodeID:            "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
+		ConsensusVotingPower: 100,
+	})
+	err = base.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
 	testcases := []struct {
@@ -553,11 +593,18 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 	assert.Nil(t, err)
@@ -590,14 +637,11 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 		Data: generateNodeVoteData(t, nm.proposalID.GetID()-1, Pass),
 	})
 	assert.Nil(t, err)
-
-	nm.Reset(1, stateLedger)
-	result, err := nm.Run(&vm.Message{
+	_, err = nm.Run(&vm.Message{
 		From: types.NewAddressByStr(admin3).ETHAddress(),
 		Data: generateNodeVoteData(t, nm.proposalID.GetID()-1, Pass),
 	})
 	assert.Nil(t, err)
-	assert.Nil(t, result.Err)
 
 	nodeProposal, err := nm.loadNodeProposal(nm.proposalID.GetID() - 1)
 	assert.Nil(t, err)
@@ -647,11 +691,27 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+		{
+			ID:   4,
+			Name: "444",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
+			{
+				ID:             4,
+				AccountAddress: admin4,
+				P2PNodeID:      "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
+			},
 		},
 	})
 	assert.Nil(t, err)
@@ -661,7 +721,7 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 	g.StartBlock = 1
 	g.DataSyncerSet = append(g.DataSyncerSet, rbft.NodeInfo{
 		ID:                   9,
-		AccountAddress:       admin1,
+		AccountAddress:       admin4,
 		P2PNodeID:            "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
 		ConsensusVotingPower: 100,
 	})
@@ -677,8 +737,8 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 				{
 					ID:      9,
 					NodeId:  "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
-					Address: admin1,
-					Name:    "111",
+					Address: admin4,
+					Name:    "444",
 				},
 			},
 		}),
@@ -691,14 +751,11 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 		Data: generateNodeVoteData(t, nm.proposalID.GetID()-1, Pass),
 	})
 	assert.Nil(t, err)
-
-	nm.Reset(1, stateLedger)
-	result, err := nm.Run(&vm.Message{
+	_, err = nm.Run(&vm.Message{
 		From: types.NewAddressByStr(admin3).ETHAddress(),
 		Data: generateNodeVoteData(t, nm.proposalID.GetID()-1, Pass),
 	})
 	assert.Nil(t, err)
-	assert.Nil(t, result.Err)
 
 	nodeProposal, err := nm.loadNodeProposal(nm.proposalID.GetID() - 1)
 	assert.Nil(t, err)
@@ -708,7 +765,7 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 	nodeMembers := make([]*NodeMember, 0)
 	err = json.Unmarshal(data, &nodeMembers)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(nodeMembers))
+	assert.Equal(t, 1, len(nodeMembers))
 }
 
 func TestNodeManager_RunForRemoveVote(t *testing.T) {
@@ -748,11 +805,18 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 
@@ -860,11 +924,18 @@ func TestNodeManager_RunForUpgradeVote(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 
@@ -1009,11 +1080,18 @@ func TestNodeManager_GetProposal(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*NodeMember{
+	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			Address: admin1,
-			Name:    "111",
+			ID:   1,
+			Name: "111",
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: admin1,
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 	assert.Nil(t, err)

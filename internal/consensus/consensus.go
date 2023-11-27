@@ -35,28 +35,15 @@ type Consensus interface {
 	Ready() error
 
 	// ReportState means block was persisted and report it to the consensus engine
-	ReportState(height uint64, blockHash *types.Hash, txHashList []*types.Hash, stateUpdatedCheckpoint *consensus.Checkpoint, needRemoveTxs bool)
+	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *consensus.Checkpoint, needRemoveTxs bool)
 
 	// Quorum means minimum number of nodes in the cluster that can work
 	Quorum() uint64
-
-	// GetPendingTxCountByAccount will return the pending tx count by account in txpool
-	GetPendingTxCountByAccount(account string) uint64
-
-	// GetPendingTxByHash will return the pending tx by hash in txpool
-	GetPendingTxByHash(hash *types.Hash) *types.Transaction
-
-	// GetTotalPendingTxCount will return the number of pending txs in txpool
-	GetTotalPendingTxCount() uint64
 
 	// GetLowWatermark will return the low watermark of consensus engine
 	GetLowWatermark() uint64
 
 	SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscription
-
-	GetAccountPoolMeta(account string, full bool) *common.AccountMeta
-
-	GetPoolMeta(full bool) *common.Meta
 
 	SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Subscription
 }

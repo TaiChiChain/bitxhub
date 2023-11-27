@@ -14,6 +14,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 )
 
 var _ StateLedger = (*StateLedgerImpl)(nil)
@@ -42,9 +43,6 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 
 	value, ok := l.accounts[addr]
 	if ok {
-		if l.enableExpensiveMetric {
-			accountCacheHitCounter.Inc()
-		}
 		l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
 		return value
 	}
@@ -253,6 +251,9 @@ func (l *StateLedgerImpl) flushDirtyData() (map[string]IAccount, *types.Hash) {
 func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	l.logger.Debugf("==================[Commit-Start]==================")
 	defer l.logger.Debugf("==================[Commit-End]==================")
+
+	l.accountCache.exportMetrics()
+	storagemgr.ExportCachedStorageMetrics()
 
 	accounts, journalHash := l.flushDirtyData()
 	height := l.blockHeight
@@ -537,6 +538,8 @@ func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, hash *types.Ha
 	l.logs.bhash = hash
 	l.blockHeight = currentExecutingHeight
 	l.refreshAccountTrie(lastStateRoot)
+	l.accountCache.resetMetrics()
+	storagemgr.ResetCachedStorageMetrics()
 	l.logger.Debugf("[PrepareBlock] height: %v, hash: %v", currentExecutingHeight, hash)
 }
 

@@ -27,7 +27,7 @@ var (
 
 	invokeCallContractDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
+		Subsystem: "jsonrpc",
 		Name:      "invoke_call_contract_latency",
 		Help:      "The latency of invoking call contract rpc interface",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
@@ -35,7 +35,7 @@ var (
 
 	invokeSendRawTxDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
+		Subsystem: "jsonrpc",
 		Name:      "invoke_send_raw_tx_latency",
 		Help:      "The latency of invoking send raw tx rpc interface",
 		Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 10),

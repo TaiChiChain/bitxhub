@@ -18,11 +18,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go${{ env.GO_VERSION }}
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "./action_go_cache_key.txt"
+      # runner already supports Go, turn off this configuration to improve speed
+#      - name: Set up Go${{ env.GO_VERSION }}
+#        uses: actions/setup-go@v4
+#        with:
+#          go-version: ${{ env.GO_VERSION }}
+#          cache-dependency-path: "./action_go_cache_key.txt"
 
       - name: Go build project
         run: make build
@@ -53,11 +54,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go${{ env.GO_VERSION }}
-        uses: actions/setup-go@v4
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "./action_go_cache_key.txt"
+      # runner already supports Go, turn off this configuration to improve speed
+#      - name: Set up Go${{ env.GO_VERSION }}
+#        uses: actions/setup-go@v4
+#        with:
+#          go-version: ${{ env.GO_VERSION }}
+#          cache-dependency-path: "./action_go_cache_key.txt"
 
       - name: Run smoke test
         run: make smoke-test BRANCH=${{ github.base_ref }}

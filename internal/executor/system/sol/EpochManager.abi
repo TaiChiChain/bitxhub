@@ -79,12 +79,17 @@
 							},
 							{
 								"internalType": "uint64",
-								"name": "AgainProposeIntervalBlock",
+								"name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
 								"type": "uint64"
 							},
 							{
 								"internalType": "uint64",
 								"name": "ContinuousNullRequestToleranceNumber",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint64",
+								"name": "ReBroadcastToleranceNumber",
 								"type": "uint64"
 							}
 						],
@@ -97,6 +102,16 @@
 							{
 								"internalType": "uint64",
 								"name": "GasLimit",
+								"type": "uint64"
+							},
+							{
+								"internalType": "bool",
+								"name": "StartGasPriceAvailable",
+								"type": "bool"
+							},
+							{
+								"internalType": "uint64",
+								"name": "StartGasPrice",
 								"type": "uint64"
 							},
 							{
@@ -312,12 +327,17 @@
 							},
 							{
 								"internalType": "uint64",
-								"name": "AgainProposeIntervalBlock",
+								"name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
 								"type": "uint64"
 							},
 							{
 								"internalType": "uint64",
 								"name": "ContinuousNullRequestToleranceNumber",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint64",
+								"name": "ReBroadcastToleranceNumber",
 								"type": "uint64"
 							}
 						],
@@ -330,6 +350,16 @@
 							{
 								"internalType": "uint64",
 								"name": "GasLimit",
+								"type": "uint64"
+							},
+							{
+								"internalType": "bool",
+								"name": "StartGasPriceAvailable",
+								"type": "bool"
+							},
+							{
+								"internalType": "uint64",
+								"name": "StartGasPrice",
 								"type": "uint64"
 							},
 							{
@@ -539,12 +569,17 @@
 							},
 							{
 								"internalType": "uint64",
-								"name": "AgainProposeIntervalBlock",
+								"name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
 								"type": "uint64"
 							},
 							{
 								"internalType": "uint64",
 								"name": "ContinuousNullRequestToleranceNumber",
+								"type": "uint64"
+							},
+							{
+								"internalType": "uint64",
+								"name": "ReBroadcastToleranceNumber",
 								"type": "uint64"
 							}
 						],
@@ -557,6 +592,16 @@
 							{
 								"internalType": "uint64",
 								"name": "GasLimit",
+								"type": "uint64"
+							},
+							{
+								"internalType": "bool",
+								"name": "StartGasPriceAvailable",
+								"type": "bool"
+							},
+							{
+								"internalType": "uint64",
+								"name": "StartGasPrice",
 								"type": "uint64"
 							},
 							{

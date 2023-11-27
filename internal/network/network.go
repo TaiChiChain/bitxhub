@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/connmgr"
-	p2pnetwork "github.com/libp2p/go-libp2p/core/network"
-	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -49,8 +47,8 @@ type Network interface {
 
 	PeerID() string
 
-	// CountConnectedPeers counts connected peer numbers
-	CountConnectedPeers() uint64
+	// CountConnectedValidators counts connected validator numbers
+	CountConnectedValidators() uint64
 
 	// RegisterMsgHandler registers one message type handler
 	RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error
@@ -62,14 +60,13 @@ type Network interface {
 var _ Network = (*networkImpl)(nil)
 
 type networkImpl struct {
-	repo           *repo.Repo
-	ledger         *ledger.Ledger
-	p2p            network.Network
-	logger         logrus.FieldLogger
-	connectedPeers cmap.ConcurrentMap[string, bool]
-	ctx            context.Context
-	cancel         context.CancelFunc
-	gater          connmgr.ConnectionGater
+	repo   *repo.Repo
+	ledger *ledger.Ledger
+	p2p    network.Network
+	logger logrus.FieldLogger
+	ctx    context.Context
+	cancel context.CancelFunc
+	gater  connmgr.ConnectionGater
 	network.PipeManager
 
 	msgHandlers sync.Map // map[pb.Message_Type]MessageHandler
@@ -160,10 +157,7 @@ func (swarm *networkImpl) init() error {
 	if err != nil {
 		return fmt.Errorf("create p2p: %w", err)
 	}
-	p2p.SetConnectCallback(swarm.onConnected)
-	p2p.SetDisconnectCallback(swarm.onDisconnected)
 	swarm.p2p = p2p
-	swarm.connectedPeers = cmap.New[bool]()
 	swarm.gater = gater
 	swarm.PipeManager = p2p
 	return nil
@@ -182,22 +176,6 @@ func (swarm *networkImpl) Start() error {
 func (swarm *networkImpl) Stop() error {
 	swarm.cancel()
 	return swarm.p2p.Stop()
-}
-
-func (swarm *networkImpl) onConnected(net p2pnetwork.Network, conn p2pnetwork.Conn) error {
-	peerID := conn.RemotePeer().String()
-	validatorSet := swarm.repo.EpochInfo.ValidatorSet
-	for _, n := range validatorSet {
-		if n.P2PNodeID == peerID {
-			swarm.connectedPeers.Set(peerID, true)
-			return nil
-		}
-	}
-	return nil
-}
-
-func (swarm *networkImpl) onDisconnected(peerID string) {
-	swarm.connectedPeers.Remove(peerID)
 }
 
 func (swarm *networkImpl) SendWithStream(s network.Stream, msg *pb.Message) error {
@@ -228,8 +206,15 @@ func (swarm *networkImpl) Send(to string, msg *pb.Message) (*pb.Message, error) 
 	return m, nil
 }
 
-func (swarm *networkImpl) CountConnectedPeers() uint64 {
-	return uint64(swarm.connectedPeers.Count())
+func (swarm *networkImpl) CountConnectedValidators() uint64 {
+	var cnt uint64
+	validatorSet := swarm.repo.EpochInfo.ValidatorSet
+	for _, n := range validatorSet {
+		if swarm.p2p.IsConnected(n.P2PNodeID) {
+			cnt++
+		}
+	}
+	return cnt
 }
 
 func (swarm *networkImpl) PeerID() string {

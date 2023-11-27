@@ -2,7 +2,7 @@ package solo
 
 import (
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
 
 const (
@@ -21,35 +21,18 @@ type chainState struct {
 	TxHashList []*types.Hash
 }
 
-// getTxReq is a type for api request getTx
-type getTxReq struct {
-	Hash string
-	Resp chan *types.Transaction
-}
-
-// getNonceReq is a type for api request getTransactionCount
-type getNonceReq struct {
-	account string
-	Resp    chan uint64
-}
-
-// getTotalPendingTxCountReq is a type for api request GetTotalPendingTxCount
-type getTotalPendingTxCountReq struct {
-	Resp chan uint64
-}
-
 // getLowWatermarkReq is a type for syncer request GetLowWatermark
 type getLowWatermarkReq struct {
 	Resp chan uint64
 }
 
-type getAccountPoolMetaReq struct {
-	account string
-	full    bool
-	Resp    chan *common.AccountMeta
+type genBatchReq struct {
+	typ int
 }
 
-type getPoolMetaReq struct {
-	full bool
-	Resp chan *common.Meta
+type batchTimerManager struct {
+	timer.Timer
+	lastBatchTime           int64
+	minTimeoutBatchTime     float64
+	minNoTxTimeoutBatchTime float64
 }

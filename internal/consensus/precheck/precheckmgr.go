@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gammazero/workerpool"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -34,7 +34,14 @@ const (
 	ErrGasPriceTooLow     = "gas price too low"
 )
 
-var concurrencyLimit = runtime.NumCPU()
+var (
+	concurrencyLimit = runtime.NumCPU()
+
+	// ErrOversizedData is returned if the input data of a transaction is greater
+	// than some meaningful limit a user might use. This is not a consensus error
+	// making the transaction invalid, rather a DOS protection.
+	ErrOversizedData = errors.New("oversized data")
+)
 
 type ValidTxs struct {
 	Local       bool
@@ -48,6 +55,8 @@ type TxPreCheckMgr struct {
 	verifyDataCh chan *common.UncheckedTxEvent
 	validTxsCh   chan *ValidTxs
 	logger       logrus.FieldLogger
+
+	txpool txpool.TxPool[types.Transaction, *types.Transaction]
 
 	BaseFee        *big.Int // current is 0
 	getBalanceFn   func(address *types.Address) *big.Int
@@ -86,6 +95,7 @@ func NewTxPreCheckMgr(ctx context.Context, conf *common.Config) *TxPreCheckMgr {
 		getBalanceFn:   conf.GetAccountBalance,
 		getChainMetaFn: conf.GetChainMetaFunc,
 		evmConfig:      conf.EVMConfig,
+		txpool:         conf.TxPool,
 	}
 
 	if conf.GenesisEpochInfo.MiscParams.TxMaxSize == 0 {
@@ -101,7 +111,33 @@ func (tp *TxPreCheckMgr) Start() {
 	go tp.dispatchTxEvent()
 	go tp.dispatchVerifySignEvent()
 	go tp.dispatchVerifyDataEvent()
+	go tp.postValidTxs()
 	tp.logger.Info("tx precheck manager started")
+}
+
+func (tp *TxPreCheckMgr) postValidTxs() {
+	for {
+		select {
+		case <-tp.ctx.Done():
+			return
+		case txs := <-tp.validTxsCh:
+			if txs.Local {
+				err := tp.txpool.AddLocalTx(txs.Txs[0])
+				if err != nil {
+					txs.LocalRespCh <- &common.TxResp{
+						Status:   false,
+						ErrorMsg: err.Error(),
+					}
+				} else {
+					txs.LocalRespCh <- &common.TxResp{
+						Status: true,
+					}
+				}
+			} else {
+				tp.txpool.AddRemoteTxs(txs.Txs)
+			}
+		}
+	}
 }
 
 func (tp *TxPreCheckMgr) dispatchTxEvent() {
@@ -339,7 +375,7 @@ func (tp *TxPreCheckMgr) verifySignature(tx *types.Transaction) error {
 func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 	// 1. reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > tp.txMaxSize.Load() {
-		return txpool.ErrOversizedData
+		return ErrOversizedData
 	}
 
 	gasPrice := tp.getChainMetaFn().GasPrice

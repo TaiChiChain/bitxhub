@@ -571,6 +571,94 @@ func TestRunForGetProposal(t *testing.T) {
 	assert.EqualValues(t, 0, len(proposal.RejectVotes))
 }
 
+func TestRunForCheckInCouncil(t *testing.T) {
+	cm := NewCouncilManager(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10000000")
+	assert.Nil(t, err)
+
+	cm.Reset(1, stateLedger)
+
+	isExist, _ := CheckInCouncil(cm.account, admin1)
+	assert.Equal(t, true, isExist)
+}
+
+func TestRunForGetCouncil(t *testing.T) {
+	cm := NewCouncilManager(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10000000")
+	assert.Nil(t, err)
+
+	cm.Reset(1, stateLedger)
+
+	_, isExist := GetCouncil(cm.account)
+	assert.Equal(t, true, isExist)
+}
+
 func TestEstimateGas(t *testing.T) {
 	cm := NewCouncilManager(&common.SystemContractConfig{
 		Logger: logrus.New(),

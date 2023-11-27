@@ -14,6 +14,7 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
 	"github.com/axiomesh/axiom-ledger/internal/block_sync"
@@ -26,6 +27,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/profile"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -39,6 +41,7 @@ type AxiomLedger struct {
 	ViewLedger    *ledger.Ledger
 	BlockExecutor executor.Executor
 	Consensus     consensus.Consensus
+	TxPool        txpool.TxPool[types.Transaction, *types.Transaction]
 	Network       network.Network
 	Sync          block_sync.Sync
 	Monitor       *profile.Monitor
@@ -56,12 +59,38 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 	chainMeta := axm.ViewLedger.ChainLedger.GetChainMeta()
 
 	if !rep.ReadonlyMode {
+		// new txpool
+		poolConf := rep.ConsensusConfig.TxPool
+		getNonceFn := func(address *types.Address) uint64 {
+			return axm.ViewLedger.NewView().StateLedger.GetNonce(address)
+		}
+		fn := func(addr string) uint64 {
+			return getNonceFn(types.NewAddressByStr(addr))
+		}
+		txpoolConf := txpool2.Config{
+			Logger:                loggers.Logger(loggers.TxPool),
+			BatchSize:             rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
+			PoolSize:              poolConf.PoolSize,
+			ToleranceTime:         poolConf.ToleranceTime.ToDuration(),
+			ToleranceRemoveTime:   poolConf.ToleranceRemoveTime.ToDuration(),
+			ToleranceNonceGap:     poolConf.ToleranceNonceGap,
+			CleanEmptyAccountTime: poolConf.CleanEmptyAccountTime.ToDuration(),
+			GetAccountNonce:       fn,
+			IsTimed:               rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+		}
+		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
+		if err != nil {
+			return nil, fmt.Errorf("new txpool failed: %w", err)
+		}
+		// new consensus
 		axm.Consensus, err = consensus.New(
 			rep.Config.Consensus.Type,
+			common.WithTxPool(axm.TxPool),
 			common.WithConfig(rep.RepoRoot, rep.ConsensusConfig),
 			common.WithSelfAccountAddress(rep.AccountAddress),
 			common.WithGenesisEpochInfo(rep.GenesisConfig.EpochInfo.Clone()),
 			common.WithConsensusType(rep.Config.Consensus.Type),
+			common.WithConsensusStorageType(rep.Config.Consensus.StorageType),
 			common.WithPrivKey(rep.AccountKey),
 			common.WithNetwork(axm.Network),
 			common.WithLogger(loggers.Logger(loggers.Consensus)),

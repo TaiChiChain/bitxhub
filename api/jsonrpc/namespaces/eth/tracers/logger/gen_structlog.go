@@ -5,10 +5,10 @@ package logger
 import (
 	"encoding/json"
 
+	vm "github.com/axiomesh/eth-kit/evm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
-	vm "github.com/axiomesh/eth-kit/evm"
 	"github.com/holiman/uint256"
 )
 

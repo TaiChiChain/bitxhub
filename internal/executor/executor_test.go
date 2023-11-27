@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
@@ -284,7 +285,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	blockRes1 := <-ch
 	assert.EqualValues(t, 2, blockRes1.Block.BlockHeader.Number)
 	assert.Equal(t, 0, len(blockRes1.Block.Transactions))
-	assert.Equal(t, 0, len(blockRes1.TxHashList))
+	assert.Equal(t, 0, len(blockRes1.TxPointerList))
 
 	remoteBlockRes1 := <-remoteCh
 	assert.Equal(t, blockRes1, remoteBlockRes1)
@@ -292,7 +293,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	blockRes2 := <-ch
 	assert.EqualValues(t, 3, blockRes2.Block.BlockHeader.Number)
 	assert.Equal(t, 2, len(blockRes2.Block.Transactions))
-	assert.Equal(t, 2, len(blockRes2.TxHashList))
+	assert.Equal(t, 2, len(blockRes2.TxPointerList))
 
 	remoteBlockRes2 := <-remoteCh
 	assert.Equal(t, blockRes2, remoteBlockRes2)
@@ -459,9 +460,18 @@ func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
 		},
 	}, "1000000")
 	assert.Nil(t, err)
-	err = governance.InitNodeMembers(stateLedger, []*governance.NodeMember{
+	err = governance.InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId: "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			Name: "S2luZw==",
+			ID:   1,
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 	assert.Nil(t, err)
@@ -579,9 +589,18 @@ func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
 		},
 	}, "1000000")
 	assert.Nil(t, err)
-	err = governance.InitNodeMembers(stateLedger, []*governance.NodeMember{
+	err = governance.InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
-			NodeId: "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			Name: "S2luZw==",
+			ID:   1,
+		},
+	}, &rbft.EpochInfo{
+		ValidatorSet: []rbft.NodeInfo{
+			{
+				ID:             1,
+				AccountAddress: "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
+				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+			},
 		},
 	})
 	assert.Nil(t, err)

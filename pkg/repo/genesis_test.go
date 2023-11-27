@@ -1,9 +1,10 @@
 package repo
 
 import (
-	"github.com/stretchr/testify/require"
 	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenesisConfig(t *testing.T) {
