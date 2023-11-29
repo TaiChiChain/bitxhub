@@ -184,7 +184,6 @@ func TestPrepare(t *testing.T) {
 	sub := node.SubscribeTxEvent(txSubscribeCh)
 	defer sub.Unsubscribe()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	mockAddTx(node, ctx)
 
 	err = node.Prepare(tx1)
@@ -195,6 +194,7 @@ func TestPrepare(t *testing.T) {
 	err = node.Prepare(tx2)
 	ast.Nil(err)
 	<-txSubscribeCh
+	cancel()
 
 	t.Run("GetLowWatermark", func(t *testing.T) {
 		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetLowWatermark().DoAndReturn(func() uint64 {
@@ -202,6 +202,41 @@ func TestPrepare(t *testing.T) {
 		}).AnyTimes()
 		lowWatermark := node.GetLowWatermark()
 		ast.Equal(uint64(1), lowWatermark)
+	})
+
+	t.Run("prepare tx failed", func(t *testing.T) {
+		wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
+		wrongPrecheckMgr.EXPECT().Start().AnyTimes()
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+			event := ev.Event.(*common.TxWithResp)
+			event.CheckCh <- &common.TxResp{
+				Status:   false,
+				ErrorMsg: "check error",
+			}
+		}).Times(1)
+
+		node.txPreCheck = wrongPrecheckMgr
+
+		err = node.Prepare(tx1)
+		<-txSubscribeCh
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "check error")
+
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+			event := ev.Event.(*common.TxWithResp)
+			event.CheckCh <- &common.TxResp{
+				Status: true,
+			}
+			event.PoolCh <- &common.TxResp{
+				Status:   false,
+				ErrorMsg: "add pool error",
+			}
+		}).Times(1)
+
+		err = node.Prepare(tx1)
+		<-txSubscribeCh
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "add pool error")
 	})
 }
 
@@ -346,7 +381,10 @@ func mockAddTx(node *Node, ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case txs := <-node.txPreCheck.CommitValidTxs():
-				txs.LocalRespCh <- &common.TxResp{
+				txs.LocalCheckRespCh <- &common.TxResp{
+					Status: true,
+				}
+				txs.LocalPoolRespCh <- &common.TxResp{
 					Status: true,
 				}
 			}

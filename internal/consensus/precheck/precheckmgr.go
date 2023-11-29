@@ -2,7 +2,6 @@ package precheck
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gammazero/workerpool"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
@@ -44,9 +44,10 @@ var (
 )
 
 type ValidTxs struct {
-	Local       bool
-	Txs         []*types.Transaction
-	LocalRespCh chan *common.TxResp
+	Local            bool
+	Txs              []*types.Transaction
+	LocalCheckRespCh chan *common.TxResp
+	LocalPoolRespCh  chan *common.TxResp
 }
 
 type TxPreCheckMgr struct {
@@ -122,17 +123,10 @@ func (tp *TxPreCheckMgr) postValidTxs() {
 			return
 		case txs := <-tp.validTxsCh:
 			if txs.Local {
+				// notify consensus that it had prechecked, can broadcast to other nodes
+				respLocalTx(txs.LocalCheckRespCh, nil)
 				err := tp.txpool.AddLocalTx(txs.Txs[0])
-				if err != nil {
-					txs.LocalRespCh <- &common.TxResp{
-						Status:   false,
-						ErrorMsg: err.Error(),
-					}
-				} else {
-					txs.LocalRespCh <- &common.TxResp{
-						Status: true,
-					}
-				}
+				respLocalTx(txs.LocalPoolRespCh, err)
 			} else {
 				tp.txpool.AddRemoteTxs(txs.Txs)
 			}
@@ -159,10 +153,7 @@ func (tp *TxPreCheckMgr) dispatchTxEvent() {
 						return
 					}
 					if err := tp.basicCheckTx(txWithResp.Tx); err != nil {
-						txWithResp.RespCh <- &common.TxResp{
-							Status:   false,
-							ErrorMsg: fmt.Errorf("%s:%w", PrecheckError, err).Error(),
-						}
+						respLocalTx(txWithResp.CheckCh, fmt.Errorf("%s:%w", PrecheckError, err))
 						tp.logger.Warningf("basic check local tx err:%s", err)
 						return
 					}
@@ -171,7 +162,6 @@ func (tp *TxPreCheckMgr) dispatchTxEvent() {
 
 				case common.RemoteTxEvent:
 					now := time.Now()
-
 					txSet, ok := ev.Event.([]*types.Transaction)
 					if !ok {
 						tp.logger.Errorf("%s:%s", ErrParseTxEventType, "receive invalid remote TxEvent")
@@ -215,10 +205,7 @@ func (tp *TxPreCheckMgr) dispatchVerifySignEvent() {
 						return
 					}
 					if err := tp.verifySignature(txWithResp.Tx); err != nil {
-						txWithResp.RespCh <- &common.TxResp{
-							Status:   false,
-							ErrorMsg: fmt.Errorf("%s:%w", PrecheckError, err).Error(),
-						}
+						respLocalTx(txWithResp.CheckCh, fmt.Errorf("%s:%w", PrecheckError, err))
 						tp.logger.Warningf("verify signature of local tx [txHash:%s] err: %s", txWithResp.Tx.GetHash().String(), err)
 						return
 					}
@@ -261,9 +248,10 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 		case ev := <-tp.verifyDataCh:
 			wp.Submit(func() {
 				var (
-					validDataTxs []*types.Transaction
-					local        bool
-					localRespCh  chan *common.TxResp
+					validDataTxs     []*types.Transaction
+					local            bool
+					localCheckRespCh chan *common.TxResp
+					localPoolRespCh  chan *common.TxResp
 				)
 
 				now := time.Now()
@@ -271,13 +259,11 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 				case common.LocalTxEvent:
 					local = true
 					txWithResp := ev.Event.(*common.TxWithResp)
-					localRespCh = txWithResp.RespCh
+					localCheckRespCh = txWithResp.CheckCh
+					localPoolRespCh = txWithResp.PoolCh
 					// check balance
 					if err := tp.verifyInsufficientBalance(txWithResp.Tx); err != nil {
-						txWithResp.RespCh <- &common.TxResp{
-							Status:   false,
-							ErrorMsg: fmt.Errorf("%s:%w", PrecheckError, err).Error(),
-						}
+						respLocalTx(txWithResp.CheckCh, fmt.Errorf("%s:%w", PrecheckError, err))
 						return
 					}
 					validDataTxs = append(validDataTxs, txWithResp.Tx)
@@ -305,7 +291,8 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					Txs:   validDataTxs,
 				}
 				if local {
-					validTxs.LocalRespCh = localRespCh
+					validTxs.LocalCheckRespCh = localCheckRespCh
+					validTxs.LocalPoolRespCh = localPoolRespCh
 				}
 
 				tp.pushValidTxs(validTxs)
@@ -425,4 +412,17 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 	}
 
 	return nil
+}
+
+func respLocalTx(ch chan *common.TxResp, err error) {
+	resp := &common.TxResp{
+		Status: true,
+	}
+
+	if err != nil {
+		resp.Status = false
+		resp.ErrorMsg = err.Error()
+	}
+
+	ch <- resp
 }
