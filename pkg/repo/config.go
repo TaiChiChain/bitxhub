@@ -66,11 +66,10 @@ type Config struct {
 	Storage   Storage   `mapstructure:"storage" toml:"storage"`
 	Ledger    Ledger    `mapstructure:"ledger" toml:"ledger"`
 	Executor  Executor  `mapstructure:"executor" toml:"executor"`
-	//Genesis   GenesisConfig `mapstructure:"genesis" toml:"genesis"`
-	PProf   PProf   `mapstructure:"pprof" toml:"pprof"`
-	Monitor Monitor `mapstructure:"monitor" toml:"monitor"`
-	Log     Log     `mapstructure:"log" toml:"log"`
-	Access  Access  `mapstructure:"access" toml:"access"`
+	PProf     PProf     `mapstructure:"pprof" toml:"pprof"`
+	Monitor   Monitor   `mapstructure:"monitor" toml:"monitor"`
+	Log       Log       `mapstructure:"log" toml:"log"`
+	Access    Access    `mapstructure:"access" toml:"access"`
 }
 
 type Port struct {
