@@ -8,6 +8,8 @@ const (
 
 	consensusCfgFileName = "consensus.toml"
 
+	genesisCfgFileName = "genesis.toml"
+
 	// defaultRepoRoot is the path to the default config dir location.
 	defaultRepoRoot = "~/.axiom-ledger"
 

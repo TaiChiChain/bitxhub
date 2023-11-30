@@ -88,7 +88,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			common.WithTxPool(axm.TxPool),
 			common.WithConfig(rep.RepoRoot, rep.ConsensusConfig),
 			common.WithSelfAccountAddress(rep.AccountAddress),
-			common.WithGenesisEpochInfo(rep.Config.Genesis.EpochInfo.Clone()),
+			common.WithGenesisEpochInfo(rep.GenesisConfig.EpochInfo.Clone()),
 			common.WithConsensusType(rep.Config.Consensus.Type),
 			common.WithConsensusStorageType(rep.Config.Consensus.StorageType),
 			common.WithPrivKey(rep.AccountKey),
@@ -123,7 +123,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 }
 
 func PrepareAxiomLedger(rep *repo.Repo) error {
-	types.InitEIP155Signer(big.NewInt(int64(rep.Config.Genesis.ChainID)))
+	types.InitEIP155Signer(big.NewInt(int64(rep.GenesisConfig.ChainID)))
 
 	if err := storagemgr.Initialize(rep.Config.Storage.KvType, rep.Config.Storage.KvCacheSize, rep.Config.Storage.Sync); err != nil {
 		return fmt.Errorf("storagemgr initialize: %w", err)
@@ -148,7 +148,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 
 	if rwLdg.ChainLedger.GetChainMeta().Height == 0 {
-		if err := genesis.Initialize(&rep.Config.Genesis, rwLdg); err != nil {
+		if err := genesis.Initialize(rep.GenesisConfig, rwLdg); err != nil {
 			return nil, err
 		}
 		logger.WithFields(logrus.Fields{
