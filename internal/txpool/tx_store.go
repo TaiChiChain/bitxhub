@@ -69,61 +69,83 @@ func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNo
 }
 
 func (txStore *transactionStore[T, Constraint]) insertPoolTxPointer(txHash string, pointer *txPointer) {
-	if _, ok := txStore.txHashMap[txHash]; !ok {
-		txStore.txHashMap[txHash] = pointer
-		poolTxNum.WithLabelValues("txHash").Inc()
+	if _, ok := txStore.txHashMap[txHash]; ok {
+		txStore.logger.Warningf("tx %s already exists in txpool", txHash)
 		return
 	}
-	txStore.logger.Warningf("tx %s already exists in txpool", txHash)
+	txStore.txHashMap[txHash] = pointer
 }
 
 func (txStore *transactionStore[T, Constraint]) deletePoolTxPointer(txHash string) {
 	if _, ok := txStore.txHashMap[txHash]; ok {
 		delete(txStore.txHashMap, txHash)
-		poolTxNum.WithLabelValues("txHash").Dec()
 	}
 }
 
 func (txStore *transactionStore[T, Constraint]) insertPoolTx(account string, txItem *internalTransaction[T, Constraint]) {
+	nonce := txItem.getNonce()
+	txHash := txItem.getHash()
 	txList, ok := txStore.allTxs[account]
 	if !ok {
 		// if this is new account to send tx, create a new txSortedMap
 		txStore.allTxs[account] = newTxSortedMap[T, Constraint]()
 	}
 	txList = txStore.allTxs[account]
-	if txList.items[txItem.getNonce()] == nil {
-		poolTxNum.WithLabelValues("tx").Inc()
+	if txList.items[nonce] == nil {
+		poolTxNum.Inc()
 	} else {
-		txStore.logger.Warningf("old tx will be replaced[account: %s, nonce: %d]", account, txItem.getNonce())
+		txStore.logger.Warningf("old tx will be replaced[account: %s, nonce: %d]", account, nonce)
+		txStore.deletePoolTx(account, nonce)
 	}
-	txList.items[txItem.getNonce()] = txItem
-	txList.index.insertBySortedNonceKey(txItem.getNonce())
+	txList.items[nonce] = txItem
+	txList.index.insertBySortedNonceKey(nonce)
 	// if the account is empty, we need to set the empty flag to false because we insert a new tx
 	if txList.isEmpty() {
 		txList.setNotEmpty()
 	}
+
+	// insert tx pointer in txHashMap
+	txStore.insertPoolTxPointer(txHash, &txPointer{
+		account: account,
+		nonce:   nonce,
+	})
 }
 
-func (txStore *transactionStore[T, Constraint]) insertTxs(txItems map[string][]*internalTransaction[T, Constraint], isLocal bool) map[string]bool {
-	dirtyAccounts := make(map[string]bool)
-	for account, list := range txItems {
-		for _, txItem := range list {
-			txHash := txItem.getHash()
-			pointer := &txPointer{
-				account: account,
-				nonce:   txItem.getNonce(),
-			}
-			txStore.insertPoolTxPointer(txHash, pointer)
-			txStore.insertPoolTx(account, txItem)
-			if isLocal {
-				txStore.localTTLIndex.insertByOrderedQueueKey(txItem)
-			}
-			// record the tx arrived timestamp
-			txStore.removeTTLIndex.insertByOrderedQueueKey(txItem)
+func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, nonce uint64) {
+	if txList, ok := txStore.allTxs[account]; ok {
+		defer poolTxNum.Dec()
+		poolTx := txStore.getPoolTxByTxnPointer(account, nonce)
+		if poolTx == nil {
+			txStore.logger.Warningf("tx [account:%s, nonce:%d] not found in txpool", account, nonce)
+			return
 		}
-		dirtyAccounts[account] = true
+		txList.index.removeBySortedNonceKey(poolTx)
+		delete(txList.items, nonce)
+
+		if txList.isEmpty() {
+			txList.setEmpty()
+		}
+
+		// delete tx pointer in txHashMap
+		txStore.deletePoolTxPointer(poolTx.getHash())
 	}
-	return dirtyAccounts
+}
+
+func (txStore *transactionStore[T, Constraint]) removeTxInPool(poolTx *internalTransaction[T, Constraint]) {
+	txStore.deletePoolTx(poolTx.getAccount(), poolTx.getNonce())
+	txStore.priorityIndex.removeByOrderedQueueKey(poolTx)
+	txStore.parkingLotIndex.removeByOrderedQueueKey(poolTx)
+	txStore.removeTTLIndex.removeByOrderedQueueKey(poolTx)
+	txStore.localTTLIndex.removeByOrderedQueueKey(poolTx)
+}
+
+func (txStore *transactionStore[T, Constraint]) insertTxInPool(poolTx *internalTransaction[T, Constraint], isLocal bool) {
+	txStore.insertPoolTx(poolTx.getAccount(), poolTx)
+	if isLocal {
+		txStore.localTTLIndex.insertByOrderedQueueKey(poolTx)
+	}
+	// record the tx arrived timestamp
+	txStore.removeTTLIndex.insertByOrderedQueueKey(poolTx)
 }
 
 // getPoolTxByTxnPointer gets transaction by account address + nonce
@@ -200,7 +222,6 @@ func (m *txSortedMap[T, Constraint]) forward(commitNonce uint64) []*internalTran
 		nonce := i.(*sortedNonceKey).nonce
 		txItem := m.items[nonce]
 		removedTxs = append(removedTxs, txItem)
-		delete(m.items, nonce)
 		return true
 	})
 	return removedTxs
@@ -214,7 +235,6 @@ func (m *txSortedMap[T, Constraint]) behind(highestNonce uint64) []*internalTran
 		nonce := i.(*sortedNonceKey).nonce
 		txItem := m.items[nonce]
 		removedTxs = append(removedTxs, txItem)
-		delete(m.items, nonce)
 		return true
 	})
 	return removedTxs

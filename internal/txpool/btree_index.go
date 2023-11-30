@@ -89,22 +89,8 @@ func (idx *btreeIndex[T, Constraint]) insertBySortedNonceKey(nonce uint64) {
 	idx.data.ReplaceOrInsert(makeSortedNonceKey(nonce))
 }
 
-func (idx *btreeIndex[T, Constraint]) removeBySortedNonceKeys(account string, txs []*internalTransaction[T, Constraint]) error {
-	var err error
-	lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
-		if poolTx.getAccount() != account {
-			err = fmt.Errorf("account %s is not equal to %s", poolTx.getAccount(), account)
-			return
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
-		idx.data.Delete(makeSortedNonceKey(poolTx.getNonce()))
-	})
-	return err
+func (idx *btreeIndex[T, Constraint]) removeBySortedNonceKey(poolTx *internalTransaction[T, Constraint]) {
+	idx.data.Delete(makeSortedNonceKey(poolTx.getNonce()))
 }
 
 func (idx *btreeIndex[T, Constraint]) insertByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) {

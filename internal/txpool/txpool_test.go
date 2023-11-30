@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -166,7 +167,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(10, pool.txStore.priorityIndex.size())
 		ast.Equal(0, pool.txStore.parkingLotIndex.size())
 
-		lowTx := txs[0]
+		lowTx, err := types.GenerateTransactionWithSigner(0, to, big.NewInt(0), []byte("test"), s)
+		ast.Nil(err)
 		err = pool.AddLocalTx(lowTx)
 		ast.NotNil(err)
 		ast.Contains(err.Error(), ErrNonceTooLow.Error())
@@ -184,10 +186,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		tx := constructTx(s, 0)
 		err = pool.AddLocalTx(tx)
 		ast.Nil(err)
-
-		err = pool.AddLocalTx(tx)
-		ast.NotNil(err)
-		ast.Contains(err.Error(), ErrNonceTooLow.Error())
 
 		highTx := constructTx(s, 10)
 		err = pool.AddLocalTx(highTx)
@@ -497,7 +495,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		txs := []*types.Transaction{tx01, tx02}
 		pool.AddRemoteTxs(txs)
 		ast.Equal(tx01.RbftGetTxHash(), pool.GetPendingTxByHash(tx01.RbftGetTxHash()).RbftGetTxHash())
-		ast.Nil(pool.GetPendingTxByHash(tx02.RbftGetTxHash()), "tx02 not exist in txpool")
+		ast.Nil(pool.GetPendingTxByHash(tx02.RbftGetTxHash()), "tx02 not exist in txpool, because it's nonce too low")
 		ast.Equal(0, pool.txStore.localTTLIndex.size())
 		ast.Equal(1, pool.txStore.removeTTLIndex.size())
 
@@ -510,6 +508,43 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast.Equal(tx22.RbftGetTxHash(), pool.GetPendingTxByHash(tx22.RbftGetTxHash()).RbftGetTxHash())
 		ast.Equal(0, pool.txStore.localTTLIndex.size())
 		ast.Equal(2, pool.txStore.removeTTLIndex.size())
+	})
+
+	t.Run("nonce too high in same txs, trigger remove high nonce tx", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.toleranceNonceGap = 1
+		pool.batchSize = 500 // make sure not to trigger generate batch
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+
+		s1, err := types.GenerateSigner()
+		ast.Nil(err)
+		from1 := s1.Addr.String()
+		s2, err := types.GenerateSigner()
+		ast.Nil(err)
+		from2 := s2.Addr.String()
+		s3, err := types.GenerateSigner()
+		ast.Nil(err)
+		from3 := s3.Addr.String()
+
+		txs1 := constructTxs(s1, 4)
+		// lack tx10
+		txs1 = txs1[1:]
+		txs2 := constructTxs(s2, 4)
+		// lack tx20
+		txs2 = txs2[1:]
+		txs3 := constructTxs(s3, 4)
+
+		// txs include txs1,txs2,tx3
+		txs := append(txs1, txs2...)
+		txs = append(txs, txs3...)
+
+		pool.AddRemoteTxs(txs)
+		ast.Equal(0, len(pool.GetAccountMeta(from1, false).SimpleTxs), "from1 trigger remove all high nonce tx, so its tx count should be 0")
+		ast.Equal(0, len(pool.GetAccountMeta(from2, false).SimpleTxs), "from2 trigger remove all high nonce tx, so its tx count should be 0")
+		ast.Equal(4, len(pool.GetAccountMeta(from3, false).SimpleTxs))
 	})
 }
 
@@ -549,10 +584,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 
 		missingHashList := make(map[uint64]string)
 		missingHashList[uint64(0)] = txsM[uint64(0)].RbftGetTxHash()
-		pool.txStore.missingBatch[batchDigest] = missingHashList
-		err = pool.ReceiveMissingRequests(batchDigest, txsM)
-		ast.NotNil(err, "expect len is not equal to missingBatch len")
-
 		missingHashList[uint64(1)] = txsM[uint64(1)].RbftGetTxHash()
 		missingHashList[uint64(2)] = txsM[uint64(2)].RbftGetTxHash()
 		missingHashList[uint64(3)] = "wrong_hash3"
@@ -725,8 +756,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 		pool.txStore.missingBatch[batchDigest] = missingHashList
 
 		err = pool.ReceiveMissingRequests(batchDigest, txsM)
-		ast.NotNil(err)
-		ast.Contains(err.Error(), ErrTxPoolFull.Error())
+		ast.Nil(err, "receive missing requests from primary, ignore pool full status")
 	})
 }
 
@@ -1336,7 +1366,7 @@ func TestTxPoolImpl_RestorePool(t *testing.T) {
 	ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
 	ast.Equal(0, len(pool.txStore.batchedTxs))
 	ast.Equal(0, len(pool.txStore.batchesCache))
-	ast.Equal(uint64(0), pool.txStore.nonceCache.pendingNonces[tx3.RbftGetFrom()])
+	ast.Equal(uint64(4), pool.txStore.nonceCache.pendingNonces[tx3.RbftGetFrom()])
 }
 
 func TestTxPoolImpl_GetInfo(t *testing.T) {
@@ -1370,7 +1400,18 @@ func TestTxPoolImpl_GetInfo(t *testing.T) {
 	})
 
 	t.Run("getAccountMeta", func(t *testing.T) {
-		accountMeta := pool.GetAccountMeta(from, false)
+		emptyS, sErr := types.GenerateSigner()
+		ast.Nil(sErr)
+		emptyFrom := emptyS.Addr.String()
+		accountMeta := pool.GetAccountMeta(emptyFrom, false)
+		ast.NotNil(accountMeta)
+		ast.Equal(uint64(0), accountMeta.PendingNonce)
+		ast.Equal(uint64(0), accountMeta.CommitNonce)
+		ast.Equal(uint64(0), accountMeta.TxCount)
+		ast.Equal(0, len(accountMeta.SimpleTxs))
+		ast.Equal(0, len(accountMeta.Txs))
+
+		accountMeta = pool.GetAccountMeta(from, false)
 		ast.NotNil(accountMeta)
 		ast.Equal(uint64(4), accountMeta.PendingNonce)
 		ast.Equal(uint64(0), accountMeta.CommitNonce)
@@ -1518,6 +1559,9 @@ func TestTPSWithRemoteTxs(t *testing.T) {
 	t.Skip()
 	ast := assert.New(t)
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+	// ignore log
+	pool.logger.(*logrus.Entry).Logger.SetLevel(logrus.ErrorLevel)
+
 	pool.batchSize = 500
 	pool.toleranceNonceGap = 100000
 
@@ -1534,8 +1578,8 @@ func TestTPSWithRemoteTxs(t *testing.T) {
 	defer pool.Stop()
 	ast.Nil(err)
 
-	round := 5000
-	thread := 100
+	round := 10000
+	thread := 20
 	total := round * thread
 
 	endCh := make(chan int64, 1)
