@@ -29,11 +29,15 @@ const (
 var (
 	ErrNodeNumber              = errors.New("node members total count can't bigger than candidates count")
 	ErrNotFoundNodeID          = errors.New("node id is not found")
+	ErrNotFoundNodeName        = errors.New("node name is not found")
+	ErrNotFoundNodeAddress     = errors.New("address is not found")
 	ErrNodeExtraArgs           = errors.New("unmarshal node extra arguments error")
 	ErrNodeProposalNumberLimit = errors.New("node proposal number limit, only allow one node proposal")
 	ErrNotFoundNodeProposal    = errors.New("node proposal not found for the id")
 	ErrUnKnownProposalArgs     = errors.New("unknown proposal args")
 	ErrRepeatedNodeID          = errors.New("repeated node id")
+	ErrRepeatedNodeName        = errors.New("repeated node name")
+	ErrRepeatedNodeAddress     = errors.New("repeated address")
 	ErrUpgradeExtraArgs        = errors.New("unmarshal node upgrade extra arguments error")
 	ErrRepeatedDownloadUrl     = errors.New("repeated download url")
 )
@@ -205,12 +209,44 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *Propos
 		return nil, err
 	}
 
+	members, err := GetNodeMembers(nm.stateLedger)
+	if err != nil {
+		return nil, err
+	}
+	// store node information in members into map
+	memberNameMap := make(map[string]*NodeMember)
+	for _, member := range members {
+		key := member.Name
+		memberNameMap[key] = member
+	}
+	memberAddressMap := make(map[string]*NodeMember)
+	for _, member := range members {
+		key := member.Address
+		memberAddressMap[key] = member
+	}
+	memberNodeIdMap := make(map[string]*NodeMember)
+	for _, member := range members {
+		key := member.NodeId
+		memberNodeIdMap[key] = member
+	}
+
 	isExist, _ := CheckInCouncil(nm.councilAccount, addr.String())
 	nodeAddRole := false
 	if args.ProposalType == uint8(NodeAdd) {
 		// check addr if is exist in council
 		if !isExist {
 			return nil, ErrNotFoundCouncilMember
+		}
+		for _, node := range nodeArgs.NodeExtraArgs.Nodes {
+			if _, found := memberNodeIdMap[node.NodeId]; found {
+				return nil, ErrRepeatedNodeID
+			}
+			if _, found := memberAddressMap[node.Address]; found {
+				return nil, ErrRepeatedNodeAddress
+			}
+			if _, found := memberNameMap[node.Name]; found {
+				return nil, ErrRepeatedNodeName
+			}
 		}
 	} else {
 		// check whether the from address and node address are consistent
@@ -222,6 +258,16 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *Propos
 				}
 			} else if !isExist {
 				nodeAddRole = true
+			}
+
+			if _, found := memberNodeIdMap[node.NodeId]; !found {
+				return nil, ErrNotFoundNodeID
+			}
+			if _, found := memberAddressMap[node.Address]; !found {
+				return nil, ErrNotFoundNodeAddress
+			}
+			if _, found := memberNameMap[node.Name]; !found {
+				return nil, ErrNotFoundNodeName
 			}
 		}
 	}
@@ -352,37 +398,37 @@ func (nm *NodeManager) vote(user ethcommon.Address, voteArgs *VoteArgs) (*vm.Exe
 	}
 
 	if proposal.Type == NodeUpgrade {
-		result.ReturnData, result.Err = nm.voteUpgrade(user, proposal, &NodeVoteArgs{BaseVoteArgs: voteArgs.BaseVoteArgs})
+		result.Err = nm.voteUpgrade(user, proposal, &NodeVoteArgs{BaseVoteArgs: voteArgs.BaseVoteArgs})
 		return result, nil
 	}
 
-	result.ReturnData, result.Err = nm.voteNodeAddRemove(user, proposal, &NodeVoteArgs{BaseVoteArgs: voteArgs.BaseVoteArgs})
+	result.Err = nm.voteNodeAddRemove(user, proposal, &NodeVoteArgs{BaseVoteArgs: voteArgs.BaseVoteArgs})
 	return result, nil
 }
 
-func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) ([]byte, error) {
+func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) error {
 	// check user can vote
 	isExist, _ := CheckInCouncil(nm.councilAccount, user.String())
 	if !isExist {
-		return nil, ErrNotFoundCouncilMember
+		return ErrNotFoundCouncilMember
 	}
 
 	res := VoteResult(voteArgs.VoteResult)
 	proposalStatus, err := nm.gov.Vote(&user, &proposal.BaseProposal, res)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	proposal.Status = proposalStatus
 
 	b, err := nm.saveNodeProposal(proposal)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// update not finished proposal
 	if proposal.Status == Approved || proposal.Status == Rejected {
 		if err := nm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -390,7 +436,7 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 	if proposal.Status == Approved {
 		members, err := GetNodeMembers(nm.stateLedger)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if proposal.Type == NodeAdd {
@@ -402,7 +448,7 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 				})
 
 				if err != nil {
-					return nil, err
+					return err
 				}
 				node.ID = newNodeID
 			}
@@ -425,7 +471,7 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 			for _, node := range proposal.Nodes {
 				err = base.RemoveNodeByP2PNodeID(nm.stateLedger, node.NodeId)
 				if err != nil {
-					return nil, err
+					return err
 				}
 			}
 			members = filteredMembers
@@ -433,7 +479,7 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 
 		cb, err := json.Marshal(members)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		nm.account.SetState([]byte(NodeMembersKey), cb)
 	}
@@ -442,32 +488,32 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
 
 	// vote not return value
-	return nil, nil
+	return nil
 }
 
-func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) ([]byte, error) {
+func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) error {
 	// check user can vote
 	isExist, _ := CheckInCouncil(nm.councilAccount, user.String())
 	if !isExist {
-		return nil, ErrNotFoundCouncilMember
+		return ErrNotFoundCouncilMember
 	}
 
 	res := VoteResult(voteArgs.VoteResult)
 	proposalStatus, err := nm.gov.Vote(&user, &proposal.BaseProposal, res)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	proposal.Status = proposalStatus
 
 	b, err := nm.saveNodeProposal(proposal)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// update not finished proposal
 	if proposal.Status == Approved || proposal.Status == Rejected {
 		if err := nm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -476,7 +522,7 @@ func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposa
 	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
 
 	// vote not return value
-	return nil, nil
+	return nil
 }
 
 func (nm *NodeManager) saveNodeProposal(proposal *NodeProposal) ([]byte, error) {

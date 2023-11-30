@@ -74,6 +74,8 @@ const (
 	WhiteListProviderAdd
 
 	WhiteListProviderRemove
+
+	GasUpdate
 )
 
 type VoteResult uint8

@@ -234,7 +234,7 @@ func GetNextEpochInfo(lg ledger.StateLedger) (*rbft.EpochInfo, error) {
 	return getEpoch(lg, []byte(nextEpochInfoKey))
 }
 
-func setNextEpochInfo(lg ledger.StateLedger, n *rbft.EpochInfo) error {
+func SetNextEpochInfo(lg ledger.StateLedger, n *rbft.EpochInfo) error {
 	c, err := n.Marshal()
 	if err != nil {
 		return err
@@ -296,7 +296,7 @@ func TurnIntoNewEpoch(electValidatorsByWrfSeed []byte, lg ledger.StateLedger) (*
 		n := e.Clone()
 		n.Epoch++
 		n.StartBlock += n.EpochPeriod
-		if err := setNextEpochInfo(lg, n); err != nil {
+		if err := SetNextEpochInfo(lg, n); err != nil {
 			return nil, err
 		}
 
@@ -378,7 +378,7 @@ func AddNode(lg ledger.StateLedger, newNode rbft.NodeInfo) (uint64, error) {
 	nextEpochInfo.CandidateSet = append(nextEpochInfo.CandidateSet, newNode)
 
 	// Set the updated next epoch info in the ledger
-	if err := setNextEpochInfo(lg, nextEpochInfo); err != nil {
+	if err := SetNextEpochInfo(lg, nextEpochInfo); err != nil {
 		return 0, err
 	}
 
@@ -440,19 +440,19 @@ func removeNodeByField(lg ledger.StateLedger, fieldValue any, fieldName string) 
 	// Remove the node from the validator set
 	removed, nextEpochInfo.ValidatorSet = removeNode(nextEpochInfo.ValidatorSet)
 	if removed {
-		return setNextEpochInfo(lg, nextEpochInfo)
+		return SetNextEpochInfo(lg, nextEpochInfo)
 	}
 
 	// Remove the node from the candidate set
 	removed, nextEpochInfo.CandidateSet = removeNode(nextEpochInfo.CandidateSet)
 	if removed {
-		return setNextEpochInfo(lg, nextEpochInfo)
+		return SetNextEpochInfo(lg, nextEpochInfo)
 	}
 
 	// Remove the node from the data syncer set
 	removed, nextEpochInfo.DataSyncerSet = removeNode(nextEpochInfo.DataSyncerSet)
 	if removed {
-		return setNextEpochInfo(lg, nextEpochInfo)
+		return SetNextEpochInfo(lg, nextEpochInfo)
 	}
 
 	// If the node is not found in any of the sets, return an error

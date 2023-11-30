@@ -31,6 +31,8 @@ const (
 
 	// EpochManagerContractAddr is the contract to used to manager chain epoch info
 	EpochManagerContractAddr = "0x0000000000000000000000000000000000001007"
+
+	GasManagerContractAddr = "0x0000000000000000000000000000000000001008"
 )
 
 type SystemContractConfig struct {
