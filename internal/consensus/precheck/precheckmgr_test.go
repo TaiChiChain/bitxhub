@@ -39,8 +39,8 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		event := &common2.UncheckedTxEvent{
 			EventType: wrongType,
 			Event: &common2.TxWithResp{
-				Tx:     tx,
-				RespCh: make(chan *common2.TxResp),
+				Tx:      tx,
+				CheckCh: make(chan *common2.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(event)
@@ -200,12 +200,12 @@ func TestTxPreCheckMgr_BasicCheck(t *testing.T) {
 		localEvent := &common2.UncheckedTxEvent{
 			EventType: common2.LocalTxEvent,
 			Event: &common2.TxWithResp{
-				Tx:     tx,
-				RespCh: make(chan *common2.TxResp),
+				Tx:      tx,
+				CheckCh: make(chan *common2.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(localEvent)
-		resp := <-localEvent.Event.(*common2.TxWithResp).RespCh
+		resp := <-localEvent.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, txpool.ErrOversizedData.Error())
 
@@ -241,12 +241,12 @@ func TestTxPreCheckMgr_BasicCheck(t *testing.T) {
 		localEvent := &common2.UncheckedTxEvent{
 			EventType: common2.LocalTxEvent,
 			Event: &common2.TxWithResp{
-				Tx:     tx,
-				RespCh: make(chan *common2.TxResp),
+				Tx:      tx,
+				CheckCh: make(chan *common2.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(localEvent)
-		resp := <-localEvent.Event.(*common2.TxWithResp).RespCh
+		resp := <-localEvent.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, ErrGasPriceTooLow)
 	})
@@ -282,12 +282,12 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 				event := &common2.UncheckedTxEvent{
 					EventType: common2.LocalTxEvent,
 					Event: &common2.TxWithResp{
-						Tx:     tx,
-						RespCh: make(chan *common2.TxResp),
+						Tx:      tx,
+						CheckCh: make(chan *common2.TxResp),
 					},
 				}
 				tp.PostUncheckedTxEvent(event)
-				resp := <-event.Event.(*common2.TxWithResp).RespCh
+				resp := <-event.Event.(*common2.TxWithResp).CheckCh
 				require.False(t, resp.Status)
 				require.Contains(t, resp.ErrorMsg, ErrTxSign)
 
@@ -312,12 +312,12 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 				event := &common2.UncheckedTxEvent{
 					EventType: common2.LocalTxEvent,
 					Event: &common2.TxWithResp{
-						Tx:     tx,
-						RespCh: make(chan *common2.TxResp),
+						Tx:      tx,
+						CheckCh: make(chan *common2.TxResp),
 					},
 				}
 				tp.PostUncheckedTxEvent(event)
-				resp := <-event.Event.(*common2.TxWithResp).RespCh
+				resp := <-event.Event.(*common2.TxWithResp).CheckCh
 				require.False(t, resp.Status)
 				require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error())
 			},
@@ -337,12 +337,12 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 				event := &common2.UncheckedTxEvent{
 					EventType: common2.LocalTxEvent,
 					Event: &common2.TxWithResp{
-						Tx:     tx,
-						RespCh: make(chan *common2.TxResp),
+						Tx:      tx,
+						CheckCh: make(chan *common2.TxResp),
 					},
 				}
 				tp.PostUncheckedTxEvent(event)
-				resp := <-event.Event.(*common2.TxWithResp).RespCh
+				resp := <-event.Event.(*common2.TxWithResp).CheckCh
 				require.False(t, resp.Status)
 				require.Contains(t, resp.ErrorMsg, ErrTo)
 			},
@@ -371,12 +371,12 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		event := &common2.UncheckedTxEvent{
 			EventType: common2.LocalTxEvent,
 			Event: &common2.TxWithResp{
-				Tx:     tx,
-				RespCh: make(chan *common2.TxResp),
+				Tx:      tx,
+				CheckCh: make(chan *common2.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrFeeCapVeryHigh.Error())
 	})
@@ -394,7 +394,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrTipVeryHigh.Error())
 	})
@@ -413,7 +413,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrTipAboveFeeCap.Error())
 	})
@@ -433,7 +433,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		tp.BaseFee = new(big.Int).Add(gasFeeCap, big.NewInt(1))
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrFeeCapTooLow.Error())
 	})
@@ -444,7 +444,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		require.Nil(t, err)
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error())
 	})
@@ -464,7 +464,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrIntrinsicGas.Error())
 	})
@@ -483,7 +483,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*common2.TxWithResp).RespCh
+		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error(),
 			"when gasFeeCap is not nil, preCheck gasFeeCap*gasLimit+value firstly")

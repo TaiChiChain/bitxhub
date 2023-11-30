@@ -17,9 +17,10 @@ func NewMockMinPreCheck(mockCtl *gomock.Controller, validTxsCh chan *precheck.Va
 			txWithResp := ev.Event.(*common.TxWithResp)
 
 			validTxsCh <- &precheck.ValidTxs{
-				Local:       true,
-				Txs:         []*types.Transaction{txWithResp.Tx},
-				LocalRespCh: txWithResp.RespCh,
+				Local:            true,
+				Txs:              []*types.Transaction{txWithResp.Tx},
+				LocalCheckRespCh: txWithResp.CheckCh,
+				LocalPoolRespCh:  txWithResp.PoolCh,
 			}
 		case common.RemoteTxEvent:
 			txs := ev.Event.([]*types.Transaction)

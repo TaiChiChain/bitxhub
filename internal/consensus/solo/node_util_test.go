@@ -123,14 +123,17 @@ func mockAddTx(node *Node, ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case txs := <-node.txPreCheck.CommitValidTxs():
+				txs.LocalCheckRespCh <- &common.TxResp{
+					Status: true,
+				}
 				err := node.txpool.AddLocalTx(txs.Txs[0])
 				if err != nil {
-					txs.LocalRespCh <- &common.TxResp{
+					txs.LocalPoolRespCh <- &common.TxResp{
 						Status:   false,
 						ErrorMsg: err.Error(),
 					}
 				} else {
-					txs.LocalRespCh <- &common.TxResp{
+					txs.LocalPoolRespCh <- &common.TxResp{
 						Status: true,
 					}
 				}

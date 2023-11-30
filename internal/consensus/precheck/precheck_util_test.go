@@ -79,8 +79,9 @@ func createLocalTxEvent(tx *types.Transaction) *common2.UncheckedTxEvent {
 	return &common2.UncheckedTxEvent{
 		EventType: common2.LocalTxEvent,
 		Event: &common2.TxWithResp{
-			Tx:     tx,
-			RespCh: make(chan *common2.TxResp),
+			Tx:      tx,
+			CheckCh: make(chan *common2.TxResp),
+			PoolCh:  make(chan *common2.TxResp),
 		},
 	}
 }

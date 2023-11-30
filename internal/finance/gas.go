@@ -34,9 +34,9 @@ func NewGas(repo *repo.Repo) *Gas {
 //
 // if G_c >= maxGasPrice, G_c = maxGasPrice
 func (gas *Gas) CalNextGasPrice(parentGasPrice uint64, txs int) (uint64, error) {
-	currentEpcoh := gas.repo.EpochInfo
-	max := currentEpcoh.FinanceParams.MaxGasPrice
-	min := currentEpcoh.FinanceParams.MinGasPrice
+	currentEpoch := gas.repo.EpochInfo
+	max := currentEpoch.FinanceParams.MaxGasPrice
+	min := currentEpoch.FinanceParams.MinGasPrice
 	if parentGasPrice < min || parentGasPrice > max {
 		gas.logger.Errorf("gas price is out of range, parent gas price is %d, min is %d, max is %d", parentGasPrice, min, max)
 		return 0, ErrGasOutOfRange
@@ -45,7 +45,7 @@ func (gas *Gas) CalNextGasPrice(parentGasPrice uint64, txs int) (uint64, error) 
 	if txs > total {
 		return 0, ErrTxsOutOfRange
 	}
-	percentage := 2 * float64(txs-total/2) / float64(total) * float64(currentEpcoh.FinanceParams.GasChangeRateValue) / math.Pow10(int(currentEpcoh.FinanceParams.GasChangeRateDecimals))
+	percentage := 2 * float64(txs-total/2) / float64(total) * float64(currentEpoch.FinanceParams.GasChangeRateValue) / math.Pow10(int(currentEpoch.FinanceParams.GasChangeRateDecimals))
 	currentPrice := uint64(float64(parentGasPrice) * (1 + percentage))
 	if currentPrice > max {
 		gas.logger.Warningf("gas price is touching ceiling, current price is %d, max is %d", currentPrice, max)

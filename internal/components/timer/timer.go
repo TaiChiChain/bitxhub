@@ -93,7 +93,6 @@ func (tm *TimerManager) StopTimer(timerName TimeoutEvent) {
 func (tm *TimerManager) stopTimer(timerName TimeoutEvent) {
 	if tm.containsTimer(timerName) {
 		tm.timersM[timerName].clear()
-		tm.logger.Debugf("Timer %s stopped", timerName)
 	}
 }
 
@@ -122,7 +121,6 @@ func (tm *TimerManager) StartTimer(name TimeoutEvent) error {
 	}
 	afterTimer := time.AfterFunc(tm.timersM[name].timeout, fn)
 	tm.timersM[name].isActive.Set(key, afterTimer)
-	tm.logger.Debugf("Timer %s started", name)
 	return nil
 }
 
@@ -140,7 +138,6 @@ func (tm *TimerManager) RestartTimer(name TimeoutEvent) error {
 	}
 	afterTimer := time.AfterFunc(tm.timersM[name].timeout, fn)
 	tm.timersM[name].isActive.Set(key, afterTimer)
-	tm.logger.Debugf("restart Timer %s", name)
 	return nil
 }
 

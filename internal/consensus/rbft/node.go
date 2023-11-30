@@ -2,13 +2,13 @@ package rbft
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
@@ -325,15 +325,21 @@ func (n *Node) Stop() {
 func (n *Node) Prepare(tx *types.Transaction) error {
 	defer n.txFeed.Send([]*types.Transaction{tx})
 	txWithResp := &common.TxWithResp{
-		Tx:     tx,
-		RespCh: make(chan *common.TxResp),
+		Tx:      tx,
+		CheckCh: make(chan *common.TxResp),
+		PoolCh:  make(chan *common.TxResp),
 	}
 	n.txCache.TxRespC <- txWithResp
+	precheckResp := <-txWithResp.CheckCh
+	if !precheckResp.Status {
+		return errors.Wrap(common.ErrorPreCheck, precheckResp.ErrorMsg)
+	}
+	// make sure that tx is prechecked successfully
 	n.txCache.RecvTxC <- tx
 
-	resp := <-txWithResp.RespCh
+	resp := <-txWithResp.PoolCh
 	if !resp.Status {
-		return fmt.Errorf(resp.ErrorMsg)
+		return errors.Wrap(common.ErrorAddTxPool, resp.ErrorMsg)
 	}
 	return nil
 }

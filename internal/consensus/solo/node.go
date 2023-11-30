@@ -2,12 +2,12 @@ package solo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -150,13 +150,19 @@ func (n *Node) Prepare(tx *types.Transaction) error {
 		return fmt.Errorf("node get ready failed: %w", err)
 	}
 	txWithResp := &common.TxWithResp{
-		Tx:     tx,
-		RespCh: make(chan *common.TxResp),
+		Tx:      tx,
+		CheckCh: make(chan *common.TxResp),
+		PoolCh:  make(chan *common.TxResp),
 	}
 	n.postMsg(txWithResp)
-	resp := <-txWithResp.RespCh
+	resp := <-txWithResp.CheckCh
 	if !resp.Status {
-		return fmt.Errorf(resp.ErrorMsg)
+		return errors.Wrap(common.ErrorPreCheck, resp.ErrorMsg)
+	}
+
+	resp = <-txWithResp.PoolCh
+	if !resp.Status {
+		return errors.Wrap(common.ErrorAddTxPool, resp.ErrorMsg)
 	}
 	return nil
 }
@@ -287,7 +293,6 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 	switch e {
 	case timer.Batch:
 		n.batchMgr.StopTimer(timer.Batch)
-		n.logger.Debug("Batch timer expired, try to create a batch")
 		if n.txpool.HasPendingRequestInPool() {
 			batch, err := n.txpool.GenerateRequestBatch(txpool.GenBatchTimeoutEvent)
 			if err != nil {
@@ -307,9 +312,8 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 				}
 				n.batchMgr.lastBatchTime = now
 				n.postProposal(batch)
+				n.logger.Debugf("batch timeout, post proposal: %v", batch)
 			}
-		} else {
-			n.logger.Debug("The length of priorityIndex is 0, skip the batch timer")
 		}
 	case timer.NoTxBatch:
 		if n.txpool.HasPendingRequestInPool() {
@@ -321,12 +325,12 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 			return errors.New("the node is not support the no-tx batch, skip the timer")
 		}
 		n.batchMgr.StopTimer(timer.NoTxBatch)
-		n.logger.Debug("Start create empty block")
 		batch, err := n.txpool.GenerateRequestBatch(txpool.GenBatchNoTxTimeoutEvent)
 		if err != nil {
 			return err
 		}
 		if batch != nil {
+			n.logger.Debug("Start create empty block")
 			now := time.Now().UnixNano()
 			if n.batchMgr.lastBatchTime != 0 {
 				interval := time.Duration(now - n.batchMgr.lastBatchTime).Seconds()
@@ -344,6 +348,7 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 			if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
 				n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
 			}
+			n.logger.Debugf("batch no-tx timeout, post proposal: %v", batch)
 		}
 	}
 	return nil

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -13,6 +14,11 @@ const (
 	RemoteTxEvent
 )
 
+var (
+	ErrorPreCheck  = errors.New("precheck failed")
+	ErrorAddTxPool = errors.New("add txpool failed")
+)
+
 // UncheckedTxEvent represents misc event sent by local modules
 type UncheckedTxEvent struct {
 	EventType int
@@ -20,8 +26,9 @@ type UncheckedTxEvent struct {
 }
 
 type TxWithResp struct {
-	Tx     *types.Transaction
-	RespCh chan *TxResp
+	Tx      *types.Transaction
+	CheckCh chan *TxResp
+	PoolCh  chan *TxResp
 }
 
 type TxResp struct {
