@@ -308,7 +308,11 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	var err error
 
 	msg := adaptor.TransactionToMessage(tx)
-	msg.GasPrice = exec.getCurrentGasPrice(height)
+	curGasPrice := exec.getCurrentGasPrice(height)
+	if msg.GasPrice.Cmp(curGasPrice) != 0 {
+		exec.logger.Warnf("msg gas price %v not equals to current gas price %v, will adjust msg.GasPrice automatically", msg.GasPrice, curGasPrice)
+		msg.GasPrice = curGasPrice
+	}
 
 	statedb := exec.ledger.StateLedger
 	// TODO: Move to system contract
@@ -320,13 +324,13 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		contract.Reset(exec.currentHeight, statedb)
 		// TODO: Move the error section to result
 		result, err = contract.Run(msg)
+		if result != nil && result.UsedGas != 0 {
+			fee := new(big.Int).SetUint64(result.UsedGas)
+			fee.Mul(fee, msg.GasPrice)
+			ethvm.Transfer(statedb, msg.From, exec.evm.Context.Coinbase, fee)
+		}
 	} else {
 		// execute evm
-		curGasPrice := exec.ledger.ChainLedger.GetChainMeta().GasPrice
-		if msg.GasPrice.Cmp(curGasPrice) != 0 {
-			exec.logger.Warnf("msg gas price %v not equals to current gas price %v, will adjust msg.GasPrice automatically", msg.GasPrice, curGasPrice)
-			msg.GasPrice = curGasPrice
-		}
 		gp := new(ethvm.GasPool).AddGas(exec.gasLimit)
 		txContext := ethvm.NewEVMTxContext(msg)
 		exec.evm.Reset(txContext, exec.ledger.StateLedger)
