@@ -67,6 +67,9 @@ func (r *Repo) Flush() error {
 	if err := writeConfigWithEnv(path.Join(r.RepoRoot, consensusCfgFileName), r.ConsensusConfig); err != nil {
 		return errors.Wrap(err, "failed to write consensus config")
 	}
+	if err := writeConfigWithEnv(path.Join(r.RepoRoot, genesisCfgFileName), r.GenesisConfig); err != nil {
+		return errors.Wrap(err, "failed to write genesis config")
+	}
 	if err := WriteKey(path.Join(r.RepoRoot, p2pKeyFileName), r.P2PKey); err != nil {
 		return errors.Wrap(err, "failed to write node key")
 	}
