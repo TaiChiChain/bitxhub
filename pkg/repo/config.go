@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
+
+	"github.com/axiomesh/axiom-kit/fileutil"
 )
 
 type Duration time.Duration

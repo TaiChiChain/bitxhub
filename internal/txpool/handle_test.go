@@ -7,9 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
 
 func TestHandleRemoveTimeoutEvent(t *testing.T) {

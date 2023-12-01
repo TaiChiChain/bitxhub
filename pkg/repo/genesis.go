@@ -5,10 +5,11 @@ import (
 	"os"
 	"path"
 
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
+
+	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/fileutil"
 )
 
 type GenesisConfig struct {

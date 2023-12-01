@@ -1541,7 +1541,6 @@ func (p *txPoolImpl[T, Constraint]) handleFilterOutOfDateRequests(timeout bool) 
 			if tx := p.txStore.priorityIndex.data.Get(priorityKey); tx != nil {
 				forward = append(forward, poolTx)
 			}
-
 		} else {
 			return false
 		}
