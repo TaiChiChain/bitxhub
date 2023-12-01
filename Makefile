@@ -49,6 +49,9 @@ GREEN=\033[0;32m
 BLUE=\033[0;34m
 NC=\033[0m
 
+GOARCH := $(or $(GOARCH),$(shell go env GOARCH))
+GOOS := $(or $(GOOS),$(shell go env GOOS))
+
 help: Makefile
 	@printf "${BLUE}Choose a command run:${NC}\n"
 	@sed -n 's/^##//p' $< | column -t -s ':' | sed -e 's/^/    /'
