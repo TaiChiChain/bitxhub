@@ -56,6 +56,10 @@ type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
 	wg     sync.WaitGroup
 }
 
+func NewTxPool[T any, Constraint types.TXConstraint[T]](config Config) (txpool.TxPool[T, Constraint], error) {
+	return newTxPoolImpl[T, Constraint](config)
+}
+
 func (p *txPoolImpl[T, Constraint]) Start() error {
 	go p.listenEvent()
 
@@ -80,6 +84,7 @@ func (p *txPoolImpl[T, Constraint]) listenEvent() {
 			p.logger.Info("txpool stopped")
 			return
 		case next := <-p.recvCh:
+			nexts := make([]txPoolEvent, 0)
 			for {
 				select {
 				case <-p.ctx.Done():
@@ -87,7 +92,8 @@ func (p *txPoolImpl[T, Constraint]) listenEvent() {
 					return
 				default:
 				}
-				nexts := p.processEvent(next)
+				events := p.processEvent(next)
+				nexts = append(nexts, events...)
 				if len(nexts) == 0 {
 					break
 				}
@@ -126,17 +132,13 @@ func (p *txPoolImpl[T, Constraint]) processEvent(event txPoolEvent) []txPoolEven
 func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []txPoolEvent {
 	p.logger.Debugf("start dispatch add txs event:%s", addTxsEventToStr[event.EventType])
 	var (
-		fullErr                      error
 		err                          error
-		notifyGenBatch               bool
 		completionMissingBatchHashes []string
-		removeEvent                  *removeTxsEvent
 		nextEvents                   []txPoolEvent
+		dirtyAccounts                map[string]bool
+		validTxs                     []*T
 	)
-	if p.statusMgr.In(PoolFull) {
-		fullErr = ErrTxPoolFull
-		traceRejectTx(ErrTxPoolFull.Error())
-	}
+	dirtyAccounts = make(map[string]bool)
 	start := time.Now()
 	metricsPrefix := "addTxs_"
 	defer func() {
@@ -146,54 +148,132 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 	switch event.EventType {
 	case localTxEvent:
 		req := event.Event.(*reqLocalTx[T, Constraint])
-		if fullErr != nil {
-			req.errCh <- fullErr
-			p.logger.Warning("add local tx failed", fullErr)
-		} else {
-			notifyGenBatch, completionMissingBatchHashes, removeEvent, err = p.addNewRequests([]*T{req.tx}, true, false, true)
-			// return err for local tx
-			req.errCh <- err
+		errs := p.addTxs([]*T{req.tx}, true)
+		err = errs[0]
+		// trigger remove all high nonce txs
+		if errors.Is(err, ErrNonceTooHigh) {
+			removeEvent := p.genHighNonceEvent(req.tx)
+			nextEvents = append(nextEvents, removeEvent)
 		}
+
+		// if error is nil, it means the tx is inserted into pool successfully
+		if err == nil {
+			dirtyAccounts[Constraint(req.tx).RbftGetFrom()] = true
+			validTxs = append(validTxs, req.tx)
+		} else {
+			p.logger.WithFields(logrus.Fields{"txHash": Constraint(req.tx).RbftGetTxHash(), "err": err}).Debug("add local tx failed")
+		}
+
+		req.errCh <- err
 
 	case remoteTxsEvent:
-		if fullErr != nil {
-			p.logger.Warning("add remote tx failed: ", fullErr)
-		} else {
-			req := event.Event.(*reqRemoteTxs[T, Constraint])
-			notifyGenBatch, completionMissingBatchHashes, removeEvent, _ = p.addNewRequests(req.txs, false, false, true)
-		}
+		nonceTooHighAccounts := make(map[string]bool)
+		req := event.Event.(*reqRemoteTxs[T, Constraint])
+		txs := req.txs
+		errs := p.addTxs(txs, false)
+		lo.ForEach(errs, func(err error, i int) {
+			// trigger remove all high nonce txs, ensure this event is only triggered once
+			if errors.Is(err, ErrNonceTooHigh) && !nonceTooHighAccounts[Constraint(txs[i]).RbftGetFrom()] {
+				removeEvent := p.genHighNonceEvent(txs[i])
+				nextEvents = append(nextEvents, removeEvent)
+				nonceTooHighAccounts[Constraint(txs[i]).RbftGetFrom()] = true
+				// remove account from dirty accounts
+				delete(dirtyAccounts, Constraint(txs[i]).RbftGetFrom())
+				validTxs = lo.Filter(validTxs, func(tx *T, _ int) bool {
+					return Constraint(tx).RbftGetFrom() != Constraint(tx).RbftGetFrom()
+				})
+			}
+
+			if err == nil {
+				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()] = true
+				validTxs = append(validTxs, txs[i])
+			} else {
+				p.logger.WithFields(logrus.Fields{"txHash": Constraint(txs[i]).RbftGetTxHash(), "err": err}).Debug("add remote tx failed")
+			}
+		})
 
 	case missingTxsEvent:
+		// NOTICE!!! this event will ignore the pool full status
 		req := event.Event.(*reqMissingTxs[T, Constraint])
-		if fullErr != nil {
-			p.logger.Warning("add missing tx failed: ", fullErr)
-			req.errCh <- fullErr
+		validTxs, err = p.validateReceiveMissingRequests(req.batchHash, req.txs)
+		if err == nil {
+			lo.ForEach(validTxs, func(tx *T, _ int) {
+				// if the tx is a new tx, need process it as dirty tx(update nonce cache)
+				if replaced := p.replaceTx(tx); !replaced {
+					dirtyAccounts[Constraint(tx).RbftGetFrom()] = true
+				}
+			})
+			delete(p.txStore.missingBatch, req.batchHash)
 		} else {
-			err = p.handleReceiveMissingRequests(req.batchHash, req.txs)
-			req.errCh <- err
+			p.logger.WithFields(logrus.Fields{"batchHash": req.batchHash, "err": err}).Warning("receive missing txs failed")
 		}
+
+		req.errCh <- err
 
 	default:
 		p.logger.Errorf("unknown addTxs event type: %d", event.EventType)
 	}
 
+	// process dirty accounts(update account nonce cache、priority txs)
+	p.processDirtyAccount(dirtyAccounts)
+
+	// check if pool is full
 	if p.checkPoolFull() {
 		p.setFull()
 	}
 
-	if notifyGenBatch {
-		p.logger.Infof("notify generate batch")
-		p.notifyGenerateBatchFn(txpool.GenBatchSizeEvent)
-	}
-	if len(completionMissingBatchHashes) != 0 {
-		p.logger.Infof("notify find next batch")
-		p.notifyFindNextBatchFn(completionMissingBatchHashes...)
+	// notify generate batch for primary
+	if event.EventType == localTxEvent || event.EventType == remoteTxsEvent {
+		// when primary generate batch, reset notifyGenerateBatch flag
+		if p.txStore.priorityNonBatchSize >= p.batchSize && !p.notifyGenerateBatch {
+			p.logger.Infof("notify generate batch")
+			p.notifyGenerateBatchFn(txpool.GenBatchSizeEvent)
+			p.notifyGenerateBatch = true
+		}
+
+		// notify find next batch for replica
+		completionMissingBatchHashes = p.checkIfCompleteMissingBatch(validTxs)
+		if len(completionMissingBatchHashes) != 0 {
+			p.logger.Infof("notify find next batch")
+			p.notifyFindNextBatchFn(completionMissingBatchHashes...)
+		}
 	}
 
-	if removeEvent != nil {
-		nextEvents = append(nextEvents, removeEvent)
-	}
 	return nextEvents
+}
+
+func (p *txPoolImpl[T, Constraint]) checkIfCompleteMissingBatch(txs []*T) []string {
+	completionMissingBatchHashes := make([]string, 0)
+	// for replica, add validTxs to nonBatchedTxs and check if the missing transactions and batches are fetched
+	lo.ForEach(txs, func(tx *T, _ int) {
+		for batchHash, missingTxs := range p.txStore.missingBatch {
+			for i, missingTxHash := range missingTxs {
+				// we have received a tx which we are fetching.
+				if Constraint(tx).RbftGetTxHash() == missingTxHash {
+					delete(missingTxs, i)
+				}
+			}
+
+			// we receive all missing txs
+			if len(missingTxs) == 0 {
+				delete(p.txStore.missingBatch, batchHash)
+				completionMissingBatchHashes = append(completionMissingBatchHashes, batchHash)
+			}
+		}
+	})
+	return completionMissingBatchHashes
+}
+
+func (p *txPoolImpl[T, Constraint]) genHighNonceEvent(tx *T) *removeTxsEvent {
+	account := Constraint(tx).RbftGetFrom()
+	removeEvent := &removeTxsEvent{
+		EventType: highNonceTxsEvent,
+		Event: &reqHighNonceTxs{
+			account:   account,
+			highNonce: p.txStore.nonceCache.getPendingNonce(account),
+		},
+	}
+	return removeEvent
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent) {
@@ -440,113 +520,54 @@ func (p *txPoolImpl[T, Constraint]) AddRemoteTxs(txs []*T) {
 	p.postEvent(ev)
 }
 
-func (p *txPoolImpl[T, Constraint]) addNewRequests(txs []*T, local, isReplace bool, needCompletionMissingBatch bool) (
-	bool, []string, *removeTxsEvent, error) {
-	completionMissingBatchHashes := make([]string, 0)
-	validTxs := make(map[string][]*internalTransaction[T, Constraint])
+func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
+	errs := make([]error, len(txs))
+	if p.statusMgr.In(PoolFull) {
+		traceRejectTx(ErrTxPoolFull.Error())
+		lo.ForEach(errs, func(err error, i int) {
+			errs[i] = ErrTxPoolFull
+		})
+		return errs
+	}
 
-	// key: missing batch hash
-	// val: txHash -> bool
-	matchMissingTxBatch := make(map[string]map[string]struct{})
+	// record all accounts wanted nonce
+	currentSeqNoMap := make(map[string]uint64)
 
-	currentSeqNoList := make(map[string]uint64)
-	duplicateTxHash := make(map[string]bool)
-	duplicatePointer := make(map[txPointer]string)
-	triggeredRemoveTxs := make(map[string]bool)
-	for _, tx := range txs {
+	lo.ForEach(txs, func(tx *T, i int) {
 		txAccount := Constraint(tx).RbftGetFrom()
 		txHash := Constraint(tx).RbftGetTxHash()
 		txNonce := Constraint(tx).RbftGetNonce()
 
-		// currentSeqNo means the current wanted nonce of the account
-		currentSeqNo, ok := currentSeqNoList[txAccount]
+		currentSeqNo, ok := currentSeqNoMap[txAccount]
 		if !ok {
 			currentSeqNo = p.txStore.nonceCache.getPendingNonce(txAccount)
-			currentSeqNoList[txAccount] = currentSeqNo
+			currentSeqNoMap[txAccount] = currentSeqNo
 		}
 
-		var ready bool
-		if txNonce < currentSeqNo {
-			ready = true
-			if !isReplace {
-				// just log tx warning message from api
-				if local {
-					err := fmt.Errorf("%w: receive transaction [account: %s, nonce: %d, hash: %s], "+
-						"but we required %d", ErrNonceTooLow, txAccount, txNonce, txHash, currentSeqNo)
-					p.logger.Warningf(err.Error())
-					return false, nil, nil, err
-				}
-				traceRejectTx(ErrNonceTooLow.Error())
-				continue
-			} else {
-				p.logger.Warningf("Receive transaction [account: %s, nonce: %d, hash: %s], but we required %d,"+
-					" will replace old tx", txAccount, txNonce, txHash, currentSeqNo)
-				p.replaceTx(tx, local, ready)
-				continue
-			}
+		// 1. validate tx
+		if err := p.validateTx(txHash, txNonce, currentSeqNo); err != nil {
+			traceRejectTx(err.Error())
+			errs[i] = err
+			return
 		}
 
-		// reject nonce too high tx, trigger remove all high nonce txs of account
-		if txNonce > currentSeqNo+p.toleranceNonceGap {
-			err := fmt.Errorf("%w: receive transaction [account: %s, nonce: %d, hash: %s], "+
-				"but we required %d", ErrNonceTooHigh, txAccount, txNonce, txHash, currentSeqNo)
-			var removeEvent *removeTxsEvent
-			if !triggeredRemoveTxs[txAccount] {
-				p.logger.Warningf("%s, trigger remove all high nonce txs", err.Error())
-				// trigger remove all high nonce txs
-				removeEvent = &removeTxsEvent{
-					EventType: highNonceTxsEvent,
-					Event: &reqHighNonceTxs{
-						account:   txAccount,
-						highNonce: currentSeqNo,
-					},
-				}
-			}
-			traceRejectTx(ErrNonceTooHigh.Error())
-			return false, nil, removeEvent, err
+		// if we receive valid tx which we wanted, update currentSeqNo
+		if txNonce == currentSeqNo {
+			currentSeqNoMap[txAccount]++
 		}
 
-		// ignore duplicate tx
-		if pointer := p.txStore.txHashMap[txHash]; pointer != nil || duplicateTxHash[txHash] {
-			err := fmt.Errorf("%w: Transaction [account: %s, nonce: %d, hash: %s] has already existed in txHashMap, "+
-				"ignore it", ErrDuplicateTx, txAccount, txNonce, txHash)
-			p.logger.Warning(err.Error())
-			if local {
-				return false, nil, nil, err
-			}
-			traceRejectTx(ErrDuplicateTx.Error())
-			continue
-		}
-
-		// check duplicate account and nonce(but different txHash), and replace old tx
-		if oldTxhash, ok := duplicatePointer[txPointer{account: txAccount, nonce: txNonce}]; ok {
-			p.logger.Warningf("Receive duplicate nonce transaction [account: %s, nonce: %d, hash: %s],"+
-				" will replace old tx[hash: %s]", txAccount, txNonce, txHash, oldTxhash)
-			txItems := validTxs[txAccount]
-			// remove old tx from txItems
-			newItems := lo.Filter(txItems, func(txItem *internalTransaction[T, Constraint], index int) bool {
-				return txItem.getNonce() != txNonce
-			})
-			validTxs[txAccount] = newItems
-		}
-
+		// 2. remove same nonce tx
 		if p.txStore.allTxs[txAccount] != nil {
 			if oldTx, ok := p.txStore.allTxs[txAccount].items[txNonce]; ok {
 				p.logger.Warningf("Receive duplicate nonce transaction [account: %s, nonce: %d, hash: %s],"+
 					" will replace old tx[hash: %s]", txAccount, txNonce, txHash, oldTx.getHash())
-				p.replaceTx(tx, local, false)
+				// remove old tx from allTxs、priorityIndex、parkingLotIndex、localTTLIndex and removeTTLIndex
+				p.txStore.removeTxInPool(oldTx)
+				traceRemovedTx("replace_old", 1)
 			}
 		}
 
-		// update currentSeqNoList
-		if txNonce == currentSeqNo {
-			currentSeqNoList[txAccount]++
-		}
-
-		_, ok = validTxs[txAccount]
-		if !ok {
-			validTxs[txAccount] = make([]*internalTransaction[T, Constraint], 0)
-		}
+		// 3. insert new tx into txHashMap、allTxs、localTTLIndex、removeTTLIndex
 		now := time.Now().UnixNano()
 		txItem := &internalTransaction[T, Constraint]{
 			rawTx:       tx,
@@ -554,54 +575,37 @@ func (p *txPoolImpl[T, Constraint]) addNewRequests(txs []*T, local, isReplace bo
 			lifeTime:    Constraint(tx).RbftGetTimeStamp(),
 			arrivedTime: now,
 		}
-		validTxs[txAccount] = append(validTxs[txAccount], txItem)
-		duplicateTxHash[txHash] = true
-		duplicatePointer[txPointer{account: txAccount, nonce: txNonce}] = txHash
+		p.txStore.insertTxInPool(txItem, local)
+	})
 
-		// for replica, add validTxs to nonBatchedTxs and check if the missing transactions and batches are fetched
-		if needCompletionMissingBatch {
-			for batchHash, missingTxsHash := range p.txStore.missingBatch {
-				if _, ok := matchMissingTxBatch[batchHash]; !ok {
-					matchMissingTxBatch[batchHash] = make(map[string]struct{}, 0)
-				}
-				for _, missingTxHash := range missingTxsHash {
-					// we have received a tx which we are fetching.
-					if txHash == missingTxHash {
-						matchMissingTxBatch[batchHash][txHash] = struct{}{}
-					}
-				}
+	return errs
+}
 
-				// we receive all missing txs
-				if len(missingTxsHash) == len(matchMissingTxBatch[batchHash]) {
-					delete(p.txStore.missingBatch, batchHash)
-					completionMissingBatchHashes = append(completionMissingBatchHashes, batchHash)
-				}
-			}
-		}
+func (p *txPoolImpl[T, Constraint]) validateTx(txHash string, txNonce, currentSeqNo uint64) error {
+	// 1. reject duplicate tx
+	if pointer := p.txStore.txHashMap[txHash]; pointer != nil {
+		return ErrDuplicateTx
 	}
 
-	// Process all the new transaction and merge any errors into the original slice
-	dirtyAccounts := p.txStore.insertTxs(validTxs, local)
-	// send tx to txpool store
-	p.processDirtyAccount(dirtyAccounts)
-
-	var notifyGenBatch bool
-
-	// when primary generate batch, reset notifyGenerateBatch flag
-	if p.txStore.priorityNonBatchSize >= p.batchSize && !p.notifyGenerateBatch {
-		notifyGenBatch = true
-		p.notifyGenerateBatch = true
+	// 2. reject nonce too low tx
+	if txNonce < currentSeqNo {
+		return ErrNonceTooLow
 	}
-	return notifyGenBatch, completionMissingBatchHashes, nil, nil
+
+	// 3. reject nonce too high tx, trigger remove all high nonce txs of account outbound
+	if txNonce > currentSeqNo+p.toleranceNonceGap {
+		return ErrNonceTooHigh
+	}
+
+	return nil
 }
 
 func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 	now := time.Now().UnixNano()
 	removedTxs := make(map[string][]*internalTransaction[T, Constraint])
 	var (
-		count          int
-		index          int
-		revertAccounts = make(map[string]uint64)
+		count int
+		index int
 	)
 	p.txStore.removeTTLIndex.data.Ascend(func(a btree.Item) bool {
 		index++
@@ -615,30 +619,25 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 			// for those batched txs, we don't need to removedTxs temporarily.
 			pointer := &txPointer{account: removeKey.account, nonce: removeKey.nonce}
 			if _, ok := p.txStore.batchedTxs[*pointer]; ok {
-				p.logger.Debugf("find tx[account: %s, nonce:%d] from batchedTxs, ignore remove request",
-					removeKey.account, removeKey.nonce)
 				return true
 			}
 
 			orderedKey := &orderedIndexKey{time: poolTx.getRawTimestamp(), account: poolTx.getAccount(), nonce: poolTx.getNonce()}
 
+			// for priority txs, we don't need to removedTxs temporarily.
+			if tx := p.txStore.priorityIndex.data.Get(orderedKey); tx != nil {
+				return true
+			}
+
 			deleteTx := func(index *btreeIndex[T, Constraint]) bool {
 				if tx := index.data.Get(orderedKey); tx != nil {
 					p.fillRemoveTxs(orderedKey, poolTx, removedTxs)
 					count++
-					// remove txHashMap
-					txHash := poolTx.getHash()
-					p.txStore.deletePoolTxPointer(txHash)
 					return true
 				}
 				return false
 			}
 
-			// if remove ready txs, we need revert pending nonce
-			if deleteTx(p.txStore.priorityIndex) {
-				p.revertPendingNonce(pointer, revertAccounts)
-				return true
-			}
 			return deleteTx(p.txStore.parkingLotIndex)
 		}
 		return true
@@ -650,21 +649,6 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 		}
 	}
 
-	for account, pendingNonce := range revertAccounts {
-		p.logger.Debugf("Account %s revert its pendingNonce to %d", account, pendingNonce)
-	}
-
-	// when remove priorityIndex, we need to decrease priorityNonBatchSize
-	// NOTICE!!! we remove priorityIndex when it's timeout, it may cause the priorityNonBatchSize is not correct.
-	// for example, if we have 10 txs in priorityIndex whitch nonce is 1-10, and we remove nonce 1-5, then the priorityNonBatchSize is 5.
-	// but the nonce 6-10 is not ready because we remove nonce 1-5, so the priorityNonBatchSize is actual 0.
-	readyNum := uint64(p.txStore.priorityIndex.size())
-	// set priorityNonBatchSize to min(nonBatchedTxs, readyNum),
-	if p.txStore.priorityNonBatchSize > readyNum {
-		p.logger.Debugf("Set priorityNonBatchSize from %d to the length of priorityIndex %d", p.txStore.priorityNonBatchSize, readyNum)
-		p.setPriorityNonBatchSize(readyNum)
-	}
-
 	return count
 }
 
@@ -674,8 +658,6 @@ func (p *txPoolImpl[T, Constraint]) GetUncommittedTransactions(maxsize uint64) [
 	return []*T{}
 }
 
-// Stop stop metrics
-// TODO(lrx): add metrics
 func (p *txPoolImpl[T, Constraint]) Stop() {
 	p.cancel()
 	p.wg.Wait()
@@ -989,7 +971,6 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveBatches(batchHashList []string) 
 				continue
 			}
 			p.updateNonceCache(pointer, updateAccounts)
-			p.txStore.deletePoolTxPointer(txHash)
 			delete(p.txStore.batchedTxs, *pointer)
 			dirtyAccounts[pointer.account] = true
 			count++
@@ -1037,15 +1018,9 @@ func (p *txPoolImpl[T, Constraint]) cleanTxsByAccount(account string, list *txSo
 	wg.Add(5)
 	go func(txs []*internalTransaction[T, Constraint]) {
 		defer wg.Done()
-		if err := list.index.removeBySortedNonceKeys(account, txs); err != nil {
-			p.logger.Errorf("removeBySortedNonceKeys error: %v", err)
-			failed.Store(true)
-		} else {
-			lo.ForEach(txs, func(tx *internalTransaction[T, Constraint], _ int) {
-				delete(list.items, tx.getNonce())
-				poolTxNum.WithLabelValues("tx").Dec()
-			})
-		}
+		lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
+			p.txStore.deletePoolTx(account, poolTx.getNonce())
+		})
 	}(removedTxs)
 	go func(txs []*internalTransaction[T, Constraint]) {
 		defer wg.Done()
@@ -1111,7 +1086,6 @@ func (p *txPoolImpl[T, Constraint]) updateNonceCache(pointer *txPointer, updateA
 			p.txStore.nonceCache.setPendingNonce(pointer.account, newCommitNonce)
 		}
 	}
-	p.logger.Debugf("update nonce cache, account:%s, preCommitNonce:%d, newCommitNonce:%d", pointer.account, preCommitNonce, p.txStore.nonceCache.getCommitNonce(pointer.account))
 }
 
 func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txPointerList []*txpool.WrapperTxPointer) {
@@ -1137,8 +1111,6 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList [
 				p.logger.Errorf("pool tx %s not found in txpool, but exists in txHashMap", txHash)
 				return
 			}
-			// remove from txHashMap
-			p.txStore.deletePoolTxPointer(txHash)
 			if removeTxs[pointer.account] == nil {
 				removeTxs[pointer.account] = make([]*internalTransaction[T, Constraint], 0)
 			}
@@ -1268,13 +1240,6 @@ func (p *txPoolImpl[T, Constraint]) handleGetRequestsByHashList(batchHash string
 			}
 		}
 		poolTx := p.txStore.getPoolTxByTxnPointer(pointer.account, pointer.nonce)
-		if poolTx == nil {
-			p.logger.Warningf("Transaction %s exist in txHashMap but not in allTxs", txHash)
-			p.txStore.deletePoolTxPointer(txHash)
-			missingTxsHash[uint64(index)] = txHash
-			hasMissing = true
-			continue
-		}
 
 		if !hasMissing {
 			txs = append(txs, poolTx.rawTx)
@@ -1346,32 +1311,47 @@ func (p *txPoolImpl[T, Constraint]) ReceiveMissingRequests(batchHash string, txs
 	return <-req.errCh
 }
 
-func (p *txPoolImpl[T, Constraint]) handleReceiveMissingRequests(batchHash string, txs map[uint64]*T) error {
+func (p *txPoolImpl[T, Constraint]) validateReceiveMissingRequests(batchHash string, txs map[uint64]*T) ([]*T, error) {
 	p.logger.Debugf("Replica received %d missingTxs, batch hash: %s", len(txs), batchHash)
 	if _, ok := p.txStore.missingBatch[batchHash]; !ok {
 		p.logger.Debugf("Can't find batch %s from missingBatch", batchHash)
-		return nil
+		return nil, nil
 	}
-	expectLen := len(p.txStore.missingBatch[batchHash])
-	if len(txs) != expectLen {
-		return fmt.Errorf("receive unmatched fetching txn response, expect "+
-			"length: %d, received length: %d", expectLen, len(txs))
-	}
-	validTxn := make([]*T, 0)
+
 	targetBatch := p.txStore.missingBatch[batchHash]
-	for index, tx := range txs {
-		txHash := Constraint(tx).RbftGetTxHash()
-		if txHash != targetBatch[index] {
-			return errors.New("find a hash mismatch tx")
+	validTxs := make([]*T, 0)
+	for index, missingTxHash := range targetBatch {
+		txsHash := Constraint(txs[index]).RbftGetTxHash()
+		if txsHash != missingTxHash {
+			return nil, errors.New("find a hash mismatch tx")
 		}
-		validTxn = append(validTxn, tx)
+		validTxs = append(validTxs, txs[index])
 	}
-	var _, _, _, err = p.addNewRequests(validTxn, false, true, false)
-	if err != nil {
-		return err
+
+	return validTxs, nil
+}
+
+func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T) (replaced bool) {
+	account := Constraint(tx).RbftGetFrom()
+	txNonce := Constraint(tx).RbftGetNonce()
+	oldPoolTx := p.txStore.getPoolTxByTxnPointer(account, txNonce)
+	if oldPoolTx != nil {
+		p.txStore.removeTxInPool(oldPoolTx)
+		traceRemovedTx("primary_replace_old", 1)
+		replaced = true
 	}
-	delete(p.txStore.missingBatch, batchHash)
-	return nil
+
+	// update txPointer in allTxs
+	now := time.Now().UnixNano()
+	newPoolTx := &internalTransaction[T, Constraint]{
+		local:       false,
+		rawTx:       tx,
+		lifeTime:    Constraint(tx).RbftGetTimeStamp(),
+		arrivedTime: now,
+	}
+
+	p.txStore.insertTxInPool(newPoolTx, false)
+	return
 }
 
 func (p *txPoolImpl[T, Constraint]) SendMissingRequests(batchHash string, missingHashList map[uint64]string) (txs map[uint64]*T, err error) {
@@ -1509,56 +1489,22 @@ func (p *txPoolImpl[T, Constraint]) RestorePool() {
 // RestorePool move all batched txs back to non-batched tx which should
 // only be used after abnormal recovery.
 func (p *txPoolImpl[T, Constraint]) handleRestorePool() {
-	p.logger.Debugf("Before restore pool, there are %d non-batched txs, %d batches, "+
+	p.logger.Infof("Before restore pool, there are %d non-batched txs, %d batches, "+
 		"priority len: %d, parkingLot len: %d, batchedTx len: %d, txHashMap len: %d, local txs: %d", p.txStore.priorityNonBatchSize,
 		len(p.txStore.batchesCache), p.txStore.priorityIndex.size(), p.txStore.parkingLotIndex.size(),
 		len(p.txStore.batchedTxs), len(p.txStore.txHashMap), p.txStore.localTTLIndex.size())
 
-	// if the batches are fetched from primary, those txs will be put back to non-batched cache.
-	// rollback txs currentSeq
-	var (
-		account string
-		nonce   uint64
-	)
-	// record the smallest nonce of each account
-	rollbackTxsNonce := make(map[string]uint64)
-	for _, batch := range p.txStore.batchesCache {
-		for _, tx := range batch.TxList {
-			account = Constraint(tx).RbftGetFrom()
-			nonce = Constraint(tx).RbftGetNonce()
-
-			if _, ok := rollbackTxsNonce[account]; !ok {
-				rollbackTxsNonce[account] = nonce
-			} else if nonce < rollbackTxsNonce[account] {
-				// if the nonce is smaller than the currentSeq, update it
-				rollbackTxsNonce[account] = nonce
-			}
-		}
-		// increase priorityNonBatchSize
-		p.increasePriorityNonBatchSize(uint64(len(batch.TxList)))
-	}
-	// rollback nonce for each account
-	for acc, non := range rollbackTxsNonce {
-		p.txStore.nonceCache.setPendingNonce(acc, non)
-	}
-
-	// resubmit these txs to txpool.
 	for batchDigest, batch := range p.txStore.batchesCache {
-		p.logger.Debugf("Put batch %s back to pool with %d txs", batchDigest, len(batch.TxList))
-		lo.ForEach(batch.TxList, func(tx *T, index int) {
-			_, _, _, err := p.addNewRequests([]*T{tx}, batch.LocalList[index], true, false)
-			if err != nil {
-				p.logger.Warningf("Put tx[account:%s, nonce:%d] back to pool failed: %v",
-					Constraint(tx).RbftGetFrom(), Constraint(tx).RbftGetNonce(), err)
-			}
-		})
+		// 1. increase priorityNonBatchSize
+		p.increasePriorityNonBatchSize(uint64(len(batch.TxList)))
+		// 2. remove batchCache
 		delete(p.txStore.batchesCache, batchDigest)
 	}
 
 	// clear missingTxs after abnormal.
 	p.txStore.missingBatch = make(map[string]map[uint64]string)
 	p.txStore.batchedTxs = make(map[txPointer]bool)
-	p.logger.Debugf("After restore pool, there are %d non-batched txs, %d batches, "+
+	p.logger.Infof("After restore pool, there are %d non-batched txs, %d batches, "+
 		"priority len: %d, parkingLot len: %d, batchedTx len: %d, txHashMap len: %d, local txs: %d", p.txStore.priorityNonBatchSize,
 		len(p.txStore.batchesCache), p.txStore.priorityIndex.size(), p.txStore.parkingLotIndex.size(),
 		len(p.txStore.batchedTxs), len(p.txStore.txHashMap), p.txStore.localTTLIndex.size())
@@ -1590,10 +1536,12 @@ func (p *txPoolImpl[T, Constraint]) handleFilterOutOfDateRequests(timeout bool) 
 		}
 
 		if !timeout || now-poolTx.lifeTime > p.toleranceTime.Nanoseconds() {
-			// for those batched txs, we don't need to forward temporarily.
-			if _, ok := p.txStore.batchedTxs[txPointer{account: orderedKey.account, nonce: orderedKey.nonce}]; !ok {
+			priorityKey := &orderedIndexKey{time: poolTx.getRawTimestamp(), account: poolTx.getAccount(), nonce: poolTx.getNonce()}
+			// for those priority txs, we need rebroadcast
+			if tx := p.txStore.priorityIndex.data.Get(priorityKey); tx != nil {
 				forward = append(forward, poolTx)
 			}
+
 		} else {
 			return false
 		}
@@ -1624,14 +1572,7 @@ func (p *txPoolImpl[T, Constraint]) removeTxsByAccount(account string, nonce uin
 	var removeTxs []*internalTransaction[T, Constraint]
 	if list, ok := p.txStore.allTxs[account]; ok {
 		removeTxs = list.behind(nonce)
-
-		// 1. remove all txs in txHashMap
-		lo.ForEach(removeTxs, func(poolTx *internalTransaction[T, Constraint], index int) {
-			txHash := poolTx.getHash()
-			p.txStore.deletePoolTxPointer(txHash)
-		})
-
-		// 2. remove index from removedTxs
+		// remove index from removedTxs
 		if err := p.cleanTxsByAccount(account, list, removeTxs); err != nil {
 			return 0, err
 		}
@@ -1665,50 +1606,6 @@ func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string
 			}
 		}
 	}
-}
-
-func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local, ready bool) {
-	account := Constraint(tx).RbftGetFrom()
-	txHash := Constraint(tx).RbftGetTxHash()
-	txNonce := Constraint(tx).RbftGetNonce()
-	oldPoolTx := p.txStore.getPoolTxByTxnPointer(account, txNonce)
-	pointer := &txPointer{
-		account: account,
-		nonce:   txNonce,
-	}
-
-	// remove old tx from txHashMap、priorityIndex、parkingLotIndex、localTTLIndex and removeTTLIndex
-	if oldPoolTx != nil {
-		p.txStore.deletePoolTxPointer(oldPoolTx.getHash())
-		p.txStore.priorityIndex.removeByOrderedQueueKey(oldPoolTx)
-		p.txStore.parkingLotIndex.removeByOrderedQueueKey(oldPoolTx)
-		p.txStore.removeTTLIndex.removeByOrderedQueueKey(oldPoolTx)
-		p.txStore.localTTLIndex.removeByOrderedQueueKey(oldPoolTx)
-	}
-
-	if !ready {
-		// if not ready, just delete old tx, outbound will handle insert new tx
-		return
-	}
-	// insert new tx
-	p.txStore.insertPoolTxPointer(txHash, pointer)
-
-	// update txPointer in allTxs
-	now := time.Now().UnixNano()
-	newPoolTx := &internalTransaction[T, Constraint]{
-		local:       false,
-		rawTx:       tx,
-		lifeTime:    Constraint(tx).RbftGetTimeStamp(),
-		arrivedTime: now,
-	}
-	p.txStore.insertPoolTx(account, newPoolTx)
-
-	// insert new tx received from remote vp
-	p.txStore.priorityIndex.insertByOrderedQueueKey(newPoolTx)
-	if local {
-		p.txStore.localTTLIndex.insertByOrderedQueueKey(newPoolTx)
-	}
-	p.txStore.removeTTLIndex.insertByOrderedQueueKey(newPoolTx)
 }
 
 // getBatchHash calculate hash of a RequestHashBatch

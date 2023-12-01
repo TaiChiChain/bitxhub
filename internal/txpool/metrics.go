@@ -3,13 +3,12 @@ package txpool
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	poolTxNum = prometheus.NewGaugeVec(
+	poolTxNum = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "txpool",
 			Name:      "tx_counter",
 			Help:      "the total number of transactions",
 		},
-		[]string{"type"},
 	)
 	readyTxNum = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "txpool",
