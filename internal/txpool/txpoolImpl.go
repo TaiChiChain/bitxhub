@@ -1536,10 +1536,12 @@ func (p *txPoolImpl[T, Constraint]) handleFilterOutOfDateRequests(timeout bool) 
 		}
 
 		if !timeout || now-poolTx.lifeTime > p.toleranceTime.Nanoseconds() {
-			// for those batched txs, we don't need to forward temporarily.
-			if _, ok := p.txStore.batchedTxs[txPointer{account: orderedKey.account, nonce: orderedKey.nonce}]; !ok {
+			priorityKey := &orderedIndexKey{time: poolTx.getRawTimestamp(), account: poolTx.getAccount(), nonce: poolTx.getNonce()}
+			// for those priority txs, we need rebroadcast
+			if tx := p.txStore.priorityIndex.data.Get(priorityKey); tx != nil {
 				forward = append(forward, poolTx)
 			}
+
 		} else {
 			return false
 		}

@@ -1229,19 +1229,27 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 		ast.Nil(err)
 		from := s.Addr.String()
 		tx0 := constructTx(s, 0)
-		err = pool.AddLocalTx(tx0)
-		ast.Nil(err)
+		tx1 := constructTx(s, 1)
+		tx3 := constructTx(s, 3) // lack tx2, so tx3 is not ready
+		txs := []*types.Transaction{tx0, tx1, tx3}
+		lo.ForEach(txs, func(tx *types.Transaction, _ int) {
+			err = pool.AddLocalTx(tx)
+			ast.Nil(err)
+		})
+		ast.Equal(uint64(3), pool.GetTotalPendingTxCount())
+		ast.Equal(uint64(2), pool.txStore.priorityNonBatchSize)
+		ast.Equal(2, pool.txStore.priorityIndex.size())
+		ast.Equal(1, pool.txStore.parkingLotIndex.size())
 		poolTx := pool.txStore.getPoolTxByTxnPointer(from, 0)
 		ast.NotNil(poolTx)
 		firstTime := poolTx.lifeTime
 
 		// trigger update lifeTime
 		time.Sleep(2 * time.Millisecond)
-		tx1 := constructTx(s, 1)
-		err = pool.AddLocalTx(tx1)
-		ast.Nil(err)
-		txs := pool.FilterOutOfDateRequests(true)
-		ast.True(len(txs) >= 1)
+		rebroadcastTxs := pool.FilterOutOfDateRequests(true)
+		ast.Equal(2, len(rebroadcastTxs), "rebroadcast tx1, tx2")
+		ast.Equal(tx0.RbftGetTxHash(), rebroadcastTxs[0].RbftGetTxHash())
+		ast.Equal(tx1.RbftGetTxHash(), rebroadcastTxs[1].RbftGetTxHash())
 		ast.True(poolTx.lifeTime > firstTime)
 	})
 

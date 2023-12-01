@@ -3,6 +3,7 @@ package rbft
 import (
 	"context"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
@@ -184,7 +185,9 @@ func TestPrepare(t *testing.T) {
 	sub := node.SubscribeTxEvent(txSubscribeCh)
 	defer sub.Unsubscribe()
 	ctx, cancel := context.WithCancel(context.Background())
-	mockAddTx(node, ctx)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	mockAddTx(node, ctx, wg)
 
 	err = node.Prepare(tx1)
 	ast.Nil(err)
@@ -195,6 +198,7 @@ func TestPrepare(t *testing.T) {
 	ast.Nil(err)
 	<-txSubscribeCh
 	cancel()
+	wg.Wait() // make sure mockAddTx is done
 
 	t.Run("GetLowWatermark", func(t *testing.T) {
 		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetLowWatermark().DoAndReturn(func() uint64 {
@@ -374,11 +378,12 @@ func TestStatus2String(t *testing.T) {
 	}
 }
 
-func mockAddTx(node *Node, ctx context.Context) {
+func mockAddTx(node *Node, ctx context.Context, wg *sync.WaitGroup) {
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
+				wg.Done()
 				return
 			case txs := <-node.txPreCheck.CommitValidTxs():
 				txs.LocalCheckRespCh <- &common.TxResp{

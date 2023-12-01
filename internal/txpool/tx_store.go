@@ -113,7 +113,6 @@ func (txStore *transactionStore[T, Constraint]) insertPoolTx(account string, txI
 
 func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, nonce uint64) {
 	if txList, ok := txStore.allTxs[account]; ok {
-		defer poolTxNum.Dec()
 		poolTx := txStore.getPoolTxByTxnPointer(account, nonce)
 		if poolTx == nil {
 			txStore.logger.Warningf("tx [account:%s, nonce:%d] not found in txpool", account, nonce)
@@ -121,6 +120,7 @@ func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, non
 		}
 		txList.index.removeBySortedNonceKey(poolTx)
 		delete(txList.items, nonce)
+		poolTxNum.Dec()
 
 		if txList.isEmpty() {
 			txList.setEmpty()

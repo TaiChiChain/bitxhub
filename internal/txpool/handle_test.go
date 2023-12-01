@@ -36,15 +36,14 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		txs := constructTxs(s, 5) // 4 batched txs + 1 priority tx
 		pool.AddRemoteTxs(txs)
 		<-ch
-		time.Sleep(1 * time.Millisecond)
+		// sleep a while to trigger the remove timeout event
+		time.Sleep(10 * time.Millisecond)
 		ast.Equal(uint64(5), pool.GetTotalPendingTxCount())
 		ast.Equal(4, len(pool.txStore.batchedTxs))
 		ast.Equal(1, len(pool.txStore.batchesCache))
 		ast.Equal(5, pool.txStore.priorityIndex.size())
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 
-		// sleep a while to trigger the remove timeout event
-		time.Sleep(10 * time.Millisecond)
 		pool.handleRemoveTimeout(timer.RemoveTx)
 		res := pool.GetTotalPendingTxCount()
 		fmt.Println(res)
