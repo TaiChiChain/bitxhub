@@ -366,7 +366,6 @@ func TestStatus2String(t *testing.T) {
 		rbft.InViewChange:      "system is in view change",
 		rbft.InRecovery:        "system is in recovery",
 		rbft.StateTransferring: "system is in state update",
-		rbft.PoolFull:          "system is too busy",
 		rbft.Pending:           "system is in pending state",
 		rbft.Stopped:           "system is stopped",
 		1000:                   "Unknown status: 1000",

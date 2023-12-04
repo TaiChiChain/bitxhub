@@ -509,8 +509,6 @@ func status2String(status rbft.StatusType) string {
 		return "system is in recovery"
 	case rbft.StateTransferring:
 		return "system is in state update"
-	case rbft.PoolFull:
-		return "system is too busy"
 	case rbft.Pending:
 		return "system is in pending state"
 	case rbft.Stopped:

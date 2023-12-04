@@ -2,20 +2,17 @@ package txpool
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/google/btree"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
@@ -881,7 +878,7 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (*txpool
 		LocalList:  localList,
 		Timestamp:  time.Now().UnixNano(),
 	}
-	batchHash := getBatchHash[T, Constraint](txBatch)
+	batchHash := txpool.GetBatchHash[T, Constraint](txBatch)
 	txBatch.BatchHash = batchHash
 	p.txStore.batchesCache[batchHash] = txBatch
 	if p.txStore.priorityNonBatchSize <= uint64(len(hashList)) {
@@ -1452,7 +1449,7 @@ func (p *txPoolImpl[T, Constraint]) handleReConstructBatchByOrder(oldBatch *txpo
 		Timestamp:  oldBatch.Timestamp,
 	}
 	// The given batch hash should match with the calculated batch hash.
-	batch.BatchHash = getBatchHash[T, Constraint](batch)
+	batch.BatchHash = txpool.GetBatchHash[T, Constraint](batch)
 	if batch.BatchHash != oldBatch.BatchHash {
 		p.logger.Warningf("The given batch hash %s does not match with the "+
 			"calculated batch hash %s.", oldBatch.BatchHash, batch.BatchHash)
@@ -1608,20 +1605,6 @@ func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string
 			}
 		}
 	}
-}
-
-// getBatchHash calculate hash of a RequestHashBatch
-func getBatchHash[T any, Constraint types.TXConstraint[T]](batch *txpool.RequestHashBatch[T, Constraint]) string {
-	h := md5.New()
-	for _, hash := range batch.TxHashList {
-		_, _ = h.Write([]byte(hash))
-	}
-	if batch.Timestamp > 0 {
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, uint64(batch.Timestamp))
-		_, _ = h.Write(b)
-	}
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (p *txPoolImpl[T, Constraint]) increasePriorityNonBatchSize(addSize uint64) {
