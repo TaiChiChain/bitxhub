@@ -72,3 +72,24 @@ func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 
 	return nil
 }
+
+// GetGenesisConfig retrieves the genesis configuration from the given ledger.
+func GetGenesisConfig(lg *ledger.Ledger) (*repo.GenesisConfig, error) {
+	account := lg.StateLedger.GetAccount(types.NewAddressByStr(common.ZeroAddress))
+	if account == nil {
+		return nil, nil
+	}
+
+	state, bytes := account.GetState([]byte("genesis_cfg"))
+	if !state {
+		return nil, nil
+	}
+
+	genesis := &repo.GenesisConfig{}
+	err := json.Unmarshal(bytes, genesis)
+	if err != nil {
+		return nil, err
+	}
+
+	return genesis, nil
+}
