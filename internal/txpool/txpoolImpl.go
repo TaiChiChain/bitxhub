@@ -130,7 +130,7 @@ func (p *txPoolImpl[T, Constraint]) processEvent(event txPoolEvent) []txPoolEven
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []txPoolEvent {
-	p.logger.Debugf("start dispatch add txs event:%s", addTxsEventToStr[event.EventType])
+	//p.logger.Debugf("start dispatch add txs event:%s", addTxsEventToStr[event.EventType])
 	var (
 		err                          error
 		completionMissingBatchHashes []string
@@ -143,7 +143,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 	metricsPrefix := "addTxs_"
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, addTxsEventToStr[event.EventType]), time.Since(start))
-		p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch add txs event:%s", addTxsEventToStr[event.EventType])
+		//p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch add txs event:%s", addTxsEventToStr[event.EventType])
 	}()
 	switch event.EventType {
 	case localTxEvent:
@@ -1248,7 +1248,10 @@ func (p *txPoolImpl[T, Constraint]) handleGetRequestsByHashList(batchHash string
 	}
 
 	if len(missingTxsHash) != 0 {
-		p.txStore.missingBatch[batchHash] = missingTxsHash
+		// clone to avoid concurrent read and write problems with consensus and txpool
+		p.txStore.missingBatch[batchHash] = lo.MapEntries(missingTxsHash, func(k uint64, v string) (uint64, string) {
+			return k, v
+		})
 		return nil, nil, missingTxsHash, nil
 	}
 	for _, txHash := range hashList {
