@@ -212,8 +212,8 @@ func TestPrepare(t *testing.T) {
 		wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
 		wrongPrecheckMgr.EXPECT().Start().AnyTimes()
 		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-			event := ev.Event.(*common.TxWithResp)
-			event.CheckCh <- &common.TxResp{
+			txWithResp := ev.Event.(*common.TxWithResp)
+			txWithResp.CheckCh <- &common.TxResp{
 				Status:   false,
 				ErrorMsg: "check error",
 			}
@@ -227,11 +227,11 @@ func TestPrepare(t *testing.T) {
 		ast.Contains(err.Error(), "check error")
 
 		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-			event := ev.Event.(*common.TxWithResp)
-			event.CheckCh <- &common.TxResp{
+			txWithResp := ev.Event.(*common.TxWithResp)
+			txWithResp.CheckCh <- &common.TxResp{
 				Status: true,
 			}
-			event.PoolCh <- &common.TxResp{
+			txWithResp.PoolCh <- &common.TxResp{
 				Status:   false,
 				ErrorMsg: "add pool error",
 			}
