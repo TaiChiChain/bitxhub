@@ -154,6 +154,12 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		logger.WithFields(logrus.Fields{
 			"genesis block hash": rwLdg.ChainLedger.GetChainMeta().BlockHash,
 		}).Info("Initialize genesis")
+	} else {
+		genesisCfg, err := genesis.GetGenesisConfig(rwLdg.NewViewWithoutCache())
+		if err != nil {
+			return nil, err
+		}
+		rep.GenesisConfig = genesisCfg
 	}
 
 	var txExec executor.Executor
