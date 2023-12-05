@@ -124,6 +124,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	// check need turn into NewEpoch
 	epochInfo := exec.rep.EpochInfo
+	epochChange := false
 	if block.BlockHeader.Number == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
 		var seed []byte
 		seed = append(seed, []byte(exec.currentBlockHash.String())...)
@@ -140,6 +141,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 			panic(err)
 		}
 		exec.rep.EpochInfo = newEpoch
+		epochChange = true
 		exec.logger.WithFields(logrus.Fields{
 			"height":                commitEvent.Block.BlockHeader.Number,
 			"new_epoch":             newEpoch.Epoch,
@@ -173,14 +175,18 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
 
-	currentGasPrice := parentChainMeta.GasPrice.Uint64()
-	// epoch changed gas price
-	if block.Height() == exec.rep.EpochInfo.StartBlock && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
-		currentGasPrice = exec.rep.EpochInfo.FinanceParams.StartGasPrice
-	}
-	nextGasPrice, err := exec.gas.CalNextGasPrice(currentGasPrice, len(block.Transactions))
-	if err != nil {
-		panic(fmt.Errorf("calculate next block gas price failed: %w", err))
+	var nextGasPrice uint64
+	if epochChange && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
+		// epoch changed gas price
+		nextGasPrice = exec.rep.EpochInfo.FinanceParams.StartGasPrice
+		exec.logger.WithFields(logrus.Fields{
+			"price": nextGasPrice,
+		}).Info("Next epoch start block gas price changed")
+	} else {
+		nextGasPrice, err = exec.gas.CalNextGasPrice(parentChainMeta.GasPrice.Uint64(), len(block.Transactions))
+		if err != nil {
+			panic(fmt.Errorf("calculate next block gas price failed: %w", err))
+		}
 	}
 
 	block.BlockHeader.GasPrice = int64(nextGasPrice)
