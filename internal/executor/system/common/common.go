@@ -33,6 +33,9 @@ const (
 	EpochManagerContractAddr = "0x0000000000000000000000000000000000001007"
 
 	GasManagerContractAddr = "0x0000000000000000000000000000000000001008"
+
+	// TokenManagerContractAddr is the contract to used to manager token info
+	TokenManagerContractAddr = "0x0000000000000000000000000000000000001009"
 )
 
 type SystemContractConfig struct {
