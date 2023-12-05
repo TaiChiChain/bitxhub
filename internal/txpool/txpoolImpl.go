@@ -127,7 +127,7 @@ func (p *txPoolImpl[T, Constraint]) processEvent(event txPoolEvent) []txPoolEven
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []txPoolEvent {
-	//p.logger.Debugf("start dispatch add txs event:%s", addTxsEventToStr[event.EventType])
+	// p.logger.Debugf("start dispatch add txs event:%s", addTxsEventToStr[event.EventType])
 	var (
 		err                          error
 		completionMissingBatchHashes []string
@@ -140,7 +140,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 	metricsPrefix := "addTxs_"
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, addTxsEventToStr[event.EventType]), time.Since(start))
-		//p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch add txs event:%s", addTxsEventToStr[event.EventType])
+		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch add txs event:%s", addTxsEventToStr[event.EventType])
 	}()
 	switch event.EventType {
 	case localTxEvent:

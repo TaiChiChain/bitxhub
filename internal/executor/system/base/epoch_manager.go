@@ -296,6 +296,8 @@ func TurnIntoNewEpoch(electValidatorsByWrfSeed []byte, lg ledger.StateLedger) (*
 		n := e.Clone()
 		n.Epoch++
 		n.StartBlock += n.EpochPeriod
+		n.FinanceParams.StartGasPrice = 0
+		n.FinanceParams.StartGasPriceAvailable = false
 		if err := setNextEpochInfo(lg, n); err != nil {
 			return nil, err
 		}
