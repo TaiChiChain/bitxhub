@@ -12,9 +12,9 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -45,7 +45,7 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 	}
 
 	ctrl := gomock.NewController(t)
-	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](ctrl)
+	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, ctrl)
 
 	cnf := &common2.Config{
 		EVMConfig: repo.EVM{},
