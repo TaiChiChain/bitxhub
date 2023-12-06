@@ -159,7 +159,7 @@ func (c *WhiteList) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
 		Address: addr,
 	}
 
-	// TODO: lazy  load
+	// TODO: lazy load
 	state, b := c.account.GetState([]byte(WhiteListProviderKey))
 	if state {
 		var services []WhiteListProvider

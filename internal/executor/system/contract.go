@@ -4,6 +4,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
+
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
@@ -40,6 +42,9 @@ func init() {
 		*types.NewAddressByStr(common.GasManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
 			return governance.NewGasManager(cfg)
 		},
+		*types.NewAddressByStr(common.TokenManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return token.NewTokenManager(cfg)
+		},
 	}
 }
 
@@ -74,6 +79,14 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 
+	tokenConfig, err := token.GenerateGenesisTokenConfig(genesis)
+	if err != nil {
+		return err
+	}
+	if err = token.InitAxmTokenManager(lg, tokenConfig); err != nil {
+		return err
+	}
+
 	admins := lo.Map[*repo.Admin, string](genesis.Admins, func(x *repo.Admin, _ int) string {
 		return x.Address
 	})
@@ -82,7 +95,7 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	combined = append(combined, admins...)
 	combined = append(combined, genesis.InitWhiteListProviders...)
 	combined = append(combined, genesis.Accounts...)
-	if err := access.InitProvidersAndWhiteList(lg, combined, genesis.InitWhiteListProviders); err != nil {
+	if err = access.InitProvidersAndWhiteList(lg, combined, genesis.InitWhiteListProviders); err != nil {
 		return err
 	}
 	return nil

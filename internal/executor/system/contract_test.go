@@ -68,7 +68,14 @@ func TestContractInitGenesisData(t *testing.T) {
 	genesis := repo.DefaultGenesisConfig(false)
 
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.NodeManagerContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+		if address.String() == common.TokenManagerContractAddr {
+			return tokenAccount
+		}
+		return account
+	}).AnyTimes()
+
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
 	err := InitGenesisData(genesis, mockLedger.StateLedger)
@@ -88,7 +95,13 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	//WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+		if address.String() == common.TokenManagerContractAddr {
+			return tokenAccount
+		}
+		return account
+	}).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	err := InitGenesisData(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)
@@ -107,7 +120,13 @@ func TestGasContractInitGenesisData(t *testing.T) {
 
 	//GasManagerContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GasManagerContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+		if address.String() == common.TokenManagerContractAddr {
+			return tokenAccount
+		}
+		return account
+	}).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	err := InitGenesisData(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)

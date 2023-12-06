@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
@@ -337,11 +336,8 @@ func (cm *CouncilManager) checkAndUpdateState(lastHeight uint64) {
 func InitCouncilMembers(lg ledger.StateLedger, admins []*repo.Admin, initBlance string) error {
 	addr2NameSystem := NewAddr2NameSystem(lg)
 
-	balance, _ := new(big.Int).SetString(initBlance, 10)
 	council := &Council{}
 	for _, admin := range admins {
-		lg.SetBalance(types.NewAddressByStr(admin.Address), balance)
-
 		council.Members = append(council.Members, &CouncilMember{
 			Address: admin.Address,
 			Weight:  admin.Weight,
