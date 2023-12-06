@@ -26,6 +26,10 @@ func prepareLedger(t *testing.T) ledger.StateLedger {
 	return stateLedger
 }
 
+type GasErrorExtraArgs struct {
+	GasPrice uint64 `json:"GasPrice"`
+}
+
 func TestGasManager_RunForPropose(t *testing.T) {
 
 	mockCtl := gomock.NewController(t)
@@ -140,6 +144,44 @@ func TestGasManager_RunForPropose(t *testing.T) {
 					InitGasPrice:       5000000000000,
 					GasChangeRateValue: 1250,
 				})),
+				Err: ErrRepeatedGasInfo,
+			},
+			Err: nil,
+		},
+		{
+			Caller: "0x1000000000000000000000000000000000000000",
+			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+				MaxGasPrice:        10000000000000,
+				MinGasPrice:        1000000000000,
+				InitGasPrice:       2000000000000,
+				GasChangeRateValue: 1250,
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
+					MaxGasPrice:        10000000000000,
+					MinGasPrice:        1000000000000,
+					InitGasPrice:       2000000000000,
+					GasChangeRateValue: 1250,
+				})),
+				Err: ErrNotFoundCouncilMember,
+			},
+			Err: nil,
+		},
+		{
+			Caller: admin1,
+			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+				MaxGasPrice:        10000000000000,
+				MinGasPrice:        1000000000000,
+				InitGasPrice:       2000000000000,
+				GasChangeRateValue: 1250,
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
+					MaxGasPrice:        10000000000000,
+					MinGasPrice:        1000000000000,
+					InitGasPrice:       2000000000000,
+					GasChangeRateValue: 1250,
+				})),
 			},
 			Err: nil,
 		},
@@ -238,10 +280,16 @@ func TestGasManager_RunForVote(t *testing.T) {
 	gm.Reset(1, stateLedger)
 	_, err = gm.Run(&vm.Message{
 		From: types.NewAddressByStr(admin1).ETHAddress(),
+		Data: nil,
+	})
+	assert.NotNil(t, err)
+
+	_, err = gm.Run(&vm.Message{
+		From: types.NewAddressByStr(admin1).ETHAddress(),
 		Data: generateGasUpdateProposeData(t, GasExtraArgs{
 			MaxGasPrice:        10000000000000,
 			MinGasPrice:        1000000000000,
-			InitGasPrice:       5000000000000,
+			InitGasPrice:       2000000000000,
 			GasChangeRateValue: 1250,
 		}),
 	})
@@ -366,7 +414,7 @@ func TestGasManager_RunForVote_Approved(t *testing.T) {
 		Data: generateGasUpdateProposeData(t, GasExtraArgs{
 			MaxGasPrice:        10000000000000,
 			MinGasPrice:        1000000000000,
-			InitGasPrice:       5000000000000,
+			InitGasPrice:       2000000000000,
 			GasChangeRateValue: 1250,
 		}),
 	})
@@ -488,7 +536,7 @@ func TestGaseManager_GetProposal(t *testing.T) {
 		Data: generateGasUpdateProposeData(t, GasExtraArgs{
 			MaxGasPrice:        10000000000000,
 			MinGasPrice:        1000000000000,
-			InitGasPrice:       5000000000000,
+			InitGasPrice:       2000000000000,
 			GasChangeRateValue: 1250,
 		}),
 	})
@@ -510,6 +558,17 @@ func TestGaseManager_GetProposal(t *testing.T) {
 	assert.Equal(t, "desc", proposal.Desc)
 	assert.EqualValues(t, 1, len(proposal.PassVotes))
 	assert.EqualValues(t, 0, len(proposal.RejectVotes))
+
+	_, err = gm.vote(types.NewAddressByStr(admin2).ETHAddress(), &VoteArgs{
+		BaseVoteArgs: BaseVoteArgs{
+			ProposalId: 2,
+			VoteResult: uint8(Pass),
+		},
+	})
+	assert.NotNil(t, err)
+
+	_, err = gm.getProposal(2)
+	assert.NotNil(t, err)
 
 	_, err = gm.vote(types.NewAddressByStr(admin2).ETHAddress(), &VoteArgs{
 		BaseVoteArgs: BaseVoteArgs{
@@ -558,6 +617,8 @@ func TestGasManager_CheckAndUpdateState(t *testing.T) {
 	gm.councilAccount = stateLedger.GetOrCreateAccount(councilAddr)
 
 	gm.checkAndUpdateState(1)
+
+	gm.checkAndUpdateState(10000)
 }
 
 func generateGasUpdateProposeData(t *testing.T, extraArgs GasExtraArgs) []byte {
