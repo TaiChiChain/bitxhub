@@ -37,6 +37,9 @@ func init() {
 		*types.NewAddressByStr(common.WhiteListContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
 			return access.NewWhiteList(cfg)
 		},
+		*types.NewAddressByStr(common.GasManagerContractAddr): func(cfg *common.SystemContractConfig) common.SystemContract {
+			return governance.NewGasManager(cfg)
+		},
 	}
 }
 
@@ -65,6 +68,9 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 	if err := governance.InitNodeMembers(lg, genesis.NodeNames, genesis.EpochInfo); err != nil {
+		return err
+	}
+	if err := governance.InitGasMembers(lg, genesis.EpochInfo); err != nil {
 		return err
 	}
 

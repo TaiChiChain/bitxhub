@@ -161,4 +161,23 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 	providerProposal, err := loadProviderProposal(stateLedger, baseProposal.ID)
 	assert.Nil(t, err)
 	assert.Equal(t, Rejected, providerProposal.Status)
+
+	// test gas
+	baseProposal = &BaseProposal{ID: 4, BlockNumber: 10, Status: Voting}
+	_, err = saveProviderProposal(stateLedger, baseProposal)
+	assert.Nil(t, err)
+
+	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  baseProposal.ID,
+		DeadlineBlockNumber: baseProposal.BlockNumber,
+		ContractAddr:        common.GasManagerContractAddr,
+	})
+	assert.Nil(t, err)
+
+	err = CheckAndUpdateState(20, stateLedger)
+	assert.Nil(t, err)
+
+	gasProposal, err := loadProviderProposal(stateLedger, baseProposal.ID)
+	assert.Nil(t, err)
+	assert.Equal(t, Rejected, gasProposal.Status)
 }

@@ -82,9 +82,9 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 			Data: generateNodeAddProposeData(t, NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin2,
+						Name:    "222",
 					},
 				},
 			}),
@@ -92,9 +92,9 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
 					Nodes: []*NodeMember{
 						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin2,
+							Name:    "222",
 						},
 					},
 				})),
@@ -163,6 +163,76 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 		{
 			Caller: admin1,
+			Data: generateNodeAddProposeData(t, NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin1,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin1,
+						Name:    "111",
+					},
+				},
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
+					Nodes: []*NodeMember{
+						{
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin1,
+							Name:    "111",
+						},
+						{
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin1,
+							Name:    "111",
+						},
+					},
+				})),
+				Err: ErrRepeatedNodeAddress,
+			},
+			Err: nil,
+		},
+		{
+			Caller: admin1,
+			Data: generateNodeAddProposeData(t, NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin2,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin2,
+						Name:    "111",
+					},
+				},
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
+					Nodes: []*NodeMember{
+						{
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin2,
+							Name:    "111",
+						},
+						{
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin2,
+							Name:    "111",
+						},
+					},
+				})),
+				Err: ErrRepeatedNodeName,
+			},
+			Err: nil,
+		},
+		{
+			Caller: admin1,
 			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
@@ -242,6 +312,111 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 					},
 				})),
 				Err: ErrRepeatedNodeID,
+			},
+			Err: nil,
+		},
+		{
+			Caller: admin1,
+			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin1,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin1,
+						Name:    "111",
+					},
+				},
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
+					Nodes: []*NodeMember{
+						{
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin1,
+							Name:    "111",
+						},
+						{
+							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+							Address: admin1,
+							Name:    "111",
+						},
+					},
+				})),
+				Err: ErrNotFoundNodeID,
+			},
+			Err: nil,
+		},
+		{
+			Caller: admin1,
+			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin2,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin2,
+						Name:    "111",
+					},
+				},
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
+					Nodes: []*NodeMember{
+						{
+							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+							Address: admin2,
+							Name:    "111",
+						},
+						{
+							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+							Address: admin2,
+							Name:    "111",
+						},
+					},
+				})),
+				Err: ErrNotFoundNodeAddress,
+			},
+			Err: nil,
+		},
+		{
+			Caller: admin1,
+			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin1,
+						Name:    "222",
+					},
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin1,
+						Name:    "222",
+					},
+				},
+			}),
+			Expected: vm.ExecutionResult{
+				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
+					Nodes: []*NodeMember{
+						{
+							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+							Address: admin1,
+							Name:    "222",
+						},
+						{
+							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+							Address: admin1,
+							Name:    "222",
+						},
+					},
+				})),
+				Err: ErrNotFoundNodeName,
 			},
 			Err: nil,
 		},
@@ -475,9 +650,9 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 		Data: generateNodeAddProposeData(t, NodeExtraArgs{
 			Nodes: []*NodeMember{
 				{
+					Name:    "222",
 					NodeId:  "16Uiu2HAmTMVkvoGdwjHkqSEhdSM5P7L8ronFfnDePhmQSN6CvR8m",
-					Address: admin1,
-					Name:    "111",
+					Address: admin2,
 				},
 			},
 		}),

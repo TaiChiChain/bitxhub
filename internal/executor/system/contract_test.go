@@ -16,6 +16,11 @@ import (
 
 var systemContractAddrs = []string{
 	common.NodeManagerContractAddr,
+	common.EpochManagerContractAddr,
+	common.CouncilManagerContractAddr,
+	common.WhiteListProviderManagerContractAddr,
+	common.WhiteListContractAddr,
+	common.GasManagerContractAddr,
 }
 
 var notSystemContractAddrs = []string{
@@ -66,6 +71,44 @@ func TestContractInitGenesisData(t *testing.T) {
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
+	err := InitGenesisData(genesis, mockLedger.StateLedger)
+	assert.Nil(t, err)
+}
+
+func TestWhiteListContractInitGenesisData(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+	mockLedger := &ledger.Ledger{
+		ChainLedger: chainLedger,
+		StateLedger: stateLedger,
+	}
+
+	genesis := repo.DefaultGenesisConfig(false)
+
+	//WhiteListContractAddr
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	err := InitGenesisData(genesis, mockLedger.StateLedger)
+	assert.Nil(t, err)
+}
+
+func TestGasContractInitGenesisData(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+	mockLedger := &ledger.Ledger{
+		ChainLedger: chainLedger,
+		StateLedger: stateLedger,
+	}
+
+	genesis := repo.DefaultGenesisConfig(false)
+
+	//GasManagerContractAddr
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GasManagerContractAddr))
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	err := InitGenesisData(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)
 }
