@@ -27,6 +27,7 @@ type Repo struct {
 	RepoRoot        string
 	Config          *Config
 	ConsensusConfig *ConsensusConfig
+	GenesisConfig   *GenesisConfig
 	AccountKey      *ecdsa.PrivateKey
 	AccountAddress  string
 	P2PKey          *ecdsa.PrivateKey
@@ -65,6 +66,9 @@ func (r *Repo) Flush() error {
 	}
 	if err := writeConfigWithEnv(path.Join(r.RepoRoot, consensusCfgFileName), r.ConsensusConfig); err != nil {
 		return errors.Wrap(err, "failed to write consensus config")
+	}
+	if err := writeConfigWithEnv(path.Join(r.RepoRoot, genesisCfgFileName), r.GenesisConfig); err != nil {
+		return errors.Wrap(err, "failed to write genesis config")
 	}
 	if err := WriteKey(path.Join(r.RepoRoot, p2pKeyFileName), r.P2PKey); err != nil {
 		return errors.Wrap(err, "failed to write node key")
@@ -145,18 +149,21 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool) (*Re
 		return nil, err
 	}
 
-	cfg := DefaultConfig(epochEnable)
+	cfg := DefaultConfig()
 	cfg.Port.P2P = int64(4001 + nodeIndex)
+
+	genesisCfg := DefaultGenesisConfig(epochEnable)
 
 	return &Repo{
 		RepoRoot:        repoRoot,
 		Config:          cfg,
 		ConsensusConfig: DefaultConsensusConfig(),
+		GenesisConfig:   genesisCfg,
 		AccountKey:      accountKey,
 		AccountAddress:  ethcrypto.PubkeyToAddress(accountKey.PublicKey).String(),
 		P2PKey:          p2pKey,
 		P2PID:           id,
-		EpochInfo:       cfg.Genesis.EpochInfo,
+		EpochInfo:       genesisCfg.EpochInfo,
 	}, nil
 }
 
@@ -190,15 +197,21 @@ func Load(repoRoot string) (*Repo, error) {
 		return nil, err
 	}
 
+	genesisCfg, err := LoadGenesisConfig(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+
 	repo := &Repo{
 		RepoRoot:        repoRoot,
 		Config:          cfg,
 		ConsensusConfig: consensusCfg,
+		GenesisConfig:   genesisCfg,
 		AccountKey:      accountKey,
 		AccountAddress:  ethcrypto.PubkeyToAddress(accountKey.PublicKey).String(),
 		P2PKey:          p2pKey,
 		P2PID:           id,
-		EpochInfo:       cfg.Genesis.EpochInfo,
+		EpochInfo:       genesisCfg.EpochInfo,
 	}
 
 	return repo, nil
@@ -251,7 +264,13 @@ func readConfigFromFile(cfgFilePath string, config any) error {
 
 func readConfig(vp *viper.Viper, config any) error {
 	vp.AutomaticEnv()
-	vp.SetEnvPrefix("AXIOM_LEDGER")
+	if _, ok := config.(*GenesisConfig); ok {
+		vp.SetEnvPrefix("AXIOM_LEDGER_GENESIS")
+	} else if _, ok := config.(*ConsensusConfig); ok {
+		vp.SetEnvPrefix("AXIOM_LEDGER_CONSENSUS")
+	} else {
+		vp.SetEnvPrefix("AXIOM_LEDGER")
+	}
 	replacer := strings.NewReplacer(".", "_")
 	vp.SetEnvKeyReplacer(replacer)
 

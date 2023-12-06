@@ -13,7 +13,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func initializeGenesisConfig(genesis *repo.Genesis, lg ledger.StateLedger) error {
+func initializeGenesisConfig(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	account := lg.GetOrCreateAccount(types.NewAddressByStr(common.ZeroAddress))
 
 	genesisCfg, err := json.Marshal(genesis)
@@ -25,7 +25,7 @@ func initializeGenesisConfig(genesis *repo.Genesis, lg ledger.StateLedger) error
 }
 
 // Initialize initialize block
-func Initialize(genesis *repo.Genesis, lg *ledger.Ledger) error {
+func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 	dummyRootHash := common2.Hash{}
 	lg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), nil, 1)
 
@@ -71,4 +71,25 @@ func Initialize(genesis *repo.Genesis, lg *ledger.Ledger) error {
 	lg.PersistBlockData(blockData)
 
 	return nil
+}
+
+// GetGenesisConfig retrieves the genesis configuration from the given ledger.
+func GetGenesisConfig(lg *ledger.Ledger) (*repo.GenesisConfig, error) {
+	account := lg.StateLedger.GetAccount(types.NewAddressByStr(common.ZeroAddress))
+	if account == nil {
+		return nil, nil
+	}
+
+	state, bytes := account.GetState([]byte("genesis_cfg"))
+	if !state {
+		return nil, nil
+	}
+
+	genesis := &repo.GenesisConfig{}
+	err := json.Unmarshal(bytes, genesis)
+	if err != nil {
+		return nil, err
+	}
+
+	return genesis, nil
 }

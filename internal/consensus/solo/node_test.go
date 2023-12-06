@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-ledger/pkg/events"
-
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -31,7 +31,7 @@ func TestNode_Start(t *testing.T) {
 
 	config, err := common.GenerateConfig(
 		common.WithConfig(r.RepoRoot, r.ConsensusConfig),
-		common.WithGenesisEpochInfo(r.Config.Genesis.EpochInfo),
+		common.WithGenesisEpochInfo(r.GenesisConfig.EpochInfo),
 		common.WithLogger(log.NewWithModule("consensus")),
 		common.WithApplied(1),
 		common.WithNetwork(mockNetwork),
@@ -260,4 +260,58 @@ func TestNode_GetLowWatermark(t *testing.T) {
 	commitEvent := <-node.commitC
 	ast.NotNil(commitEvent)
 	ast.Equal(commitEvent.Block.Height(), node.GetLowWatermark())
+}
+
+func TestNode_Prepare(t *testing.T) {
+	ast := assert.New(t)
+	node, err := mockSoloNode(t, false)
+	ast.Nil(err)
+	ctrl := gomock.NewController(t)
+	wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
+	wrongPrecheckMgr.EXPECT().Start().AnyTimes()
+	wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+		event := ev.Event.(*common.TxWithResp)
+		event.CheckCh <- &common.TxResp{
+			Status:   false,
+			ErrorMsg: "check error",
+		}
+	}).Times(1)
+	node.txPreCheck = wrongPrecheckMgr
+	tx, err := types.GenerateEmptyTransactionAndSigner()
+	require.Nil(t, err)
+
+	err = node.Start()
+	require.Nil(t, err)
+
+	err = node.Prepare(tx)
+	ast.NotNil(err)
+	ast.Contains(err.Error(), "check error")
+
+	wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+		event := ev.Event.(*common.TxWithResp)
+		event.CheckCh <- &common.TxResp{
+			Status: true,
+		}
+		event.PoolCh <- &common.TxResp{
+			Status:   false,
+			ErrorMsg: "add pool error",
+		}
+	}).Times(1)
+
+	err = node.Prepare(tx)
+	ast.NotNil(err)
+	ast.Contains(err.Error(), "add pool error")
+
+	rightPrecheckMgr := mock_precheck.NewMockMinPreCheck(ctrl, validTxsCh)
+	node.txPreCheck = rightPrecheckMgr
+
+	txSubscribeCh := make(chan []*types.Transaction, 1)
+	sub := node.SubscribeTxEvent(txSubscribeCh)
+	defer sub.Unsubscribe()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mockAddTx(node, ctx)
+	err = node.Prepare(tx)
+	<-txSubscribeCh
+	ast.Nil(err)
 }

@@ -39,7 +39,7 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 	txpoolConf := txpool2.Config{
 		IsTimed:             false,
 		Logger:              &common.Logger{FieldLogger: logger},
-		BatchSize:           r.Config.Genesis.EpochInfo.ConsensusParams.BlockMaxTxNum,
+		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
 		PoolSize:            poolSize,
 		ToleranceRemoveTime: removeTxTimeout,
 		GetAccountNonce: func(address string) uint64 {
@@ -66,9 +66,9 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	mockPrecheck := mock_precheck.NewMockMinPreCheck(mockCtl, validTxsCh)
 
 	txpoolConf := txpool2.Config{
-		IsTimed:             r.Config.Genesis.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+		IsTimed:             r.GenesisConfig.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 		Logger:              &common.Logger{FieldLogger: logger},
-		BatchSize:           r.Config.Genesis.EpochInfo.ConsensusParams.BlockMaxTxNum,
+		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
 		PoolSize:            poolSize,
 		ToleranceRemoveTime: removeTxTimeout,
 		GetAccountNonce: func(address string) uint64 {
@@ -123,14 +123,17 @@ func mockAddTx(node *Node, ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case txs := <-node.txPreCheck.CommitValidTxs():
+				txs.LocalCheckRespCh <- &common.TxResp{
+					Status: true,
+				}
 				err := node.txpool.AddLocalTx(txs.Txs[0])
 				if err != nil {
-					txs.LocalRespCh <- &common.TxResp{
+					txs.LocalPoolRespCh <- &common.TxResp{
 						Status:   false,
 						ErrorMsg: err.Error(),
 					}
 				} else {
-					txs.LocalRespCh <- &common.TxResp{
+					txs.LocalPoolRespCh <- &common.TxResp{
 						Status: true,
 					}
 				}

@@ -5,8 +5,8 @@ go 1.20
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
-	github.com/axiomesh/axiom-bft v0.0.3-0.20231127074051-7a85aabf5d1d
-	github.com/axiomesh/axiom-kit v0.0.3-0.20231123091818-04993f1f45d7
+	github.com/axiomesh/axiom-bft v0.0.3-0.20231205022845-46cf85270003
+	github.com/axiomesh/axiom-kit v0.0.3-0.20231204085912-0b957b8a0017
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c
 	github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53
 	github.com/cbergoon/merkletree v0.2.0
@@ -36,7 +36,7 @@ require (
 	github.com/urfave/cli/v2 v2.25.7
 	go.opentelemetry.io/otel/trace v1.16.0
 	go.uber.org/atomic v1.11.0
-	go.uber.org/mock v0.2.0
+	go.uber.org/mock v0.3.0
 	golang.org/x/time v0.3.0
 )
 

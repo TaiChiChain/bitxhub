@@ -47,9 +47,14 @@ func start(ctx *cli.Context) error {
 		cancel()
 		return err
 	}
+	defer cancel()
 
 	printVersion()
 	r.PrintNodeInfo()
+
+	if err := repo.WritePid(r.RepoRoot); err != nil {
+		return fmt.Errorf("write pid error: %s", err)
+	}
 
 	axm, err := app.NewAxiomLedger(r, appCtx, cancel)
 	if err != nil {
@@ -98,10 +103,6 @@ func start(ctx *cli.Context) error {
 
 	if err := axm.Start(); err != nil {
 		return fmt.Errorf("start axiom-ledger failed: %w", err)
-	}
-
-	if err := repo.WritePid(r.RepoRoot); err != nil {
-		return fmt.Errorf("write pid error: %s", err)
 	}
 
 	wg.Wait()

@@ -3,6 +3,7 @@ package rbft
 import (
 	"context"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,7 +103,7 @@ func TestNewNode(t *testing.T) {
 		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
 		PrivKey:              s.Sk,
 		SelfAccountAddress:   s.Addr.String(),
-		GenesisEpochInfo:     r.Config.Genesis.EpochInfo,
+		GenesisEpochInfo:     r.GenesisConfig.EpochInfo,
 		Applied:              100,
 		Digest:               "0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7",
 		GenesisDigest:        "0xf06a8e2fa138335436c66b7d332338b8d402fc5708604aec6959324ef6c5c1ac",
@@ -184,8 +185,9 @@ func TestPrepare(t *testing.T) {
 	sub := node.SubscribeTxEvent(txSubscribeCh)
 	defer sub.Unsubscribe()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	mockAddTx(node, ctx)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	mockAddTx(node, ctx, wg)
 
 	err = node.Prepare(tx1)
 	ast.Nil(err)
@@ -195,6 +197,8 @@ func TestPrepare(t *testing.T) {
 	err = node.Prepare(tx2)
 	ast.Nil(err)
 	<-txSubscribeCh
+	cancel()
+	wg.Wait() // make sure mockAddTx is done
 
 	t.Run("GetLowWatermark", func(t *testing.T) {
 		node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().GetLowWatermark().DoAndReturn(func() uint64 {
@@ -202,6 +206,41 @@ func TestPrepare(t *testing.T) {
 		}).AnyTimes()
 		lowWatermark := node.GetLowWatermark()
 		ast.Equal(uint64(1), lowWatermark)
+	})
+
+	t.Run("prepare tx failed", func(t *testing.T) {
+		wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
+		wrongPrecheckMgr.EXPECT().Start().AnyTimes()
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+			txWithResp := ev.Event.(*common.TxWithResp)
+			txWithResp.CheckCh <- &common.TxResp{
+				Status:   false,
+				ErrorMsg: "check error",
+			}
+		}).Times(1)
+
+		node.txPreCheck = wrongPrecheckMgr
+
+		err = node.Prepare(tx1)
+		<-txSubscribeCh
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "check error")
+
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+			txWithResp := ev.Event.(*common.TxWithResp)
+			txWithResp.CheckCh <- &common.TxResp{
+				Status: true,
+			}
+			txWithResp.PoolCh <- &common.TxResp{
+				Status:   false,
+				ErrorMsg: "add pool error",
+			}
+		}).Times(1)
+
+		err = node.Prepare(tx1)
+		<-txSubscribeCh
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "add pool error")
 	})
 }
 
@@ -327,7 +366,6 @@ func TestStatus2String(t *testing.T) {
 		rbft.InViewChange:      "system is in view change",
 		rbft.InRecovery:        "system is in recovery",
 		rbft.StateTransferring: "system is in state update",
-		rbft.PoolFull:          "system is too busy",
 		rbft.Pending:           "system is in pending state",
 		rbft.Stopped:           "system is stopped",
 		1000:                   "Unknown status: 1000",
@@ -339,14 +377,18 @@ func TestStatus2String(t *testing.T) {
 	}
 }
 
-func mockAddTx(node *Node, ctx context.Context) {
+func mockAddTx(node *Node, ctx context.Context, wg *sync.WaitGroup) {
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
+				wg.Done()
 				return
 			case txs := <-node.txPreCheck.CommitValidTxs():
-				txs.LocalRespCh <- &common.TxResp{
+				txs.LocalCheckRespCh <- &common.TxResp{
+					Status: true,
+				}
+				txs.LocalPoolRespCh <- &common.TxResp{
 					Status: true,
 				}
 			}

@@ -12,9 +12,9 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -45,7 +45,7 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 	}
 
 	ctrl := gomock.NewController(t)
-	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](ctrl)
+	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, ctrl)
 
 	cnf := &common2.Config{
 		EVMConfig: repo.EVM{},
@@ -79,8 +79,9 @@ func createLocalTxEvent(tx *types.Transaction) *common2.UncheckedTxEvent {
 	return &common2.UncheckedTxEvent{
 		EventType: common2.LocalTxEvent,
 		Event: &common2.TxWithResp{
-			Tx:     tx,
-			RespCh: make(chan *common2.TxResp),
+			Tx:      tx,
+			CheckCh: make(chan *common2.TxResp),
+			PoolCh:  make(chan *common2.TxResp),
 		},
 	}
 }

@@ -14,11 +14,12 @@ import (
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
+
 	"github.com/axiomesh/axiom-ledger/internal/block_sync/mock_block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
-	"github.com/axiomesh/axiom-ledger/internal/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 

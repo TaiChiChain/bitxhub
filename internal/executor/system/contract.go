@@ -60,7 +60,7 @@ func GetSystemContract(addr *types.Address) (common.SystemContract, bool) {
 	return nil, false
 }
 
-func InitGenesisData(genesis *repo.Genesis, lg ledger.StateLedger) error {
+func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	if err := base.InitEpochInfo(lg, genesis.EpochInfo.Clone()); err != nil {
 		return err
 	}
