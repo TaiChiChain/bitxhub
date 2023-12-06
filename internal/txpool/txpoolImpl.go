@@ -8,11 +8,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/google/btree"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
@@ -157,8 +157,6 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		if err == nil {
 			dirtyAccounts[Constraint(req.tx).RbftGetFrom()] = true
 			validTxs = append(validTxs, req.tx)
-		} else {
-			p.logger.WithFields(logrus.Fields{"txHash": Constraint(req.tx).RbftGetTxHash(), "err": err}).Debug("add local tx failed")
 		}
 
 		req.errCh <- err
@@ -274,13 +272,13 @@ func (p *txPoolImpl[T, Constraint]) genHighNonceEvent(tx *T) *removeTxsEvent {
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent) {
-	p.logger.Debugf("start dispatch remove txs event:%s", removeTxsEventToStr[event.EventType])
+	// p.logger.Debugf("start dispatch remove txs event:%s", removeTxsEventToStr[event.EventType])
 	metricsPrefix := "removeTxs_"
 	start := time.Now()
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, removeTxsEventToStr[event.EventType]), time.Since(start))
-		p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
-			"end dispatch remove txs event:%s", removeTxsEventToStr[event.EventType])
+		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
+		//	"end dispatch remove txs event:%s", removeTxsEventToStr[event.EventType])
 	}()
 	var (
 		removeCount int
@@ -294,19 +292,19 @@ func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent
 			p.logger.Warningf("remove high nonce txs by account failed: %s", err)
 		}
 		if removeCount > 0 {
-			p.logger.Warningf("successfully remove high nonce txs by account: %s, count: %d", req.account, removeCount)
+			p.logger.Debugf("successfully remove high nonce txs by account: %s, count: %d", req.account, removeCount)
 			traceRemovedTx("highNonce", removeCount)
 		}
 	case timeoutTxsEvent:
 		removeCount = p.handleRemoveTimeoutTxs()
 		if removeCount > 0 {
-			p.logger.Warningf("Successful remove timeout txs, count: %d", removeCount)
+			p.logger.Infof("Successful remove timeout txs, count: %d", removeCount)
 			traceRemovedTx("timeout", removeCount)
 		}
 	case committedTxsEvent:
 		removeCount = p.handleRemoveStateUpdatingTxs(event.Event.(*reqRemoveCommittedTxs).txPointerList)
 		if removeCount > 0 {
-			p.logger.Warningf("Successfully remove committed txs, count: %d", removeCount)
+			p.logger.Infof("Successfully remove committed txs, count: %d", removeCount)
 			traceRemovedTx("committed", removeCount)
 		}
 	case batchedTxsEvent:
@@ -324,12 +322,12 @@ func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchBatchEvent(event *batchEvent) {
-	p.logger.Debugf("start dispatch batch event:%s", batchEventToStr[event.EventType])
+	// p.logger.Debugf("start dispatch batch event:%s", batchEventToStr[event.EventType])
 	start := time.Now()
 	metricsPrefix := "batch_"
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, batchEventToStr[event.EventType]), time.Since(start))
-		p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch batch event:%d", event.EventType)
+		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch batch event:%d", event.EventType)
 	}()
 	switch event.EventType {
 	case txpool.GenBatchTimeoutEvent, txpool.GenBatchFirstEvent, txpool.GenBatchSizeEvent, txpool.GenBatchNoTxTimeoutEvent:
@@ -388,12 +386,12 @@ func (p *txPoolImpl[T, Constraint]) handleGenBatchRequest(event *batchEvent) err
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchGetPoolInfoEvent(event *poolInfoEvent) {
-	p.logger.Debugf("start dispatch get pool info event:%s", poolInfoEventToStr[event.EventType])
+	// p.logger.Debugf("start dispatch get pool info event:%s", poolInfoEventToStr[event.EventType])
 	metricsPrefix := "getInfo_"
 	start := time.Now()
 	defer func() {
-		p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
-			"end dispatch get pool info event:%s", poolInfoEventToStr[event.EventType])
+		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
+		//	"end dispatch get pool info event:%s", poolInfoEventToStr[event.EventType])
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, poolInfoEventToStr[event.EventType]), time.Since(start))
 	}()
 	switch event.EventType {
@@ -416,13 +414,13 @@ func (p *txPoolImpl[T, Constraint]) dispatchGetPoolInfoEvent(event *poolInfoEven
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchConsensusEvent(event *consensusEvent) {
-	p.logger.Debugf("start dispatch consensus event:%s", consensusEventToStr[event.EventType])
+	// p.logger.Debugf("start dispatch consensus event:%s", consensusEventToStr[event.EventType])
 	start := time.Now()
 	metricsPrefix := "consensus_"
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, consensusEventToStr[event.EventType]), time.Since(start))
-		p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
-			"end dispatch consensus event:%s", consensusEventToStr[event.EventType])
+		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
+		//	"end dispatch consensus event:%s", consensusEventToStr[event.EventType])
 	}()
 
 	switch event.EventType {
@@ -447,13 +445,13 @@ func (p *txPoolImpl[T, Constraint]) dispatchConsensusEvent(event *consensusEvent
 }
 
 func (p *txPoolImpl[T, Constraint]) dispatchLocalEvent(event *localEvent) {
-	p.logger.Debugf("start dispatch local event:%s", localEventToStr[event.EventType])
+	// p.logger.Debugf("start dispatch local event:%s", localEventToStr[event.EventType])
 	start := time.Now()
 	metricsPrefix := "localEvent_"
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, localEventToStr[event.EventType]), time.Since(start))
-		p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
-			"end dispatch local event:%s", localEventToStr[event.EventType])
+		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf(
+		//	"end dispatch local event:%s", localEventToStr[event.EventType])
 	}()
 	switch event.EventType {
 	case gcAccountEvent:
