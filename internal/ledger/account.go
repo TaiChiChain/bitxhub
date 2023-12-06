@@ -393,11 +393,17 @@ func (o *SimpleAccount) AddBalance(amount *big.Int) {
 }
 
 // Finalise moves all dirty states into the pending states.
-func (o *SimpleAccount) Finalise() {
+// Return all dirty state keys
+func (o *SimpleAccount) Finalise() [][]byte {
+	keys2Preload := make([][]byte, 0, len(o.dirtyState))
 	for key, value := range o.dirtyState {
 		o.pendingState[key] = value
+
+		// collect all stoage key of the account
+		keys2Preload = append(keys2Preload, compositeStorageKey(o.Addr, []byte(key)))
 	}
 	o.dirtyState = make(map[string][]byte)
+	return keys2Preload
 }
 
 func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
@@ -481,4 +487,11 @@ func (o *SimpleAccount) IsEmpty() bool {
 
 func (o *SimpleAccount) Suicided() bool {
 	return false
+}
+
+func (o *SimpleAccount) GetStorageRootHash() common.Hash {
+	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
+		return o.Addr.ETHAddress().Hash()
+	}
+	return o.originAccount.StorageRoot
 }

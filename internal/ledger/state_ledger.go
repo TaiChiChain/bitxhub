@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/jmt"
@@ -34,6 +35,7 @@ type StateLedgerImpl struct {
 	cachedDB      storage.Storage
 	accountCache  *AccountCache
 	accountTrie   *jmt.JMT // keep track of the latest world state (dirty or committed)
+	triePreloader *triePreloader
 	minJnlHeight  uint64
 	maxJnlHeight  uint64
 	accounts      map[string]IAccount
@@ -109,8 +111,16 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block) StateLedger {
 
 func (l *StateLedgerImpl) Finalise() {
 	for _, account := range l.accounts {
-		account.Finalise()
+		keys := account.Finalise()
+
+		if l.triePreloader != nil {
+			l.triePreloader.preload(common.Hash{}, [][]byte{compositeAccountKey(account.GetAddress())})
+			if len(keys) > 0 {
+				l.triePreloader.preload(account.GetStorageRootHash(), keys)
+			}
+		}
 	}
+
 	l.ClearChangerAndRefund()
 }
 
@@ -202,4 +212,5 @@ func (l *StateLedgerImpl) removeJournalsBeforeBlock(height uint64) error {
 // Close close the ledger instance
 func (l *StateLedgerImpl) Close() {
 	_ = l.cachedDB.Close()
+	l.triePreloader.close()
 }

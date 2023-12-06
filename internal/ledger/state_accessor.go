@@ -254,6 +254,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 
 	l.accountCache.exportMetrics()
 	storagemgr.ExportCachedStorageMetrics()
+	defer ExportTriePreloaderMetrics()
 
 	accounts, journalHash := l.flushDirtyData()
 	height := l.blockHeight
@@ -540,6 +541,7 @@ func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, hash *types.Ha
 	l.refreshAccountTrie(lastStateRoot)
 	l.accountCache.resetMetrics()
 	storagemgr.ResetCachedStorageMetrics()
+	ResetTriePreloaderMetrics()
 	l.logger.Debugf("[PrepareBlock] height: %v, hash: %v", currentExecutingHeight, hash)
 }
 
@@ -557,6 +559,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		l.cachedDB.Put(rootHash[:], nk)
 		trie, _ := jmt.New(rootHash, l.cachedDB)
 		l.accountTrie = trie
+		l.triePreloader = newTriePreloader(l.logger, l.cachedDB, rootHash)
 		return
 	}
 
@@ -570,6 +573,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		return
 	}
 	l.accountTrie = trie
+	l.triePreloader = newTriePreloader(l.logger, l.cachedDB, lastStateRoot.ETHHash())
 }
 
 func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {
