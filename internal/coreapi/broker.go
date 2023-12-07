@@ -145,7 +145,7 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 		return nil, vm.BlockContext{}, nil, fmt.Errorf("parent %#x not found", block.BlockHeader.ParentHash)
 	}
 
-	statedb := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parent)
+	statedb := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parent, false)
 	if txIndex == 0 && len(block.Transactions) == 0 {
 		return nil, vm.BlockContext{}, &statedb, nil
 	}

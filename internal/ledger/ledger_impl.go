@@ -110,7 +110,7 @@ func (l *Ledger) NewView() *Ledger {
 	}
 	return &Ledger{
 		ChainLedger: l.ChainLedger,
-		StateLedger: l.StateLedger.NewView(block),
+		StateLedger: l.StateLedger.NewView(block, true),
 	}
 }
 
@@ -122,6 +122,6 @@ func (l *Ledger) NewViewWithoutCache() *Ledger {
 	}
 	return &Ledger{
 		ChainLedger: l.ChainLedger,
-		StateLedger: l.StateLedger.NewViewWithoutCache(block),
+		StateLedger: l.StateLedger.NewViewWithoutCache(block, true),
 	}
 }

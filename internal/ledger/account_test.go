@@ -46,7 +46,7 @@ func TestAccount_GetState(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger())
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			addr1 := account.GetAddress()
 			assert.Equal(t, addr, addr1)
@@ -104,7 +104,7 @@ func TestAccount_AccountBalance(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger())
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			account.AddBalance(big.NewInt(1))
 			account.SubBalance(big.NewInt(1))
@@ -155,7 +155,7 @@ func TestAccount_setNonce(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger())
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			account.setNonce(1)
 
@@ -171,7 +171,7 @@ func TestAccount_InitJMTError(t *testing.T) {
 	assert.Nil(t, err)
 
 	addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
-	account := NewAccount(1, lStateStorage, ac, addr, NewChanger())
+	account := NewAccount(1, lStateStorage, ac, addr, NewChanger(), nil)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -179,7 +179,7 @@ func TestAccount_InitJMTError(t *testing.T) {
 		}
 	}()
 	account.storageTrie = nil
-	account.originAccount = &InnerAccount{
+	account.originAccount = &types.InnerAccount{
 		StorageRoot: common.Hash{1},
 	}
 	_ = account.originAccount.String()

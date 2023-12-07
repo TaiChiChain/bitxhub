@@ -77,9 +77,11 @@ type StateLedger interface {
 
 	Version() uint64
 
-	NewView(block *types.Block) StateLedger
+	// NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
+	NewView(block *types.Block, enableSnapshot bool) StateLedger
 
-	NewViewWithoutCache(block *types.Block) StateLedger
+	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
+	NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger
 }
 
 // StateAccessor manipulates the state data

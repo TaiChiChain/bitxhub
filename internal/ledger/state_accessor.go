@@ -2,8 +2,6 @@ package ledger
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"sort"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 )
 
@@ -25,7 +24,7 @@ const MinJournalHeight = 10
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	account := l.GetAccount(addr)
 	if account == nil {
-		account = NewAccount(l.blockHeight, l.cachedDB, l.accountCache, addr, l.changer)
+		account = NewAccount(l.blockHeight, l.cachedDB, l.accountCache, addr, l.changer, l.snapshot)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
@@ -47,7 +46,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return value
 	}
 
-	account := NewAccount(l.blockHeight, l.cachedDB, l.accountCache, address, l.changer)
+	account := NewAccount(l.blockHeight, l.cachedDB, l.accountCache, address, l.changer, l.snapshot)
 	account.SetEnableExpensiveMetric(l.enableExpensiveMetric)
 
 	if innerAccount, ok := l.accountCache.getInnerAccount(address); ok {
@@ -65,6 +64,24 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return account
 	}
 
+	// try getting account from snapshot first
+	if l.snapshot != nil {
+		if innerAccount, err := l.snapshot.Account(address); err == nil && innerAccount != nil {
+			account.originAccount = innerAccount
+			if !bytes.Equal(innerAccount.CodeHash, nil) {
+				code, okCode := l.accountCache.getCode(address)
+				if !okCode {
+					code = l.cachedDB.Get(compositeCodeKey(account.Addr, account.originAccount.CodeHash))
+				}
+				account.originCode = code
+				account.dirtyCode = code
+			}
+			l.accounts[addr] = account
+			l.logger.Debugf("[GetAccount] get account from snapshot, addr: %v, account: %v", addr, account)
+			return account
+		}
+	}
+
 	var rawAccount []byte
 	start := time.Now()
 	rawAccount, err := l.accountTrie.Get(compositeAccountKey(address))
@@ -76,7 +93,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 	}
 
 	if rawAccount != nil {
-		account.originAccount = &InnerAccount{Balance: big.NewInt(0)}
+		account.originAccount = &types.InnerAccount{Balance: big.NewInt(0)}
 		if err := account.originAccount.Unmarshal(rawAccount); err != nil {
 			panic(err)
 		}
@@ -210,41 +227,26 @@ func (l *StateLedgerImpl) Clear() {
 	l.accounts = make(map[string]IAccount)
 }
 
-// flushDirtyData gets dirty accounts
-func (l *StateLedgerImpl) flushDirtyData() (map[string]IAccount, *types.Hash) {
+// collectDirtyData gets dirty accounts and snapshot journals
+func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *snapshot.BlockJournal) {
 	dirtyAccounts := make(map[string]IAccount)
-	var dirtyAccountData []byte
-	var journals []*blockJournalEntry
-	var sortedAddr []string
-	accountData := make(map[string][]byte)
+	var journals []*snapshot.BlockJournalEntry
 
 	for addr, acc := range l.accounts {
 		account := acc.(*SimpleAccount)
 		journal := account.getJournalIfModified()
 		if journal != nil {
 			journals = append(journals, journal)
-			sortedAddr = append(sortedAddr, addr)
-			accountData[addr] = account.getDirtyData()
 			dirtyAccounts[addr] = account
 		}
 	}
 
-	sort.Strings(sortedAddr)
-	for _, addr := range sortedAddr {
-		dirtyAccountData = append(dirtyAccountData, accountData[addr]...)
+	blockJournal := &snapshot.BlockJournal{
+		Journals: journals,
 	}
-	dirtyAccountData = append(dirtyAccountData, l.prevJnlHash.Bytes()...)
-	journalHash := sha256.Sum256(dirtyAccountData)
-
-	blockJournal := &BlockJournal{
-		Journals:    journals,
-		ChangedHash: types.NewHash(journalHash[:]),
-	}
-	l.blockJournals[blockJournal.ChangedHash.String()] = blockJournal
-	l.prevJnlHash = blockJournal.ChangedHash
 	l.Clear() // remove accounts that cached during executing current block
 	l.accountCache.add(dirtyAccounts)
-	return dirtyAccounts, blockJournal.ChangedHash
+	return dirtyAccounts, blockJournal
 }
 
 // Commit the state, and get account trie root hash
@@ -256,8 +258,11 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	storagemgr.ExportCachedStorageMetrics()
 	defer ExportTriePreloaderMetrics()
 
-	accounts, journalHash := l.flushDirtyData()
+	accounts, journals := l.collectDirtyData()
 	height := l.blockHeight
+	destructSet := make(map[string]struct{})
+	accountSet := make(map[string]*types.InnerAccount)
+	storageSet := make(map[string]map[string][]byte)
 
 	ldbBatch := l.cachedDB.NewBatch()
 
@@ -276,6 +281,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 					return nil, err
 				}
 			}
+			destructSet[account.Addr.String()] = struct{}{}
 			continue
 		}
 
@@ -286,6 +292,8 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		l.logger.Debugf("[Commit-Before] committing storage trie begin, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
 
 		stateSize := 0
+		addr := account.Addr.String()
+		storageSet[addr] = make(map[string][]byte)
 		for key, valBytes := range account.pendingState {
 			origValBytes := account.originState[key]
 
@@ -293,6 +301,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 				if err := account.storageTrie.Update(height, compositeStorageKey(account.Addr, []byte(key)), valBytes); err != nil {
 					panic(err)
 				}
+				storageSet[addr][key] = valBytes
 				if account.storageTrie.Root() != nil {
 					l.logger.Debugf("[Commit-Update-After][%v] after updating storage trie, addr: %v, key: %v, origin state: %v, "+
 						"dirty state: %v, root node: %v", stateSize, account.Addr, &bytesLazyLogger{bytes: compositeStorageKey(account.Addr, []byte(key))},
@@ -310,7 +319,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			stateFlushSize.Set(float64(stateSize))
 		}
 		// update account trie if needed
-		if InnerAccountChanged(account.originAccount, account.dirtyAccount) {
+		if account.originAccount.InnerAccountChanged(account.dirtyAccount) {
 			accSize++
 			data, err := account.dirtyAccount.Marshal()
 			if err != nil {
@@ -319,9 +328,12 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			if err := l.accountTrie.Update(height, compositeAccountKey(account.Addr), data); err != nil {
 				panic(err)
 			}
+			accountSet[addr] = account.dirtyAccount
 			l.logger.Debugf("[Commit] update account trie, addr: %v, origin account: %v, dirty account: %v", account.Addr, account.originAccount, account.dirtyAccount)
 		}
 	}
+	ldbBatch.Commit()
+
 	// Commit world state trie.
 	// If world state is not changed in current block (which is very rarely), this is no-op.
 	stateRoot := l.accountTrie.Commit()
@@ -330,34 +342,23 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	}
 	l.logger.Debugf("[Commit] after committed world state trie, StateRoot: %v", stateRoot)
 
-	blockJournal, ok := l.blockJournals[journalHash.String()]
-	if !ok {
-		return nil, fmt.Errorf("cannot get block journal for block %d", height)
-	}
-
-	data, err := json.Marshal(blockJournal)
+	// update snapshot
+	err := l.snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
 	if err != nil {
-		return nil, fmt.Errorf("marshal block journal error: %w", err)
+		return nil, fmt.Errorf("update snapshot error: %w", err)
 	}
 
-	ldbBatch.Put(compositeKey(journalKey, height), data)
-	ldbBatch.Put(compositeKey(journalKey, maxHeightStr), marshalHeight(height))
-
-	if l.minJnlHeight == 0 {
-		l.minJnlHeight = height
-		ldbBatch.Put(compositeKey(journalKey, minHeightStr), marshalHeight(height))
+	// persist snapshot journals
+	err = l.snapshot.UpdateJournal(height, journals)
+	if err != nil {
+		return nil, fmt.Errorf("update snapshot journal error: %w", err)
 	}
-
-	ldbBatch.Commit()
-
-	l.maxJnlHeight = height
 
 	if height > l.getJnlHeightSize() {
-		if err := l.removeJournalsBeforeBlock(height - l.getJnlHeightSize()); err != nil {
+		if err := l.snapshot.RemoveJournalsBeforeBlock(height - l.getJnlHeightSize()); err != nil {
 			return nil, fmt.Errorf("remove journals before block %d failed: %w", height-l.getJnlHeightSize(), err)
 		}
 	}
-	l.blockJournals = make(map[string]*BlockJournal)
 
 	return types.NewHash(stateRoot.Bytes()), nil
 }
@@ -378,38 +379,19 @@ func (l *StateLedgerImpl) Version() uint64 {
 // This manner will not affect the correctness of ledger,
 // todo but maybe need to optimize to free allocated space in KV.
 func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) error {
-	if l.maxJnlHeight < height {
-		return ErrorRollbackToHigherNumber
-	}
-
-	if l.minJnlHeight > height && !(l.minJnlHeight == 1 && height == 0) {
-		return ErrorRollbackTooMuch
-	}
-
-	if l.maxJnlHeight == height {
-		return nil
-	}
-
 	// clean cache account
 	l.Clear()
 	l.accountCache.clear()
 
-	for i := l.maxJnlHeight; i > height; i-- {
-		batch := l.cachedDB.NewBatch()
-		batch.Delete(compositeKey(journalKey, i))
-		batch.Put(compositeKey(journalKey, maxHeightStr), marshalHeight(i-1))
-		batch.Commit()
+	// rollback snapshots
+	if err := l.snapshot.Rollback(height); err != nil {
+		return err
 	}
 
+	// rollback world state trie
 	if height != 0 {
-		journal := getBlockJournal(height, l.cachedDB)
-		l.prevJnlHash = journal.ChangedHash
 		l.refreshAccountTrie(stateRoot)
-	} else {
-		l.prevJnlHash = &types.Hash{}
-		l.minJnlHeight = 0
 	}
-	l.maxJnlHeight = height
 
 	return nil
 }

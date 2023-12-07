@@ -2,10 +2,8 @@ package ledger
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"math/big"
-	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,6 +15,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
 
@@ -33,8 +32,8 @@ func (l *bytesLazyLogger) String() string {
 type SimpleAccount struct {
 	logger        logrus.FieldLogger
 	Addr          *types.Address
-	originAccount *InnerAccount
-	dirtyAccount  *InnerAccount
+	originAccount *types.InnerAccount
+	dirtyAccount  *types.InnerAccount
 
 	// TODO: use []byte as key
 	// The confirmed state of the previous block
@@ -57,6 +56,8 @@ type SimpleAccount struct {
 
 	changer  *stateChanger
 	suicided bool
+
+	snapshot *snapshot.Snapshot
 
 	enableExpensiveMetric bool
 }
@@ -85,7 +86,7 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 	}
 }
 
-func NewAccount(blockHeight uint64, ldb storage.Storage, accountCache *AccountCache, addr *types.Address, changer *stateChanger) *SimpleAccount {
+func NewAccount(blockHeight uint64, ldb storage.Storage, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
 	return &SimpleAccount{
 		logger:       loggers.Logger(loggers.Storage),
 		Addr:         addr,
@@ -97,6 +98,7 @@ func NewAccount(blockHeight uint64, ldb storage.Storage, accountCache *AccountCa
 		cache:        accountCache,
 		changer:      changer,
 		suicided:     false,
+		snapshot:     snapshot,
 	}
 }
 
@@ -161,6 +163,16 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 		return value != nil, value
 	}
 
+	if o.snapshot != nil {
+		if value, err := o.snapshot.Storage(o.Addr, key); err == nil && len(value) != 0 {
+			o.originState[string(key)] = value
+			o.initStorageTrie()
+			//fmt.Printf("[GetState] get from snapshot, addr: %v, key: %v, state: %v\n", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
+			o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
+			return value != nil, value
+		}
+	}
+
 	o.initStorageTrie()
 	start := time.Now()
 	val, err := o.storageTrie.Get(compositeStorageKey(o.Addr, key))
@@ -196,6 +208,19 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 		return value
 	}
 
+	if o.snapshot != nil {
+		if value, err := o.snapshot.Storage(o.Addr, key); err == nil && len(value) != 0 {
+			o.originState[string(key)] = value
+			o.initStorageTrie()
+			//fmt.Printf("[GetCommittedState] get from snapshot, addr: %v, key: %v, state: %v\n", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
+			o.logger.Debugf("[GetCommittedState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
+			if value == nil {
+				return (&types.Hash{}).Bytes()
+			}
+			return value
+		}
+	}
+
 	o.initStorageTrie()
 	start := time.Now()
 	val, err := o.storageTrie.Get(compositeStorageKey(o.Addr, key))
@@ -224,7 +249,7 @@ func (o *SimpleAccount) SetState(key []byte, value []byte) {
 		prevalue: prev,
 	})
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	o.logger.Debugf("[SetState] addr: %v, key: %v, before state: %v, after state: %v", o.Addr, string(key), &bytesLazyLogger{bytes: prev}, &bytesLazyLogger{bytes: value})
 	o.setState(key, value)
@@ -242,7 +267,7 @@ func (o *SimpleAccount) SetCodeAndHash(code []byte) {
 		prevcode: o.Code(),
 	})
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	o.logger.Debugf("[SetCodeAndHash] addr: %v, before code hash: %v, after code hash: %v", o.Addr, &bytesLazyLogger{bytes: o.CodeHash()}, &bytesLazyLogger{bytes: ret.Bytes()})
 	o.dirtyAccount.CodeHash = ret.Bytes()
@@ -252,7 +277,7 @@ func (o *SimpleAccount) SetCodeAndHash(code []byte) {
 func (o *SimpleAccount) setCodeAndHash(code []byte) {
 	ret := crypto.Keccak256Hash(code)
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	o.dirtyAccount.CodeHash = ret.Bytes()
 	o.dirtyCode = code
@@ -307,7 +332,7 @@ func (o *SimpleAccount) SetNonce(nonce uint64) {
 		prev:    o.GetNonce(),
 	})
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	if o.originAccount == nil {
 		o.logger.Debugf("[SetNonce] addr: %v, before origin nonce: %v, before dirty nonce: %v, after dirty nonce: %v", o.Addr, 0, o.dirtyAccount.Nonce, nonce)
@@ -319,7 +344,7 @@ func (o *SimpleAccount) SetNonce(nonce uint64) {
 
 func (o *SimpleAccount) setNonce(nonce uint64) {
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	o.dirtyAccount.Nonce = nonce
 }
@@ -359,7 +384,7 @@ func (o *SimpleAccount) SetBalance(balance *big.Int) {
 		prev:    new(big.Int).Set(o.GetBalance()),
 	})
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	if o.originAccount == nil {
 		o.logger.Debugf("[SetBalance] addr: %v, before origin balance: %v, before dirty balance: %v, after dirty balance: %v", o.Addr, 0, o.dirtyAccount.Balance, balance)
@@ -371,7 +396,7 @@ func (o *SimpleAccount) SetBalance(balance *big.Int) {
 
 func (o *SimpleAccount) setBalance(balance *big.Int) {
 	if o.dirtyAccount == nil {
-		o.dirtyAccount = CopyOrNewIfEmpty(o.originAccount)
+		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
 	o.dirtyAccount.Balance = balance
 }
@@ -406,10 +431,10 @@ func (o *SimpleAccount) Finalise() [][]byte {
 	return keys2Preload
 }
 
-func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
-	entry := &blockJournalEntry{Address: o.Addr}
+func (o *SimpleAccount) getJournalIfModified() *snapshot.BlockJournalEntry {
+	entry := &snapshot.BlockJournalEntry{Address: o.Addr}
 
-	if InnerAccountChanged(o.originAccount, o.dirtyAccount) {
+	if o.originAccount.InnerAccountChanged(o.dirtyAccount) {
 		entry.AccountChanged = true
 		entry.PrevAccount = o.originAccount
 	}
@@ -418,17 +443,12 @@ func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
 		o.originCode = o.ldb.Get(compositeCodeKey(o.Addr, o.originAccount.CodeHash))
 	}
 
-	if !bytes.Equal(o.originCode, o.dirtyCode) {
-		entry.CodeChanged = true
-		entry.PrevCode = o.originCode
-	}
-
 	prevStates := o.getStateJournalAndComputeHash()
 	if len(prevStates) != 0 {
 		entry.PrevStates = prevStates
 	}
 
-	if entry.AccountChanged || entry.CodeChanged || len(entry.PrevStates) != 0 {
+	if entry.AccountChanged || len(entry.PrevStates) != 0 {
 		return entry
 	}
 
@@ -437,45 +457,45 @@ func (o *SimpleAccount) getJournalIfModified() *blockJournalEntry {
 
 func (o *SimpleAccount) getStateJournalAndComputeHash() map[string][]byte {
 	prevStates := make(map[string][]byte)
-	var pendingStateKeys []string
-	var pendingStateData []byte
+	//var pendingStateKeys []string
+	//var pendingStateData []byte
 
 	for key, value := range o.pendingState {
 		origVal := o.originState[key]
 		if !bytes.Equal(origVal, value) {
 			prevStates[key] = origVal
-			pendingStateKeys = append(pendingStateKeys, key)
+			//pendingStateKeys = append(pendingStateKeys, key)
 		}
 	}
 
-	sort.Strings(pendingStateKeys)
-
-	for _, key := range pendingStateKeys {
-		pendingStateData = append(pendingStateData, key...)
-		pendingVal := o.pendingState[key]
-		pendingStateData = append(pendingStateData, pendingVal...)
-	}
-	hash := sha256.Sum256(pendingStateData)
-	o.pendingStateHash = types.NewHash(hash[:])
+	//sort.Strings(pendingStateKeys)
+	//
+	//for _, key := range pendingStateKeys {
+	//	pendingStateData = append(pendingStateData, key...)
+	//	pendingVal := o.pendingState[key]
+	//	pendingStateData = append(pendingStateData, pendingVal...)
+	//}
+	//hash := sha256.Sum256(pendingStateData)
+	//o.pendingStateHash = types.NewHash(hash[:])
 
 	return prevStates
 }
 
-func (o *SimpleAccount) getDirtyData() []byte {
-	var dirtyData []byte
-
-	dirtyData = append(dirtyData, o.Addr.Bytes()...)
-
-	if o.dirtyAccount != nil {
-		data, err := o.dirtyAccount.Marshal()
-		if err != nil {
-			panic(err)
-		}
-		dirtyData = append(dirtyData, data...)
-	}
-
-	return append(dirtyData, o.pendingStateHash.Bytes()...)
-}
+//func (o *SimpleAccount) getDirtyData() []byte {
+//	var dirtyData []byte
+//
+//	dirtyData = append(dirtyData, o.Addr.Bytes()...)
+//
+//	if o.dirtyAccount != nil {
+//		data, err := o.dirtyAccount.Marshal()
+//		if err != nil {
+//			panic(err)
+//		}
+//		dirtyData = append(dirtyData, data...)
+//	}
+//
+//	return append(dirtyData, o.pendingStateHash.Bytes()...)
+//}
 
 func (o *SimpleAccount) SetSuicided(suicided bool) {
 	o.suicided = suicided
