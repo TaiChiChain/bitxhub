@@ -257,6 +257,9 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	l.accountCache.exportMetrics()
 	storagemgr.ExportCachedStorageMetrics()
 	defer ExportTriePreloaderMetrics()
+	if l.triePreloader != nil {
+		defer l.triePreloader.close()
+	}
 
 	accounts, journals := l.collectDirtyData()
 	height := l.blockHeight
