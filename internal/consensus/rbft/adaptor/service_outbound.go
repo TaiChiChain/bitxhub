@@ -103,7 +103,6 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		"target":      a.StateUpdateHeight,
 		"target_hash": digest,
 		"start":       startHeight,
-		"epochChange": epochChanges,
 	}).Info("State update start")
 
 	if err := retry.Retry(func(attempt uint) error {
