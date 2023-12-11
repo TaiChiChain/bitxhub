@@ -76,6 +76,9 @@ func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
 		rootHash = tp.rootHash
 	}
 	trieKey := tp.trieKey(rootHash)
+	if tp.loaders == nil {
+		tp.loaders = make(map[string]*subPreloader)
+	}
 	loader := tp.loaders[trieKey]
 	if loader == nil {
 		loader = newSubPreloader(tp.logger, tp.db, rootHash)

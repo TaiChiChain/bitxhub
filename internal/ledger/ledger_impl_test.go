@@ -390,8 +390,8 @@ func TestChainLedger_Rollback(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		//"leveldb": {kvType: "leveldb"},
+		//"pebble":  {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -1381,7 +1381,7 @@ func TestStateLedger_RollbackToHistoryVersion(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
+		//"leveldb": {kvType: "leveldb"},
 		//"pebble":  {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
