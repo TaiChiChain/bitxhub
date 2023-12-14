@@ -1872,17 +1872,17 @@ func (c *StateLedgerHasSuicideEVMCall) DoAndReturn(f func(common.Address) bool) 
 }
 
 // NewView mocks base method.
-func (m *MockStateLedger) NewView(block *types.Block) ledger.StateLedger {
+func (m *MockStateLedger) NewView(block *types.Block, enableSnapshot bool) ledger.StateLedger {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewView", block)
+	ret := m.ctrl.Call(m, "NewView", block, enableSnapshot)
 	ret0, _ := ret[0].(ledger.StateLedger)
 	return ret0
 }
 
 // NewView indicates an expected call of NewView.
-func (mr *MockStateLedgerMockRecorder) NewView(block any) *StateLedgerNewViewCall {
+func (mr *MockStateLedgerMockRecorder) NewView(block, enableSnapshot any) *StateLedgerNewViewCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewView", reflect.TypeOf((*MockStateLedger)(nil).NewView), block)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewView", reflect.TypeOf((*MockStateLedger)(nil).NewView), block, enableSnapshot)
 	return &StateLedgerNewViewCall{Call: call}
 }
 
@@ -1898,29 +1898,29 @@ func (c *StateLedgerNewViewCall) Return(arg0 ledger.StateLedger) *StateLedgerNew
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerNewViewCall) Do(f func(*types.Block) ledger.StateLedger) *StateLedgerNewViewCall {
+func (c *StateLedgerNewViewCall) Do(f func(*types.Block, bool) ledger.StateLedger) *StateLedgerNewViewCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerNewViewCall) DoAndReturn(f func(*types.Block) ledger.StateLedger) *StateLedgerNewViewCall {
+func (c *StateLedgerNewViewCall) DoAndReturn(f func(*types.Block, bool) ledger.StateLedger) *StateLedgerNewViewCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // NewViewWithoutCache mocks base method.
-func (m *MockStateLedger) NewViewWithoutCache(block *types.Block) ledger.StateLedger {
+func (m *MockStateLedger) NewViewWithoutCache(block *types.Block, enableSnapshot bool) ledger.StateLedger {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewViewWithoutCache", block)
+	ret := m.ctrl.Call(m, "NewViewWithoutCache", block, enableSnapshot)
 	ret0, _ := ret[0].(ledger.StateLedger)
 	return ret0
 }
 
 // NewViewWithoutCache indicates an expected call of NewViewWithoutCache.
-func (mr *MockStateLedgerMockRecorder) NewViewWithoutCache(block any) *StateLedgerNewViewWithoutCacheCall {
+func (mr *MockStateLedgerMockRecorder) NewViewWithoutCache(block, enableSnapshot any) *StateLedgerNewViewWithoutCacheCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewViewWithoutCache", reflect.TypeOf((*MockStateLedger)(nil).NewViewWithoutCache), block)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewViewWithoutCache", reflect.TypeOf((*MockStateLedger)(nil).NewViewWithoutCache), block, enableSnapshot)
 	return &StateLedgerNewViewWithoutCacheCall{Call: call}
 }
 
@@ -1936,13 +1936,13 @@ func (c *StateLedgerNewViewWithoutCacheCall) Return(arg0 ledger.StateLedger) *St
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerNewViewWithoutCacheCall) Do(f func(*types.Block) ledger.StateLedger) *StateLedgerNewViewWithoutCacheCall {
+func (c *StateLedgerNewViewWithoutCacheCall) Do(f func(*types.Block, bool) ledger.StateLedger) *StateLedgerNewViewWithoutCacheCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerNewViewWithoutCacheCall) DoAndReturn(f func(*types.Block) ledger.StateLedger) *StateLedgerNewViewWithoutCacheCall {
+func (c *StateLedgerNewViewWithoutCacheCall) DoAndReturn(f func(*types.Block, bool) ledger.StateLedger) *StateLedgerNewViewWithoutCacheCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3285,9 +3285,11 @@ func (c *IAccountCodeHashCall) DoAndReturn(f func() []byte) *IAccountCodeHashCal
 }
 
 // Finalise mocks base method.
-func (m *MockIAccount) Finalise() {
+func (m *MockIAccount) Finalise() [][]byte {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Finalise")
+	ret := m.ctrl.Call(m, "Finalise")
+	ret0, _ := ret[0].([][]byte)
+	return ret0
 }
 
 // Finalise indicates an expected call of Finalise.
@@ -3303,19 +3305,19 @@ type IAccountFinaliseCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountFinaliseCall) Return() *IAccountFinaliseCall {
-	c.Call = c.Call.Return()
+func (c *IAccountFinaliseCall) Return(arg0 [][]byte) *IAccountFinaliseCall {
+	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountFinaliseCall) Do(f func()) *IAccountFinaliseCall {
+func (c *IAccountFinaliseCall) Do(f func() [][]byte) *IAccountFinaliseCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountFinaliseCall) DoAndReturn(f func()) *IAccountFinaliseCall {
+func (c *IAccountFinaliseCall) DoAndReturn(f func() [][]byte) *IAccountFinaliseCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3507,6 +3509,44 @@ func (c *IAccountGetStateCall) Do(f func([]byte) (bool, []byte)) *IAccountGetSta
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *IAccountGetStateCall) DoAndReturn(f func([]byte) (bool, []byte)) *IAccountGetStateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetStorageRootHash mocks base method.
+func (m *MockIAccount) GetStorageRootHash() common.Hash {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageRootHash")
+	ret0, _ := ret[0].(common.Hash)
+	return ret0
+}
+
+// GetStorageRootHash indicates an expected call of GetStorageRootHash.
+func (mr *MockIAccountMockRecorder) GetStorageRootHash() *IAccountGetStorageRootHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageRootHash", reflect.TypeOf((*MockIAccount)(nil).GetStorageRootHash))
+	return &IAccountGetStorageRootHashCall{Call: call}
+}
+
+// IAccountGetStorageRootHashCall wrap *gomock.Call
+type IAccountGetStorageRootHashCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *IAccountGetStorageRootHashCall) Return(arg0 common.Hash) *IAccountGetStorageRootHashCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *IAccountGetStorageRootHashCall) Do(f func() common.Hash) *IAccountGetStorageRootHashCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *IAccountGetStorageRootHashCall) DoAndReturn(f func() common.Hash) *IAccountGetStorageRootHashCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

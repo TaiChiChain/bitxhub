@@ -31,7 +31,6 @@ func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
 			if err != nil {
 				panic(err)
 			}
-			//fmt.Printf("[revertJournal] journal=%v\n", journal)
 			batch.Put(CompositeSnapAccountKey(journal.Address.String()), data)
 		} else {
 			batch.Delete(CompositeSnapAccountKey(journal.Address.String()))

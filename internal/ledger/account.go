@@ -167,7 +167,6 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 		if value, err := o.snapshot.Storage(o.Addr, key); err == nil && len(value) != 0 {
 			o.originState[string(key)] = value
 			o.initStorageTrie()
-			//fmt.Printf("[GetState] get from snapshot, addr: %v, key: %v, state: %v\n", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
 			o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
 			return value != nil, value
 		}
@@ -212,7 +211,6 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 		if value, err := o.snapshot.Storage(o.Addr, key); err == nil && len(value) != 0 {
 			o.originState[string(key)] = value
 			o.initStorageTrie()
-			//fmt.Printf("[GetCommittedState] get from snapshot, addr: %v, key: %v, state: %v\n", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
 			o.logger.Debugf("[GetCommittedState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
 			if value == nil {
 				return (&types.Hash{}).Bytes()
@@ -431,7 +429,7 @@ func (o *SimpleAccount) Finalise() [][]byte {
 	return keys2Preload
 }
 
-func (o *SimpleAccount) getJournalIfModified() *snapshot.BlockJournalEntry {
+func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
 	entry := &snapshot.BlockJournalEntry{Address: o.Addr}
 
 	if o.originAccount.InnerAccountChanged(o.dirtyAccount) {
@@ -443,7 +441,7 @@ func (o *SimpleAccount) getJournalIfModified() *snapshot.BlockJournalEntry {
 		o.originCode = o.ldb.Get(compositeCodeKey(o.Addr, o.originAccount.CodeHash))
 	}
 
-	prevStates := o.getStateJournalAndComputeHash()
+	prevStates := o.getStateJournal()
 	if len(prevStates) != 0 {
 		entry.PrevStates = prevStates
 	}
@@ -455,47 +453,17 @@ func (o *SimpleAccount) getJournalIfModified() *snapshot.BlockJournalEntry {
 	return nil
 }
 
-func (o *SimpleAccount) getStateJournalAndComputeHash() map[string][]byte {
+func (o *SimpleAccount) getStateJournal() map[string][]byte {
 	prevStates := make(map[string][]byte)
-	//var pendingStateKeys []string
-	//var pendingStateData []byte
 
 	for key, value := range o.pendingState {
 		origVal := o.originState[key]
 		if !bytes.Equal(origVal, value) {
 			prevStates[key] = origVal
-			//pendingStateKeys = append(pendingStateKeys, key)
 		}
 	}
-
-	//sort.Strings(pendingStateKeys)
-	//
-	//for _, key := range pendingStateKeys {
-	//	pendingStateData = append(pendingStateData, key...)
-	//	pendingVal := o.pendingState[key]
-	//	pendingStateData = append(pendingStateData, pendingVal...)
-	//}
-	//hash := sha256.Sum256(pendingStateData)
-	//o.pendingStateHash = types.NewHash(hash[:])
-
 	return prevStates
 }
-
-//func (o *SimpleAccount) getDirtyData() []byte {
-//	var dirtyData []byte
-//
-//	dirtyData = append(dirtyData, o.Addr.Bytes()...)
-//
-//	if o.dirtyAccount != nil {
-//		data, err := o.dirtyAccount.Marshal()
-//		if err != nil {
-//			panic(err)
-//		}
-//		dirtyData = append(dirtyData, data...)
-//	}
-//
-//	return append(dirtyData, o.pendingStateHash.Bytes()...)
-//}
 
 func (o *SimpleAccount) SetSuicided(suicided bool) {
 	o.suicided = suicided

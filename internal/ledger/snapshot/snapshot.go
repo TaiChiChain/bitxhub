@@ -33,7 +33,7 @@ func NewSnapshot(diskdb storage.Storage) *Snapshot {
 	}
 }
 
-// RemoveJournalsBeforeBlock removes ledger journals whose block number < height
+// RemoveJournalsBeforeBlock removes snapshot journals whose block number < height
 func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 	minHeight, maxHeight := GetJournalRange(snap.diskdb)
 	if height > maxHeight {
@@ -48,7 +48,7 @@ func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 	for i := minHeight; i < height; i++ {
 		batch.Delete(CompositeSnapJournalKey(i))
 	}
-	batch.Put(CompositeSnapJournalKey(minHeight), marshalHeight(height))
+	batch.Put(CompositeSnapJournalKey(MinHeightStr), marshalHeight(height))
 	batch.Commit()
 
 	return nil
@@ -77,11 +77,6 @@ func (snap *Snapshot) Update(stateRoot common.Hash, destructs map[string]struct{
 }
 
 func (snap *Snapshot) UpdateJournal(height uint64, journal *BlockJournal) error {
-	//fmt.Printf("[UpdateJournal] height:=%v\n", height)
-	//for _, entry := range journal.Journals {
-	//	fmt.Printf("[UpdateJournal] entry:=%v\n", entry)
-	//}
-
 	data, err := json.Marshal(journal)
 	if err != nil {
 		return fmt.Errorf("marshal snapshot journal error: %w", err)
@@ -112,8 +107,6 @@ func (snap *Snapshot) Rollback(height uint64) error {
 		return nil
 	}
 
-	//fmt.Printf("[Rollback-snap-journal] maxHeight:%v\n", maxHeight)
-
 	for i := maxHeight; i > height; i-- {
 		batch := snap.diskdb.NewBatch()
 		blockJournal := GetBlockJournal(i, snap.diskdb)
@@ -121,13 +114,14 @@ func (snap *Snapshot) Rollback(height uint64) error {
 			return ErrorRemoveJournalOutOfRange
 		}
 		for _, entry := range blockJournal.Journals {
-			//fmt.Printf("[Rollback-snap-journal] journal entry:%v\n", entry)
 			revertJournal(entry, batch)
 		}
 		batch.Delete(CompositeSnapJournalKey(i))
 		batch.Put(CompositeSnapJournalKey(MaxHeightStr), marshalHeight(i-1))
 		batch.Commit()
 	}
+
+	snap.origin.Clear()
 
 	return nil
 }

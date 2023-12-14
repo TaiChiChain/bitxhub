@@ -234,7 +234,7 @@ func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *snapshot.Blo
 
 	for addr, acc := range l.accounts {
 		account := acc.(*SimpleAccount)
-		journal := account.getJournalIfModified()
+		journal := account.getAccountJournal()
 		if journal != nil {
 			journals = append(journals, journal)
 			dirtyAccounts[addr] = account

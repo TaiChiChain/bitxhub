@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"bytes"
 	"math/big"
 	"sync"
 
@@ -25,7 +24,7 @@ type diskLayer struct {
 func NewDiskLayer(db storage.Storage) Layer {
 	return &diskLayer{
 		diskdb:    db,
-		cache:     fastcache.New(128 * 1024 * 1024),
+		cache:     fastcache.New(128 * 1024 * 1024), // todo configurable
 		available: true,
 	}
 }
@@ -136,6 +135,6 @@ func (dl *diskLayer) Storage(addr *types.Address, key []byte) ([]byte, error) {
 	return blob, nil
 }
 
-func (dl *diskLayer) Journal(buffer *bytes.Buffer) (common.Hash, error) {
-	return common.Hash{}, nil
+func (dl *diskLayer) Clear() {
+	dl.cache.Reset()
 }

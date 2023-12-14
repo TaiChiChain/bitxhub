@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"bytes"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -32,13 +31,11 @@ type Layer interface {
 	// disk and diff layers. There is no locking involved.
 	Parent() Layer
 
-	// Journal commits an entire diff hierarchy to disk into a single journal entry.
-	// This is meant to be used during shutdown to persist the snapshot without
-	// flattening everything down (bad for reorgs).
-	Journal(buffer *bytes.Buffer) (common.Hash, error)
-
 	// Available returns whether this layer is available.
 	Available() bool
 
 	Update(stateRoot common.Hash, destructs map[string]struct{}, accounts map[string]*types.InnerAccount, storage map[string]map[string][]byte)
+
+	// Clear reset cache
+	Clear()
 }
