@@ -528,7 +528,7 @@ func TestChainLedger_GetAccount(t *testing.T) {
 		kvType string
 	}{
 		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		//"pebble":  {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {

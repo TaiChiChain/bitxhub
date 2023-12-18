@@ -164,7 +164,7 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 	}
 
 	if o.snapshot != nil {
-		if value, err := o.snapshot.Storage(o.Addr, key); err == nil && len(value) != 0 {
+		if value, err := o.snapshot.Storage(o.Addr, key); err == nil {
 			o.originState[string(key)] = value
 			o.initStorageTrie()
 			o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
@@ -208,7 +208,7 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 	}
 
 	if o.snapshot != nil {
-		if value, err := o.snapshot.Storage(o.Addr, key); err == nil && len(value) != 0 {
+		if value, err := o.snapshot.Storage(o.Addr, key); err == nil {
 			o.originState[string(key)] = value
 			o.initStorageTrie()
 			o.logger.Debugf("[GetCommittedState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})

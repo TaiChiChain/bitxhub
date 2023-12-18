@@ -127,9 +127,10 @@ func (dl *diskLayer) Storage(addr *types.Address, key []byte) ([]byte, error) {
 		return blob, nil
 	}
 	blob := dl.diskdb.Get(snapKey)
-	if len(blob) == 0 { // can be both nil and []byte{}
+	if blob == nil {
 		return nil, nil
 	}
+
 	dl.cache.Set(snapKey, blob)
 
 	return blob, nil

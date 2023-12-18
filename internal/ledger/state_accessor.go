@@ -66,7 +66,10 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 
 	// try getting account from snapshot first
 	if l.snapshot != nil {
-		if innerAccount, err := l.snapshot.Account(address); err == nil && innerAccount != nil {
+		if innerAccount, err := l.snapshot.Account(address); err == nil {
+			if innerAccount == nil {
+				return nil
+			}
 			account.originAccount = innerAccount
 			if !bytes.Equal(innerAccount.CodeHash, nil) {
 				code, okCode := l.accountCache.getCode(address)
