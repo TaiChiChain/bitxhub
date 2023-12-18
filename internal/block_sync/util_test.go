@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -36,6 +38,7 @@ var (
 	mockBlockResponsePipe = &sync.Map{}
 	mockBlockRequestPipe  = &sync.Map{}
 	mockStateResponseM    = make(map[string]map[uint64]*pb.Message)
+	blockCache            = make([]*types.Block, 0)
 )
 
 func clean() {
@@ -450,5 +453,224 @@ func prepareLedger(n int, endBlockHeight uint64) {
 func storeBlocks(blocks []*types.Block, id int) {
 	for _, block := range blocks {
 		setMockBlockLedger(block, id)
+	}
+}
+
+type mockLedger struct {
+	*mock_ledger.MockChainLedger
+	blockDb   map[uint64]*types.Block
+	chainMeta *types.ChainMeta
+}
+
+func newMockMinLedger(t *testing.T) *mockLedger {
+	mockLg := &mockLedger{
+		blockDb: make(map[uint64]*types.Block),
+		chainMeta: &types.ChainMeta{
+			Height:    0,
+			BlockHash: types.NewHashByStr("0x00"),
+		},
+	}
+	ctrl := gomock.NewController(t)
+	mockLg.MockChainLedger = mock_ledger.NewMockChainLedger(ctrl)
+
+	mockLg.EXPECT().GetBlock(gomock.Any()).DoAndReturn(func(height uint64) (*types.Block, error) {
+		if mockLg.blockDb[height] == nil {
+			return nil, errors.New("block not found")
+		}
+		return mockLg.blockDb[height], nil
+	}).AnyTimes()
+
+	mockLg.EXPECT().GetChainMeta().DoAndReturn(func() *types.ChainMeta {
+		return mockLg.chainMeta
+	}).AnyTimes()
+
+	mockLg.EXPECT().PersistExecutionResult(gomock.Any(), gomock.Any()).DoAndReturn(func(block *types.Block, receipts []*types.Receipt) error {
+		h := block.Height()
+		mockLg.blockDb[h] = block
+		if mockLg.chainMeta.Height <= h {
+			mockLg.chainMeta.Height = h
+			mockLg.chainMeta.BlockHash = block.BlockHash
+		}
+		return nil
+	}).AnyTimes()
+	return mockLg
+}
+
+func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*BlockSync, []*consensus.EpochChange) {
+	initLedger()
+	ctrl := gomock.NewController(t)
+	syncs := make([]*BlockSync, 0)
+	var (
+		epochChanges       []*consensus.EpochChange
+		needGenEpochChange bool
+		ledgers            = make(map[string]*mockLedger)
+	)
+
+	remainder := (int(begin) + epochInterval) % epochInterval
+	// prepare epoch change
+	if begin+uint64(epochInterval)-uint64(remainder) < end {
+		needGenEpochChange = true
+	}
+
+	for i := 0; i < count; i++ {
+		lg := newMockMinLedger(t)
+		localId := strconv.Itoa(i)
+
+		latestBlock := ConstructBlock(begin-1, types.NewHashByStr(fmt.Sprintf("block%d", begin-2)))
+		err := lg.PersistExecutionResult(latestBlock, []*types.Receipt{})
+		require.Nil(t, err)
+
+		if i != local {
+			if len(blockCache) == 0 {
+				parentHash := lg.chainMeta.BlockHash
+				for j := begin; j <= end; j++ {
+					block := ConstructBlock(j, parentHash)
+					blockCache = append(blockCache, block)
+					parentHash = block.BlockHash
+				}
+			}
+			lo.ForEach(blockCache, func(block *types.Block, _ int) {
+				err = lg.PersistExecutionResult(block, []*types.Receipt{})
+				require.Nil(t, err)
+			})
+
+			if needGenEpochChange && len(epochChanges) == 0 {
+				nextEpochHeight := begin + uint64(epochInterval) - uint64(remainder)
+				nextEpochHash := lg.blockDb[nextEpochHeight].BlockHash.String()
+				for nextEpochHeight <= end {
+					nextEpochHash = lg.blockDb[nextEpochHeight].BlockHash.String()
+					epochChanges = append(epochChanges, prepareEpochChange(nextEpochHeight, nextEpochHash))
+					nextEpochHeight += uint64(epochInterval)
+				}
+			}
+		}
+		ledgers[localId] = lg
+	}
+	for localId := range ledgers {
+		lg := ledgers[localId]
+		fmt.Printf("%s: %T", localId, lg)
+		logger := log.NewWithModule("block_sync" + localId)
+
+		getBlockFn := func(height uint64) (*types.Block, error) {
+			return lg.GetBlock(height)
+		}
+
+		conf := repo.Sync{
+			RequesterRetryTimeout: repo.Duration(1 * time.Second),
+			TimeoutCountLimit:     5,
+			ConcurrencyLimit:      100,
+		}
+
+		mockNetwork := prepareNetwork(ctrl, localId, ledgers)
+		blockSync, err := NewBlockSync(logger, getBlockFn, mockNetwork, conf)
+		require.Nil(t, err)
+		syncs = append(syncs, blockSync)
+	}
+
+	return syncs, epochChanges
+}
+
+func prepareEpochChange(height uint64, hash string) *consensus.EpochChange {
+	return &consensus.EpochChange{
+		Checkpoint: &consensus.QuorumCheckpoint{
+			Checkpoint: &consensus.Checkpoint{
+				ExecuteState: &consensus.Checkpoint_ExecuteState{
+					Height: height,
+					Digest: hash,
+				},
+			},
+		},
+	}
+}
+
+func prepareNetwork(ctrl *gomock.Controller, localId string, lgs map[string]*mockLedger) *mock_network.MockNetwork {
+	mock := mock_network.NewMockNetwork(ctrl)
+	mock.EXPECT().RegisterMsgHandler(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	mock.EXPECT().CreatePipe(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, pipeID string) (network.Pipe, error) {
+			switch pipeID {
+			case syncBlockRequestPipe:
+				return newMockBlockRequestPipe(ctrl, localId), nil
+			case syncBlockResponsePipe:
+				return newMockBlockResponsePipe(ctrl, localId), nil
+			default:
+				return nil, fmt.Errorf("invalid pipe id: %s", pipeID)
+			}
+		}).AnyTimes()
+
+	mock.EXPECT().PeerID().Return(localId).AnyTimes()
+
+	mock.EXPECT().Send(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(to string, msg *pb.Message) (*pb.Message, error) {
+			req := &pb.SyncStateRequest{}
+			if err := req.UnmarshalVT(msg.Data); err != nil {
+				return nil, fmt.Errorf("unmarshal sync state request failed: %w", err)
+			}
+
+			block, err := lgs[to].GetBlock(req.Height)
+			if err != nil {
+				return nil, fmt.Errorf("get block with height %d failed: %w", req.Height, err)
+			}
+
+			stateResp := &pb.SyncStateResponse{
+				CheckpointState: &pb.CheckpointState{
+					Height: block.Height(),
+					Digest: block.BlockHash.String(),
+				},
+			}
+
+			data, err := stateResp.MarshalVT()
+			if err != nil {
+				return nil, fmt.Errorf("marshal sync state response failed: %w", err)
+			}
+			resp := &pb.Message{From: to, Type: pb.Message_SYNC_STATE_RESPONSE, Data: data}
+
+			return resp, nil
+		}).AnyTimes()
+
+	mock.EXPECT().SendWithStream(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(s network.Stream, msg *pb.Message) error {
+			resp := &pb.SyncStateResponse{}
+			if err := resp.UnmarshalVT(msg.Data); err != nil {
+				return fmt.Errorf("unmarshal sync state response failed: %w", err)
+			}
+			if _, ok := mockStateResponseM[localId]; !ok {
+				mockStateResponseM[localId] = make(map[uint64]*pb.Message)
+			}
+			mockStateResponseM[localId][resp.CheckpointState.Height] = msg
+			return nil
+		}).AnyTimes()
+
+	return mock
+}
+
+type TestPointer struct {
+	Name string
+}
+
+func TestName222(t *testing.T) {
+	m := map[string]*TestPointer{
+		"1": &TestPointer{
+			Name: "1",
+		},
+		"2": &TestPointer{
+			Name: "3",
+		},
+	}
+
+	var fns []func() string
+	for k, v := range m {
+		k := k
+		v := v
+		fns = append(fns, func() string {
+			fmt.Printf("%s, %p", k, v)
+			return v.Name
+		})
+	}
+
+	for _, fn := range fns {
+		fmt.Println(fn())
+		fmt.Println()
 	}
 }

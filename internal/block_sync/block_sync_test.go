@@ -1,10 +1,12 @@
 package block_sync
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -48,10 +50,6 @@ func TestStartSync(t *testing.T) {
 
 	err := syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt)
 	require.Nil(t, err)
-	defer func() {
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
-	}()
 
 	// wait for reset peers
 	time.Sleep(1 * time.Second)
@@ -95,10 +93,6 @@ func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 
 	err := syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt)
 	require.Nil(t, err)
-	defer func() {
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
-	}()
 
 	blocks := <-syncs[0].Commit()
 	require.Equal(t, 9, len(blocks))
@@ -184,8 +178,6 @@ func TestMultiEpochSync(t *testing.T) {
 	require.Equal(t, 100, len(blocks3))
 	require.Equal(t, uint64(300), blocks3[len(blocks3)-1].Height())
 
-	err = syncs[0].StopSync()
-	require.Nil(t, err)
 	require.False(t, syncs[0].syncStatus.Load())
 }
 
@@ -261,12 +253,11 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	require.Equal(t, 9, len(blocks1))
 	require.Equal(t, uint64(10), blocks1[len(blocks1)-1].Height())
 	require.Equal(t, block10.BlockHash, blocks1[len(blocks1)-1].BlockHash)
-	require.True(t, syncs[0].syncStatus.Load())
+	require.False(t, syncs[0].syncStatus.Load())
 
 	// reset right block
 	setMockBlockLedger(oldRightBlock, id)
-	err = syncs[0].StopSync()
-	require.Nil(t, err)
+
 	require.False(t, syncs[0].syncStatus.Load())
 
 	t.Run("wrong block is epoch block", func(t *testing.T) {
@@ -313,8 +304,6 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 
 		// reset right block
 		setMockBlockLedger(oldRightBlock, id)
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
 		require.False(t, syncs[0].syncStatus.Load())
 	})
 }
@@ -385,8 +374,6 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 
 	// reset right block
 	setMockBlockLedger(oldRightBlock, wrongId)
-	err = syncs[0].StopSync()
-	require.Nil(t, err)
 	require.False(t, syncs[0].syncStatus.Load())
 
 	t.Run("TestSyncTimeoutBlock with many times, bigger than timeoutCount", func(t *testing.T) {
@@ -402,13 +389,11 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		// start sync
 		err = syncs[0].StartSync(peers, latestBlockHash, 2, 2, 100, quorumCkpt100, epc1)
 		require.Nil(t, err)
-		blocks1 := <-syncs[0].Commit()
+		blocks1 = <-syncs[0].Commit()
 		require.Equal(t, 99, len(blocks1))
 		require.Equal(t, uint64(100), blocks1[len(blocks1)-1].Height())
 		require.Equal(t, 2, len(syncs[0].peers), "remove timeout peer")
 
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
 		require.False(t, syncs[0].syncStatus.Load())
 	})
 }
@@ -441,10 +426,6 @@ func TestHandleSyncErrMsg(t *testing.T) {
 	}
 	err := syncs[0].StartSync(peers, latestBlockHash, 2, 2, 100, quorumCkpt)
 	require.Nil(t, err)
-	defer func() {
-		err = syncs[0].StopSync()
-		require.Nil(t, err)
-	}()
 
 	blocks := <-syncs[0].Commit()
 	require.Equal(t, 99, len(blocks))
@@ -491,4 +472,67 @@ func TestValidateChunk(t *testing.T) {
 		require.Nil(t, err)
 		require.Equal(t, 1, len(invalidMsgs))
 	})
+}
+
+func TestTps(t *testing.T) {
+	t.Skip()
+	round := 100
+	localId := 0
+	begin := uint64(1)
+	syncCount := 10000
+	end := begin + uint64(syncCount) - 1
+	epochInternal := 100
+	n := 4
+	roundDuration := make([]time.Duration, round)
+	syncs, epochChanges := prepareBlockSyncs(t, epochInternal, localId, n, begin, end)
+	// start sync model
+	for i := 0; i < n; i++ {
+		err := syncs[i].Start()
+		require.Nil(t, err)
+	}
+
+	for i := 0; i < round; i++ {
+		// start sync
+		peers := []string{"1", "2", "3"}
+		latestBlock, err := syncs[localId].getBlockFunc(begin - 1)
+		require.Nil(t, err)
+		latestBlockHash := latestBlock.BlockHash.String()
+		remoteId := (localId + 1) % n
+		endBlock, err := syncs[remoteId].getBlockFunc(end)
+		require.Nil(t, err)
+		quorumCkpt := &consensus.SignedCheckpoint{
+			Checkpoint: &consensus.Checkpoint{
+				ExecuteState: &consensus.Checkpoint_ExecuteState{
+					Height: end,
+					Digest: endBlock.BlockHash.String(),
+				},
+			},
+		}
+		now := time.Now()
+		// start sync block
+		err = syncs[localId].StartSync(peers, latestBlockHash, 2, begin, end, quorumCkpt, epochChanges...)
+		require.Nil(t, err)
+
+		var taskDone bool
+		for {
+			select {
+			case blocks := <-syncs[localId].Commit():
+				//fmt.Println("receive commit blocks: ", blocks[len(blocks)-1].Height())
+				if blocks[len(blocks)-1].Height() == end {
+					taskDone = true
+				}
+			}
+			if taskDone {
+				break
+			}
+		}
+		roundDuration[i] = time.Since(now)
+		fmt.Printf("round%d cost time: %v\n", i, roundDuration[i])
+		time.Sleep(1 * time.Millisecond)
+	}
+	var sum time.Duration
+	lo.ForEach(roundDuration, func(duration time.Duration, _ int) {
+		sum += duration
+	})
+	fmt.Printf("tps: %f\n", float64(syncCount*round)/sum.Seconds())
 }

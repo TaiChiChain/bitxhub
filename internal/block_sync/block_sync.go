@@ -31,10 +31,8 @@ type Sync interface {
 	Stop()
 	Commit() chan []*types.Block
 	StartSync(peers []string, curBlockHash string, quorum, curHeight, targetHeight uint64, quorumCheckpoint *consensus.SignedCheckpoint, epc ...*consensus.EpochChange) error
-	StopSync() error
 }
 
-// todo: requester and chunk change to sync pool
 type BlockSync struct {
 	conf               repo.Sync
 	syncStatus         atomic.Bool         // sync status
@@ -62,8 +60,8 @@ type BlockSync struct {
 	recvStateCh      chan *wrapperStateResp // receive state from remote peer
 	quitStateCh      chan bool              // quit state channel
 	stateTaskDone    atomic.Bool            // state task done signal
-	validChunkTaskCh chan struct{}          // start validate chunk task singal
-	syncTaskDone     atomic.Bool            // all chunk task done signal
+	chunkTaskDoneCh  chan struct{}          // chunk task done signal
+	validChunkTaskCh chan struct{}          // start validate chunk task signal
 
 	invalidRequestCh chan *invalidMsg // timeout or invalid of sync Block request
 
@@ -85,6 +83,7 @@ func NewBlockSync(logger logrus.FieldLogger, fn func(height uint64) (*types.Bloc
 		blockCacheCh:     make(chan []*types.Block, 1024),
 		validChunkTaskCh: make(chan struct{}, 1),
 		quitStateCh:      make(chan bool, 1),
+		chunkTaskDoneCh:  make(chan struct{}, 1),
 		getBlockFunc:     fn,
 		network:          network,
 		conf:             cnf,
@@ -112,6 +111,127 @@ func NewBlockSync(logger logrus.FieldLogger, fn func(height uint64) (*types.Bloc
 	blockSync.logger.Info("Init block sync success")
 
 	return blockSync, nil
+}
+
+func (bs *BlockSync) processChunkTask(syncCount uint64, startTime time.Time) {
+	var (
+		lastCurHeight uint64
+		lastChunkSize uint64
+	)
+	for {
+		select {
+		case <-bs.chunkTaskDoneCh:
+			bs.logger.WithFields(logrus.Fields{
+				"start":  lastCurHeight,
+				"target": lastCurHeight + lastChunkSize - 1,
+			}).Info("chunk task has done")
+			return
+		case msg := <-bs.invalidRequestCh:
+			bs.handleInvalidRequest(msg)
+
+		case <-bs.validChunkTaskCh:
+			invalidReqs, err := bs.validateChunk()
+			if err != nil {
+				bs.logger.WithFields(logrus.Fields{
+					"err": err,
+				}).Error("Validate chunk failed")
+				panic(err)
+			}
+
+			if len(invalidReqs) != 0 {
+				lo.ForEach(invalidReqs, func(req *invalidMsg, index int) {
+					bs.invalidRequestCh <- req
+					bs.logger.WithFields(logrus.Fields{
+						"peer":   req.nodeID,
+						"height": req.height,
+						"err":    req.errMsg,
+					}).Warning("Receive Invalid block")
+				})
+				return
+			}
+
+			lastR := bs.getRequester(bs.curHeight + bs.chunk.chunkSize - 1)
+			if lastR == nil {
+				bs.logger.WithFields(logrus.Fields{
+					"height": bs.curHeight + bs.chunk.chunkSize - 1,
+				}).Error("Load requester failed")
+				return
+			}
+			err = bs.validateChunkState(lastR.block.Height(), lastR.block.BlockHash.String())
+			if err != nil {
+				bs.logger.WithFields(logrus.Fields{
+					"err": err,
+				}).Error("Validate last chunk state failed")
+				return
+			}
+
+			// release requester and send block to blockCacheCh
+			bs.requesters.Range(func(height, r any) bool {
+				if r.(*requester).block == nil {
+					bs.invalidRequestCh <- &invalidMsg{
+						nodeID: r.(*requester).peerID,
+						height: height.(uint64),
+						typ:    syncMsgType_TimeoutBlock,
+					}
+					return false
+				}
+
+				bs.blockCache[height.(uint64)-bs.curHeight] = r.(*requester).block
+				return true
+			})
+
+			// if blockCache is not full, continue to receive block
+			if len(bs.blockCache) != int(bs.chunk.chunkSize) {
+				return
+			}
+
+			bs.updateLatestCheckedState(bs.blockCache[len(bs.blockCache)-1].Height(), bs.blockCache[len(bs.blockCache)-1].BlockHash.String())
+
+			// if valid chunk task done, release all requester
+			lo.ForEach(bs.blockCache, func(block *types.Block, index int) {
+				bs.releaseRequester(block.Height())
+			})
+
+			if bs.chunk.checkPoint != nil {
+				idx := int(bs.chunk.checkPoint.Height - bs.curHeight)
+				if idx < 0 || idx > len(bs.blockCache)-1 {
+					bs.logger.Errorf("chunk checkpoint index out of range, checkpoint height:%d, current Height:%d, "+
+						"blockCache len:%d", bs.chunk.checkPoint.Height, bs.curHeight, len(bs.blockCache))
+					return
+				}
+
+				// if checkpoint is not equal to last block, it means we sync wrong block, panic it
+				if err = bs.verifyChunkCheckpoint(bs.blockCache[idx]); err != nil {
+					bs.logger.Errorf("verify chunk checkpoint failed: %s", err)
+					panic(err)
+				}
+			}
+
+			bs.blockCacheCh <- bs.blockCache
+
+			// update chunkSize and curHeight
+			lastCurHeight = bs.curHeight
+			lastChunkSize = bs.chunk.chunkSize
+			if bs.curHeight+bs.chunk.chunkSize-1 == bs.targetHeight {
+				if err = bs.stopSync(); err != nil {
+					bs.logger.WithFields(logrus.Fields{
+						"err": err,
+					}).Error("Stop sync failed")
+				}
+				bs.logger.WithFields(logrus.Fields{
+					"count":  syncCount,
+					"target": bs.targetHeight,
+					"elapse": time.Since(startTime).Seconds(),
+				}).Info("Block sync done")
+				blockSyncDuration.WithLabelValues(strconv.Itoa(int(syncCount))).Observe(time.Since(startTime).Seconds())
+			} else {
+				bs.updateStatus()
+			}
+			// post chunk task done signal to notify outbound loop continue requesting next chunk
+			bs.chunkTaskDoneCh <- struct{}{}
+		}
+	}
+
 }
 
 func (bs *BlockSync) StartSync(peers []string, latestBlockHash string, quorum, curHeight, targetHeight uint64,
@@ -149,112 +269,17 @@ func (bs *BlockSync) StartSync(peers []string, latestBlockHash string, quorum, c
 			select {
 			case <-bs.syncCtx.Done():
 				return
-			case msg := <-bs.invalidRequestCh:
-				bs.handleInvalidRequest(msg)
-
-			case <-bs.validChunkTaskCh:
-				bs.logger.WithFields(logrus.Fields{
-					"start":  bs.curHeight,
-					"target": bs.curHeight + bs.chunk.chunkSize - 1,
-				}).Info("chunk task has done")
-
-				invalidReqs, err := bs.validateChunk()
-				if err != nil {
-					bs.logger.WithFields(logrus.Fields{
-						"err": err,
-					}).Error("Validate chunk failed")
-					panic(err)
-				}
-
-				if len(invalidReqs) != 0 {
-					lo.ForEach(invalidReqs, func(req *invalidMsg, index int) {
-						bs.invalidRequestCh <- req
-						bs.logger.WithFields(logrus.Fields{
-							"peer":   req.nodeID,
-							"height": req.height,
-							"err":    req.errMsg,
-						}).Warning("Receive Invalid block")
-					})
-					continue
-				}
-
-				lastR := bs.getRequester(bs.curHeight + bs.chunk.chunkSize - 1)
-				if lastR == nil {
-					bs.logger.WithFields(logrus.Fields{
-						"height": bs.curHeight + bs.chunk.chunkSize - 1,
-					}).Error("Load requester failed")
-					continue
-				}
-				err = bs.validateChunkState(lastR.block.Height(), lastR.block.BlockHash.String())
-				if err != nil {
-					bs.logger.WithFields(logrus.Fields{
-						"err": err,
-					}).Error("Validate last chunk state failed")
-					continue
-				}
-
-				// release requester and send block to blockCacheCh
-				bs.requesters.Range(func(height, r any) bool {
-					if r.(*requester).block == nil {
-						bs.invalidRequestCh <- &invalidMsg{
-							nodeID: r.(*requester).peerID,
-							height: height.(uint64),
-							typ:    syncMsgType_TimeoutBlock,
-						}
-						return false
-					}
-
-					bs.blockCache[height.(uint64)-bs.curHeight] = r.(*requester).block
-					return true
-				})
-
-				// if blockCache is not full, continue to receive block
-				if len(bs.blockCache) != int(bs.chunk.chunkSize) {
-					continue
-				}
-
-				bs.updateLatestCheckedState(bs.blockCache[len(bs.blockCache)-1].Height(), bs.blockCache[len(bs.blockCache)-1].BlockHash.String())
-
-				// if valid chunk task done, release all requester
-				lo.ForEach(bs.blockCache, func(block *types.Block, index int) {
-					bs.releaseRequester(block.Height())
-				})
-
-				if bs.chunk.checkPoint != nil {
-					idx := int(bs.chunk.checkPoint.Height - bs.curHeight)
-					if idx < 0 || idx > len(bs.blockCache)-1 {
-						bs.logger.Errorf("chunk checkpoint index out of range, checkpoint height:%d, current Height:%d, "+
-							"blockCache len:%d", bs.chunk.checkPoint.Height, bs.curHeight, len(bs.blockCache))
-						continue
-					}
-
-					// if checkpoint is not equal to last block, it means we sync wrong block, panic it
-					if err = bs.verifyChunkCheckpoint(bs.blockCache[idx]); err != nil {
-						bs.logger.Errorf("verify chunk checkpoint failed: %s", err)
-						panic(err)
-					}
-				}
-
-				bs.blockCacheCh <- bs.blockCache
-
-				if bs.curHeight+bs.chunk.chunkSize-1 == bs.targetHeight {
-					bs.syncTaskDone.Store(true)
-					bs.logger.WithFields(logrus.Fields{
-						"count":  syncCount,
-						"target": bs.targetHeight,
-						"elapse": time.Since(now).Seconds(),
-					}).Info("Block sync done")
-					blockSyncDuration.WithLabelValues(strconv.Itoa(int(syncCount))).Observe(time.Since(now).Seconds())
-				} else {
-					// update chunkSize and curHeight
-					bs.updateStatus()
-				}
 			default:
 				switch {
-				case bs.syncTaskDone.Load() || bs.requesterLen.Load() >= int64(bs.chunk.chunkSize):
-					// if sync task done, waiting for quit signal,
-					// if requesterLen >= chunkSize, wait for chunk task done
-					continue
+				case bs.requesterLen.Load() >= int64(bs.chunk.chunkSize):
+					select {
+					// if sync task done, waiting a while for quit signal
+					case <-bs.syncCtx.Done():
+						return
+					default:
+						// start process chunk task
+						bs.processChunkTask(syncCount, now)
+					}
 				default:
 					bs.makeRequesters(bs.curHeight + uint64(bs.requesterLen.Load()))
 				}
@@ -351,7 +376,6 @@ func (bs *BlockSync) InitBlockSyncInfo(peers []string, latestBlockHash string, q
 	bs.quorumCheckpoint = quorumCheckpoint
 	bs.epochChanges = epc
 	bs.recvBlockSize.Store(0)
-	bs.syncTaskDone.Store(false)
 
 	bs.updateLatestCheckedState(curHeight-1, latestBlockHash)
 
@@ -974,7 +998,7 @@ func (bs *BlockSync) Stop() {
 	bs.cancel()
 }
 
-func (bs *BlockSync) StopSync() error {
+func (bs *BlockSync) stopSync() error {
 	if err := bs.switchSyncStatus(false); err != nil {
 		return err
 	}

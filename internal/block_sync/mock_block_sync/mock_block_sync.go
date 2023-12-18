@@ -98,17 +98,3 @@ func (mr *MockSyncMockRecorder) Stop() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockSync)(nil).Stop))
 }
-
-// StopSync mocks base method.
-func (m *MockSync) StopSync() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StopSync")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// StopSync indicates an expected call of StopSync.
-func (mr *MockSyncMockRecorder) StopSync() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopSync", reflect.TypeOf((*MockSync)(nil).StopSync))
-}

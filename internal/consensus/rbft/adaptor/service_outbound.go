@@ -129,14 +129,6 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			a.logger.Info("state update is canceled!!!!!!")
 			return
 		case <-a.quitSync:
-			err := a.sync.StopSync()
-			if err != nil {
-				a.logger.WithFields(logrus.Fields{
-					"target":      seqNo,
-					"target_hash": digest,
-				}).Warningf("State update stop sync failed: %v", err)
-				return
-			}
 			a.logger.WithFields(logrus.Fields{
 				"target":      seqNo,
 				"target_hash": digest,
