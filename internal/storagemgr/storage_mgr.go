@@ -17,6 +17,7 @@ import (
 const (
 	BlockChain = "blockchain"
 	Ledger     = "ledger"
+	Snapshot   = "snapshot"
 	Blockfile  = "blockfile"
 	Consensus  = "consensus"
 	Epoch      = "epoch"

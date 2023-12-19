@@ -21,7 +21,7 @@ type BlockData struct {
 	TxHashList []*types.Hash
 }
 
-func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb storage.Storage, bf *blockfile.BlockFile) (*Ledger, error) {
+func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, snapshot storage.Storage, bf *blockfile.BlockFile) (*Ledger, error) {
 	var err error
 	ledger := &Ledger{}
 	if blockchainStore != nil || bf != nil {
@@ -36,9 +36,16 @@ func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb s
 		}
 	}
 	if ldb != nil {
-		ledger.StateLedger, err = newStateLedger(repo, ldb)
-		if err != nil {
-			return nil, fmt.Errorf("init state ledger failed: %w", err)
+		if snapshot != nil {
+			ledger.StateLedger, err = newStateLedger(repo, ldb, snapshot)
+			if err != nil {
+				return nil, fmt.Errorf("init state ledger failed: %w", err)
+			}
+		} else {
+			ledger.StateLedger, err = newStateLedger(repo, ldb, nil)
+			if err != nil {
+				return nil, fmt.Errorf("init state ledger failed: %w", err)
+			}
 		}
 	} else {
 		ledger.StateLedger, err = NewStateLedger(repo, "")
@@ -56,7 +63,7 @@ func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb s
 }
 
 func NewLedger(rep *repo.Repo) (*Ledger, error) {
-	return NewLedgerWithStores(rep, nil, nil, nil)
+	return NewLedgerWithStores(rep, nil, nil, nil, nil)
 }
 
 // PersistBlockData persists block data

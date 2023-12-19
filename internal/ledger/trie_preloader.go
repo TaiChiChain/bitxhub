@@ -27,6 +27,13 @@ var (
 		Name:      "trie_preload_miss_counter_per_block",
 		Help:      "The total number of trie node preload miss per block",
 	})
+
+	// subPreloaderPool use sync.pool to reduce subpreloader malloc
+	subPreloaderPool = sync.Pool{
+		New: func() any {
+			return &subPreloader{}
+		},
+	}
 )
 
 func init() {
@@ -88,7 +95,7 @@ func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
 }
 
 func (tp *triePreloader) trieKey(rootHash common.Hash) string {
-	return rootHash.String()
+	return string(rootHash.Bytes())
 }
 
 // subPreloader is a trie preload goroutinue for get a single trie.
@@ -110,15 +117,16 @@ type subPreloader struct {
 }
 
 func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, rootHash common.Hash) *subPreloader {
-	sp := &subPreloader{
-		logger:   logger,
-		db:       db,
-		rootHash: rootHash,
-		wake:     make(chan struct{}, 1),
-		stop:     make(chan struct{}),
-		term:     make(chan struct{}),
-		cached:   make(map[string]struct{}),
-	}
+	sp := subPreloaderPool.Get().(*subPreloader)
+	sp.logger = logger
+	sp.db = db
+	sp.rootHash = rootHash
+
+	sp.wake = make(chan struct{}, 1)
+	sp.stop = make(chan struct{})
+	sp.term = make(chan struct{})
+	sp.cached = make(map[string]struct{})
+
 	go sp.loop()
 	return sp
 }
@@ -137,12 +145,31 @@ func (sp *subPreloader) schedule(keys [][]byte) {
 }
 
 func (sp *subPreloader) close() {
+	defer func() {
+		sp.reset()
+		subPreloaderPool.Put(sp)
+	}()
+
 	select {
 	case <-sp.stop:
 	default:
 		close(sp.stop)
 	}
 	<-sp.term
+}
+
+func (sp *subPreloader) reset() {
+	sp.logger = nil
+	sp.db = nil
+	sp.rootHash = common.Hash{}
+	sp.trie = nil
+	sp.preloadKeys = sp.preloadKeys[:0]
+
+	sp.wake = make(chan struct{}, 1)
+	sp.stop = make(chan struct{})
+	sp.term = make(chan struct{})
+	sp.cached = make(map[string]struct{})
+
 }
 
 func (sp *subPreloader) loop() {

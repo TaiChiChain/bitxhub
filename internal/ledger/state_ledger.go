@@ -29,17 +29,17 @@ type revision struct {
 }
 
 type StateLedgerImpl struct {
-	logger       logrus.FieldLogger
-	db           storage.Storage
-	cachedDB     storage.Storage
-	accountCache *AccountCache
-	accountTrie  *jmt.JMT // keep track of the latest world state (dirty or committed)
+	logger        logrus.FieldLogger
+	db            storage.Storage
+	cachedDB      storage.Storage
+	accountCache  *AccountCache
+	accountTrie   *jmt.JMT // keep track of the latest world state (dirty or committed)
 	triePreloader *triePreloader
-	accounts     map[string]IAccount
-	repo         *repo.Repo
-	blockHeight  uint64
-	thash        *types.Hash
-	txIndex      int
+	accounts      map[string]IAccount
+	repo          *repo.Repo
+	blockHeight   uint64
+	thash         *types.Hash
+	txIndex       int
 
 	validRevisions []revision
 	nextRevisionId int
@@ -121,7 +121,7 @@ func (l *StateLedgerImpl) Finalise() {
 	l.ClearChangerAndRefund()
 }
 
-func newStateLedger(rep *repo.Repo, stateStorage storage.Storage) (StateLedger, error) {
+func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
 	cachedStateStorage, err := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerCacheMegabytesLimit)
 	if err != nil {
 		return nil, err
@@ -144,9 +144,17 @@ func newStateLedger(rep *repo.Repo, stateStorage storage.Storage) (StateLedger, 
 		changer:               NewChanger(),
 		accessList:            NewAccessList(),
 		logs:                  NewEvmLogs(),
-		snapshot:              snapshot.NewSnapshot(cachedStateStorage), //todo if need to use different kv instance?
 		enableExpensiveMetric: rep.Config.Monitor.EnableExpensive,
 	}
+
+	if snapshotStorage != nil {
+		snapshotCachedStorage, err := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
+		if err != nil {
+			return nil, err
+		}
+		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage)
+	}
+
 	ledger.refreshAccountTrie(nil)
 
 	return ledger, nil
@@ -163,7 +171,16 @@ func NewStateLedger(rep *repo.Repo, storageDir string) (StateLedger, error) {
 		return nil, fmt.Errorf("create stateDB: %w", err)
 	}
 
-	return newStateLedger(rep, stateStorage)
+	snapshotStoragePath := repo.GetStoragePath(rep.RepoRoot, storagemgr.Snapshot)
+	if storageDir != "" {
+		snapshotStoragePath = path.Join(storageDir, storagemgr.Snapshot)
+	}
+	snapshotStorage, err := storagemgr.Open(snapshotStoragePath)
+	if err != nil {
+		return nil, fmt.Errorf("create snapshot storage: %w", err)
+	}
+
+	return newStateLedger(rep, stateStorage, snapshotStorage)
 }
 
 func (l *StateLedgerImpl) SetTxContext(thash *types.Hash, ti int) {

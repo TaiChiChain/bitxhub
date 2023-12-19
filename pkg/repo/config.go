@@ -66,6 +66,7 @@ type Config struct {
 	Consensus Consensus `mapstructure:"consensus" toml:"consensus"`
 	Storage   Storage   `mapstructure:"storage" toml:"storage"`
 	Ledger    Ledger    `mapstructure:"ledger" toml:"ledger"`
+	Snapshot  Snapshot  `mapstructure:"snapshot" toml:"snapshot"`
 	Executor  Executor  `mapstructure:"executor" toml:"executor"`
 	PProf     PProf     `mapstructure:"pprof" toml:"pprof"`
 	Monitor   Monitor   `mapstructure:"monitor" toml:"monitor"`
@@ -204,6 +205,10 @@ type Ledger struct {
 	StateLedgerAccountCacheSize    int `mapstructure:"state_ledger_account_cache_size" toml:"state_ledger_account_cache_size"`
 }
 
+type Snapshot struct {
+	DiskCacheMegabytesLimit int `mapstructure:"disk_cache_megabytes_limit" toml:"disk_cache_megabytes_limit"`
+}
+
 type EVM struct {
 	DisableMaxCodeSizeLimit bool `mapstructure:"disable_max_code_size_limit" toml:"disable_max_code_size_limit"`
 }
@@ -305,6 +310,9 @@ func DefaultConfig() *Config {
 			ChainLedgerCacheSize:           100,
 			StateLedgerCacheMegabytesLimit: 128,
 			StateLedgerAccountCacheSize:    1024,
+		},
+		Snapshot: Snapshot{
+			DiskCacheMegabytesLimit: 128,
 		},
 		Executor: Executor{
 			Type:            ExecTypeNative,
