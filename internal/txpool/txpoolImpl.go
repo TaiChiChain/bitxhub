@@ -145,6 +145,11 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 	switch event.EventType {
 	case localTxEvent:
 		req := event.Event.(*reqLocalTx[T, Constraint])
+		if p.statusMgr.In(PoolFull) {
+			traceRejectTx(ErrTxPoolFull.Error())
+			req.errCh <- ErrTxPoolFull
+			return nil
+		}
 		errs := p.addTxs([]*T{req.tx}, true)
 		err = errs[0]
 		// trigger remove all high nonce txs
@@ -161,10 +166,19 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 
 		req.errCh <- err
 
-	case remoteTxsEvent:
+	case remoteTxsEvent, reBroadcastTxsEvent:
 		nonceTooHighAccounts := make(map[string]bool)
 		req := event.Event.(*reqRemoteTxs[T, Constraint])
 		txs := req.txs
+		// rebroadcast txs should not be rejected
+		if event.EventType == remoteTxsEvent && p.statusMgr.In(PoolFull) {
+			// if pool is full, reject all txs
+			// NOTICE!!! if pool is almost full, when we accept txs from remote, it will be reached full state and poolSize maybe bigger than maxPoolSize
+			for i := 0; i < len(txs); i++ {
+				traceRejectTx(ErrTxPoolFull.Error())
+			}
+			return nil
+		}
 		errs := p.addTxs(txs, false)
 		lo.ForEach(errs, func(err error, i int) {
 			// trigger remove all high nonce txs, ensure this event is only triggered once
@@ -514,16 +528,21 @@ func (p *txPoolImpl[T, Constraint]) AddRemoteTxs(txs []*T) {
 
 	p.postEvent(ev)
 }
+func (p *txPoolImpl[T, Constraint]) AddRebroadcastTxs(txs []*T) {
+	req := &reqRemoteTxs[T, Constraint]{
+		txs: txs,
+	}
+
+	ev := &addTxsEvent{
+		EventType: reBroadcastTxsEvent,
+		Event:     req,
+	}
+
+	p.postEvent(ev)
+}
 
 func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
 	errs := make([]error, len(txs))
-	if p.statusMgr.In(PoolFull) {
-		traceRejectTx(ErrTxPoolFull.Error())
-		lo.ForEach(errs, func(err error, i int) {
-			errs[i] = ErrTxPoolFull
-		})
-		return errs
-	}
 
 	// record all accounts wanted nonce
 	currentSeqNoMap := make(map[string]uint64)
@@ -605,22 +624,29 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 	p.txStore.removeTTLIndex.data.Ascend(func(a btree.Item) bool {
 		index++
 		removeKey := a.(*orderedIndexKey)
-		poolTx := p.txStore.getPoolTxByTxnPointer(removeKey.account, removeKey.nonce)
+		txAccount := removeKey.account
+		txNonce := removeKey.nonce
+		poolTx := p.txStore.getPoolTxByTxnPointer(txAccount, txNonce)
 		if poolTx == nil {
-			p.logger.Errorf("Get nil poolTx from txStore:[account:%s, nonce:%d]", removeKey.account, removeKey.nonce)
+			p.logger.Errorf("Get nil poolTx from txStore:[account:%s, nonce:%d]", txAccount, txNonce)
 			return true
 		}
 		if now-poolTx.arrivedTime > p.toleranceRemoveTime.Nanoseconds() {
 			// for those batched txs, we don't need to removedTxs temporarily.
-			pointer := &txPointer{account: removeKey.account, nonce: removeKey.nonce}
+			pointer := &txPointer{account: txAccount, nonce: txNonce}
 			if _, ok := p.txStore.batchedTxs[*pointer]; ok {
 				return true
 			}
 
 			orderedKey := &orderedIndexKey{time: poolTx.getRawTimestamp(), account: poolTx.getAccount(), nonce: poolTx.getNonce()}
 
-			// for priority txs, we don't need to removedTxs temporarily.
+			// for priority txs, we don't need to removedTxs temporarily except for the lower commit nonce txs
 			if tx := p.txStore.priorityIndex.data.Get(orderedKey); tx != nil {
+				commitNonce := p.txStore.nonceCache.getCommitNonce(txAccount)
+				if txNonce < commitNonce {
+					p.fillRemoveTxs(orderedKey, poolTx, removedTxs)
+					count++
+				}
 				return true
 			}
 
@@ -635,7 +661,7 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeoutTxs() int {
 
 			return deleteTx(p.txStore.parkingLotIndex)
 		}
-		return true
+		return false
 	})
 	for account, txs := range removedTxs {
 		if list, ok := p.txStore.allTxs[account]; ok {
