@@ -39,13 +39,15 @@ type txPoolEvent any
 const (
 	localTxEvent = iota
 	remoteTxsEvent
+	reBroadcastTxsEvent
 	missingTxsEvent
 )
 
 var addTxsEventToStr = map[int]string{
-	localTxEvent:    "localTxEvent",
-	remoteTxsEvent:  "remoteTxsEvent",
-	missingTxsEvent: "missingTxsEvent",
+	localTxEvent:        "localTxEvent",
+	remoteTxsEvent:      "remoteTxsEvent",
+	reBroadcastTxsEvent: "reBroadcastTxsEvent",
+	missingTxsEvent:     "missingTxsEvent",
 }
 
 // LocalEvent represents event sent by local modules

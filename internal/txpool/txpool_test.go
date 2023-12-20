@@ -548,6 +548,62 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 	})
 }
 
+func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
+	t.Parallel()
+	t.Run("nonce is wanted", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.batchSize = 4
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		from := s.Addr.String()
+		tx := constructTx(s, 0)
+		pool.AddRebroadcastTxs([]*types.Transaction{tx})
+		// because add remote txs is async,
+		// so we need to send getPendingTxByHash event to ensure last event is handled
+		ast.Equal(tx.RbftGetTxHash(), pool.GetPendingTxByHash(tx.RbftGetTxHash()).RbftGetTxHash())
+		ast.NotNil(pool.txStore.allTxs[from])
+		ast.Equal(1, len(pool.txStore.allTxs[from].items))
+		ast.Equal(1, len(pool.txStore.txHashMap))
+		ast.Equal(uint64(0), pool.txStore.txHashMap[tx.RbftGetTxHash()].nonce)
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(1, pool.txStore.priorityIndex.size())
+		ast.Equal(0, pool.txStore.parkingLotIndex.size())
+		poolTx := pool.txStore.allTxs[from].items[0]
+		ast.Equal(tx.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash())
+	})
+
+	t.Run("pool is full", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.batchSize = 4
+		pool.poolMaxSize = 1
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+		ast.False(pool.statusMgr.In(PoolFull))
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		tx := constructTx(s, 0)
+		pool.AddRebroadcastTxs([]*types.Transaction{tx})
+		// because add remote txs is async,
+		// so we need to send getPendingTxByHash event to ensure last event is handled
+		ast.Equal(tx.RbftGetTxHash(), pool.GetPendingTxByHash(tx.RbftGetTxHash()).RbftGetTxHash())
+		ast.True(pool.statusMgr.In(PoolFull))
+
+		tx1 := constructTx(s, 1)
+		pool.AddRebroadcastTxs([]*types.Transaction{tx1})
+		ast.NotNil(pool.GetPendingTxByHash(tx1.RbftGetTxHash()), "tx1 is added to pool even if pool is full")
+		actualPoolSize := pool.GetTotalPendingTxCount()
+		ast.True(actualPoolSize > pool.poolMaxSize, "pool actual size is bigger than poolMaxSize")
+	})
+}
+
 func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 	t.Parallel()
 	t.Run("handle missing requests", func(t *testing.T) {
