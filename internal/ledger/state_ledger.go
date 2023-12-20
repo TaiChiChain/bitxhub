@@ -50,7 +50,9 @@ type StateLedgerImpl struct {
 	refund     uint64
 	logs       *evmLogs
 
-	snapshot *snapshot.Snapshot
+	snapshotDB      storage.Storage
+	snapshotCacheDB storage.Storage
+	snapshot        *snapshot.Snapshot
 
 	transientStorage transientStorage
 
@@ -76,6 +78,8 @@ func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) State
 		logs:         NewEvmLogs(),
 	}
 	if enableSnapshot {
+		lg.snapshotDB = l.snapshotDB
+		lg.snapshotCacheDB = l.snapshotCacheDB
 		lg.snapshot = l.snapshot
 	}
 	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
@@ -100,6 +104,8 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block, enableSnapshot
 		logs:         NewEvmLogs(),
 	}
 	if enableSnapshot {
+		lg.snapshotDB = l.snapshotDB
+		lg.snapshotCacheDB = l.snapshotCacheDB
 		lg.snapshot = l.snapshot
 	}
 	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
@@ -152,6 +158,8 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 		if err != nil {
 			return nil, err
 		}
+		ledger.snapshotDB = snapshotStorage
+		ledger.snapshotCacheDB = snapshotCachedStorage
 		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage)
 	}
 

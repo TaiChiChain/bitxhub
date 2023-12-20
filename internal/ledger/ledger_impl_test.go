@@ -36,17 +36,22 @@ func TestNew001(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -55,7 +60,7 @@ func TestNew001(t *testing.T) {
 			addr := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			require.Nil(t, err)
 			require.NotNil(t, l)
 			sl := l.StateLedger.(*StateLedgerImpl)
@@ -89,17 +94,22 @@ func TestNew002(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -108,7 +118,7 @@ func TestNew002(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			require.NotNil(t, err)
 			require.Nil(t, l)
 		})
@@ -122,17 +132,22 @@ func TestNew003(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -142,7 +157,7 @@ func TestNew003(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, blockFile)
+			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, tc.snapshotStorage, blockFile)
 			require.Nil(t, err)
 			require.NotNil(t, l)
 		})
@@ -234,8 +249,8 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.NotEqual(t, stateRoot4, stateRoot5)
 			// assert.Equal(t, uint64(5), ledger.maxJnlHeight)
 
-			minHeight, maxHeight := snapshot.GetJournalRange(sl.cachedDB)
-			journal5 := snapshot.GetBlockJournal(maxHeight, sl.cachedDB)
+			minHeight, maxHeight := snapshot.GetJournalRange(sl.snapshotCacheDB)
+			journal5 := snapshot.GetBlockJournal(maxHeight, sl.snapshotCacheDB)
 			assert.Equal(t, uint64(1), minHeight)
 			assert.Equal(t, uint64(5), maxHeight)
 			assert.Equal(t, 1, len(journal5.Journals))
