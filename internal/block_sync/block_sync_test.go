@@ -38,17 +38,16 @@ func TestStartSync(t *testing.T) {
 		},
 	}
 
-	t.Run("test switch sync status err", func(t *testing.T) {
-		err := syncs[0].switchSyncStatus(true)
-		require.Nil(t, err)
-		err = syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt)
-		require.NotNil(t, err)
-		require.Contains(t, err.Error(), "status is already true")
-		err = syncs[0].switchSyncStatus(false)
-		require.Nil(t, err)
-	})
+	// test switch sync status err
+	err := syncs[0].switchSyncStatus(true)
+	require.Nil(t, err)
+	err = syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "status is already true")
+	err = syncs[0].switchSyncStatus(false)
+	require.Nil(t, err)
 
-	err := syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt)
+	err = syncs[0].StartSync(peers, latestBlockHash, 2, 2, 10, quorumCkpt)
 	require.Nil(t, err)
 
 	// wait for reset peers

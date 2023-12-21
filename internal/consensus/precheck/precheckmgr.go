@@ -304,9 +304,11 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 func (tp *TxPreCheckMgr) verifyInsufficientBalance(tx *types.Transaction) error {
 	// 1. account has enough balance to cover transaction fee(gaslimit * gasprice), gasprice is the chain's latest gas price
 	mgval := new(big.Int).SetUint64(tx.GetGas())
-	mgval = mgval.Mul(mgval, tp.getChainMetaFn().GasPrice)
+	chainGasPrice := tp.getChainMetaFn().GasPrice
+	mgval = mgval.Mul(mgval, chainGasPrice)
 	balanceCheck := mgval
-	if tx.GetGasFeeCap() != nil {
+	// if tx.GasFeeCap is set and bigger than chainGasPrice, use it to replace chainGasPrice to calculate balance
+	if tx.GetGasFeeCap() != nil && tx.GetGasFeeCap().Cmp(chainGasPrice) > 0 {
 		balanceCheck = new(big.Int).SetUint64(tx.GetGas())
 		balanceCheck = balanceCheck.Mul(balanceCheck, tx.GetGasFeeCap())
 		balanceCheck.Add(balanceCheck, tx.GetValue())
