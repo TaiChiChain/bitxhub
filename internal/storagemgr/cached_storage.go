@@ -46,14 +46,14 @@ type CachedStorage struct {
 	cache *fastcache.Cache
 }
 
-func NewCachedStorage(s storage.Storage, megabytesLimit int) (storage.Storage, error) {
-	if megabytesLimit == 0 {
+func NewCachedStorage(s storage.Storage, megabytesLimit int) storage.Storage {
+	if megabytesLimit <= 0 {
 		megabytesLimit = 128
 	}
 	return &CachedStorage{
 		Storage: s,
 		cache:   fastcache.New(megabytesLimit * 1024 * 1024),
-	}, nil
+	}
 }
 
 func (c *CachedStorage) Get(key []byte) []byte {

@@ -157,9 +157,27 @@ func TestNew003(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
+
 			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, tc.snapshotStorage, blockFile)
 			require.Nil(t, err)
 			require.NotNil(t, l)
+
+			l, err = NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, nil, blockFile)
+			require.Nil(t, err)
+			require.NotNil(t, l)
+
+			rep := createMockRepo(t)
+			rep.Config.Ledger.StateLedgerAccountCacheSize = -1
+
+			l, err = NewLedgerWithStores(rep, tc.blockStorage, kvdb, tc.snapshotStorage, blockFile)
+			require.NotNil(t, err)
+			require.Nil(t, l)
+
+			l, err = NewLedgerWithStores(rep, tc.blockStorage, kvdb, nil, blockFile)
+			require.NotNil(t, err)
+			require.Nil(t, l)
+
+			rep.Config.Ledger.ChainLedgerCacheSize = -1
 		})
 	}
 }
@@ -375,7 +393,7 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			assert.Equal(t, value, hash)
 			ledger.StateLedger.(*StateLedgerImpl).SuicideEVM(account)
 			isSuicide := ledger.StateLedger.(*StateLedgerImpl).HasSuicideEVM(account)
-			assert.Equal(t, isSuicide, false)
+			assert.Equal(t, isSuicide, true)
 			isExist := ledger.StateLedger.(*StateLedgerImpl).ExistEVM(account)
 			assert.Equal(t, isExist, true)
 			isEmpty := ledger.StateLedger.(*StateLedgerImpl).EmptyEVM(account)
@@ -543,7 +561,7 @@ func TestChainLedger_GetAccount(t *testing.T) {
 		kvType string
 	}{
 		"leveldb": {kvType: "leveldb"},
-		//"pebble":  {kvType: "pebble"},
+		"pebble":  {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -994,7 +1012,8 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1, false)
+			lg1 := sl.NewView(block1, false)
+			lg1.(*StateLedgerImpl).accountCache.clear()
 			assert.Equal(t, uint64(101), lg1.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(201), lg1.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(301), lg1.GetBalance(account3).Uint64())
@@ -1054,7 +1073,8 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot5,
 				},
 			}
-			lg5 := sl.NewViewWithoutCache(block5, false)
+			lg5 := sl.NewView(block5, true)
+			lg5.(*StateLedgerImpl).accountCache.clear()
 			assert.Equal(t, uint64(103), lg5.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg5.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(305), lg5.GetBalance(account3).Uint64())
@@ -1482,6 +1502,65 @@ func TestStateLedger_RollbackToHistoryVersion(t *testing.T) {
 			// revert from block 1 to block 3
 			err = lg.Rollback(3)
 			assert.NotNil(t, err)
+		})
+	}
+}
+
+func TestStateLedger_AccountSuicide(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			lg, _ := initLedger(t, "", tc.kvType)
+			sl := lg.StateLedger.(*StateLedgerImpl)
+
+			// create an account
+			account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+
+			sl.blockHeight = 1
+			sl.SetState(account, []byte("a"), []byte("b"))
+			sl.Finalise()
+			stateRoot1, err := sl.Commit()
+			assert.NotNil(t, stateRoot1)
+			assert.Nil(t, err)
+			assert.Equal(t, sl.HasSuicide(account), false)
+			assert.Equal(t, uint64(1), sl.Version())
+
+			code := RightPadBytes([]byte{100}, 100)
+			lg.StateLedger.SetCode(account, code)
+			lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
+			sl.blockHeight = 2
+			sl.Finalise()
+			stateRoot2, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(2), lg.StateLedger.Version())
+			assert.NotEqual(t, stateRoot1, stateRoot2)
+
+			exist, va := sl.GetState(account, []byte("a"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("b"), va)
+
+			exist, vb := sl.GetState(account, []byte("b"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("3"), vb)
+
+			acc := sl.GetAccount(account)
+			assert.NotNil(t, acc)
+
+			// suicide account
+			lg.StateLedger.SuicideEVM(account.ETHAddress())
+			sl.blockHeight = 3
+			stateRoot3, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(3), lg.StateLedger.Version())
+			assert.NotEqual(t, stateRoot2, stateRoot3)
+
+			acc = sl.GetAccount(account)
+			assert.Nil(t, acc)
 		})
 	}
 }

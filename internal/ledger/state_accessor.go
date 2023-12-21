@@ -288,6 +288,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 				}
 			}
 			destructSet[account.Addr.String()] = struct{}{}
+			l.accountCache.innerAccountCache.Remove(account.Addr.String())
 			continue
 		}
 
@@ -390,8 +391,10 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 	l.accountCache.clear()
 
 	// rollback snapshots
-	if err := l.snapshot.Rollback(height); err != nil {
-		return err
+	if l.snapshot != nil {
+		if err := l.snapshot.Rollback(height); err != nil {
+			return err
+		}
 	}
 
 	// rollback world state trie
@@ -453,9 +456,9 @@ func (l *StateLedgerImpl) RevertToSnapshot(revid int) {
 	if idx == len(l.validRevisions) || l.validRevisions[idx].id != revid {
 		panic(fmt.Errorf("revision id %v cannod be reverted", revid))
 	}
-	snapshot := l.validRevisions[idx].changerIndex
+	snap := l.validRevisions[idx].changerIndex
 
-	l.changer.revert(l, snapshot)
+	l.changer.revert(l, snap)
 	l.validRevisions = l.validRevisions[:idx]
 }
 

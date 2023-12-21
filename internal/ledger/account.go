@@ -431,7 +431,7 @@ func (o *SimpleAccount) Finalise() [][]byte {
 func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
 	entry := &snapshot.BlockJournalEntry{Address: o.Addr}
 
-	if o.originAccount.InnerAccountChanged(o.dirtyAccount) {
+	if o.originAccount.InnerAccountChanged(o.dirtyAccount) || o.suicided {
 		entry.AccountChanged = true
 		entry.PrevAccount = o.originAccount
 	}
@@ -473,7 +473,7 @@ func (o *SimpleAccount) IsEmpty() bool {
 }
 
 func (o *SimpleAccount) Suicided() bool {
-	return false
+	return o.suicided
 }
 
 func (o *SimpleAccount) GetStorageRootHash() common.Hash {

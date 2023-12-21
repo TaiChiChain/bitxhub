@@ -55,7 +55,7 @@ func (dl *diskLayer) Update(stateRoot common.Hash, destructs map[string]struct{}
 	for addr := range destructs {
 		accountKey := CompositeSnapAccountKey(addr)
 		batch.Delete(accountKey)
-		dl.cache.Set(accountKey, nil)
+		dl.cache.Del(accountKey)
 	}
 
 	for addr, acc := range accounts {

@@ -66,16 +66,17 @@ func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) State
 	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot)
 	// TODO(zqr): multi snapshot layers can also support view ledger
 	lg := &StateLedgerImpl{
-		repo:         l.repo,
-		logger:       l.logger,
-		db:           l.db,
-		cachedDB:     l.cachedDB,
-		accountCache: l.accountCache,
-		accounts:     make(map[string]IAccount),
-		preimages:    make(map[types.Hash][]byte),
-		changer:      NewChanger(),
-		accessList:   NewAccessList(),
-		logs:         NewEvmLogs(),
+		repo:                  l.repo,
+		logger:                l.logger,
+		db:                    l.db,
+		cachedDB:              l.cachedDB,
+		accountCache:          l.accountCache,
+		accounts:              make(map[string]IAccount),
+		preimages:             make(map[types.Hash][]byte),
+		changer:               NewChanger(),
+		accessList:            NewAccessList(),
+		logs:                  NewEvmLogs(),
+		enableExpensiveMetric: l.enableExpensiveMetric,
 	}
 	if enableSnapshot {
 		lg.snapshotDB = l.snapshotDB
@@ -92,16 +93,17 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block, enableSnapshot
 	ac, _ := NewAccountCache(0, true)
 	// TODO(zqr): multi snapshot layers can also support historical view ledger
 	lg := &StateLedgerImpl{
-		repo:         l.repo,
-		logger:       l.logger,
-		db:           l.db,
-		cachedDB:     l.db,
-		accountCache: ac,
-		accounts:     make(map[string]IAccount),
-		preimages:    make(map[types.Hash][]byte),
-		changer:      NewChanger(),
-		accessList:   NewAccessList(),
-		logs:         NewEvmLogs(),
+		repo:                  l.repo,
+		logger:                l.logger,
+		db:                    l.db,
+		cachedDB:              l.db,
+		accountCache:          ac,
+		accounts:              make(map[string]IAccount),
+		preimages:             make(map[types.Hash][]byte),
+		changer:               NewChanger(),
+		accessList:            NewAccessList(),
+		logs:                  NewEvmLogs(),
+		enableExpensiveMetric: l.enableExpensiveMetric,
 	}
 	if enableSnapshot {
 		lg.snapshotDB = l.snapshotDB
@@ -128,10 +130,7 @@ func (l *StateLedgerImpl) Finalise() {
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
-	cachedStateStorage, err := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerCacheMegabytesLimit)
-	if err != nil {
-		return nil, err
-	}
+	cachedStateStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerCacheMegabytesLimit)
 
 	accountCache, err := NewAccountCache(rep.Config.Ledger.StateLedgerAccountCacheSize, false)
 	if err != nil {
@@ -154,10 +153,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	}
 
 	if snapshotStorage != nil {
-		snapshotCachedStorage, err := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
-		if err != nil {
-			return nil, err
-		}
+		snapshotCachedStorage := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
 		ledger.snapshotDB = snapshotStorage
 		ledger.snapshotCacheDB = snapshotCachedStorage
 		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage)
