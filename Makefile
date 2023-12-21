@@ -123,3 +123,14 @@ package:build
 
 ## make precommit: Check code like CI
 precommit: fmt test-coverage linter
+
+ABI_FOLDER := ./internal/executor/system/sol
+FILES := $(wildcard $(ABI_FOLDER)/*.abi)
+CONTRACT_NAMES := $(patsubst $(ABI_FOLDER)/%,%,$(basename $(FILES)))
+$(CONTRACT_NAMES):
+	@echo "Generating ${ABI_FOLDER}/$@.abi"
+	abigen --abi $(ABI_FOLDER)/$@.abi --pkg binding --type $@ --out $(ABI_FOLDER)/binding/$@.go;
+	@echo "Generated $(ABI_FOLDER)/binding/$@.go"
+
+## make generate-system-contracts-binding: Generate system contracts abi binding
+generate-system-contracts-binding: $(CONTRACT_NAMES)

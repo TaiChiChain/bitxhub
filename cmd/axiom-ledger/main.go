@@ -31,6 +31,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		configCMD,
 		ledgerCMD,
+		epochCMD,
 		{
 			Name:   "start",
 			Usage:  "Start a long-running daemon process",
