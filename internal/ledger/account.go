@@ -45,11 +45,10 @@ type SimpleAccount struct {
 	// The latest state of the current transaction
 	dirtyState map[string][]byte
 
-	originCode       []byte
-	dirtyCode        []byte
-	pendingStateHash *types.Hash
-	ldb              storage.Storage
-	cache            *AccountCache
+	originCode []byte
+	dirtyCode  []byte
+	ldb        storage.Storage
+	cache      *AccountCache
 
 	blockHeight uint64
 	storageTrie *jmt.JMT
