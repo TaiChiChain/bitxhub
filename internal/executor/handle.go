@@ -319,6 +319,10 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		exec.logger.Warnf("msg gas price %v not equals to current gas price %v, will adjust msg.GasPrice automatically", msg.GasPrice, curGasPrice)
 		msg.GasPrice = curGasPrice
 	}
+	if msg.GasPrice.Cmp(msg.GasFeeCap) > 0 {
+		exec.logger.Warnf("msg fee cap %v not greater than gas price %v, will adjust msg.GasFeeCap automatically", msg.GasFeeCap, msg.GasPrice)
+		msg.GasFeeCap = msg.GasPrice
+	}
 
 	statedb := exec.ledger.StateLedger
 	// TODO: Move to system contract
