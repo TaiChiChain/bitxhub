@@ -23,7 +23,7 @@ import (
 
 func TestNewTxPool(t *testing.T) {
 	ast := assert.New(t)
-	conf := NewMockTxPoolConfig()
+	conf := NewMockTxPoolConfig(t)
 	pool, err := NewTxPool[types.Transaction, *types.Transaction](conf)
 	ast.Nil(err)
 	ast.False(pool.IsPoolFull())

@@ -21,6 +21,7 @@ const (
 	Blockfile  = "blockfile"
 	Consensus  = "consensus"
 	Epoch      = "epoch"
+	TxPool     = "txpool"
 )
 
 var globalStorageMgr = &storageMgr{

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"path"
 	"syscall"
 	"time"
 
@@ -67,16 +68,20 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		fn := func(addr string) uint64 {
 			return getNonceFn(types.NewAddressByStr(addr))
 		}
+		txRecordsFile := path.Join(repo.GetStoragePath(rep.RepoRoot, storagemgr.TxPool), poolConf.TxRecordsFile)
 		txpoolConf := txpool2.Config{
-			Logger:                loggers.Logger(loggers.TxPool),
-			BatchSize:             rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
-			PoolSize:              poolConf.PoolSize,
-			ToleranceTime:         poolConf.ToleranceTime.ToDuration(),
-			ToleranceRemoveTime:   poolConf.ToleranceRemoveTime.ToDuration(),
-			ToleranceNonceGap:     poolConf.ToleranceNonceGap,
-			CleanEmptyAccountTime: poolConf.CleanEmptyAccountTime.ToDuration(),
-			GetAccountNonce:       fn,
-			IsTimed:               rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+			Logger:                 loggers.Logger(loggers.TxPool),
+			BatchSize:              rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
+			PoolSize:               poolConf.PoolSize,
+			ToleranceTime:          poolConf.ToleranceTime.ToDuration(),
+			ToleranceRemoveTime:    poolConf.ToleranceRemoveTime.ToDuration(),
+			ToleranceNonceGap:      poolConf.ToleranceNonceGap,
+			CleanEmptyAccountTime:  poolConf.CleanEmptyAccountTime.ToDuration(),
+			GetAccountNonce:        fn,
+			IsTimed:                rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+			EnableLocalsPersist:    poolConf.EnableLocalsPersist,
+			TxRecordsFile:          txRecordsFile,
+			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
 		}
 		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
 		if err != nil {
