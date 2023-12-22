@@ -84,7 +84,7 @@ func TestGetEvm(t *testing.T) {
 	// mock block for ledger
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
 	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(mockBlock(1, nil), nil).Times(2)
-	stateLedger.EXPECT().NewView(gomock.Any()).Return(stateLedger).AnyTimes()
+	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
 	chainLedger.EXPECT().GetBlockHash(gomock.Any()).Return(&types.Hash{}).AnyTimes()
 
 	executor, err := New(r, mockLedger)
@@ -209,7 +209,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	stateRoot := &types.Hash{}
 
 	evs = append(evs, ev, ev2, ev3)
-	stateLedger.EXPECT().NewView(gomock.Any()).Return(stateLedger).AnyTimes()
+	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
 	stateLedger.EXPECT().Commit().Return(stateRoot, nil).AnyTimes()
 	stateLedger.EXPECT().Clear().AnyTimes()

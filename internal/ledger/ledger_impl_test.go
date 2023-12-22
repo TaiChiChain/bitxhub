@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"math/big"
 	"path/filepath"
 	"sort"
@@ -25,6 +24,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -36,17 +36,22 @@ func TestNew001(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -55,7 +60,7 @@ func TestNew001(t *testing.T) {
 			addr := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			require.Nil(t, err)
 			require.NotNil(t, l)
 			sl := l.StateLedger.(*StateLedgerImpl)
@@ -89,17 +94,22 @@ func TestNew002(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -108,7 +118,7 @@ func TestNew002(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			require.NotNil(t, err)
 			require.Nil(t, l)
 		})
@@ -122,111 +132,52 @@ func TestNew003(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
-	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
-	assert.Nil(t, err)
-
-	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
-	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
-	}
-
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			tc.stateStorage.Put(compositeKey(journalKey, maxHeightStr), marshalHeight(1))
-			logger := log.NewWithModule("account_test")
-			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
-			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
-			require.NotNil(t, err)
-			require.Nil(t, l)
-		})
-	}
-}
-
-func TestNew004(t *testing.T) {
-	repoRoot := t.TempDir()
-
-	lBlockStorage, err := leveldb.New(filepath.Join(repoRoot, "lStorage"), nil)
-	assert.Nil(t, err)
-	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
 			kvdb := tc.stateStorage
-			kvdb.Put(compositeKey(journalKey, maxHeightStr), marshalHeight(1))
-
-			journal := &BlockJournal{}
-			data, err := json.Marshal(journal)
-			assert.Nil(t, err)
-
-			kvdb.Put(compositeKey(journalKey, 1), data)
 
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, blockFile)
+
+			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, tc.snapshotStorage, blockFile)
 			require.Nil(t, err)
 			require.NotNil(t, l)
-		})
-	}
-}
 
-func TestNew005(t *testing.T) {
-	repoRoot := t.TempDir()
+			l, err = NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, nil, blockFile)
+			require.Nil(t, err)
+			require.NotNil(t, l)
 
-	lBlockStorage, err := leveldb.New(filepath.Join(repoRoot, "lStorage"), nil)
-	assert.Nil(t, err)
-	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
-	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
-	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
-	assert.Nil(t, err)
+			rep := createMockRepo(t)
+			rep.Config.Ledger.StateLedgerAccountCacheSize = -1
 
-	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
-	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
-	}
-
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			kvdb := tc.stateStorage
-			kvdb.Put(compositeKey(journalKey, maxHeightStr), marshalHeight(5))
-			kvdb.Put(compositeKey(journalKey, minHeightStr), marshalHeight(3))
-
-			journal := &BlockJournal{}
-			data, err := json.Marshal(journal)
-			assert.Nil(t, err)
-
-			kvdb.Put(compositeKey(journalKey, 5), data)
-
-			logger := log.NewWithModule("account_test")
-			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
-			assert.Nil(t, err)
-			l, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, kvdb, blockFile)
+			l, err = NewLedgerWithStores(rep, tc.blockStorage, kvdb, tc.snapshotStorage, blockFile)
 			require.NotNil(t, err)
 			require.Nil(t, l)
+
+			l, err = NewLedgerWithStores(rep, tc.blockStorage, kvdb, nil, blockFile)
+			require.NotNil(t, err)
+			require.Nil(t, l)
+
+			rep.Config.Ledger.ChainLedgerCacheSize = -1
 		})
 	}
 }
@@ -316,8 +267,8 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.NotEqual(t, stateRoot4, stateRoot5)
 			// assert.Equal(t, uint64(5), ledger.maxJnlHeight)
 
-			minHeight, maxHeight := getJournalRange(sl.cachedDB)
-			journal5 := getBlockJournal(maxHeight, sl.cachedDB)
+			minHeight, maxHeight := snapshot.GetJournalRange(sl.snapshotCacheDB)
+			journal5 := snapshot.GetBlockJournal(maxHeight, sl.snapshotCacheDB)
 			assert.Equal(t, uint64(1), minHeight)
 			assert.Equal(t, uint64(5), maxHeight)
 			assert.Equal(t, 1, len(journal5.Journals))
@@ -330,15 +281,13 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.Equal(t, 2, len(entry.PrevStates))
 			assert.Nil(t, entry.PrevStates[hex.EncodeToString([]byte("b"))])
 			assert.Nil(t, entry.PrevStates[hex.EncodeToString([]byte("c"))])
-			assert.True(t, entry.CodeChanged)
-			assert.Nil(t, entry.PrevCode)
 			isExist := sl.Exist(account)
 			assert.True(t, isExist)
 			isEmpty := sl.Empty(account)
 			assert.False(t, isEmpty)
-			err = sl.removeJournalsBeforeBlock(10)
+			err = sl.snapshot.RemoveJournalsBeforeBlock(10)
 			assert.NotNil(t, err)
-			err = sl.removeJournalsBeforeBlock(0)
+			err = sl.snapshot.RemoveJournalsBeforeBlock(0)
 			assert.Nil(t, err)
 
 			// Extra Test
@@ -379,9 +328,6 @@ func TestChainLedger_Commit(t *testing.T) {
 
 			// load ChainLedgerImpl from db, rollback to height 0 since no chain meta stored
 			ldg, _ := initLedger(t, repoRoot, tc.kvType)
-			stateLedger := ldg.StateLedger.(*StateLedgerImpl)
-			assert.Equal(t, uint64(0), stateLedger.maxJnlHeight)
-			assert.Equal(t, &types.Hash{}, stateLedger.prevJnlHash)
 
 			ok, _ := ldg.StateLedger.GetState(account, []byte("a"))
 			assert.False(t, ok)
@@ -397,7 +343,7 @@ func TestChainLedger_Commit(t *testing.T) {
 
 			ver := ldg.StateLedger.Version()
 			assert.Equal(t, uint64(0), ver)
-			err = lg.StateLedger.(*StateLedgerImpl).removeJournalsBeforeBlock(4)
+			err = lg.StateLedger.(*StateLedgerImpl).snapshot.RemoveJournalsBeforeBlock(4)
 			assert.Nil(t, err)
 		})
 	}
@@ -447,7 +393,7 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			assert.Equal(t, value, hash)
 			ledger.StateLedger.(*StateLedgerImpl).SuicideEVM(account)
 			isSuicide := ledger.StateLedger.(*StateLedgerImpl).HasSuicideEVM(account)
-			assert.Equal(t, isSuicide, false)
+			assert.Equal(t, isSuicide, true)
 			isExist := ledger.StateLedger.(*StateLedgerImpl).ExistEVM(account)
 			assert.Equal(t, isExist, true)
 			isEmpty := ledger.StateLedger.(*StateLedgerImpl).EmptyEVM(account)
@@ -491,9 +437,6 @@ func TestChainLedger_Rollback(t *testing.T) {
 			// create an addr0
 			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 			addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-
-			hash0 := types.Hash{}
-			assert.Equal(t, &hash0, stateLedger.prevJnlHash)
 
 			ledger.StateLedger.PrepareBlock(nil, nil, 1)
 			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
@@ -564,14 +507,6 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.NotNil(t, meta)
 			assert.Equal(t, uint64(3), meta.Height)
 
-			//
-			// err = ledger.Rollback(0)
-			// assert.Equal(t, ErrorRollbackTooMuch, err)
-			//
-			// err = ledger.Rollback(1)
-			// assert.Equal(t, ErrorRollbackTooMuch, err)
-			// assert.Equal(t, uint64(3), ledger.GetChainMeta().Height)
-
 			err = ledger.Rollback(3)
 			assert.Nil(t, err)
 			block3, err := ledger.ChainLedger.GetBlock(3)
@@ -592,8 +527,6 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.NotNil(t, block2)
 			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
 			assert.Equal(t, stateRoot2.String(), block2.BlockHeader.StateRoot.String())
-			assert.Equal(t, uint64(1), stateLedger.minJnlHeight)
-			assert.Equal(t, uint64(2), stateLedger.maxJnlHeight)
 
 			account0 = ledger.StateLedger.GetAccount(addr0)
 			assert.Equal(t, uint64(2), account0.GetBalance().Uint64())
@@ -611,8 +544,6 @@ func TestChainLedger_Rollback(t *testing.T) {
 			ledger.ChainLedger.CloseBlockfile()
 
 			ledger, _ = initLedger(t, repoRoot, tc.kvType)
-			assert.Equal(t, uint64(1), stateLedger.minJnlHeight)
-			assert.Equal(t, uint64(2), stateLedger.maxJnlHeight)
 
 			err = ledger.Rollback(1)
 			assert.Nil(t, err)
@@ -1081,7 +1012,8 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1)
+			lg1 := sl.NewView(block1, false)
+			lg1.(*StateLedgerImpl).accountCache.clear()
 			assert.Equal(t, uint64(101), lg1.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(201), lg1.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(301), lg1.GetBalance(account3).Uint64())
@@ -1096,7 +1028,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot2,
 				},
 			}
-			lg2 := sl.NewViewWithoutCache(block2)
+			lg2 := sl.NewViewWithoutCache(block2, false)
 			assert.Equal(t, uint64(102), lg2.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(201), lg2.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(302), lg2.GetBalance(account3).Uint64())
@@ -1111,7 +1043,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot3,
 				},
 			}
-			lg3 := sl.NewViewWithoutCache(block3)
+			lg3 := sl.NewViewWithoutCache(block3, false)
 			assert.Equal(t, uint64(103), lg3.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg3.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(302), lg3.GetBalance(account3).Uint64())
@@ -1126,7 +1058,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot4,
 				},
 			}
-			lg4 := sl.NewViewWithoutCache(block4)
+			lg4 := sl.NewViewWithoutCache(block4, false)
 			assert.Equal(t, uint64(103), lg4.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg4.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(302), lg4.GetBalance(account3).Uint64())
@@ -1141,7 +1073,8 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot5,
 				},
 			}
-			lg5 := sl.NewViewWithoutCache(block5)
+			lg5 := sl.NewView(block5, true)
+			lg5.(*StateLedgerImpl).accountCache.clear()
 			assert.Equal(t, uint64(103), lg5.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg5.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(305), lg5.GetBalance(account3).Uint64())
@@ -1252,7 +1185,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1)
+			lg1 := sl.NewViewWithoutCache(block1, false)
 			exist, a1k1 := lg1.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val101"), a1k1)
@@ -1275,7 +1208,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot2,
 				},
 			}
-			lg2 := sl.NewViewWithoutCache(block2)
+			lg2 := sl.NewViewWithoutCache(block2, false)
 			exist, a1k1 = lg2.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1011"), a1k1)
@@ -1302,7 +1235,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot3,
 				},
 			}
-			lg3 := sl.NewViewWithoutCache(block3)
+			lg3 := sl.NewViewWithoutCache(block3, false)
 			exist, a1k1 = lg3.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1013"), a1k1)
@@ -1326,7 +1259,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot4,
 				},
 			}
-			lg4 := sl.NewViewWithoutCache(block4)
+			lg4 := sl.NewViewWithoutCache(block4, false)
 			exist, a1k1 = lg4.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1013"), a1k1)
@@ -1350,7 +1283,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot5,
 				},
 			}
-			lg5 := sl.NewViewWithoutCache(block5)
+			lg5 := sl.NewViewWithoutCache(block5, false)
 			exist, a1k1 = lg5.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1015"), a1k1)
@@ -1435,7 +1368,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1)
+			lg1 := sl.NewViewWithoutCache(block1, false)
 			assert.Equal(t, uint64(1), lg1.GetNonce(eoaAccount))
 			exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
 			assert.True(t, exist)
@@ -1449,7 +1382,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 					StateRoot: stateRoot2,
 				},
 			}
-			lg2 := sl.NewViewWithoutCache(block2)
+			lg2 := sl.NewViewWithoutCache(block2, false)
 			assert.Equal(t, uint64(1), lg2.GetNonce(eoaAccount))
 			exist, a2k1 = lg2.GetState(contractAccount, []byte("key1"))
 			assert.True(t, exist)
@@ -1463,7 +1396,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 					StateRoot: stateRoot3,
 				},
 			}
-			lg3 := sl.NewViewWithoutCache(block3)
+			lg3 := sl.NewViewWithoutCache(block3, false)
 			assert.Equal(t, uint64(2), lg3.GetNonce(eoaAccount))
 			exist, a2k1 = lg3.GetState(contractAccount, []byte("key1"))
 			assert.True(t, exist)
@@ -1497,7 +1430,8 @@ func TestStateLedger_RollbackToHistoryVersion(t *testing.T) {
 			sl.blockHeight = 1
 			sl.SetBalance(account1, new(big.Int).SetInt64(101))
 			sl.SetBalance(account2, new(big.Int).SetInt64(201))
-			sl.SetBalance(account3, new(big.Int).SetInt64(301))
+			sl.SetNonce(account1, 1)
+			sl.SetNonce(account2, 2)
 			sl.Finalise()
 			stateRoot1, err := sl.Commit()
 			assert.NotNil(t, stateRoot1)
@@ -1560,14 +1494,73 @@ func TestStateLedger_RollbackToHistoryVersion(t *testing.T) {
 			// check state ledger in block 1
 			assert.Equal(t, uint64(101), lg.StateLedger.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(201), lg.StateLedger.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(301), lg.StateLedger.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(0), lg.StateLedger.GetNonce(account1))
-			assert.Equal(t, uint64(0), lg.StateLedger.GetNonce(account2))
+			assert.Equal(t, uint64(0), lg.StateLedger.GetBalance(account3).Uint64())
+			assert.Equal(t, uint64(1), lg.StateLedger.GetNonce(account1))
+			assert.Equal(t, uint64(2), lg.StateLedger.GetNonce(account2))
 			assert.Equal(t, uint64(0), lg.StateLedger.GetNonce(account3))
 
 			// revert from block 1 to block 3
 			err = lg.Rollback(3)
 			assert.NotNil(t, err)
+		})
+	}
+}
+
+func TestStateLedger_AccountSuicide(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			lg, _ := initLedger(t, "", tc.kvType)
+			sl := lg.StateLedger.(*StateLedgerImpl)
+
+			// create an account
+			account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+
+			sl.blockHeight = 1
+			sl.SetState(account, []byte("a"), []byte("b"))
+			sl.Finalise()
+			stateRoot1, err := sl.Commit()
+			assert.NotNil(t, stateRoot1)
+			assert.Nil(t, err)
+			assert.Equal(t, sl.HasSuicide(account), false)
+			assert.Equal(t, uint64(1), sl.Version())
+
+			code := RightPadBytes([]byte{100}, 100)
+			lg.StateLedger.SetCode(account, code)
+			lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
+			sl.blockHeight = 2
+			sl.Finalise()
+			stateRoot2, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(2), lg.StateLedger.Version())
+			assert.NotEqual(t, stateRoot1, stateRoot2)
+
+			exist, va := sl.GetState(account, []byte("a"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("b"), va)
+
+			exist, vb := sl.GetState(account, []byte("b"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("3"), vb)
+
+			acc := sl.GetAccount(account)
+			assert.NotNil(t, acc)
+
+			// suicide account
+			lg.StateLedger.SuicideEVM(account.ETHAddress())
+			sl.blockHeight = 3
+			stateRoot3, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(3), lg.StateLedger.Version())
+			assert.NotEqual(t, stateRoot2, stateRoot3)
+
+			acc = sl.GetAccount(account)
+			assert.Nil(t, acc)
 		})
 	}
 }

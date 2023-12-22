@@ -23,17 +23,22 @@ func TestAccount_GetState(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -41,12 +46,12 @@ func TestAccount_GetState(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			assert.Nil(t, err)
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger())
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			addr1 := account.GetAddress()
 			assert.Equal(t, addr, addr1)
@@ -81,17 +86,22 @@ func TestAccount_AccountBalance(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -99,12 +109,12 @@ func TestAccount_AccountBalance(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			assert.Nil(t, err)
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger())
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			account.AddBalance(big.NewInt(1))
 			account.SubBalance(big.NewInt(1))
@@ -132,17 +142,22 @@ func TestAccount_setNonce(t *testing.T) {
 	assert.Nil(t, err)
 	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
 	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
 	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
 	assert.Nil(t, err)
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
 	}{
-		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage},
-		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage},
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
 	}
 
 	for name, tc := range testcase {
@@ -150,12 +165,12 @@ func TestAccount_setNonce(t *testing.T) {
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
-			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, blockFile)
+			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
 			assert.Nil(t, err)
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger())
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			account.setNonce(1)
 
@@ -171,7 +186,7 @@ func TestAccount_InitJMTError(t *testing.T) {
 	assert.Nil(t, err)
 
 	addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
-	account := NewAccount(1, lStateStorage, ac, addr, NewChanger())
+	account := NewAccount(1, lStateStorage, ac, addr, NewChanger(), nil)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -179,7 +194,7 @@ func TestAccount_InitJMTError(t *testing.T) {
 		}
 	}()
 	account.storageTrie = nil
-	account.originAccount = &InnerAccount{
+	account.originAccount = &types.InnerAccount{
 		StorageRoot: common.Hash{1},
 	}
 	_ = account.originAccount.String()

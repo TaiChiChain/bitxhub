@@ -6,6 +6,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 //go:generate mockgen -destination mock_ledger/mock_ledger.go -package mock_ledger -source ledger.go -typed
@@ -76,9 +77,11 @@ type StateLedger interface {
 
 	Version() uint64
 
-	NewView(block *types.Block) StateLedger
+	// NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
+	NewView(block *types.Block, enableSnapshot bool) StateLedger
 
-	NewViewWithoutCache(block *types.Block) StateLedger
+	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
+	NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger
 }
 
 // StateAccessor manipulates the state data
@@ -152,7 +155,7 @@ type IAccount interface {
 
 	AddBalance(amount *big.Int)
 
-	Finalise()
+	Finalise() [][]byte
 
 	IsEmpty() bool
 
@@ -161,4 +164,6 @@ type IAccount interface {
 	SetSuicided(bool)
 
 	SetEnableExpensiveMetric(bool)
+
+	GetStorageRootHash() common.Hash
 }

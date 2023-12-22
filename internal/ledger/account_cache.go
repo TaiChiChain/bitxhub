@@ -10,7 +10,7 @@ import (
 )
 
 type AccountCache struct {
-	innerAccountCache     *lru.Cache[string, *InnerAccount]
+	innerAccountCache     *lru.Cache[string, *types.InnerAccount]
 	codeCache             *lru.Cache[string, []byte]
 	enableExpensiveMetric bool
 	disable               bool
@@ -29,7 +29,7 @@ func NewAccountCache(cacheSize int, disable bool) (*AccountCache, error) {
 	if cacheSize == 0 {
 		cacheSize = 1024
 	}
-	innerAccountCache, err := lru.New[string, *InnerAccount](cacheSize)
+	innerAccountCache, err := lru.New[string, *types.InnerAccount](cacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("init innerAccountCache failed: %w", err)
 	}
@@ -86,7 +86,7 @@ func (ac *AccountCache) add(accounts map[string]IAccount) {
 	}
 }
 
-func (ac *AccountCache) getInnerAccount(addr *types.Address) (*InnerAccount, bool) {
+func (ac *AccountCache) getInnerAccount(addr *types.Address) (*types.InnerAccount, bool) {
 	if ac.disable {
 		return nil, false
 	}

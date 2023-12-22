@@ -17,8 +17,7 @@ func TestCachedStorage(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, s)
 
-	c, err := NewCachedStorage(s, 10)
-	require.Nil(t, err)
+	c := NewCachedStorage(s, 10)
 
 	tests := []struct {
 		key   []byte
