@@ -65,14 +65,6 @@ func NewNode(config *common.Config) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	lastCheckpointBlockNumber := rbftConfig.LastServiceState.MetaState.Height / rbftConfig.GenesisEpochInfo.ConsensusParams.CheckpointPeriod * rbftConfig.GenesisEpochInfo.ConsensusParams.CheckpointPeriod
-	if lastCheckpointBlockNumber != 0 {
-		lastCheckpointBlock, err := config.GetBlockFunc(lastCheckpointBlockNumber)
-		if err != nil {
-			return nil, err
-		}
-		rbftConfig.LastCheckpointBlockDigest = lastCheckpointBlock.BlockHash.String()
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	rbftAdaptor, err := adaptor.NewRBFTAdaptor(config)
@@ -105,6 +97,12 @@ func NewNode(config *common.Config) (*Node, error) {
 		txPreCheck:        precheck.NewTxPreCheckMgr(ctx, config),
 		txpool:            config.TxPool,
 	}, nil
+}
+
+func (n *Node) UpdateConfig(opts ...common.Option) {
+	for _, opt := range opts {
+		opt(n.config)
+	}
 }
 
 func (n *Node) initConsensusMsgPipes() error {
@@ -500,14 +498,15 @@ func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *consensus.Checkpoint) er
 	return nil
 }
 
-func (n *Node) Quorum() uint64 {
-	N := uint64(len(n.stack.EpochInfo.ValidatorSet))
-	return adaptor.CalQuorum(N)
+func (n *Node) Quorum(totalNum uint64) uint64 {
+	//N := uint64(len(n.stack.EpochInfo.ValidatorSet))
+	return adaptor.CalQuorum(totalNum)
 }
 
 func (n *Node) checkQuorum() error {
-	n.logger.Infof("=======Quorum = %d, connected validators = %d", n.Quorum(), n.network.CountConnectedValidators()+1)
-	if n.network.CountConnectedValidators()+1 < n.Quorum() {
+	totalNum := uint64(len(n.stack.EpochInfo.ValidatorSet))
+	n.logger.Infof("=======Quorum = %d, connected validators = %d", n.Quorum(totalNum), n.network.CountConnectedValidators()+1)
+	if n.network.CountConnectedValidators()+1 < n.Quorum(totalNum) {
 		return errors.New("the number of connected validators don't reach Quorum")
 	}
 	return nil

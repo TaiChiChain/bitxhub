@@ -23,6 +23,7 @@ import (
 
 var startArgs = struct {
 	Readonly bool
+	Snapshot bool
 }{}
 
 func start(ctx *cli.Context) error {
@@ -40,7 +41,7 @@ func start(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	r.ReadonlyMode = startArgs.Readonly
+	r.StartArgs = &repo.StartArgs{ReadonlyMode: startArgs.Readonly, SnapshotMode: startArgs.Snapshot}
 
 	appCtx, cancel := context.WithCancel(ctx.Context)
 	if err := loggers.Initialize(appCtx, r, true); err != nil {

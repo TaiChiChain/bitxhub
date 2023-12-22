@@ -16,7 +16,7 @@ type ChainAPI CoreAPI
 var _ api.ChainAPI = (*ChainAPI)(nil)
 
 func (api *ChainAPI) Status() string {
-	if api.axiomLedger.Repo.ReadonlyMode {
+	if api.axiomLedger.Repo.StartArgs.ReadonlyMode {
 		return "normal"
 	}
 

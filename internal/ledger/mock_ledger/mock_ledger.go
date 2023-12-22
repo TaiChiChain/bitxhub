@@ -349,6 +349,45 @@ func (c *ChainLedgerGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Rece
 	return c
 }
 
+// GetReceiptsByHeight mocks base method.
+func (m *MockChainLedger) GetReceiptsByHeight(height uint64) ([]*types.Receipt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReceiptsByHeight", height)
+	ret0, _ := ret[0].([]*types.Receipt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReceiptsByHeight indicates an expected call of GetReceiptsByHeight.
+func (mr *MockChainLedgerMockRecorder) GetReceiptsByHeight(height any) *ChainLedgerGetReceiptsByHeightCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReceiptsByHeight", reflect.TypeOf((*MockChainLedger)(nil).GetReceiptsByHeight), height)
+	return &ChainLedgerGetReceiptsByHeightCall{Call: call}
+}
+
+// ChainLedgerGetReceiptsByHeightCall wrap *gomock.Call
+type ChainLedgerGetReceiptsByHeightCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *ChainLedgerGetReceiptsByHeightCall) Return(arg0 []*types.Receipt, arg1 error) *ChainLedgerGetReceiptsByHeightCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *ChainLedgerGetReceiptsByHeightCall) Do(f func(uint64) ([]*types.Receipt, error)) *ChainLedgerGetReceiptsByHeightCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *ChainLedgerGetReceiptsByHeightCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *ChainLedgerGetReceiptsByHeightCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetTransaction mocks base method.
 func (m *MockChainLedger) GetTransaction(hash *types.Hash) (*types.Transaction, error) {
 	m.ctrl.T.Helper()

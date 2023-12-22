@@ -487,7 +487,7 @@ func (c *NetworkSendWithStreamCall) DoAndReturn(f func(network.Stream, *pb.Messa
 // Start mocks base method.
 func (m *MockNetwork) Start() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Prepare")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -495,7 +495,7 @@ func (m *MockNetwork) Start() error {
 // Start indicates an expected call of Start.
 func (mr *MockNetworkMockRecorder) Start() *NetworkStartCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockNetwork)(nil).Start))
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockNetwork)(nil).Start))
 	return &NetworkStartCall{Call: call}
 }
 

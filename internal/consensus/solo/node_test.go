@@ -69,7 +69,7 @@ func TestNode_Start(t *testing.T) {
 
 	var msg []byte
 	require.Nil(t, solo.Step(msg))
-	require.Equal(t, uint64(1), solo.Quorum())
+	require.Equal(t, uint64(1), solo.Quorum(1))
 
 	tx, err := types.GenerateEmptyTransactionAndSigner()
 	require.Nil(t, err)

@@ -2,6 +2,7 @@ package rbft
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -347,17 +348,17 @@ func TestQuorum(t *testing.T) {
 	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 4})
 
 	// N = 3f + 1, f=1
-	quorum := node.Quorum()
+	quorum := node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
 	ast.Equal(uint64(3), quorum)
 
 	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 5})
 	// N = 3f + 2, f=1
-	quorum = node.Quorum()
+	quorum = node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
 	ast.Equal(uint64(4), quorum)
 
 	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 6})
 	// N = 3f + 3, f=1
-	quorum = node.Quorum()
+	quorum = node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
 	ast.Equal(uint64(4), quorum)
 }
 
@@ -399,4 +400,15 @@ func mockAddTx(node *Node, ctx context.Context, wg *sync.WaitGroup) {
 			}
 		}
 	}()
+}
+
+func TestUpdateConfig(t *testing.T) {
+	ast := assert.New(t)
+	ctrl := gomock.NewController(t)
+	node := MockMinNode(ctrl, t)
+	fmt.Println(node.config.Applied)
+	oldApplied := node.config.Applied
+	newApp := oldApplied + 1
+	node.UpdateConfig(common.WithApplied(newApp))
+	ast.Equal(newApp, node.config.Applied)
 }

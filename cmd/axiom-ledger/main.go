@@ -35,7 +35,7 @@ func main() {
 		txpoolCMD,
 		{
 			Name:   "start",
-			Usage:  "Start a long-running daemon process",
+			Usage:  "Prepare a long-running daemon process",
 			Action: start,
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
@@ -43,6 +43,13 @@ func main() {
 					Aliases:     []string{"r"},
 					Usage:       "enable readonly mode(disable consensus and network), only support read api",
 					Destination: &startArgs.Readonly,
+					Required:    false,
+				},
+				&cli.BoolFlag{
+					Name:        "snapshot",
+					Aliases:     []string{"s"},
+					Usage:       "enable snapshot mode(sync by snapshot), state had be updated in snapshot's height",
+					Destination: &startArgs.Snapshot,
 					Required:    false,
 				},
 				passwordFlag(),

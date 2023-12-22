@@ -52,6 +52,12 @@ func NewNode(config *common.Config) (*NodeDev, error) {
 	}, nil
 }
 
+func (n *NodeDev) UpdateConfig(opts ...common.Option) {
+	for _, opt := range opts {
+		opt(n.config)
+	}
+}
+
 func (n *NodeDev) Start() error {
 	n.logger.Info("consensus dev started")
 	return nil
@@ -110,7 +116,7 @@ func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerLis
 	n.persistDoneC <- struct{}{}
 }
 
-func (n *NodeDev) Quorum() uint64 {
+func (n *NodeDev) Quorum(_ uint64) uint64 {
 	return 1
 }
 

@@ -54,7 +54,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 	t.Run("remove Event successful", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.toleranceRemoveTime = 1 * time.Millisecond
+		pool.toleranceRemoveTime = 5 * time.Millisecond
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -77,7 +77,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 			ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 
 			// sleep a while to trigger the remove timeout event
-			time.Sleep(2 * time.Millisecond)
+			time.Sleep(6 * time.Millisecond)
 			pool.handleRemoveTimeout(timer.RemoveTx)
 			assert.Equal(t, uint64(0), pool.GetTotalPendingTxCount())
 
@@ -86,9 +86,9 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 			assert.Equal(t, 1, len(pool.txStore.allTxs))
 		}
 
-		pool.cleanEmptyAccountTime = 1 * time.Millisecond
+		pool.cleanEmptyAccountTime = 5 * time.Millisecond
 		// sleep a while to trigger the clean empty account timeout event
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(6 * time.Millisecond)
 		pool.handleRemoveTimeout(timer.CleanEmptyAccount)
 		assert.Equal(t, uint64(0), pool.GetTotalPendingTxCount())
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.commitNonces))

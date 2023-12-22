@@ -120,6 +120,12 @@ func (n *Node) GetLowWatermark() uint64 {
 	return <-req.Resp
 }
 
+func (n *Node) UpdateConfig(opts ...common.Option) {
+	for _, opt := range opts {
+		opt(n.config)
+	}
+}
+
 func (n *Node) Start() error {
 	n.txpool.Init(txpool.ConsensusConfig{
 		NotifyGenerateBatchFn: n.notifyGenerateBatch,
@@ -202,7 +208,7 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 	n.postMsg(state)
 }
 
-func (n *Node) Quorum() uint64 {
+func (n *Node) Quorum(_ uint64) uint64 {
 	return 1
 }
 
@@ -319,7 +325,7 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 				}
 				n.batchMgr.lastBatchTime = now
 				n.postProposal(batch)
-				n.logger.Debugf("batch timeout, post proposal: %v", batch)
+				n.logger.Debugf("batch timeout, post proposal: [batchHash: %s]", batch.BatchHash)
 			}
 		}
 	case timer.NoTxBatch:
@@ -337,7 +343,7 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 			return err
 		}
 		if batch != nil {
-			n.logger.Debug("Start create empty block")
+			n.logger.Debug("Prepare create empty block")
 			now := time.Now().UnixNano()
 			if n.batchMgr.lastBatchTime != 0 {
 				interval := time.Duration(now - n.batchMgr.lastBatchTime).Seconds()

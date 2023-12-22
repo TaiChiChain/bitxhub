@@ -289,7 +289,7 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 		}
 	}(time.Now())
 
-	if api.rep.ReadonlyMode {
+	if api.rep.StartArgs.ReadonlyMode {
 		return [32]byte{}, errors.New("readonly mode cannot process tx")
 	}
 

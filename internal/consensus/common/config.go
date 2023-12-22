@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -26,7 +27,7 @@ type Config struct {
 	PrivKey                                     *ecdsa.PrivateKey
 	GenesisEpochInfo                            *rbft.EpochInfo
 	Network                                     network.Network
-	BlockSync                                   block_sync.Sync
+	BlockSync                                   common.Sync
 	TxPool                                      txpool.TxPool[types.Transaction, *types.Transaction]
 	Applied                                     uint64
 	Digest                                      string
@@ -37,6 +38,7 @@ type Config struct {
 	GetBlockFunc                                func(height uint64) (*types.Block, error)
 	GetAccountBalance                           func(address *types.Address) *big.Int
 	GetAccountNonce                             func(address *types.Address) uint64
+	EpochStore                                  storage.Storage
 }
 
 type Option func(*Config)
@@ -78,7 +80,7 @@ func WithNetwork(net network.Network) Option {
 	}
 }
 
-func WithBlockSync(blockSync block_sync.Sync) Option {
+func WithBlockSync(blockSync common.Sync) Option {
 	return func(config *Config) {
 		config.BlockSync = blockSync
 	}
@@ -153,6 +155,12 @@ func WithGetCurrentEpochInfoFromEpochMgrContractFunc(f func() (*rbft.EpochInfo, 
 func WithEVMConfig(c repo.EVM) Option {
 	return func(config *Config) {
 		config.EVMConfig = c
+	}
+}
+
+func WithEpochStore(epochStore storage.Storage) Option {
+	return func(config *Config) {
+		config.EpochStore = epochStore
 	}
 }
 

@@ -254,7 +254,7 @@ func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *snapshot.Blo
 
 // Commit the state, and get account trie root hash
 func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
-	l.logger.Debugf("==================[Commit-Start]==================")
+	l.logger.Debugf("==================[Commit-Prepare]==================")
 	defer l.logger.Debugf("==================[Commit-End]==================")
 
 	l.accountCache.exportMetrics()
@@ -349,21 +349,23 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	}
 	l.logger.Debugf("[Commit] after committed world state trie, StateRoot: %v", stateRoot)
 
-	// update snapshot
-	err := l.snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
-	if err != nil {
-		return nil, fmt.Errorf("update snapshot error: %w", err)
-	}
+	if l.snapshot != nil {
+		// update snapshot
+		err := l.snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
+		if err != nil {
+			return nil, fmt.Errorf("update snapshot error: %w", err)
+		}
 
-	// persist snapshot journals
-	err = l.snapshot.UpdateJournal(height, journals)
-	if err != nil {
-		return nil, fmt.Errorf("update snapshot journal error: %w", err)
-	}
+		// persist snapshot journals
+		err = l.snapshot.UpdateJournal(height, journals)
+		if err != nil {
+			return nil, fmt.Errorf("update snapshot journal error: %w", err)
+		}
 
-	if height > l.getJnlHeightSize() {
-		if err := l.snapshot.RemoveJournalsBeforeBlock(height - l.getJnlHeightSize()); err != nil {
-			return nil, fmt.Errorf("remove journals before block %d failed: %w", height-l.getJnlHeightSize(), err)
+		if height > l.getJnlHeightSize() {
+			if err := l.snapshot.RemoveJournalsBeforeBlock(height - l.getJnlHeightSize()); err != nil {
+				return nil, fmt.Errorf("remove journals before block %d failed: %w", height-l.getJnlHeightSize(), err)
+			}
 		}
 	}
 

@@ -9,6 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/axiomesh/axiom-kit/storage"
+	devexecutor "github.com/axiomesh/axiom-ledger/internal/executor/dev"
+	common2 "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/sirupsen/logrus"
@@ -18,16 +21,15 @@ import (
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
-	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
-	devexecutor "github.com/axiomesh/axiom-ledger/internal/executor/dev"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/internal/sync"
 	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/profile"
@@ -44,11 +46,14 @@ type AxiomLedger struct {
 	Consensus     consensus.Consensus
 	TxPool        txpool.TxPool[types.Transaction, *types.Transaction]
 	Network       network.Network
-	Sync          block_sync.Sync
+	Sync          common2.Sync
 	Monitor       *profile.Monitor
 	Pprof         *profile.Pprof
 	LoggerWrapper *loggers.LoggerWrapper
 	Jsonrpc       *jsonrpc.ChainBrokerService
+
+	epochStore storage.Storage
+	snapMeta   *snapMeta
 }
 
 func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFunc) (*AxiomLedger, error) {
@@ -59,7 +64,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 
 	chainMeta := axm.ViewLedger.ChainLedger.GetChainMeta()
 
-	if !rep.ReadonlyMode {
+	if !rep.StartArgs.ReadonlyMode {
 		// new txpool
 		poolConf := rep.ConsensusConfig.TxPool
 		getNonceFn := func(address *types.Address) uint64 {
@@ -117,6 +122,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			}),
 			common.WithEVMConfig(axm.Repo.Config.Executor.EVM),
 			common.WithBlockSync(axm.Sync),
+			common.WithEpochStore(axm.epochStore),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("initialize consensus failed: %w", err)
@@ -139,31 +145,101 @@ func PrepareAxiomLedger(rep *repo.Repo) error {
 }
 
 func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel context.CancelFunc) (*AxiomLedger, error) {
-	if err := PrepareAxiomLedger(rep); err != nil {
+	var (
+		rwLdg *ledger.Ledger
+		err   error
+	)
+	if err = PrepareAxiomLedger(rep); err != nil {
 		return nil, err
 	}
 
 	logger := loggers.Logger(loggers.App)
 
 	// 0. load ledger
-	rwLdg, err := ledger.NewLedger(rep)
+	var snap *snapMeta
+	if rep.StartArgs.SnapshotMode {
+		stateLg, err := storagemgr.Open(repo.GetStoragePath(rep.RepoRoot, storagemgr.Ledger))
+		if err != nil {
+			return nil, err
+		}
+		rwLdg, err = ledger.NewLedgerWithStores(rep, nil, stateLg, nil, nil)
+
+		snap, err = loadSnapMeta(rwLdg, rep)
+		if err != nil {
+			return nil, err
+		}
+
+		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlock: snap.snapBlock.Clone()})
+	} else {
+		rwLdg, err = ledger.NewLedger(rep)
+		// init genesis config
+		if rwLdg.ChainLedger.GetChainMeta().Height == 0 {
+			if err := genesis.Initialize(rep.GenesisConfig, rwLdg); err != nil {
+				return nil, err
+			}
+			logger.WithFields(logrus.Fields{
+				"genesis block hash": rwLdg.ChainLedger.GetChainMeta().BlockHash,
+			}).Info("Initialize genesis")
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create RW ledger: %w", err)
 	}
 
-	if rwLdg.ChainLedger.GetChainMeta().Height == 0 {
-		if err := genesis.Initialize(rep.GenesisConfig, rwLdg); err != nil {
-			return nil, err
+	var net network.Network
+	if !rep.StartArgs.ReadonlyMode {
+		net, err = network.New(rep, loggers.Logger(loggers.P2P), rwLdg.NewView())
+		if err != nil {
+			return nil, fmt.Errorf("create peer manager: %w", err)
 		}
-		logger.WithFields(logrus.Fields{
-			"genesis block hash": rwLdg.ChainLedger.GetChainMeta().BlockHash,
-		}).Info("Initialize genesis")
-	} else {
-		genesisCfg, err := genesis.GetGenesisConfig(rwLdg.NewViewWithoutCache())
+	}
+
+	vl := rwLdg.NewView()
+	var syncMgr *sync.SyncManager
+	var epochStore storage.Storage
+	if !rep.StartArgs.ReadonlyMode {
+		epochStore, err = storagemgr.Open(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch))
 		if err != nil {
 			return nil, err
 		}
-		rep.GenesisConfig = genesisCfg
+		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetBlock, vl.ChainLedger.GetReceiptsByHeight, epochStore.Get, net, rep.Config.Sync)
+		if err != nil {
+			return nil, fmt.Errorf("create block sync: %w", err)
+		}
+	}
+
+	axm := &AxiomLedger{
+		Ctx:        ctx,
+		Cancel:     cancel,
+		Repo:       rep,
+		logger:     logger,
+		ViewLedger: vl,
+		Network:    net,
+		Sync:       syncMgr,
+
+		snapMeta:   snap,
+		epochStore: epochStore,
+	}
+
+	// start p2p network
+	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] {
+		if err = axm.Network.Start(); err != nil {
+			return nil, fmt.Errorf("peer manager start: %w", err)
+		}
+
+		latestHeight := axm.ViewLedger.ChainLedger.GetChainMeta().Height
+		if rep.StartArgs.SnapshotMode && latestHeight > axm.snapMeta.snapBlock.Height() {
+			panic(fmt.Sprintf("local latest block height %d is bigger than snap block height %d", latestHeight, axm.snapMeta.snapBlock.Height()))
+		}
+		// if we reached snap block, needn't sync
+		// prepare sync
+		if axm.Repo.StartArgs.SnapshotMode && latestHeight < axm.snapMeta.snapBlock.Height() {
+			if err = axm.prepareSnapSync(latestHeight); err != nil {
+				return nil, fmt.Errorf("prepare sync: %w", err)
+			}
+		}
+
+		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlock: nil})
 	}
 
 	var txExec executor.Executor
@@ -175,34 +251,16 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	if err != nil {
 		return nil, fmt.Errorf("create BlockExecutor: %w", err)
 	}
+	axm.BlockExecutor = txExec
 
-	var net network.Network
-	if !rep.ReadonlyMode {
-		net, err = network.New(rep, loggers.Logger(loggers.P2P), rwLdg.NewView())
+	if rwLdg.ChainLedger.GetChainMeta().Height != 0 {
+		genesisCfg, err := genesis.GetGenesisConfig(rwLdg.NewViewWithoutCache())
 		if err != nil {
-			return nil, fmt.Errorf("create peer manager: %w", err)
+			return nil, err
 		}
+		rep.GenesisConfig = genesisCfg
 	}
 
-	vl := rwLdg.NewView()
-	var sync block_sync.Sync
-	if !rep.ReadonlyMode {
-		sync, err = block_sync.NewBlockSync(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetBlock, net, rep.Config.Sync)
-		if err != nil {
-			return nil, fmt.Errorf("create block sync: %w", err)
-		}
-	}
-
-	axm := &AxiomLedger{
-		Ctx:           ctx,
-		Cancel:        cancel,
-		Repo:          rep,
-		logger:        logger,
-		ViewLedger:    vl,
-		BlockExecutor: txExec,
-		Network:       net,
-		Sync:          sync,
-	}
 	// read current epoch info from ledger
 	axm.Repo.EpochInfo, err = base.GetCurrentEpochInfo(axm.ViewLedger.StateLedger)
 	if err != nil {
@@ -213,24 +271,17 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 }
 
 func (axm *AxiomLedger) Start() error {
-	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] && !axm.Repo.ReadonlyMode {
-		if err := axm.Network.Start(); err != nil {
-			return fmt.Errorf("peer manager start: %w", err)
-		}
-
-		if err := axm.Sync.Start(); err != nil {
-			return fmt.Errorf("block sync start: %w", err)
-		}
+	if err := axm.BlockExecutor.Start(); err != nil {
+		return fmt.Errorf("block executor start: %w", err)
 	}
 
-	if !axm.Repo.ReadonlyMode {
+	if !axm.Repo.StartArgs.ReadonlyMode {
+		if _, err := axm.Sync.Prepare(); err != nil {
+			return fmt.Errorf("sync prepare: %w", err)
+		}
 		if err := axm.Consensus.Start(); err != nil {
 			return fmt.Errorf("consensus start: %w", err)
 		}
-	}
-
-	if err := axm.BlockExecutor.Start(); err != nil {
-		return fmt.Errorf("block executor start: %w", err)
 	}
 
 	axm.start()
@@ -241,12 +292,12 @@ func (axm *AxiomLedger) Start() error {
 }
 
 func (axm *AxiomLedger) Stop() error {
-	if axm.Repo.Config.Consensus.Type != repo.ConsensusTypeSolo && !axm.Repo.ReadonlyMode {
+	if axm.Repo.Config.Consensus.Type != repo.ConsensusTypeSolo && !axm.Repo.StartArgs.ReadonlyMode {
 		if err := axm.Network.Stop(); err != nil {
 			return fmt.Errorf("network stop: %w", err)
 		}
 	}
-	if !axm.Repo.ReadonlyMode {
+	if !axm.Repo.StartArgs.ReadonlyMode {
 		axm.Consensus.Stop()
 	}
 	if err := axm.BlockExecutor.Stop(); err != nil {
@@ -260,7 +311,7 @@ func (axm *AxiomLedger) Stop() error {
 }
 
 func (axm *AxiomLedger) printLogo() {
-	if !axm.Repo.ReadonlyMode {
+	if !axm.Repo.StartArgs.ReadonlyMode {
 		for {
 			time.Sleep(100 * time.Millisecond)
 			err := axm.Consensus.Ready()

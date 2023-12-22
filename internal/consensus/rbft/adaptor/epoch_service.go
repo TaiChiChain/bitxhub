@@ -1,9 +1,8 @@
 package adaptor
 
 import (
-	"github.com/pkg/errors"
-
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 )
 
 func (a *RBFTAdaptor) GetCurrentEpochInfo() (*rbft.EpochInfo, error) {
@@ -15,14 +14,9 @@ func (a *RBFTAdaptor) GetEpochInfo(epoch uint64) (*rbft.EpochInfo, error) {
 }
 
 func (a *RBFTAdaptor) StoreEpochState(key string, value []byte) error {
-	a.epochStore.Put([]byte("epoch."+key), value)
-	return nil
+	return common.StoreEpochState(a.epochStore, key, value)
 }
 
 func (a *RBFTAdaptor) ReadEpochState(key string) ([]byte, error) {
-	b := a.epochStore.Get([]byte("epoch." + key))
-	if b == nil {
-		return nil, errors.New("not found")
-	}
-	return b, nil
+	return common.ReadEpochState(a.epochStore, key)
 }
