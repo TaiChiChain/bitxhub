@@ -158,6 +158,7 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 	conf.BlockSync = mockBlockSync
 
 	mockTxpool := mock_txpool.NewMockTxPool[types.Transaction, *types.Transaction](ctrl)
+	mockTxpool.EXPECT().Start().Return(nil).AnyTimes()
 	conf.TxPool = mockTxpool
 
 	return conf

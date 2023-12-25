@@ -3,6 +3,7 @@ package rbft
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/Rican7/retry"
@@ -49,6 +50,7 @@ type Node struct {
 	consensusGlobalMsgPipe p2p.Pipe
 	txsBroadcastMsgPipe    p2p.Pipe
 	receiveMsgLimiter      *rate.Limiter
+	started                atomic.Bool
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -173,8 +175,19 @@ func (n *Node) Start() error {
 	go n.listenConsensusMsg()
 	go n.listenTxsBroadcastMsg()
 
+	// start consensus engine
+	if err = n.n.Start(); err != nil {
+		return err
+	}
+
+	// start txpool engine
+	if err = n.txpool.Start(); err != nil {
+		return err
+	}
+
+	n.started.Store(true)
 	n.logger.Info("=====Consensus started=========")
-	return n.n.Start()
+	return nil
 }
 
 func (n *Node) listenConsensusMsg() {
@@ -324,6 +337,10 @@ func (n *Node) Stop() {
 
 func (n *Node) Prepare(tx *types.Transaction) error {
 	defer n.txFeed.Send([]*types.Transaction{tx})
+	if !n.started.Load() {
+		return common.ErrorConsensusStart
+	}
+
 	txWithResp := &common.TxWithResp{
 		Tx:      tx,
 		CheckCh: make(chan *common.TxResp),
