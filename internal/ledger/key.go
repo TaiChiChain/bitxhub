@@ -14,13 +14,12 @@ const (
 	blockHeightKey     = "block-height-"
 	blockTxSetKey      = "block-tx-set-"
 	interchainMetaKey  = "interchain-meta-"
-	receiptKey         = "receipt-"
 	transactionKey     = "tx-"
 	transactionMetaKey = "tx-meta-"
 	chainMetaKey       = "chain-meta"
-	accountKey         = "account-"
 	codeKey            = "code-"
-	journalKey         = "journal-"
+	TrieBlockKey       = "trie-block-"
+	TrieNodeInfoKey    = "trie-nodeInfo-"
 )
 
 func compositeKey(prefix string, value any) []byte {

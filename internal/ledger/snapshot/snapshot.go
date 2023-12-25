@@ -40,7 +40,7 @@ func NewSnapshot(diskdb storage.Storage, logger logrus.FieldLogger) *Snapshot {
 
 // RemoveJournalsBeforeBlock removes snapshot journals whose block number < height
 func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
-	minHeight, maxHeight := GetJournalRange(snap.diskdb)
+	minHeight, maxHeight := snap.GetJournalRange()
 	if height > maxHeight {
 		return ErrorRemoveJournalOutOfRange
 	}
@@ -104,7 +104,7 @@ func (snap *Snapshot) UpdateJournal(height uint64, journal *BlockJournal) error 
 
 // Rollback removes snapshot journals whose block number < height
 func (snap *Snapshot) Rollback(height uint64) error {
-	minHeight, maxHeight := GetJournalRange(snap.diskdb)
+	minHeight, maxHeight := snap.GetJournalRange()
 	snap.logger.Infof("[Snapshot-Rollback],minHeight=%v,maxHeight=%v,height=%v", minHeight, maxHeight, height)
 
 	if maxHeight < height {
@@ -122,7 +122,7 @@ func (snap *Snapshot) Rollback(height uint64) error {
 	for i := maxHeight; i > height; i-- {
 		snap.logger.Debugf("[Snapshot-Rollback] execute journal of height %v", i)
 		batch := snap.diskdb.NewBatch()
-		blockJournal := GetBlockJournal(i, snap.diskdb)
+		blockJournal := snap.GetBlockJournal(i)
 		if blockJournal == nil {
 			return ErrorRemoveJournalOutOfRange
 		}
