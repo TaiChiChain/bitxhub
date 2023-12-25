@@ -191,6 +191,7 @@ func InitEpochInfo(lg ledger.StateLedger, epochInfo *rbft.EpochInfo) error {
 
 	epochInfo.Epoch++
 	epochInfo.StartBlock += epochInfo.EpochPeriod
+	epochInfo.FinanceParams.StartGasPriceAvailable = false
 	c, err = epochInfo.Marshal()
 	if err != nil {
 		return err
