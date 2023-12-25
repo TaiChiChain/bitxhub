@@ -15,8 +15,9 @@ const (
 )
 
 var (
-	ErrorPreCheck  = errors.New("precheck failed")
-	ErrorAddTxPool = errors.New("add txpool failed")
+	ErrorPreCheck       = errors.New("precheck failed")
+	ErrorAddTxPool      = errors.New("add txpool failed")
+	ErrorConsensusStart = errors.New("consensus not start yet")
 )
 
 // UncheckedTxEvent represents misc event sent by local modules

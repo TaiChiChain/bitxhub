@@ -64,6 +64,7 @@ func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 		txCache:    txcache.NewTxCache(consensusConf.Config.TxCache.SetTimeout.ToDuration(), uint64(consensusConf.Config.TxCache.SetSize), consensusConf.Logger),
 		txFeed:     event.Feed{},
 		txPreCheck: mockPrecheckMgr,
+		txpool:     consensusConf.TxPool,
 	}
 	return node
 }
@@ -142,7 +143,28 @@ func TestPrepare(t *testing.T) {
 	mockRbft := rbft.NewMockMinimalNode[types.Transaction, *types.Transaction](ctrl)
 	node.n = mockRbft
 
-	err := node.Start()
+	txSubscribeCh := make(chan []*types.Transaction, 1)
+	sub := node.SubscribeTxEvent(txSubscribeCh)
+	defer sub.Unsubscribe()
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	mockAddTx(node, ctx, wg)
+
+	sk, err := crypto.GenerateKey()
+	ast.Nil(err)
+
+	toAddr := crypto.PubkeyToAddress(sk.PublicKey)
+	tx1, singer, err := types.GenerateTransactionAndSigner(uint64(0), types.NewAddressByStr(toAddr.String()), big.NewInt(0), []byte("hello"))
+	ast.Nil(err)
+
+	// before node started, return error
+	err = node.Prepare(tx1)
+	ast.NotNil(err)
+	ast.Contains(err.Error(), common.ErrorConsensusStart.Error())
+	<-txSubscribeCh
+
+	err = node.Start()
 	ast.Nil(err)
 
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
@@ -170,24 +192,6 @@ func TestPrepare(t *testing.T) {
 		}
 		return nil
 	}).Return(nil).AnyTimes()
-
-	sk, err := crypto.GenerateKey()
-	ast.Nil(err)
-
-	toAddr := crypto.PubkeyToAddress(sk.PublicKey)
-	tx1, singer, err := types.GenerateTransactionAndSigner(uint64(0), types.NewAddressByStr(toAddr.String()), big.NewInt(0), []byte("hello"))
-	ast.Nil(err)
-
-	err = node.Start()
-	ast.Nil(err)
-
-	txSubscribeCh := make(chan []*types.Transaction, 1)
-	sub := node.SubscribeTxEvent(txSubscribeCh)
-	defer sub.Unsubscribe()
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	mockAddTx(node, ctx, wg)
 
 	err = node.Prepare(tx1)
 	ast.Nil(err)
