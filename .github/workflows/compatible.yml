@@ -1,0 +1,46 @@
+name: Compatible Test
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  GO_VERSION: 1.20.5
+
+jobs:
+  compatible-test:
+    name: Run compatible-test
+    runs-on: ci
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # runner already supports Go, turn off this configuration to improve speed
+      #      - name: Set up Go${{ env.GO_VERSION }}
+      #        uses: actions/setup-go@v4
+      #        with:
+      #          go-version: ${{ env.GO_VERSION }}
+      #          cache-dependency-path: "./action_go_cache_key.txt"
+
+      - name: Run compatible test
+        run: |
+          cd scripts
+          bash compatible_test.sh
+
+  notify:
+    name: dingtalk notify
+    runs-on: ci
+    # make self can be canceled: https://github.com/orgs/community/discussions/26303
+    if: always() && (contains(needs.*.result, 'cancelled') && fromjson('throw') || !cancelled())
+    needs: [compatible-test]
+    steps:
+      - name: dingtalk notify
+        uses: axiomesh/notify-action@master
+        with:
+          users: ${{ secrets.USERS }}
+          reviewers: ${{ secrets.REVIEWERS }}
+          webhook: ${{ secrets.WEBHOOK }}
+          token: ${{ secrets.TOKEN }}
+          timeout: 480
+          job_name: dingtalk notify
