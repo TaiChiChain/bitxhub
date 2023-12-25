@@ -119,7 +119,7 @@ func (o *SimpleAccount) initStorageTrie() {
 		rootNodeKey := jmt.NodeKey{
 			Version: o.blockHeight,
 			Path:    []byte{},
-			Prefix:  o.Addr.Bytes(),
+			Type:    o.Addr.Bytes(),
 		}
 		nk := rootNodeKey.Encode()
 		o.ldb.Put(nk, nil)

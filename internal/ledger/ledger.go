@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"fmt"
+	"github.com/axiomesh/axiom-kit/storage"
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -82,6 +83,8 @@ type StateLedger interface {
 
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger
+
+	IterateTrie(rootHash common.Hash, kv storage.Storage, errC chan error)
 }
 
 // StateAccessor manipulates the state data

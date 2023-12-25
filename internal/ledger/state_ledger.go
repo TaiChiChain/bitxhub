@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
@@ -30,7 +31,6 @@ type revision struct {
 
 type StateLedgerImpl struct {
 	logger        logrus.FieldLogger
-	db            storage.Storage
 	cachedDB      storage.Storage
 	accountCache  *AccountCache
 	accountTrie   *jmt.JMT // keep track of the latest world state (dirty or committed)
@@ -68,7 +68,6 @@ func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) State
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
 		logger:                l.logger,
-		db:                    l.db,
 		cachedDB:              l.cachedDB,
 		accountCache:          l.accountCache,
 		accounts:              make(map[string]IAccount),
@@ -95,8 +94,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block, enableSnapshot
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
 		logger:                l.logger,
-		db:                    l.db,
-		cachedDB:              l.db,
+		cachedDB:              l.cachedDB,
 		accountCache:          ac,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -129,6 +127,43 @@ func (l *StateLedgerImpl) Finalise() {
 	l.ClearChangerAndRefund()
 }
 
+// todo make arguments configurable
+func (l *StateLedgerImpl) IterateTrie(rootHash common.Hash, kv storage.Storage, errC chan error) {
+	l.logger.Debugf("[IterateTrie] rootHash: %v", rootHash)
+
+	iter := jmt.NewIterator(rootHash, l.cachedDB, 100, time.Second)
+	go iter.Iterate()
+
+	var finish bool
+	batch := kv.NewBatch()
+	for {
+		select {
+		case <-iter.StopC:
+			finish = true
+			err, ok := <-iter.ErrC
+			if ok {
+				errC <- err
+				return
+			}
+		default:
+			for {
+				node, ok := <-iter.BufferC
+				if !ok {
+					break
+				}
+				batch.Put(node.Key, node.Value)
+			}
+		}
+		if finish {
+			break
+		}
+	}
+	batch.Put(rootHash[:], l.cachedDB.Get(rootHash[:]))
+	batch.Commit()
+
+	errC <- nil
+}
+
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
 	cachedStateStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerCacheMegabytesLimit)
 
@@ -141,7 +176,6 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	ledger := &StateLedgerImpl{
 		repo:                  rep,
 		logger:                loggers.Logger(loggers.Storage),
-		db:                    stateStorage,
 		cachedDB:              cachedStateStorage,
 		accountCache:          accountCache,
 		accounts:              make(map[string]IAccount),

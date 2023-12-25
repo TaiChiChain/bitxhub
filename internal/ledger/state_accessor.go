@@ -543,7 +543,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		rootNodeKey := jmt.NodeKey{
 			Version: 0,
 			Path:    []byte{},
-			Prefix:  []byte{},
+			Type:    []byte{},
 		}
 		nk := rootNodeKey.Encode()
 		l.cachedDB.Put(nk, nil)

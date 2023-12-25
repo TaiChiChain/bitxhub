@@ -13,6 +13,7 @@ import (
 	big "math/big"
 	reflect "reflect"
 
+	storage "github.com/axiomesh/axiom-kit/storage"
 	types "github.com/axiomesh/axiom-kit/types"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/ethereum/go-ethereum/common"
@@ -1867,6 +1868,42 @@ func (c *StateLedgerHasSuicideEVMCall) Do(f func(common.Address) bool) *StateLed
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateLedgerHasSuicideEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerHasSuicideEVMCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IterateTrie mocks base method.
+func (m *MockStateLedger) IterateTrie(rootHash common.Hash, kv storage.Storage, errC chan error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IterateTrie", rootHash, kv, errC)
+}
+
+// IterateTrie indicates an expected call of IterateTrie.
+func (mr *MockStateLedgerMockRecorder) IterateTrie(rootHash, kv, errC any) *StateLedgerIterateTrieCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), rootHash, kv, errC)
+	return &StateLedgerIterateTrieCall{Call: call}
+}
+
+// StateLedgerIterateTrieCall wrap *gomock.Call
+type StateLedgerIterateTrieCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerIterateTrieCall) Return() *StateLedgerIterateTrieCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerIterateTrieCall) Do(f func(common.Hash, storage.Storage, chan error)) *StateLedgerIterateTrieCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerIterateTrieCall) DoAndReturn(f func(common.Hash, storage.Storage, chan error)) *StateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
