@@ -1717,3 +1717,19 @@ func (p *txPoolImpl[T, Constraint]) setPriorityNonBatchSize(txnSize uint64) {
 func (p *txPoolImpl[T, Constraint]) handleRotateTxLocalsEvent() error {
 	return p.txRecords.rotate(p.txStore.allTxs)
 }
+
+func (p *txPoolImpl[T, Constraint]) GetLocalTxs() [][]byte {
+	var res [][]byte
+	for _, txs := range p.txStore.allTxs {
+		for _, item := range txs.items {
+			if item.local {
+				marshal, err := Constraint(item.rawTx).RbftMarshal()
+				if err != nil {
+					p.logger.Error("GetLocalTxs: failed to marshal local tx, hash is ", item.getHash())
+				}
+				res = append(res, marshal)
+			}
+		}
+	}
+	return res
+}

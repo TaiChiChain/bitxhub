@@ -18,6 +18,10 @@ import (
 // It's a WriteCloser that effectively ignores anything written to it, just like a data black hole.
 type devNull struct{}
 
+const TxRecordPrefixLength = 8
+
+const TxRecordsBatchSize = 1000
+
 func (*devNull) Write(p []byte) (n int, err error) { return len(p), nil }
 func (*devNull) Close() error                      { return nil }
 
@@ -40,6 +44,7 @@ func (r *txRecords[T, Constraint]) load(add func(txs []*T, local bool) []error) 
 		return nil
 	}
 	if err != nil {
+		r.logger.Errorf("Failed to open tx records file: %v", err)
 		return err
 	}
 	defer input.Close()
@@ -49,33 +54,40 @@ func (r *txRecords[T, Constraint]) load(add func(txs []*T, local bool) []error) 
 
 	buf := bufio.NewReader(input)
 	var txNums uint64
+	var batch []*T
+
 	for {
-		lengthBytes, err := buf.Peek(8)
-		if err == io.EOF {
+		lengthBytes, err := buf.Peek(TxRecordPrefixLength)
+		if err != nil {
+			if len(batch) > 0 {
+				_ = add(batch, true)
+			}
 			break
 		}
-		if err != nil {
-			return err
-		}
 		length := binary.LittleEndian.Uint64(lengthBytes)
-		_, _ = buf.Discard(8)
+		_, _ = buf.Discard(TxRecordPrefixLength)
 
 		data := make([]byte, length)
 		if _, err := io.ReadFull(buf, data); err != nil {
+			r.logger.Errorf("TxRecords load failed to error reading transaction data: %v", err)
 			return err
 		}
 
 		tx := new(T)
 		if err = Constraint(tx).RbftUnmarshal(data); err != nil {
-			return err
+			r.logger.Errorf("TxRecords load failed to unmarshal transaction: %v", err)
+			continue
 		}
 
-		if errs := add([]*T{tx}, true); len(errs) > 0 {
-			return errs[0]
+		batch = append(batch, tx)
+		if len(batch) >= TxRecordsBatchSize {
+			_ = add(batch, true)
+			batch = nil
 		}
 		txNums++
 	}
-	r.logger.Infof("local tx persist: Loaded %d transactions from %s", txNums, r.filePath)
+
+	r.logger.Infof("TxRecords loaded %d transactions from %s", txNums, r.filePath)
 	return nil
 }
 
@@ -88,7 +100,7 @@ func (r *txRecords[T, Constraint]) insert(tx *T) error {
 		return err
 	}
 	length := uint64(len(b))
-	var lengthBytes [8]byte
+	var lengthBytes [TxRecordPrefixLength]byte
 	binary.LittleEndian.PutUint64(lengthBytes[:], length)
 	if _, err := r.writer.Write(lengthBytes[:]); err != nil {
 		return err
@@ -100,7 +112,7 @@ func (r *txRecords[T, Constraint]) insert(tx *T) error {
 }
 
 func (r *txRecords[T, Constraint]) rotate(all map[string]*txSortedMap[T, Constraint]) error {
-	// Close the current journal (if any is open)
+	// Close the current records (if any is open)
 	if r.writer != nil {
 		if err := r.writer.Close(); err != nil {
 			return err
@@ -117,28 +129,40 @@ func (r *txRecords[T, Constraint]) rotate(all map[string]*txSortedMap[T, Constra
 	if err != nil {
 		return err
 	}
-	journaled := 0
+	var batch []byte
+	batchCount := 0
+	record := 0
 	for _, txMap := range all {
 		for _, internalTx := range txMap.items {
+			if !internalTx.local {
+				continue
+			}
 			tx := internalTx.rawTx
-
 			b, err := Constraint(tx).RbftMarshal()
 			if err != nil {
-				return err
+				r.logger.Errorf("TxRecords rotate failed to marshal transaction: %v", internalTx.getHash())
+				continue
 			}
-
 			length := uint64(len(b))
-			var lengthBytes [8]byte
+			var lengthBytes [TxRecordPrefixLength]byte
 			binary.LittleEndian.PutUint64(lengthBytes[:], length)
-			if _, err := replacement.Write(lengthBytes[:]); err != nil {
-				return err
-			}
-
-			if _, err := replacement.Write(b); err != nil {
-				return err
+			batch = append(batch, lengthBytes[:]...)
+			batch = append(batch, b...)
+			batchCount++
+			record++
+			if batchCount >= TxRecordsBatchSize || record == len(all) {
+				if _, err := replacement.Write(batch); err != nil {
+					r.logger.Errorf("TxRecords rotate failed to write batch to file: %v", err)
+				}
+				batch = nil
+				batchCount = 0
 			}
 		}
-		journaled += len(txMap.items)
+	}
+	if len(batch) > 0 {
+		if _, err := replacement.Write(batch); err != nil {
+			r.logger.Errorf("TxRecords rotate failed to write remaining batch to file: %v", err)
+		}
 	}
 	replacement.Close()
 
@@ -150,9 +174,36 @@ func (r *txRecords[T, Constraint]) rotate(all map[string]*txSortedMap[T, Constra
 		return err
 	}
 	r.writer = sink
-	r.logger.Infof("local tx persist: Regenerated txRecords, wrote transactions: %d, accounts: %d", journaled, len(all))
+	r.logger.Infof("TxRecords rotated and regenerated txRecords, wrote transactions: %d, accounts: %d", record, len(all))
 
 	return nil
+}
+
+func GetAllTxRecords(filePath string) ([][]byte, error) {
+	input, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer input.Close()
+	buf := bufio.NewReader(input)
+	var res [][]byte
+	for {
+		lengthBytes, err := buf.Peek(TxRecordPrefixLength)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue
+		}
+		length := binary.LittleEndian.Uint64(lengthBytes)
+		_, _ = buf.Discard(TxRecordPrefixLength)
+		data := make([]byte, length)
+		if _, err := io.ReadFull(buf, data); err != nil {
+			continue
+		}
+		res = append(res, data)
+	}
+	return res, nil
 }
 
 func (r *txRecords[T, Constraint]) close() error {

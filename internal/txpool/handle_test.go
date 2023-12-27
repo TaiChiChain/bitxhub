@@ -1,7 +1,9 @@
 package txpool
 
 import (
+	"encoding/binary"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -92,5 +94,44 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.commitNonces))
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.pendingNonces))
 		assert.Equal(t, 0, len(pool.txStore.allTxs))
+	})
+
+	t.Run("rotate tx locals", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.rotateTxLocalsInterval = 1 * time.Millisecond
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		tx := constructTx(s, 0)
+		// case pool has no tx
+		b, err := tx.RbftMarshal()
+		ast.Nil(err)
+		length := uint64(len(b))
+		var lengthBytes [TxRecordPrefixLength]byte
+		binary.LittleEndian.PutUint64(lengthBytes[:], length)
+		_, err = pool.txRecords.writer.Write(lengthBytes[:])
+		ast.Nil(err)
+		_, err = pool.txRecords.writer.Write(b)
+		ast.Nil(err)
+		records, err := GetAllTxRecords(pool.txRecordsFile)
+		ast.True(len(records) == 1)
+		pool.handleRemoveTimeout(timer.RotateTxLocals)
+		time.Sleep(2 * time.Millisecond)
+		ast.Equal(uint64(0), pool.GetTotalPendingTxCount())
+		records2, err := GetAllTxRecords(pool.txRecordsFile)
+		ast.True(len(records2) == 0)
+
+		// case pool has tx
+		pool.addTxs([]*types.Transaction{tx}, true)
+		removeErr := os.Remove(pool.txRecordsFile)
+		ast.Nil(removeErr)
+		pool.handleRemoveTimeout(timer.RotateTxLocals)
+		time.Sleep(2 * time.Millisecond)
+		ast.Equal(uint64(1), pool.GetTotalPendingTxCount())
+		records3, err := GetAllTxRecords(pool.txRecordsFile)
+		ast.True(len(records3) == 1)
 	})
 }
