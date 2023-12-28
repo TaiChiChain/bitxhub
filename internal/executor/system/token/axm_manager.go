@@ -176,16 +176,11 @@ func (am *AxmManager) Allowance(owner, spender ethcommon.Address) *big.Int {
 }
 
 func (am *AxmManager) getAllowance(owner, spender ethcommon.Address) *big.Int {
-	ok, v := am.account.GetState([]byte(AllowancesKey))
+	ok, v := am.account.GetState([]byte(getAllowancesKey(owner, spender)))
 	if !ok {
 		return big.NewInt(0)
 	}
-	allowances, err := am.decodeAllowances(string(v))
-	if err != nil || allowances[owner][spender] == nil {
-		return big.NewInt(0)
-	}
-
-	return new(big.Int).Set(allowances[owner][spender])
+	return new(big.Int).SetBytes(v)
 }
 
 func (am *AxmManager) Approve(spender ethcommon.Address, value *big.Int) error {
@@ -198,23 +193,7 @@ func (am *AxmManager) approve(owner, spender ethcommon.Address, value *big.Int) 
 		return err
 	}
 
-	allowances := make(map[ethcommon.Address]map[ethcommon.Address]*big.Int)
-	ok, v := am.account.GetState([]byte(AllowancesKey))
-	if ok {
-		allowances, err = am.decodeAllowances(string(v))
-		if err != nil {
-			return err
-		}
-	}
-	allowancesForOwner := allowances[owner]
-	if allowancesForOwner == nil {
-		allowancesForOwner = make(map[ethcommon.Address]*big.Int)
-		allowances[owner] = allowancesForOwner
-	}
-
-	allowancesForOwner[spender] = new(big.Int).Set(value)
-
-	am.account.SetState([]byte(AllowancesKey), encodeAllowances(allowances))
+	am.account.SetState([]byte(getAllowancesKey(owner, spender)), value.Bytes())
 	return nil
 }
 

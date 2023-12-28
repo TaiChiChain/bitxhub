@@ -3,7 +3,6 @@ package token
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -133,48 +132,8 @@ func checkValue(value *big.Int) error {
 	return nil
 }
 
-func (am *AxmManager) decodeAllowances(value string) (map[ethcommon.Address]map[ethcommon.Address]*big.Int, error) {
-	allowanceStrings := strings.Split(value, ",")
-
-	allowances := make(map[ethcommon.Address]map[ethcommon.Address]*big.Int)
-
-	for _, allowanceString := range allowanceStrings {
-		parts := strings.Split(allowanceString, "-")
-
-		if len(parts) != 3 {
-			err := errors.New("invalid allowance entry format")
-			am.logger.Errorf("%s:%s", err.Error(), allowanceString)
-			return nil, err
-		}
-
-		owner := ethcommon.HexToAddress(parts[0])
-		spender := ethcommon.HexToAddress(parts[1])
-		amount, ok := new(big.Int).SetString(parts[2], 10)
-		if !ok {
-			err := errors.New("invalid amount format")
-			am.logger.Errorf("%s:%s", err.Error(), allowanceString)
-			return nil, err
-		}
-
-		if allowances[owner] == nil {
-			allowances[owner] = make(map[ethcommon.Address]*big.Int)
-		}
-
-		allowances[owner][spender] = amount
-	}
-
-	return allowances, nil
-}
-
-func encodeAllowances(allowances map[ethcommon.Address]map[ethcommon.Address]*big.Int) []byte {
-	var result []string
-
-	for owner, innerMap := range allowances {
-		for spender, amount := range innerMap {
-			result = append(result, fmt.Sprintf("%s-%s-%s", owner.String(), spender.String(), amount.String()))
-		}
-	}
-	return []byte(strings.Join(result, ","))
+func getAllowancesKey(owner, spender ethcommon.Address) string {
+	return fmt.Sprintf("%s-%s-%s", AllowancesKey, owner.String(), spender.String())
 }
 
 func GenerateGenesisTokenConfig(genesis *repo.GenesisConfig) (Config, error) {

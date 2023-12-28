@@ -1,7 +1,6 @@
 package token
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	vm "github.com/axiomesh/eth-kit/evm"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,46 +131,19 @@ func TestAxmManager_Burn(t *testing.T) {
 }
 
 func TestAxmManager_Allowance(t *testing.T) {
-	t.Parallel()
-	t.Run("test decode allowance failed, invalid allowance format", func(t *testing.T) {
-		am := mockAxmManager(t)
-		account1 := types.NewAddressByStr(admin1).ETHAddress()
-		account2 := types.NewAddressByStr(admin2).ETHAddress()
-		wrongAllowancesValue := "wrongValue"
-		am.account.SetState([]byte(AllowancesKey), []byte(wrongAllowancesValue))
-		require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
-	})
+	am := mockAxmManager(t)
+	account1 := types.NewAddressByStr(admin1).ETHAddress()
+	account2 := types.NewAddressByStr(admin2).ETHAddress()
 
-	t.Run("test decode allowance failed, invalid amount format", func(t *testing.T) {
-		am := mockAxmManager(t)
-		account1 := types.NewAddressByStr(admin1).ETHAddress()
-		account2 := types.NewAddressByStr(admin2).ETHAddress()
-		wrongAmountFormat := fmt.Sprintf("%s-%s-%s", admin1, admin2, "wrongAmount")
-		am.account.SetState([]byte(AllowancesKey), []byte(wrongAmountFormat))
-		require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
-	})
+	owner := ethcommon.HexToAddress(common.TokenManagerContractAddr)
+	spender := account2
+	require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
+	contractToAdmin2Key := getAllowancesKey(owner, spender)
+	amount := new(big.Int).SetUint64(100)
+	am.account.SetState([]byte(contractToAdmin2Key), amount.Bytes())
+	require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
+	require.Equal(t, amount.String(), am.Allowance(owner, spender).String())
 
-	t.Run("test get nil allowance owner", func(t *testing.T) {
-		am := mockAxmManager(t)
-		account1 := types.NewAddressByStr(admin1).ETHAddress()
-		account2 := types.NewAddressByStr(admin2).ETHAddress()
-		require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
-		contractToAdmin2 := fmt.Sprintf("%s-%s-%s", common.TokenManagerContractAddr, admin2, "100")
-		am.account.SetState([]byte(AllowancesKey), []byte(contractToAdmin2))
-		require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
-	})
-
-	t.Run("test get right allowance", func(t *testing.T) {
-		am := mockAxmManager(t)
-		account1 := types.NewAddressByStr(admin1).ETHAddress()
-		account2 := types.NewAddressByStr(admin2).ETHAddress()
-		require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
-
-		allowanceValue := big.NewInt(100)
-		admin1ToAdmin2 := fmt.Sprintf("%s-%s-%s", admin1, admin2, allowanceValue.String())
-		am.account.SetState([]byte(AllowancesKey), []byte(admin1ToAdmin2))
-		require.Equal(t, allowanceValue.String(), am.Allowance(account1, account2).String())
-	})
 }
 
 func TestAxmManager_Approve(t *testing.T) {
@@ -183,20 +156,6 @@ func TestAxmManager_Approve(t *testing.T) {
 		err := am.Approve(account2, big.NewInt(-1))
 		require.NotNil(t, err, "approve value should be positive")
 		require.Contains(t, err.Error(), ErrValue.Error())
-	})
-
-	t.Run("test get old allowance err", func(t *testing.T) {
-		am := mockAxmManager(t)
-		am.msgFrom = types.NewAddressByStr(admin1).ETHAddress()
-		account2 := types.NewAddressByStr(admin2).ETHAddress()
-
-		// prepare allowance for admin1-admin2
-		wrongAllowancesValue := "wrongValue"
-		am.account.SetState([]byte(AllowancesKey), []byte(wrongAllowancesValue))
-
-		err := am.Approve(account2, big.NewInt(1))
-		require.NotNil(t, err, "old allowance format err")
-		require.Contains(t, err.Error(), "invalid allowance entry format")
 	})
 
 	t.Run("test approve success", func(t *testing.T) {
