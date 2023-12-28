@@ -2,7 +2,6 @@ package genesis
 
 import (
 	"encoding/json"
-	"math/big"
 
 	common2 "github.com/ethereum/go-ethereum/common"
 
@@ -33,10 +32,6 @@ func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 		return err
 	}
 
-	balance, _ := new(big.Int).SetString(genesis.Balance, 10)
-	for _, addr := range genesis.Accounts {
-		lg.StateLedger.SetBalance(types.NewAddressByStr(addr), balance)
-	}
 	err := system.InitGenesisData(genesis, lg.StateLedger)
 	if err != nil {
 		return err

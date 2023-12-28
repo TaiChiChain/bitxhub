@@ -63,6 +63,10 @@ const (
 	// more expensive to propagate; larger transactions also take more resources
 	// to validate whether they fit into the pool or not.
 	DefaultTxMaxSize = 4 * txSlotSize // 128KB
+
+	DefaultAXMBalance = "1000000000" // one billion AXM
+
+	DefaultDecimals = 18
 )
 
 var (

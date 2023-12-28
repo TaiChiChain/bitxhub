@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"math/big"
 	"time"
 
 	rbft "github.com/axiomesh/axiom-bft"
@@ -193,9 +194,14 @@ func AriesConsensusConfig() *ConsensusConfig {
 }
 
 func AriesGenesisConfig() *GenesisConfig {
+	axmBalance, _ := new(big.Int).SetString(DefaultAXMBalance, 10)
+	// balance = axmBalance * 10^decimals
+	balance := new(big.Int).Mul(axmBalance, big.NewInt(10).Exp(big.NewInt(10), big.NewInt(int64(DefaultDecimals)), nil))
+	adminLen := 4
+	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(adminLen)))
 	return &GenesisConfig{
 		ChainID: 23411,
-		Balance: "1000000000000000000000000000",
+		Balance: balance.String(),
 		Admins: []*Admin{
 			{
 				Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
@@ -217,6 +223,12 @@ func AriesGenesisConfig() *GenesisConfig {
 				Weight:  1,
 				Name:    "Q2F0",
 			},
+		},
+		Token: &Token{
+			Name:        "Axiom",
+			Symbol:      "AXM",
+			Decimals:    DefaultDecimals,
+			TotalSupply: totalSupply.String(),
 		},
 		Accounts: []string{},
 		EpochInfo: &rbft.EpochInfo{
