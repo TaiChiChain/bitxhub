@@ -29,11 +29,14 @@ type TimedGenBlock struct {
 }
 
 type TxPool struct {
-	PoolSize              uint64   `mapstructure:"pool_size" toml:"pool_size"`
-	ToleranceTime         Duration `mapstructure:"tolerance_time" toml:"tolerance_time"`
-	ToleranceRemoveTime   Duration `mapstructure:"tolerance_remove_time" toml:"tolerance_remove_time"`
-	CleanEmptyAccountTime Duration `mapstructure:"clean_empty_account_time" toml:"clean_empty_account_time"`
-	ToleranceNonceGap     uint64   `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
+	PoolSize               uint64   `mapstructure:"pool_size" toml:"pool_size"`
+	ToleranceTime          Duration `mapstructure:"tolerance_time" toml:"tolerance_time"`
+	ToleranceRemoveTime    Duration `mapstructure:"tolerance_remove_time" toml:"tolerance_remove_time"`
+	CleanEmptyAccountTime  Duration `mapstructure:"clean_empty_account_time" toml:"clean_empty_account_time"`
+	ToleranceNonceGap      uint64   `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
+	EnableLocalsPersist    bool     `mapstructure:"enable_locals_persist" toml:"enable_locals_persist"`
+	TxRecordsFile          string   `mapstructure:"tx_records_file" toml:"tx_records_file"`
+	RotateTxLocalsInterval Duration `mapstructure:"rotate_tx_locals" toml:"rotate_tx_locals"`
 }
 
 type TxCache struct {
@@ -82,11 +85,14 @@ func DefaultConsensusConfig() *ConsensusConfig {
 			Burst:  10000,
 		},
 		TxPool: TxPool{
-			PoolSize:              50000,
-			ToleranceTime:         Duration(5 * time.Minute),
-			ToleranceRemoveTime:   Duration(15 * time.Minute),
-			CleanEmptyAccountTime: Duration(10 * time.Minute),
-			ToleranceNonceGap:     1000,
+			PoolSize:               50000,
+			ToleranceTime:          Duration(5 * time.Minute),
+			ToleranceRemoveTime:    Duration(15 * time.Minute),
+			CleanEmptyAccountTime:  Duration(10 * time.Minute),
+			RotateTxLocalsInterval: Duration(1 * time.Hour),
+			ToleranceNonceGap:      1000,
+			EnableLocalsPersist:    true,
+			TxRecordsFile:          "tx_records.pb",
 		},
 		TxCache: TxCache{
 			SetSize:    50,

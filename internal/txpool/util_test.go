@@ -2,6 +2,7 @@ package txpool
 
 import (
 	"math/big"
+	"path"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ var to = types.NewAddressByStr("0xa2f28344131970356c4a112d1e634e51589aa57c")
 // nolint
 func mockTxPoolImpl[T any, Constraint types.TXConstraint[T]](t *testing.T) *txPoolImpl[T, Constraint] {
 	ast := assert.New(t)
-	pool, err := newTxPoolImpl[T, Constraint](NewMockTxPoolConfig())
+	pool, err := newTxPoolImpl[T, Constraint](NewMockTxPoolConfig(t))
 	ast.Nil(err)
 	conf := txpool.ConsensusConfig{
 		SelfID: 1,
@@ -36,7 +37,8 @@ func mockTxPoolImpl[T any, Constraint types.TXConstraint[T]](t *testing.T) *txPo
 }
 
 // NewMockTxPoolConfig returns the default test config
-func NewMockTxPoolConfig() Config {
+func NewMockTxPoolConfig(t *testing.T) Config {
+	dir := t.TempDir()
 	log := log2.NewWithModule("txpool")
 	log.Logger.SetLevel(logrus.DebugLevel)
 	poolConfig := Config{
@@ -48,7 +50,10 @@ func NewMockTxPoolConfig() Config {
 		GetAccountNonce: func(address string) uint64 {
 			return 0
 		},
-		IsTimed: false,
+		IsTimed:                false,
+		RotateTxLocalsInterval: DefaultRotateTxLocalsInterval,
+		EnableLocalsPersist:    true,
+		TxRecordsFile:          path.Join(dir, "txpool/tx_records.pb"),
 	}
 	return poolConfig
 }

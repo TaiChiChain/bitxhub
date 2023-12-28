@@ -14,6 +14,7 @@ const (
 	NoTxBatch         TimeoutEvent = "NoTxBatch"
 	RemoveTx          TimeoutEvent = "RemoveTx"
 	CleanEmptyAccount TimeoutEvent = "CleanEmptyAccount"
+	RotateTxLocals    TimeoutEvent = "RotateTxLocals"
 )
 
 type TimeoutEvent string

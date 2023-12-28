@@ -9,12 +9,13 @@ import (
 
 // nolint
 const (
-	DefaultPoolSize              = 50000
-	DefaultBatchSize             = 500
-	DefaultToleranceNonceGap     = 1000
-	DefaultToleranceTime         = 5 * time.Minute
-	DefaultToleranceRemoveTime   = 15 * time.Minute
-	DefaultCleanEmptyAccountTime = 10 * time.Minute
+	DefaultPoolSize               = 50000
+	DefaultBatchSize              = 500
+	DefaultToleranceNonceGap      = 1000
+	DefaultToleranceTime          = 5 * time.Minute
+	DefaultToleranceRemoveTime    = 15 * time.Minute
+	DefaultCleanEmptyAccountTime  = 10 * time.Minute
+	DefaultRotateTxLocalsInterval = 1 * time.Hour
 
 	maxChanSize = 1024
 )
@@ -253,10 +254,12 @@ type reqPoolMetaMsg[T any, Constraint types.TXConstraint[T]] struct {
 // =========================localEvent===============================
 const (
 	gcAccountEvent = iota
+	rotateTxLocalsEvent
 )
 
 var localEventToStr = map[int]string{
-	gcAccountEvent: "gcAccountEvent",
+	gcAccountEvent:      "gcAccountEvent",
+	rotateTxLocalsEvent: "rotateTxLocals",
 }
 
 type localEvent struct {

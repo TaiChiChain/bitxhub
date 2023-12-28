@@ -32,6 +32,7 @@ func main() {
 		configCMD,
 		ledgerCMD,
 		epochCMD,
+		txpoolCMD,
 		{
 			Name:   "start",
 			Usage:  "Start a long-running daemon process",

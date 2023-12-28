@@ -185,6 +185,10 @@ func (n *Node) Start() error {
 		return err
 	}
 
+	if txs := n.txpool.GetLocalTxs(); len(txs) > 0 {
+		go n.submitTxsFromRemote(txs)
+	}
+
 	n.started.Store(true)
 	n.logger.Info("=====Consensus started=========")
 	return nil

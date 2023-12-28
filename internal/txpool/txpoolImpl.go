@@ -28,16 +28,19 @@ var (
 
 // txPoolImpl contains all currently known transactions.
 type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
-	logger                logrus.FieldLogger
-	selfID                uint64
-	batchSize             uint64
-	isTimed               bool
-	txStore               *transactionStore[T, Constraint] // store all transaction info
-	toleranceNonceGap     uint64
-	toleranceTime         time.Duration
-	toleranceRemoveTime   time.Duration
-	cleanEmptyAccountTime time.Duration
-	poolMaxSize           uint64
+	logger                 logrus.FieldLogger
+	selfID                 uint64
+	batchSize              uint64
+	isTimed                bool
+	txStore                *transactionStore[T, Constraint] // store all transaction info
+	toleranceNonceGap      uint64
+	toleranceTime          time.Duration
+	toleranceRemoveTime    time.Duration
+	cleanEmptyAccountTime  time.Duration
+	rotateTxLocalsInterval time.Duration
+	poolMaxSize            uint64
+	enableLocalsPersist    bool
+	txRecordsFile          string
 
 	getAccountNonce       GetAccountNonceFunc
 	notifyGenerateBatch   bool
@@ -46,6 +49,7 @@ type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
 
 	timerMgr  timer.Timer
 	statusMgr *PoolStatusMgr
+	txRecords *txRecords[T, Constraint]
 
 	recvCh chan txPoolEvent
 	ctx    context.Context
@@ -59,6 +63,15 @@ func NewTxPool[T any, Constraint types.TXConstraint[T]](config Config) (txpool.T
 
 func (p *txPoolImpl[T, Constraint]) Start() error {
 	go p.listenEvent()
+
+	if p.enableLocalsPersist && p.txRecordsFile != "" {
+		if err := p.txRecords.load(p.addTxs); err != nil {
+			return err
+		}
+		if err := p.txRecords.rotate(p.txStore.allTxs); err != nil {
+			return err
+		}
+	}
 
 	err := p.timerMgr.StartTimer(timer.RemoveTx)
 	if err != nil {
@@ -162,6 +175,9 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		if err == nil {
 			dirtyAccounts[Constraint(req.tx).RbftGetFrom()] = true
 			validTxs = append(validTxs, req.tx)
+			if p.enableLocalsPersist && p.txRecordsFile != "" {
+				err = p.txRecords.insert(req.tx)
+			}
 		}
 
 		req.errCh <- err
@@ -473,7 +489,14 @@ func (p *txPoolImpl[T, Constraint]) dispatchLocalEvent(event *localEvent) {
 		if count > 0 {
 			p.logger.Debugf("handle gc account event, count: %d", count)
 		}
+	case rotateTxLocalsEvent:
+		err := p.handleRotateTxLocalsEvent()
+		if err != nil {
+			p.logger.Errorf("handle rotate tx locals event failed: %s", err)
+		}
+		p.logger.Debugf("handle rotate tx locals event")
 	}
+
 }
 
 func (p *txPoolImpl[T, Constraint]) handleGcAccountEvent() int {
@@ -683,6 +706,9 @@ func (p *txPoolImpl[T, Constraint]) Stop() {
 	p.cancel()
 	p.wg.Wait()
 	close(p.recvCh)
+	if p.txRecords != nil {
+		p.txRecords.close()
+	}
 	p.logger.Infof("TxPool stopped!!!")
 }
 
@@ -733,6 +759,16 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	} else {
 		txpoolImp.toleranceNonceGap = config.ToleranceNonceGap
 	}
+	if config.RotateTxLocalsInterval == 0 {
+		txpoolImp.rotateTxLocalsInterval = DefaultRotateTxLocalsInterval
+	} else {
+		txpoolImp.rotateTxLocalsInterval = config.RotateTxLocalsInterval
+	}
+	txpoolImp.enableLocalsPersist = config.EnableLocalsPersist
+	txpoolImp.txRecordsFile = config.TxRecordsFile
+	if txpoolImp.txRecordsFile != "" {
+		txpoolImp.txRecords = newTxRecords[T, Constraint](txpoolImp.txRecordsFile, config.Logger)
+	}
 
 	// init timer for remove tx
 	txpoolImp.timerMgr = timer.NewTimerManager(txpoolImp.logger)
@@ -744,6 +780,12 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	if err != nil {
 		return nil, err
 	}
+	if txpoolImp.enableLocalsPersist && txpoolImp.txRecordsFile != "" {
+		err = txpoolImp.timerMgr.CreateTimer(timer.RotateTxLocals, txpoolImp.rotateTxLocalsInterval, txpoolImp.handleRemoveTimeout)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	txpoolImp.logger.Infof("TxPool pool size = %d", txpoolImp.poolMaxSize)
 	txpoolImp.logger.Infof("TxPool batch size = %d", txpoolImp.batchSize)
@@ -753,6 +795,9 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	txpoolImp.logger.Infof("TxPool tolerance remove time = %v", txpoolImp.toleranceRemoveTime)
 	txpoolImp.logger.Infof("TxPool tolerance nonce gap = %d", txpoolImp.toleranceNonceGap)
 	txpoolImp.logger.Infof("TxPool clean empty account time = %v", txpoolImp.cleanEmptyAccountTime)
+	txpoolImp.logger.Infof("TxPool rotate tx locals interval = %v", txpoolImp.rotateTxLocalsInterval)
+	txpoolImp.logger.Infof("TxPool enable locals persist = %v", txpoolImp.enableLocalsPersist)
+	txpoolImp.logger.Infof("TxPool tx records file = %s", txpoolImp.txRecordsFile)
 	return txpoolImp, nil
 }
 
@@ -1667,4 +1712,24 @@ func (p *txPoolImpl[T, Constraint]) setPriorityNonBatchSize(txnSize uint64) {
 		p.setNotReady()
 	}
 	readyTxNum.Set(float64(p.txStore.priorityNonBatchSize))
+}
+
+func (p *txPoolImpl[T, Constraint]) handleRotateTxLocalsEvent() error {
+	return p.txRecords.rotate(p.txStore.allTxs)
+}
+
+func (p *txPoolImpl[T, Constraint]) GetLocalTxs() [][]byte {
+	var res [][]byte
+	for _, txs := range p.txStore.allTxs {
+		for _, item := range txs.items {
+			if item.local {
+				marshal, err := Constraint(item.rawTx).RbftMarshal()
+				if err != nil {
+					p.logger.Error("GetLocalTxs: failed to marshal local tx, hash is ", item.getHash())
+				}
+				res = append(res, marshal)
+			}
+		}
+	}
+	return res
 }

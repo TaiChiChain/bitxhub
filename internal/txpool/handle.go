@@ -14,6 +14,10 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeout(timeoutEvent timer.Timeo
 		ev = &localEvent{
 			EventType: gcAccountEvent,
 		}
+	case timer.RotateTxLocals:
+		ev = &localEvent{
+			EventType: rotateTxLocalsEvent,
+		}
 	default:
 		p.logger.Warning("unknown timeout event", timeoutEvent)
 		return

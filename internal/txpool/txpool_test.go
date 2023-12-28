@@ -23,7 +23,7 @@ import (
 
 func TestNewTxPool(t *testing.T) {
 	ast := assert.New(t)
-	conf := NewMockTxPoolConfig()
+	conf := NewMockTxPoolConfig(t)
 	pool, err := NewTxPool[types.Transaction, *types.Transaction](conf)
 	ast.Nil(err)
 	ast.False(pool.IsPoolFull())
@@ -56,6 +56,42 @@ func TestTxPoolImpl_Start(t *testing.T) {
 	pool.Stop()
 }
 
+func TestTxPoolImpl_StartWithNoRotateTxLocalsInterval(t *testing.T) {
+	ast := assert.New(t)
+	config := NewMockTxPoolConfig(t)
+	config.RotateTxLocalsInterval = 0
+	pool, err := newTxPoolImpl[types.Transaction, *types.Transaction](config)
+	ast.Nil(err)
+	conf := txpool2.ConsensusConfig{
+		SelfID: 1,
+		NotifyGenerateBatchFn: func(typ int) {
+			// do nothing
+		},
+	}
+	pool.Init(conf)
+	err = pool.Start()
+	defer pool.Stop()
+	ast.Nil(err)
+}
+
+func TestTxPoolImpl_StartWithNoTxRecordsFile(t *testing.T) {
+	ast := assert.New(t)
+	config := NewMockTxPoolConfig(t)
+	config.TxRecordsFile = ""
+	pool, err := newTxPoolImpl[types.Transaction, *types.Transaction](config)
+	ast.Nil(err)
+	conf := txpool2.ConsensusConfig{
+		SelfID: 1,
+		NotifyGenerateBatchFn: func(typ int) {
+			// do nothing
+		},
+	}
+	pool.Init(conf)
+	err = pool.Start()
+	defer pool.Stop()
+	ast.Nil(pool.txRecords)
+}
+
 func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 	t.Parallel()
 	t.Run("nonce is wanted", func(t *testing.T) {
@@ -83,6 +119,10 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(1, pool.txStore.removeTTLIndex.size())
 		poolTx := pool.txStore.allTxs[from].items[0]
 		ast.Equal(tx.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash())
+
+		all, err := GetAllTxRecords(pool.txRecordsFile)
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(all))
 	})
 
 	t.Run("pool is full", func(t *testing.T) {
@@ -1566,6 +1606,23 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 	ast.Equal(0, len(pool.txStore.txHashMap))
 	ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 	ast.Equal(uint64(4), pool.txStore.nonceCache.commitNonces[from])
+}
+
+func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
+	s, err := types.GenerateSigner()
+	assert.Nil(t, err)
+	tx := constructTx(s, 0)
+	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+	pool.Start()
+	defer pool.Stop()
+	pool.addTxs([]*types.Transaction{tx}, true)
+	localTxs := pool.GetLocalTxs()
+	tx2 := &types.Transaction{}
+	err = tx2.RbftUnmarshal(localTxs[0])
+	assert.Nil(t, err)
+	assert.Equal(t, tx.RbftGetTxHash(), tx2.RbftGetTxHash())
+	assert.Equal(t, tx.RbftGetNonce(), tx2.RbftGetNonce())
+	assert.Equal(t, tx.RbftGetFrom(), tx2.RbftGetFrom())
 }
 
 // nolint
