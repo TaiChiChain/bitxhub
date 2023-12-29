@@ -20,18 +20,19 @@ import (
 )
 
 func TestNodeManager_RunForPropose(t *testing.T) {
-	nm := NewNodeManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
+	logger := logrus.New()
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
 	})
 
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
 	err := InitCouncilMembers(stateLedger, []*repo.Admin{
 		{
@@ -56,6 +57,13 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
+
+	g := repo.GenesisEpochInfo(true)
+	g.EpochPeriod = 100
+	g.StartBlock = 1
+	err = base.InitEpochInfo(stateLedger, g)
+	assert.Nil(t, err)
+
 	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
 			ID:   1,
@@ -72,14 +80,16 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 	})
 
 	testcases := []struct {
-		Caller   string
-		Data     []byte
-		Expected vm.ExecutionResult
-		Err      error
+		Caller string
+		Type   ProposalType
+		Data   *NodeExtraArgs
+		Err    error
+		HasErr bool
 	}{
 		{
 			Caller: admin1,
-			Data: generateNodeAddProposeData(t, NodeExtraArgs{
+			Type:   NodeAdd,
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
@@ -87,23 +97,98 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 						Name:    "222",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin2,
-							Name:    "222",
-						},
+			},
+			HasErr: false,
+		},
+		{
+			Caller: "0x1000000000000000000000000000000000000000",
+			Type:   NodeAdd,
+			Data: &NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin1,
+						Name:    "111",
 					},
-				})),
+				},
+			},
+			Err: ErrNotFoundCouncilMember,
+		},
+		{
+			Caller: admin1,
+			Type:   NodeAdd,
+			Data: &NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin1,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin1,
+						Name:    "111",
+					},
+				},
+			},
+			Err: ErrRepeatedNodeID,
+		},
+		{
+			Caller: admin1,
+			Type:   NodeAdd,
+			Data: &NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin1,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin1,
+						Name:    "111",
+					},
+				},
+			},
+			Err: ErrRepeatedNodeAddress,
+		},
+		{
+			Caller: admin1,
+			Type:   NodeAdd,
+			Data: &NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin2,
+						Name:    "111",
+					},
+					{
+						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
+						Address: admin2,
+						Name:    "111",
+					},
+				},
+			},
+			Err: ErrRepeatedNodeName,
+		},
+		{
+			Caller: admin1,
+			Type:   NodeRemove,
+			Data: &NodeExtraArgs{
+				Nodes: []*NodeMember{
+					{
+						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
+						Address: admin1,
+						Name:    "111",
+					},
+				},
 			},
 			Err: nil,
 		},
 		{
 			Caller: "0x1000000000000000000000000000000000000000",
-			Data: generateNodeAddProposeData(t, NodeExtraArgs{
+			Type:   NodeRemove,
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
@@ -111,24 +196,13 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 						Name:    "111",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrNotFoundCouncilMember,
 			},
 			Err: nil,
 		},
 		{
 			Caller: admin1,
-			Data: generateNodeAddProposeData(t, NodeExtraArgs{
+			Type:   NodeRemove,
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
@@ -141,29 +215,13 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 						Name:    "111",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrRepeatedNodeID,
 			},
-			Err: nil,
+			Err: ErrRepeatedNodeID,
 		},
 		{
 			Caller: admin1,
-			Data: generateNodeAddProposeData(t, NodeExtraArgs{
+			Type:   NodeRemove,
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
@@ -176,183 +234,13 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 						Name:    "111",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin1,
-							Name:    "111",
-						},
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrRepeatedNodeAddress,
 			},
-			Err: nil,
+			Err: ErrNotFoundNodeID,
 		},
 		{
 			Caller: admin1,
-			Data: generateNodeAddProposeData(t, NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin2,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin2,
-						Name:    "111",
-					},
-				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeAddProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin2,
-							Name:    "111",
-						},
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin2,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrRepeatedNodeName,
-			},
-			Err: nil,
-		},
-		{
-			Caller: admin1,
-			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-			},
-			Err: nil,
-		},
-		{
-			Caller: "0x1000000000000000000000000000000000000000",
-			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrNotFoundCouncilMember,
-			},
-			Err: nil,
-		},
-		{
-			Caller: admin1,
-			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrRepeatedNodeID,
-			},
-			Err: nil,
-		},
-		{
-			Caller: admin1,
-			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin1,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin1,
-							Name:    "111",
-						},
-						{
-							NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrNotFoundNodeID,
-			},
-			Err: nil,
-		},
-		{
-			Caller: admin1,
-			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
+			Type:   NodeRemove,
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
@@ -365,29 +253,13 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 						Name:    "111",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin2,
-							Name:    "111",
-						},
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin2,
-							Name:    "111",
-						},
-					},
-				})),
-				Err: ErrNotFoundNodeAddress,
 			},
-			Err: nil,
+			Err: ErrNotFoundNodeAddress,
 		},
 		{
 			Caller: admin1,
-			Data: generateNodeRemoveProposeData(t, NodeExtraArgs{
+			Type:   NodeRemove,
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
@@ -400,57 +272,55 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 						Name:    "222",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeRemoveProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "222",
-						},
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "222",
-						},
-					},
-				})),
-				Err: ErrNotFoundNodeName,
 			},
-			Err: nil,
+			Err: ErrNotFoundNodeName,
 		},
 	}
 
 	for _, test := range testcases {
-		nm.Reset(1, stateLedger)
-
-		res, err := nm.Run(&vm.Message{
-			From: types.NewAddressByStr(test.Caller).ETHAddress(),
-			Data: test.Data,
+		addr := types.NewAddressByStr(test.Caller).ETHAddress()
+		logs := make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			CurrentUser:   &addr,
+			CurrentHeight: 1,
+			CurrentLogs:   &logs,
+			StateLedger:   stateLedger,
 		})
 
-		assert.Equal(t, test.Err, err)
-		if res != nil {
-			assert.Equal(t, test.Expected.UsedGas, res.UsedGas)
-			assert.Equal(t, test.Expected.Err, res.Err)
+		data, err := json.Marshal(test.Data)
+		assert.Nil(t, err)
+
+		if test.Data == nil {
+			data = []byte("")
+		}
+
+		err = gov.Propose(uint8(test.Type), "test", "test desc", 100, data)
+		if test.Err != nil {
+			assert.Equal(t, test.Err, err)
+		} else {
+			if test.HasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		}
 	}
 }
 
 func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
-	nm := NewNodeManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
+	logger := logrus.New()
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
 	})
 
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
 	err := InitCouncilMembers(stateLedger, []*repo.Admin{
 		{
@@ -475,6 +345,13 @@ func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
+
+	g := repo.GenesisEpochInfo(true)
+	g.EpochPeriod = 100
+	g.StartBlock = 1
+	err = base.InitEpochInfo(stateLedger, g)
+	assert.Nil(t, err)
+
 	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
 			ID:   1,
@@ -491,14 +368,14 @@ func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 	})
 
 	testcases := []struct {
-		Caller   string
-		Data     []byte
-		Expected vm.ExecutionResult
-		Err      error
+		Caller string
+		Data   *NodeExtraArgs
+		Err    error
+		HasErr bool
 	}{
 		{
 			Caller: admin1,
-			Data: generateNodeUpgradeProposeData(t, NodeExtraArgs{
+			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
 						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
@@ -506,34 +383,37 @@ func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 						Name:    "111",
 					},
 				},
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateNodeUpgradeProposeData(t, NodeExtraArgs{
-					Nodes: []*NodeMember{
-						{
-							NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-							Address: admin1,
-							Name:    "111",
-						},
-					},
-				})),
 			},
-			Err: nil,
+			HasErr: false,
 		},
 	}
 
 	for _, test := range testcases {
-		nm.Reset(1, stateLedger)
-
-		res, err := nm.Run(&vm.Message{
-			From: types.NewAddressByStr(test.Caller).ETHAddress(),
-			Data: test.Data,
+		addr := types.NewAddressByStr(test.Caller).ETHAddress()
+		logs := make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			CurrentUser:   &addr,
+			CurrentHeight: 1,
+			CurrentLogs:   &logs,
+			StateLedger:   stateLedger,
 		})
 
-		assert.Equal(t, test.Err, err)
-		if res != nil {
-			assert.Equal(t, test.Expected.UsedGas, res.UsedGas)
-			assert.Equal(t, test.Expected.Err, res.Err)
+		data, err := json.Marshal(test.Data)
+		assert.Nil(t, err)
+
+		if test.Data == nil {
+			data = []byte("")
+		}
+
+		err = gov.Propose(uint8(NodeUpgrade), "test", "test desc", 100, data)
+		if test.Err != nil {
+			assert.Equal(t, test.Err, err)
+		} else {
+			if test.HasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		}
 	}
 }
@@ -542,7 +422,7 @@ func TestNodeManager_GetNodeMembers(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
@@ -592,18 +472,19 @@ func TestNodeManager_GetNodeMembers(t *testing.T) {
 }
 
 func TestNodeManager_RunForAddVote(t *testing.T) {
-	nm := NewNodeManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
+	logger := logrus.New()
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
 	})
 
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
 	err := InitCouncilMembers(stateLedger, []*repo.Admin{
 		{
@@ -628,6 +509,13 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
+
+	g := repo.GenesisEpochInfo(true)
+	g.EpochPeriod = 100
+	g.StartBlock = 1
+	err = base.InitEpochInfo(stateLedger, g)
+	assert.Nil(t, err)
+
 	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
 			ID:   1,
@@ -659,9 +547,6 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 	})
 	assert.Nil(t, err)
 
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
 	g.DataSyncerSet = append(g.DataSyncerSet, rbft.NodeInfo{
 		ID:                   9,
 		AccountAddress:       "0x88E9A1cE92b4D6e4d860CFBB5bB7aC44d9b548f8",

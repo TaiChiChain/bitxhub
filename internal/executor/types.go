@@ -6,6 +6,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	vm "github.com/axiomesh/eth-kit/evm"
 )
@@ -35,6 +36,8 @@ type Executor interface {
 	SubscribeLogsEvent(chan<- []*types.EvmLog) event.Subscription
 
 	NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error)
+
+	NewViewSystemContract() sys_common.SystemContract
 
 	GetChainConfig() *params.ChainConfig
 }

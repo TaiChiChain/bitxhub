@@ -11,47 +11,27 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-func prepareLedger(t *testing.T) ledger.StateLedger {
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.EpochManagerContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	return stateLedger
-}
-
-type GasErrorExtraArgs struct {
-	GasPrice uint64 `json:"GasPrice"`
-}
-
 func TestGasManager_RunForPropose(t *testing.T) {
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GasManagerContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
-	err := base.InitEpochInfo(stateLedger, g)
-	assert.Nil(t, err)
-
-	gm := NewGasManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
+	logger := logrus.New()
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
 	})
 
-	err = InitCouncilMembers(stateLedger, []*repo.Admin{
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -74,7 +54,14 @@ func TestGasManager_RunForPropose(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitGasMembers(stateLedger, &rbft.EpochInfo{
+
+	g := repo.GenesisEpochInfo(true)
+	g.EpochPeriod = 100
+	g.StartBlock = 1
+	err = base.InitEpochInfo(stateLedger, g)
+	assert.Nil(t, err)
+
+	err = InitGasParam(stateLedger, &rbft.EpochInfo{
 		FinanceParams: rbft.FinanceParams{
 			StartGasPriceAvailable: true,
 			StartGasPrice:          5000000000000,
@@ -86,163 +73,134 @@ func TestGasManager_RunForPropose(t *testing.T) {
 	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller   string
-		Data     []byte
-		Expected vm.ExecutionResult
-		Err      error
+		Caller string
+		Data   *GasExtraArgs
+		Err    error
+		HasErr bool
 	}{
 		{
 			Caller: admin1,
-			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+			Data:   nil,
+			Err:    ErrGasExtraArgs,
+		},
+		{
+			Caller: admin1,
+			Data: &GasExtraArgs{
 				MaxGasPrice:        10000000000000,
 				MinGasPrice:        1000000000000,
 				InitGasPrice:       50000000000,
 				GasChangeRateValue: 1250,
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
-					MaxGasPrice:        10000000000000,
-					MinGasPrice:        1000000000000,
-					InitGasPrice:       50000000000,
-					GasChangeRateValue: 1250,
-				})),
-				Err: ErrGasUpperOrLlower,
 			},
-			Err: nil,
+			Err: ErrGasUpperOrLlower,
 		},
 		{
 			Caller: admin1,
-			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+			Data: &GasExtraArgs{
 				MaxGasPrice:        10000000000000,
 				MinGasPrice:        1000000000000,
-				InitGasPrice:       0,
-				GasChangeRateValue: 1250,
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
-					MaxGasPrice:        10000000000000,
-					MinGasPrice:        1000000000000,
-					InitGasPrice:       0,
-					GasChangeRateValue: 1250,
-				})),
-				Err: ErrGasArgsType,
+				InitGasPrice:       50000000000,
+				GasChangeRateValue: 0,
 			},
-			Err: nil,
+			Err: ErrGasArgsType,
 		},
 		{
 			Caller: admin1,
-			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+			Data: &GasExtraArgs{
+				MaxGasPrice:        10000000000000,
+				MinGasPrice:        1000000000000,
+				InitGasPrice:       100000000000000,
+				GasChangeRateValue: 1250,
+			},
+			Err: ErrGasUpperOrLlower,
+		},
+		{
+			Caller: admin1,
+			Data: &GasExtraArgs{
 				MaxGasPrice:        10000000000000,
 				MinGasPrice:        1000000000000,
 				InitGasPrice:       5000000000000,
 				GasChangeRateValue: 1250,
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
-					MaxGasPrice:        10000000000000,
-					MinGasPrice:        1000000000000,
-					InitGasPrice:       5000000000000,
-					GasChangeRateValue: 1250,
-				})),
-				Err: ErrRepeatedGasInfo,
 			},
-			Err: nil,
+			Err: ErrRepeatedGasInfo,
 		},
 		{
 			Caller: "0x1000000000000000000000000000000000000000",
-			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+			Data: &GasExtraArgs{
 				MaxGasPrice:        10000000000000,
 				MinGasPrice:        1000000000000,
 				InitGasPrice:       2000000000000,
 				GasChangeRateValue: 1250,
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
-					MaxGasPrice:        10000000000000,
-					MinGasPrice:        1000000000000,
-					InitGasPrice:       2000000000000,
-					GasChangeRateValue: 1250,
-				})),
-				Err: ErrNotFoundCouncilMember,
 			},
-			Err: nil,
+			HasErr: true,
 		},
 		{
 			Caller: admin1,
-			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+			Data: &GasExtraArgs{
 				MaxGasPrice:        10000000000000,
 				MinGasPrice:        1000000000000,
 				InitGasPrice:       2000000000000,
 				GasChangeRateValue: 1250,
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
-					MaxGasPrice:        10000000000000,
-					MinGasPrice:        1000000000000,
-					InitGasPrice:       2000000000000,
-					GasChangeRateValue: 1250,
-				})),
 			},
-			Err: nil,
+			HasErr: false,
 		},
 		{
 			Caller: admin1,
-			Data: generateGasUpdateProposeData(t, GasExtraArgs{
+			Data: &GasExtraArgs{
 				MaxGasPrice:        10000000000000,
 				MinGasPrice:        1000000000000,
 				InitGasPrice:       6000000000000,
 				GasChangeRateValue: 1250,
-			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateProposeData(t, GasExtraArgs{
-					MaxGasPrice:        10000000000000,
-					MinGasPrice:        1000000000000,
-					InitGasPrice:       6000000000000,
-					GasChangeRateValue: 1250,
-				})),
 			},
 			Err: ErrExistNotFinishedGasProposal,
 		},
 	}
 
 	for _, test := range testcases {
-		gm.Reset(1, stateLedger)
-		res, err := gm.Run(&vm.Message{
-			From: types.NewAddressByStr(test.Caller).ETHAddress(),
-			Data: test.Data,
+		addr := types.NewAddressByStr(test.Caller).ETHAddress()
+		logs := make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			CurrentUser:   &addr,
+			CurrentHeight: 1,
+			CurrentLogs:   &logs,
+			StateLedger:   stateLedger,
 		})
 
-		assert.Equal(t, test.Err, err)
-		if res != nil {
-			assert.Equal(t, test.Expected.UsedGas, res.UsedGas)
-			assert.Equal(t, test.Expected.Err, res.Err)
+		data, err := json.Marshal(test.Data)
+		assert.Nil(t, err)
+
+		if test.Data == nil {
+			data = []byte("")
+		}
+
+		err = gov.Propose(uint8(GasUpdate), "test", "test desc", 100, data)
+		if test.Err != nil {
+			assert.Equal(t, test.Err, err)
+		} else {
+			if test.HasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		}
 	}
-
 }
 
-func TestGasManager_RunForVote(t *testing.T) {
+func TestGasManager_VoteExecute(t *testing.T) {
+	logger := logrus.New()
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
+	})
 
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GasManagerContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
-	err := base.InitEpochInfo(stateLedger, g)
-	assert.Nil(t, err)
-
-	gm := NewGasManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	err = InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -265,7 +223,14 @@ func TestGasManager_RunForVote(t *testing.T) {
 		},
 	}, "10")
 	assert.Nil(t, err)
-	err = InitGasMembers(stateLedger, &rbft.EpochInfo{
+
+	g := repo.GenesisEpochInfo(true)
+	g.EpochPeriod = 100
+	g.StartBlock = 1
+	err = base.InitEpochInfo(stateLedger, g)
+	assert.Nil(t, err)
+
+	err = InitGasParam(stateLedger, &rbft.EpochInfo{
 		FinanceParams: rbft.FinanceParams{
 			StartGasPriceAvailable: true,
 			StartGasPrice:          5000000000000,
@@ -276,371 +241,63 @@ func TestGasManager_RunForVote(t *testing.T) {
 	})
 	assert.Nil(t, err)
 
-	// propose
-	gm.Reset(1, stateLedger)
-	_, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin1).ETHAddress(),
-		Data: nil,
-	})
-	assert.NotNil(t, err)
-
-	_, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin1).ETHAddress(),
-		Data: generateGasUpdateProposeData(t, GasExtraArgs{
-			MaxGasPrice:        10000000000000,
-			MinGasPrice:        1000000000000,
-			InitGasPrice:       2000000000000,
-			GasChangeRateValue: 1250,
-		}),
+	data, err := json.Marshal(GasExtraArgs{
+		MaxGasPrice:        10000000000000,
+		MinGasPrice:        1000000000000,
+		InitGasPrice:       2000000000000,
+		GasChangeRateValue: 1250,
 	})
 	assert.Nil(t, err)
 
+	logs := make([]common.Log, 0)
+	addr := types.NewAddressByStr(admin1).ETHAddress()
+	gov.SetContext(&common.VMContext{
+		CurrentUser:   &addr,
+		CurrentHeight: 1,
+		CurrentLogs:   &logs,
+		StateLedger:   stateLedger,
+	})
+
+	err = gov.Propose(uint8(GasUpdate), "test", "test desc", 100, data)
+	assert.Nil(t, err)
+
 	testcases := []struct {
-		Caller   string
-		Data     []byte
-		Expected vm.ExecutionResult
-		Err      error
+		Caller     string
+		ProposalID uint64
+		Res        VoteResult
+		Err        error
 	}{
 		{
-			Caller: admin1,
-			Data:   generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass)),
-			},
-			Err: ErrUseHasVoted,
+			Caller:     admin1,
+			ProposalID: gov.proposalID.GetID() - 1,
+			Res:        Pass,
+			Err:        ErrUseHasVoted,
 		},
 		{
-			Caller: admin2,
-			Data:   generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass)),
-			},
-			Err: nil,
+			Caller:     admin2,
+			ProposalID: gov.proposalID.GetID() - 1,
+			Res:        Pass,
+			Err:        nil,
 		},
 		{
-			Caller: admin2,
-			Data:   generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass)),
-			},
-			Err: ErrUseHasVoted,
-		},
-		{
-			Caller: "0x1000000000000000000000000000000000000000",
-			Data:   generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass)),
-			},
-			Err: ErrNotFoundCouncilMember,
+			Caller:     admin3,
+			ProposalID: gov.proposalID.GetID() - 1,
+			Res:        Pass,
+			Err:        nil,
 		},
 	}
 
 	for _, test := range testcases {
-		gm.Reset(1, stateLedger)
-
-		result, err := gm.Run(&vm.Message{
-			From: types.NewAddressByStr(test.Caller).ETHAddress(),
-			Data: test.Data,
+		addr := types.NewAddressByStr(test.Caller).ETHAddress()
+		logs := make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			CurrentUser:   &addr,
+			CurrentHeight: 1,
+			CurrentLogs:   &logs,
+			StateLedger:   stateLedger,
 		})
 
+		err = gov.Vote(test.ProposalID, uint8(test.Res))
 		assert.Equal(t, test.Err, err)
-
-		if result != nil {
-			assert.Equal(t, test.Expected.UsedGas, result.UsedGas)
-			assert.Equal(t, test.Expected.Err, result.Err)
-		}
 	}
-}
-
-func TestGasManager_RunForVote_Approved(t *testing.T) {
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GasManagerContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
-	err := base.InitEpochInfo(stateLedger, g)
-	assert.Nil(t, err)
-
-	gm := NewGasManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	err = InitCouncilMembers(stateLedger, []*repo.Admin{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	}, "10")
-	assert.Nil(t, err)
-	err = InitGasMembers(stateLedger, &rbft.EpochInfo{
-		FinanceParams: rbft.FinanceParams{
-			StartGasPriceAvailable: true,
-			StartGasPrice:          5000000000000,
-			MaxGasPrice:            10000000000000,
-			MinGasPrice:            1000000000000,
-			GasChangeRateValue:     1250,
-		},
-	})
-	assert.Nil(t, err)
-
-	// propose
-	gm.Reset(1, stateLedger)
-	_, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin1).ETHAddress(),
-		Data: generateGasUpdateProposeData(t, GasExtraArgs{
-			MaxGasPrice:        10000000000000,
-			MinGasPrice:        1000000000000,
-			InitGasPrice:       2000000000000,
-			GasChangeRateValue: 1250,
-		}),
-	})
-	assert.Nil(t, err)
-
-	gm.Reset(1, stateLedger)
-	_, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin2).ETHAddress(),
-		Data: generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass),
-	})
-	assert.Nil(t, err)
-	_, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin3).ETHAddress(),
-		Data: generateGasUpdateVoteData(t, gm.proposalID.GetID()-1, Pass),
-	})
-	assert.Nil(t, err)
-
-	gasProposal, err := gm.loadGasProposal(gm.proposalID.GetID() - 1)
-	assert.Nil(t, err)
-	assert.Equal(t, Approved, gasProposal.Status)
-}
-
-func TestGasManager_EstimateGas(t *testing.T) {
-	nm := NewGasManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	gabi, err := GetABI()
-	assert.Nil(t, err)
-
-	data, err := gabi.Pack(ProposeMethod, uint8(GasUpdate), "title", "desc", uint64(1000), []byte(""))
-	assert.Nil(t, err)
-
-	from := types.NewAddressByStr(admin1).ETHAddress()
-	to := types.NewAddressByStr(common.NodeManagerContractAddr).ETHAddress()
-	dataBytes := hexutil.Bytes(data)
-
-	// test propose
-	gas, err := nm.EstimateGas(&types.CallArgs{
-		From: &from,
-		To:   &to,
-		Data: &dataBytes,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, common.CalculateDynamicGas(dataBytes), gas)
-
-	// test vote
-	data, err = gabi.Pack(VoteMethod, uint64(1), uint8(Pass), []byte(""))
-	dataBytes = hexutil.Bytes(data)
-	assert.Nil(t, err)
-	gas, err = nm.EstimateGas(&types.CallArgs{
-		From: &from,
-		To:   &to,
-		Data: &dataBytes,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, common.CalculateDynamicGas(dataBytes), gas)
-}
-
-func TestGaseManager_GetProposal(t *testing.T) {
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GasManagerContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
-	err := base.InitEpochInfo(stateLedger, g)
-	assert.Nil(t, err)
-
-	gm := NewGasManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	err = InitCouncilMembers(stateLedger, []*repo.Admin{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	}, "10")
-	assert.Nil(t, err)
-	err = InitGasMembers(stateLedger, &rbft.EpochInfo{
-		FinanceParams: rbft.FinanceParams{
-			StartGasPriceAvailable: true,
-			StartGasPrice:          5000000000000,
-			MaxGasPrice:            10000000000000,
-			MinGasPrice:            1000000000000,
-			GasChangeRateValue:     1250,
-		},
-	})
-	assert.Nil(t, err)
-
-	// propose
-	gm.Reset(1, stateLedger)
-	_, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin1).ETHAddress(),
-		Data: generateGasUpdateProposeData(t, GasExtraArgs{
-			MaxGasPrice:        10000000000000,
-			MinGasPrice:        1000000000000,
-			InitGasPrice:       2000000000000,
-			GasChangeRateValue: 1250,
-		}),
-	})
-	assert.Nil(t, err)
-
-	execResult, err := gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin1).ETHAddress(),
-		Data: generateProposalData(t, 1),
-	})
-	assert.Nil(t, err)
-	ret, err := gm.gov.UnpackOutputArgs(ProposalMethod, execResult.ReturnData)
-	assert.Nil(t, err)
-	assert.EqualValues(t, 1, len(ret))
-
-	proposal := &GasProposal{}
-	err = json.Unmarshal(ret[0].([]byte), proposal)
-	assert.Nil(t, err)
-	assert.EqualValues(t, 1, proposal.ID)
-	assert.Equal(t, "desc", proposal.Desc)
-	assert.EqualValues(t, 1, len(proposal.PassVotes))
-	assert.EqualValues(t, 0, len(proposal.RejectVotes))
-
-	_, err = gm.vote(types.NewAddressByStr(admin2).ETHAddress(), &VoteArgs{
-		BaseVoteArgs: BaseVoteArgs{
-			ProposalId: 2,
-			VoteResult: uint8(Pass),
-		},
-	})
-	assert.NotNil(t, err)
-
-	_, err = gm.getProposal(2)
-	assert.NotNil(t, err)
-
-	_, err = gm.vote(types.NewAddressByStr(admin2).ETHAddress(), &VoteArgs{
-		BaseVoteArgs: BaseVoteArgs{
-			ProposalId: 1,
-			VoteResult: uint8(Pass),
-		},
-	})
-	assert.Nil(t, err)
-	execResult, err = gm.Run(&vm.Message{
-		From: types.NewAddressByStr(admin1).ETHAddress(),
-		Data: generateProposalData(t, 1),
-	})
-	assert.Nil(t, err)
-	ret, err = gm.gov.UnpackOutputArgs(ProposalMethod, execResult.ReturnData)
-	assert.Nil(t, err)
-
-	proposal = &GasProposal{}
-	err = json.Unmarshal(ret[0].([]byte), proposal)
-	assert.Nil(t, err)
-	assert.EqualValues(t, 1, proposal.ID)
-	assert.EqualValues(t, 2, len(proposal.PassVotes))
-	assert.EqualValues(t, 0, len(proposal.RejectVotes))
-}
-
-func TestGasManager_CheckAndUpdateState(t *testing.T) {
-	gm := NewGasManager(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	addr := types.NewAddressByStr(common.GasManagerContractAddr)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GasManagerContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-
-	gm.account = stateLedger.GetOrCreateAccount(addr)
-	gm.stateLedger = stateLedger
-	gm.currentLog = &common.Log{
-		Address: addr,
-	}
-	gm.proposalID = NewProposalID(stateLedger)
-
-	councilAddr := types.NewAddressByStr(common.CouncilManagerContractAddr)
-	gm.councilAccount = stateLedger.GetOrCreateAccount(councilAddr)
-
-	gm.checkAndUpdateState(1)
-
-	gm.checkAndUpdateState(10000)
-}
-
-func generateGasUpdateProposeData(t *testing.T, extraArgs GasExtraArgs) []byte {
-	gabi, err := GetABI()
-	assert.Nil(t, err)
-
-	title := "title"
-	desc := "desc"
-	blockNumber := uint64(1000)
-	extra, err := json.Marshal(extraArgs)
-	assert.Nil(t, err)
-	data, err := gabi.Pack(ProposeMethod, uint8(GasUpdate), title, desc, blockNumber, extra)
-	assert.Nil(t, err)
-	return data
-}
-
-func generateGasUpdateVoteData(t *testing.T, proposalID uint64, voteResult VoteResult) []byte {
-	gabi, err := GetABI()
-	assert.Nil(t, err)
-
-	data, err := gabi.Pack(VoteMethod, proposalID, uint8(voteResult), []byte(""))
-	assert.Nil(t, err)
-
-	return data
 }

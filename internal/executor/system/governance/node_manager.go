@@ -3,7 +3,6 @@ package governance
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -15,13 +14,9 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 const (
-	// NodeProposalKey is key for NodeProposal storage
-	NodeProposalKey = "nodeProposalKey"
-
 	// NodeMembersKey is key for node member storage
 	NodeMembersKey = "nodeMembersKey"
 )
@@ -47,20 +42,6 @@ type NodeExtraArgs struct {
 	Nodes []*NodeMember
 }
 
-// NodeProposalArgs is node proposal arguments
-// For node add and remove
-type NodeProposalArgs struct {
-	BaseProposalArgs
-	NodeExtraArgs
-}
-
-// NodeProposal is storage of node proposal
-type NodeProposal struct {
-	BaseProposal
-	NodeExtraArgs
-	UpgradeExtraArgs
-}
-
 type Node struct {
 	Members []*NodeMember
 }
@@ -72,146 +53,70 @@ type NodeMember struct {
 	ID      uint64 `mapstructure:"id" toml:"id"`
 }
 
-type NodeVoteArgs struct {
-	BaseVoteArgs
-}
-
-// UpgradeProposalArgs for node upgrade
-type UpgradeProposalArgs struct {
-	BaseProposalArgs
-	UpgradeExtraArgs
-}
-
 type UpgradeExtraArgs struct {
 	DownloadUrls []string
 	CheckHash    string
 }
 
-var _ common.SystemContract = (*NodeManager)(nil)
-
 type NodeManager struct {
 	gov *Governance
-
-	account                ledger.IAccount
-	councilAccount         ledger.IAccount
-	stateLedger            ledger.StateLedger
-	currentLog             *common.Log
-	proposalID             *ProposalID
-	lastHeight             uint64
-	notFinishedProposalMgr *NotFinishedProposalMgr
 }
 
-func NewNodeManager(cfg *common.SystemContractConfig) *NodeManager {
-	gov, err := NewGov([]ProposalType{NodeUpgrade, NodeAdd, NodeRemove}, cfg.Logger)
-	if err != nil {
-		panic(err)
-	}
-
+func NewNodeManager(gov *Governance) *NodeManager {
 	return &NodeManager{
 		gov: gov,
 	}
 }
 
-func (nm *NodeManager) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
-	addr := types.NewAddressByStr(common.NodeManagerContractAddr)
-	nm.account = stateLedger.GetOrCreateAccount(addr)
-	nm.stateLedger = stateLedger
-	nm.currentLog = &common.Log{
-		Address: addr,
-	}
-	nm.proposalID = NewProposalID(stateLedger)
-
-	councilAddr := types.NewAddressByStr(common.CouncilManagerContractAddr)
-	nm.councilAccount = stateLedger.GetOrCreateAccount(councilAddr)
-	nm.notFinishedProposalMgr = NewNotFinishedProposalMgr(stateLedger)
-
-	// check and update
-	nm.checkAndUpdateState(lastHeight)
-	nm.lastHeight = lastHeight
-}
-
-func (nm *NodeManager) Run(msg *vm.Message) (*vm.ExecutionResult, error) {
-	defer nm.gov.SaveLog(nm.stateLedger, nm.currentLog)
-
-	// parse method and arguments from msg payload
-	args, err := nm.gov.GetArgs(msg)
-	if err != nil {
-		return nil, err
-	}
-
-	var result *vm.ExecutionResult
-	switch v := args.(type) {
-	case *ProposalArgs:
-		result, err = nm.propose(msg.From, v)
-	case *VoteArgs:
-		result, err = nm.vote(msg.From, v)
-	case *GetProposalArgs:
-		result, err = nm.getProposal(v.ProposalID)
-	default:
-		return nil, errors.New("unknown proposal args")
-	}
-	if result != nil {
-		result.UsedGas = common.CalculateDynamicGas(msg.Data)
-	}
-	return result, err
-}
-
-func (nm *NodeManager) getNodeProposalArgs(args *ProposalArgs) (*NodeProposalArgs, error) {
-	nodeArgs := &NodeProposalArgs{
-		BaseProposalArgs: args.BaseProposalArgs,
-	}
-
+func (nm *NodeManager) getNodeExtraArgs(extra []byte) (*NodeExtraArgs, error) {
 	extraArgs := &NodeExtraArgs{}
-	if err := json.Unmarshal(args.Extra, extraArgs); err != nil {
+	if err := json.Unmarshal(extra, extraArgs); err != nil {
 		return nil, ErrNodeExtraArgs
 	}
 
-	nodeArgs.NodeExtraArgs = *extraArgs
-	return nodeArgs, nil
+	return extraArgs, nil
 }
 
-func (nm *NodeManager) getUpgradeArgs(args *ProposalArgs) (*UpgradeProposalArgs, error) {
-	upgradeArgs := &UpgradeProposalArgs{
-		BaseProposalArgs: args.BaseProposalArgs,
-	}
-
+func (nm *NodeManager) getUpgradeExtraArgs(extra []byte) (*UpgradeExtraArgs, error) {
 	extraArgs := &UpgradeExtraArgs{}
-	if err := json.Unmarshal(args.Extra, extraArgs); err != nil {
+	if err := json.Unmarshal(extra, extraArgs); err != nil {
 		return nil, ErrUpgradeExtraArgs
 	}
 
-	upgradeArgs.UpgradeExtraArgs = *extraArgs
-	return upgradeArgs, nil
+	return extraArgs, nil
 }
 
-func (nm *NodeManager) propose(addr ethcommon.Address, args *ProposalArgs) (*vm.ExecutionResult, error) {
-	result := &vm.ExecutionResult{}
-
-	if args.ProposalType == uint8(NodeUpgrade) {
-		upgradeArgs, err := nm.getUpgradeArgs(args)
-		if err != nil {
-			return nil, err
-		}
-
-		result.ReturnData, result.Err = nm.proposeUpgrade(addr, upgradeArgs)
-
-		return result, nil
-	}
-
-	result.ReturnData, result.Err = nm.proposeNodeAddRemove(addr, args)
-
-	return result, nil
+func (nm *NodeManager) ProposeCheck(proposalType ProposalType, extra []byte) error {
+	return nil
 }
 
-func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *ProposalArgs) ([]byte, error) {
-	nodeArgs, err := nm.getNodeProposalArgs(args)
-	if err != nil {
-		return nil, err
+func (nm *NodeManager) Execute(proposal *Proposal) error {
+	return nil
+}
+
+func (nm *NodeManager) Propose(pType uint8, title, desc string, blockNumber uint64, extra []byte) error {
+	proposalType := ProposalType(pType)
+	if proposalType == NodeAdd || proposalType == NodeRemove {
+		return nm.proposeNodeAddRemove(proposalType, title, desc, blockNumber, extra)
 	}
 
-	members, err := GetNodeMembers(nm.stateLedger)
+	return nm.proposeUpgrade(proposalType, title, desc, blockNumber, extra)
+}
+
+func (nm *NodeManager) proposeNodeAddRemove(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
+	addr := nm.gov.currentUser
+	if err := nm.gov.CheckProposeArgs(addr, proposalType, title, desc, blockNumber, nm.gov.currentHeight); err != nil {
+		return err
+	}
+
+	nodeExtraArgs, err := nm.getNodeExtraArgs(extra)
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	members, err := GetNodeMembers(nm.gov.stateLedger)
+	if err != nil {
+		return err
 	}
 	// store node information in members into map
 	memberNameMap := make(map[string]*NodeMember)
@@ -230,218 +135,153 @@ func (nm *NodeManager) proposeNodeAddRemove(addr ethcommon.Address, args *Propos
 		memberNodeIdMap[key] = member
 	}
 
-	isExist, _ := CheckInCouncil(nm.councilAccount, addr.String())
-	nodeAddRole := false
-	if args.ProposalType == uint8(NodeAdd) {
+	isExist, council := CheckInCouncil(nm.gov.account, addr.String())
+	isPassVoteIncludeUser := true
+	if proposalType == NodeAdd {
 		// check addr if is exist in council
 		if !isExist {
-			return nil, ErrNotFoundCouncilMember
+			return ErrNotFoundCouncilMember
 		}
-		for _, node := range nodeArgs.NodeExtraArgs.Nodes {
+		for _, node := range nodeExtraArgs.Nodes {
 			if _, found := memberNodeIdMap[node.NodeId]; found {
-				return nil, ErrRepeatedNodeID
+				return ErrRepeatedNodeID
 			}
 			if _, found := memberAddressMap[node.Address]; found {
-				return nil, ErrRepeatedNodeAddress
+				return ErrRepeatedNodeAddress
 			}
 			if _, found := memberNameMap[node.Name]; found {
-				return nil, ErrRepeatedNodeName
+				return ErrRepeatedNodeName
 			}
 		}
 	} else {
 		// check whether the from address and node address are consistent
-		for _, node := range nodeArgs.NodeExtraArgs.Nodes {
+		for _, node := range nodeExtraArgs.Nodes {
 			if addr.String() != node.Address {
 				// If the addresses are inconsistent, verify whether the address that initiated the proposal is a member of the committee.
 				if !isExist {
-					return nil, ErrNotFoundCouncilMember
+					return ErrNotFoundCouncilMember
 				}
 			} else if !isExist {
-				nodeAddRole = true
+				// not council member can't vote
+				isPassVoteIncludeUser = false
 			}
 
 			if _, found := memberNodeIdMap[node.NodeId]; !found {
-				return nil, ErrNotFoundNodeID
+				return ErrNotFoundNodeID
 			}
 			if _, found := memberAddressMap[node.Address]; !found {
-				return nil, ErrNotFoundNodeAddress
+				return ErrNotFoundNodeAddress
 			}
 			if _, found := memberNameMap[node.Name]; !found {
-				return nil, ErrNotFoundNodeName
+				return ErrNotFoundNodeName
 			}
 		}
 	}
-	council, isExistCouncil := GetCouncil(nm.councilAccount)
-	if !isExistCouncil {
-		return nil, ErrNotFoundCouncil
-	}
-
-	baseProposal, err := nm.gov.Propose(&addr, ProposalType(nodeArgs.ProposalType), nodeArgs.Title, nodeArgs.Desc, nodeArgs.BlockNumber, nm.lastHeight, nodeAddRole)
-	if err != nil {
-		return nil, err
-	}
 
 	// check proposal has repeated nodes
-	if len(lo.Uniq[string](lo.Map[*NodeMember, string](nodeArgs.Nodes, func(item *NodeMember, index int) string {
+	if len(lo.Uniq[string](lo.Map[*NodeMember, string](nodeExtraArgs.Nodes, func(item *NodeMember, index int) string {
 		return item.NodeId
-	}))) != len(nodeArgs.Nodes) {
-		return nil, ErrRepeatedNodeID
+	}))) != len(nodeExtraArgs.Nodes) {
+		return ErrRepeatedNodeID
 	}
 
-	// set proposal id
-	proposal := &NodeProposal{
-		BaseProposal: *baseProposal,
-	}
-
-	id, err := nm.proposalID.GetAndAddID()
-	if err != nil {
-		return nil, err
-	}
-	proposal.ID = id
-	proposal.Nodes = nodeArgs.Nodes
-
-	proposal.TotalVotes = lo.Sum[uint64](lo.Map[*CouncilMember, uint64](council.Members, func(item *CouncilMember, index int) uint64 {
-		return item.Weight
-	}))
-
-	b, err := nm.saveNodeProposal(proposal)
-	if err != nil {
-		return nil, err
-	}
-
-	// propose generate not finished proposal
-	if err = nm.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-		ID:                  proposal.ID,
-		DeadlineBlockNumber: proposal.BlockNumber,
-		ContractAddr:        common.NodeManagerContractAddr,
-	}); err != nil {
-		return nil, err
-	}
-
-	returnData, err := nm.gov.PackOutputArgs(ProposeMethod, id)
-	if err != nil {
-		return nil, err
-	}
-
-	// record log
-	nm.gov.RecordLog(nm.currentLog, ProposeMethod, &proposal.BaseProposal, b)
-
-	return returnData, nil
+	return nm.gov.CreateProposal(council, proposalType, title, desc, blockNumber, extra, isPassVoteIncludeUser)
 }
 
-func (nm *NodeManager) proposeUpgrade(addr ethcommon.Address, args *UpgradeProposalArgs) ([]byte, error) {
-	baseProposal, err := nm.gov.Propose(&addr, ProposalType(args.ProposalType), args.Title, args.Desc, args.BlockNumber, nm.lastHeight, false)
+func (nm *NodeManager) proposeUpgrade(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
+	addr := nm.gov.currentUser
+	if err := nm.gov.CheckProposeArgs(addr, proposalType, title, desc, blockNumber, nm.gov.currentHeight); err != nil {
+		return err
+	}
+
+	upgradeExtraArgs, err := nm.getUpgradeExtraArgs(extra)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// check proposal has repeated download url
-	if len(lo.Uniq[string](args.DownloadUrls)) != len(args.DownloadUrls) {
-		return nil, ErrRepeatedDownloadUrl
+	if len(lo.Uniq[string](upgradeExtraArgs.DownloadUrls)) != len(upgradeExtraArgs.DownloadUrls) {
+		return ErrRepeatedDownloadUrl
 	}
 
 	// check addr if is exist in council
-	isExist, council := CheckInCouncil(nm.councilAccount, addr.String())
-	if !isExist {
-		return nil, ErrNotFoundCouncilMember
-	}
-
-	// set proposal id
-	proposal := &NodeProposal{
-		BaseProposal: *baseProposal,
-	}
-
-	id, err := nm.proposalID.GetAndAddID()
-	if err != nil {
-		return nil, err
-	}
-	proposal.ID = id
-	proposal.DownloadUrls = args.DownloadUrls
-	proposal.CheckHash = args.CheckHash
-	proposal.TotalVotes = lo.Sum[uint64](lo.Map[*CouncilMember, uint64](council.Members, func(item *CouncilMember, index int) uint64 {
-		return item.Weight
-	}))
-
-	b, err := nm.saveNodeProposal(proposal)
-	if err != nil {
-		return nil, err
-	}
-
-	// propose generate not finished proposal
-	if err = nm.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-		ID:                  proposal.ID,
-		DeadlineBlockNumber: proposal.BlockNumber,
-		ContractAddr:        common.NodeManagerContractAddr,
-	}); err != nil {
-		return nil, err
-	}
-
-	returnData, err := nm.gov.PackOutputArgs(ProposeMethod, id)
-	if err != nil {
-		return nil, err
-	}
-
-	// record log
-	nm.gov.RecordLog(nm.currentLog, ProposeMethod, &proposal.BaseProposal, b)
-
-	return returnData, nil
-}
-
-// Vote a proposal, return vote status
-func (nm *NodeManager) vote(user ethcommon.Address, voteArgs *VoteArgs) (*vm.ExecutionResult, error) {
-	result := &vm.ExecutionResult{}
-
-	// get proposal
-	proposal, err := nm.loadNodeProposal(voteArgs.ProposalId)
-	if err != nil {
-		return nil, err
-	}
-
-	if proposal.Type == NodeUpgrade {
-		result.Err = nm.voteUpgrade(user, proposal, &NodeVoteArgs{BaseVoteArgs: voteArgs.BaseVoteArgs})
-		return result, nil
-	}
-
-	result.Err = nm.voteNodeAddRemove(user, proposal, &NodeVoteArgs{BaseVoteArgs: voteArgs.BaseVoteArgs})
-	return result, nil
-}
-
-func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) error {
-	// check user can vote
-	isExist, _ := CheckInCouncil(nm.councilAccount, user.String())
+	isExist, council := CheckInCouncil(nm.gov.account, addr.String())
 	if !isExist {
 		return ErrNotFoundCouncilMember
 	}
 
-	res := VoteResult(voteArgs.VoteResult)
-	proposalStatus, err := nm.gov.Vote(&user, &proposal.BaseProposal, res)
+	return nm.gov.CreateProposal(council, proposalType, title, desc, blockNumber, extra, true)
+}
+
+// Vote a proposal, return vote status
+func (nm *NodeManager) Vote(proposalID uint64, voteRes uint8) error {
+	voteResult := VoteResult(voteRes)
+	proposal, err := nm.gov.LoadProposal(proposalID)
 	if err != nil {
 		return err
 	}
-	proposal.Status = proposalStatus
 
-	b, err := nm.saveNodeProposal(proposal)
-	if err != nil {
+	if proposal.Type == NodeUpgrade {
+		return nm.voteUpgrade(nm.gov.currentUser, proposal, voteResult)
+	}
+
+	return nm.voteNodeAddRemove(nm.gov.currentUser, proposal, voteResult)
+}
+
+func (nm *NodeManager) Proposal(proposalID uint64) (*Proposal, error) {
+	return nm.gov.Proposal(proposalID)
+}
+
+// GetLatestProposalID return current proposal lastest id
+func (nm *NodeManager) GetLatestProposalID() uint64 {
+	return nm.gov.GetLatestProposalID()
+}
+
+func (nm *NodeManager) voteNodeAddRemove(user *ethcommon.Address, proposal *Proposal, voteResult VoteResult) error {
+	if _, err := nm.gov.CheckBeforeVote(user, proposal, voteResult); err != nil {
+		return err
+	}
+
+	// check user can vote
+	isExist, _ := CheckInCouncil(nm.gov.account, user.String())
+	if !isExist {
+		return ErrNotFoundCouncilMember
+	}
+
+	switch voteResult {
+	case Pass:
+		proposal.PassVotes = append(proposal.PassVotes, user.String())
+	case Reject:
+		proposal.RejectVotes = append(proposal.RejectVotes, user.String())
+	}
+	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes)))
+
+	if err := nm.gov.SaveProposal(proposal); err != nil {
 		return err
 	}
 
 	// update not finished proposal
 	if proposal.Status == Approved || proposal.Status == Rejected {
-		if err := nm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+		if err := nm.gov.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
 			return err
 		}
 	}
 
 	// if proposal is approved, update the node members
 	if proposal.Status == Approved {
-		members, err := GetNodeMembers(nm.stateLedger)
+		members, err := GetNodeMembers(nm.gov.stateLedger)
+		if err != nil {
+			return err
+		}
+
+		nodeExtraArgs, err := nm.getNodeExtraArgs(proposal.Extra)
 		if err != nil {
 			return err
 		}
 
 		if proposal.Type == NodeAdd {
-			for _, node := range proposal.Nodes {
-				newNodeID, err := base.AddNode(nm.stateLedger, rbft.NodeInfo{
+			for _, node := range nodeExtraArgs.Nodes {
+				newNodeID, err := base.AddNode(nm.gov.stateLedger, rbft.NodeInfo{
 					AccountAddress:       node.Address,
 					P2PNodeID:            node.NodeId,
 					ConsensusVotingPower: 100,
@@ -452,13 +292,13 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 				}
 				node.ID = newNodeID
 			}
-			members = append(members, proposal.Nodes...)
+			members = append(members, nodeExtraArgs.Nodes...)
 		}
 
 		if proposal.Type == NodeRemove {
 			// https://github.com/samber/lo
 			// Use the Associate method to create a map with the node's NodeId as the key and the NodeMember object as the value
-			nodeIdToNodeMap := lo.Associate(proposal.Nodes, func(node *NodeMember) (string, *NodeMember) {
+			nodeIdToNodeMap := lo.Associate(nodeExtraArgs.Nodes, func(node *NodeMember) (string, *NodeMember) {
 				return node.NodeId, node
 			})
 
@@ -468,8 +308,8 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 				return exists
 			})
 
-			for _, node := range proposal.Nodes {
-				err = base.RemoveNodeByP2PNodeID(nm.stateLedger, node.NodeId)
+			for _, node := range nodeExtraArgs.Nodes {
+				err = base.RemoveNodeByP2PNodeID(nm.gov.stateLedger, node.NodeId)
 				if err != nil {
 					return err
 				}
@@ -481,87 +321,67 @@ func (nm *NodeManager) voteNodeAddRemove(user ethcommon.Address, proposal *NodeP
 		if err != nil {
 			return err
 		}
-		nm.account.SetState([]byte(NodeMembersKey), cb)
+		nm.gov.account.SetState([]byte(NodeMembersKey), cb)
 	}
 
 	// record log
-	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
+	nm.gov.RecordLog(VoteMethod, proposal)
+
+	// check and update state
+	nm.gov.checkAndUpdateState(VoteMethod)
 
 	// vote not return value
 	return nil
 }
 
-func (nm *NodeManager) voteUpgrade(user ethcommon.Address, proposal *NodeProposal, voteArgs *NodeVoteArgs) error {
+func (nm *NodeManager) voteUpgrade(user *ethcommon.Address, proposal *Proposal, voteResult VoteResult) error {
+	if _, err := nm.gov.CheckBeforeVote(nm.gov.currentUser, proposal, voteResult); err != nil {
+		return err
+	}
+
 	// check user can vote
-	isExist, _ := CheckInCouncil(nm.councilAccount, user.String())
+	isExist, _ := CheckInCouncil(nm.gov.account, user.String())
 	if !isExist {
 		return ErrNotFoundCouncilMember
 	}
 
-	res := VoteResult(voteArgs.VoteResult)
-	proposalStatus, err := nm.gov.Vote(&user, &proposal.BaseProposal, res)
-	if err != nil {
-		return err
+	switch voteResult {
+	case Pass:
+		proposal.PassVotes = append(proposal.PassVotes, nm.gov.currentUser.String())
+	case Reject:
+		proposal.RejectVotes = append(proposal.RejectVotes, nm.gov.currentUser.String())
 	}
-	proposal.Status = proposalStatus
+	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes)))
 
-	b, err := nm.saveNodeProposal(proposal)
-	if err != nil {
-		return err
-	}
-
+	isProposalSaved := false
 	// update not finished proposal
 	if proposal.Status == Approved || proposal.Status == Rejected {
-		if err := nm.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+		proposal.EffectiveBlockNumber = nm.gov.currentHeight
+		if err := nm.gov.SaveProposal(proposal); err != nil {
+			return err
+		}
+		isProposalSaved = true
+
+		if err := nm.gov.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+			return err
+		}
+	}
+
+	if !isProposalSaved {
+		if err := nm.gov.SaveProposal(proposal); err != nil {
 			return err
 		}
 	}
 
 	// record log
 	// if approved, guardian sync log, then update node and restart
-	nm.gov.RecordLog(nm.currentLog, VoteMethod, &proposal.BaseProposal, b)
+	nm.gov.RecordLog(VoteMethod, proposal)
+
+	// check and update state
+	nm.gov.checkAndUpdateState(VoteMethod)
 
 	// vote not return value
 	return nil
-}
-
-func (nm *NodeManager) saveNodeProposal(proposal *NodeProposal) ([]byte, error) {
-	return saveNodeProposal(nm.stateLedger, proposal)
-}
-
-func (nm *NodeManager) loadNodeProposal(proposalID uint64) (*NodeProposal, error) {
-	return loadNodeProposal(nm.stateLedger, proposalID)
-}
-
-// getProposal view proposal details
-func (nm *NodeManager) getProposal(proposalID uint64) (*vm.ExecutionResult, error) {
-	result := &vm.ExecutionResult{}
-
-	isExist, b := nm.account.GetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposalID)))
-	if isExist {
-		packed, err := nm.gov.PackOutputArgs(ProposalMethod, b)
-		if err != nil {
-			return nil, err
-		}
-		result.ReturnData = packed
-		return result, nil
-	}
-	return nil, ErrNotFoundNodeProposal
-}
-
-func (nm *NodeManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
-	_, err := nm.gov.GetArgs(&vm.Message{Data: *callArgs.Data})
-	if err != nil {
-		return 0, err
-	}
-
-	return common.CalculateDynamicGas(*callArgs.Data), nil
-}
-
-func (nm *NodeManager) checkAndUpdateState(lastHeight uint64) {
-	if err := CheckAndUpdateState(lastHeight, nm.stateLedger); err != nil {
-		nm.gov.logger.Errorf("check and update state error: %s", err)
-	}
 }
 
 func InitNodeMembers(lg ledger.StateLedger, members []*repo.NodeName, epochInfo *rbft.EpochInfo) error {
@@ -571,7 +391,7 @@ func InitNodeMembers(lg ledger.StateLedger, members []*repo.NodeName, epochInfo 
 	if err != nil {
 		return err
 	}
-	account := lg.GetOrCreateAccount(types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := lg.GetOrCreateAccount(types.NewAddressByStr(common.GovernanceContractAddr))
 	account.SetState([]byte(NodeMembersKey), c)
 	return nil
 }
@@ -607,7 +427,7 @@ func mergeData(members []*repo.NodeName, epochInfo *rbft.EpochInfo) []*NodeMembe
 }
 
 func GetNodeMembers(lg ledger.StateLedger) ([]*NodeMember, error) {
-	account := lg.GetOrCreateAccount(types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := lg.GetOrCreateAccount(types.NewAddressByStr(common.GovernanceContractAddr))
 	success, data := account.GetState([]byte(NodeMembersKey))
 	if success {
 		var members []*NodeMember
@@ -617,35 +437,4 @@ func GetNodeMembers(lg ledger.StateLedger) ([]*NodeMember, error) {
 		return members, nil
 	}
 	return nil, errors.New("node member should be initialized in genesis")
-}
-
-func saveNodeProposal(stateLedger ledger.StateLedger, proposal ProposalObject) ([]byte, error) {
-	addr := types.NewAddressByStr(common.NodeManagerContractAddr)
-	account := stateLedger.GetOrCreateAccount(addr)
-
-	b, err := json.Marshal(proposal)
-	if err != nil {
-		return nil, err
-	}
-	// save proposal
-	account.SetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposal.GetID())), b)
-
-	return b, nil
-}
-
-func loadNodeProposal(stateLedger ledger.StateLedger, proposalID uint64) (*NodeProposal, error) {
-	addr := types.NewAddressByStr(common.NodeManagerContractAddr)
-	account := stateLedger.GetOrCreateAccount(addr)
-
-	isExist, data := account.GetState([]byte(fmt.Sprintf("%s%d", NodeProposalKey, proposalID)))
-	if !isExist {
-		return nil, ErrNotFoundNodeProposal
-	}
-
-	proposal := &NodeProposal{}
-	if err := json.Unmarshal(data, proposal); err != nil {
-		return nil, err
-	}
-
-	return proposal, nil
 }

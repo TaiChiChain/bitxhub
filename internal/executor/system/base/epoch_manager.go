@@ -3,9 +3,7 @@ package base
 import (
 	"encoding/binary"
 	"fmt"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
@@ -17,7 +15,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
-	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 const (
@@ -26,22 +23,16 @@ const (
 	historyEpochInfoKeyPrefix = "historyEpochInfoKeyPrefix"
 	id                        = "ID"
 	p2PNodeID                 = "P2PNodeID"
+
+	CurrentEpochMethod = "currentEpoch"
+	NextEpochMethod    = "nextEpoch"
+	HistoryEpochMethod = "historyEpoch"
 )
 
-const epochManagerABIData = "[\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"currentEpoch\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"components\": [\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"Version\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"Epoch\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"EpochPeriod\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"StartBlock\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"string[]\",\n\t\t\t\t\t\t\"name\": \"P2PBootstrapNodeAddresses\",\n\t\t\t\t\t\t\"type\": \"string[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"ValidatorElectionType\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"ProposerElectionType\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"CheckpointPeriod\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"HighWatermarkCheckpointPeriod\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MaxValidatorNum\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"BlockMaxTxNum\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"bool\",\n\t\t\t\t\t\t\t\t\"name\": \"EnableTimedGenEmptyBlock\",\n\t\t\t\t\t\t\t\t\"type\": \"bool\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"NotActiveWeight\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"AbnormalNodeExcludeView\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"AgainProposeIntervalBlockInValidatorsNumPercentage\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ContinuousNullRequestToleranceNumber\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ReBroadcastToleranceNumber\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct ConsensusParams\",\n\t\t\t\t\t\t\"name\": \"ConsensusParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasLimit\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"bool\",\n\t\t\t\t\t\t\t\t\"name\": \"StartGasPriceAvailable\",\n\t\t\t\t\t\t\t\t\"type\": \"bool\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"StartGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MaxGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MinGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasChangeRateValue\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasChangeRateDecimals\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct FinanceParams\",\n\t\t\t\t\t\t\"name\": \"FinanceParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"TxMaxSize\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct MiscParams\",\n\t\t\t\t\t\t\"name\": \"MiscParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"ValidatorSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"CandidateSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"DataSyncerSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t}\n\t\t\t\t],\n\t\t\t\t\"internalType\": \"struct EpochInfo\",\n\t\t\t\t\"name\": \"epochInfo\",\n\t\t\t\t\"type\": \"tuple\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\"name\": \"epochID\",\n\t\t\t\t\"type\": \"uint64\"\n\t\t\t}\n\t\t],\n\t\t\"name\": \"historyEpoch\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"components\": [\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"Version\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"Epoch\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"EpochPeriod\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"StartBlock\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"string[]\",\n\t\t\t\t\t\t\"name\": \"P2PBootstrapNodeAddresses\",\n\t\t\t\t\t\t\"type\": \"string[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"ValidatorElectionType\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"ProposerElectionType\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"CheckpointPeriod\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"HighWatermarkCheckpointPeriod\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MaxValidatorNum\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"BlockMaxTxNum\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"bool\",\n\t\t\t\t\t\t\t\t\"name\": \"EnableTimedGenEmptyBlock\",\n\t\t\t\t\t\t\t\t\"type\": \"bool\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"NotActiveWeight\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"AbnormalNodeExcludeView\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"AgainProposeIntervalBlockInValidatorsNumPercentage\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ContinuousNullRequestToleranceNumber\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ReBroadcastToleranceNumber\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct ConsensusParams\",\n\t\t\t\t\t\t\"name\": \"ConsensusParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasLimit\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"bool\",\n\t\t\t\t\t\t\t\t\"name\": \"StartGasPriceAvailable\",\n\t\t\t\t\t\t\t\t\"type\": \"bool\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"StartGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MaxGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MinGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasChangeRateValue\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasChangeRateDecimals\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct FinanceParams\",\n\t\t\t\t\t\t\"name\": \"FinanceParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"TxMaxSize\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct MiscParams\",\n\t\t\t\t\t\t\"name\": \"MiscParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"ValidatorSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"CandidateSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"DataSyncerSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t}\n\t\t\t\t],\n\t\t\t\t\"internalType\": \"struct EpochInfo\",\n\t\t\t\t\"name\": \"epochInfo\",\n\t\t\t\t\"type\": \"tuple\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"nextEpoch\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"components\": [\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"Version\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"Epoch\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"EpochPeriod\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\"name\": \"StartBlock\",\n\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"internalType\": \"string[]\",\n\t\t\t\t\t\t\"name\": \"P2PBootstrapNodeAddresses\",\n\t\t\t\t\t\t\"type\": \"string[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"ValidatorElectionType\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"ProposerElectionType\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"CheckpointPeriod\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"HighWatermarkCheckpointPeriod\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MaxValidatorNum\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"BlockMaxTxNum\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"bool\",\n\t\t\t\t\t\t\t\t\"name\": \"EnableTimedGenEmptyBlock\",\n\t\t\t\t\t\t\t\t\"type\": \"bool\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"NotActiveWeight\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"AbnormalNodeExcludeView\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"AgainProposeIntervalBlockInValidatorsNumPercentage\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ContinuousNullRequestToleranceNumber\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ReBroadcastToleranceNumber\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct ConsensusParams\",\n\t\t\t\t\t\t\"name\": \"ConsensusParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasLimit\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"bool\",\n\t\t\t\t\t\t\t\t\"name\": \"StartGasPriceAvailable\",\n\t\t\t\t\t\t\t\t\"type\": \"bool\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"StartGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MaxGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"MinGasPrice\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasChangeRateValue\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"GasChangeRateDecimals\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct FinanceParams\",\n\t\t\t\t\t\t\"name\": \"FinanceParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"TxMaxSize\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct MiscParams\",\n\t\t\t\t\t\t\"name\": \"MiscParams\",\n\t\t\t\t\t\t\"type\": \"tuple\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"ValidatorSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"CandidateSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"components\": [\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"uint64\",\n\t\t\t\t\t\t\t\t\"name\": \"ID\",\n\t\t\t\t\t\t\t\t\"type\": \"uint64\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"AccountAddress\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\t\t\t\t\"name\": \"P2PNodeID\",\n\t\t\t\t\t\t\t\t\"type\": \"string\"\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\"internalType\": \"int64\",\n\t\t\t\t\t\t\t\t\"name\": \"ConsensusVotingPower\",\n\t\t\t\t\t\t\t\t\"type\": \"int64\"\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t],\n\t\t\t\t\t\t\"internalType\": \"struct NodeInfo[]\",\n\t\t\t\t\t\t\"name\": \"DataSyncerSet\",\n\t\t\t\t\t\t\"type\": \"tuple[]\"\n\t\t\t\t\t}\n\t\t\t\t],\n\t\t\t\t\"internalType\": \"struct EpochInfo\",\n\t\t\t\t\"name\": \"epochInfo\",\n\t\t\t\t\"type\": \"tuple\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t}\n]"
-
-var epochManagerABI *abi.ABI
-
-var methodSig2ArgsReceiverConstructor = map[string]func() any{
-	"currentEpoch()": func() any {
-		return &currentEpochMethodArgs{}
-	},
-	"nextEpoch()": func() any {
-		return &nextEpochMethodArgs{}
-	},
-	"historyEpoch(uint64)": func() any {
-		return &historyEpochMethodArgs{}
-	},
+var EpochManagerMethod2Sig = map[string]string{
+	CurrentEpochMethod: "currentEpoch()",
+	NextEpochMethod:    "nextEpoch()",
+	HistoryEpochMethod: "historyEpoch(uint64)",
 }
 
 type currentEpochMethodArgs struct {
@@ -54,16 +45,6 @@ type historyEpochMethodArgs struct {
 	EpochID uint64
 }
 
-func init() {
-	emAbi, err := abi.JSON(strings.NewReader(epochManagerABIData))
-	if err != nil {
-		panic(err)
-	}
-	epochManagerABI = &emAbi
-}
-
-var _ common.SystemContract = (*EpochManager)(nil)
-
 type EpochManager struct {
 	logger      logrus.FieldLogger
 	account     ledger.IAccount
@@ -72,67 +53,25 @@ type EpochManager struct {
 
 func NewEpochManager(cfg *common.SystemContractConfig) *EpochManager {
 	return &EpochManager{
-		logger: cfg.Logger,
+		logger: loggers.Logger(loggers.Epoch),
 	}
 }
 
-func (m *EpochManager) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
-	m.account = stateLedger.GetOrCreateAccount(types.NewAddressByStr(common.EpochManagerContractAddr))
-	m.stateLedger = stateLedger
+func (m *EpochManager) SetContext(context *common.VMContext) {
+	m.account = context.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.EpochManagerContractAddr))
+	m.stateLedger = context.StateLedger
 }
 
-func (m *EpochManager) Run(msg *vm.Message) (*vm.ExecutionResult, error) {
-	result := &vm.ExecutionResult{}
-	ret, err := func() ([]byte, error) {
-		args, method, err := common.ParseContractCallArgs(epochManagerABI, msg.Data, methodSig2ArgsReceiverConstructor)
-		if err != nil {
-			return nil, err
-		}
-		switch t := args.(type) {
-		case *currentEpochMethodArgs:
-			epochInfo, err := GetCurrentEpochInfo(m.stateLedger)
-			if err != nil {
-				return nil, err
-			}
-			return method.Outputs.Pack(epochInfo)
-		case *nextEpochMethodArgs:
-			epochInfo, err := GetNextEpochInfo(m.stateLedger)
-			if err != nil {
-				return nil, err
-			}
-			return method.Outputs.Pack(epochInfo)
-		case *historyEpochMethodArgs:
-			epochInfo, err := getEpoch(m.stateLedger, historyEpochInfoKey(t.EpochID))
-			if err != nil {
-				return nil, err
-			}
-			return method.Outputs.Pack(epochInfo)
-		default:
-			return nil, errors.Errorf("%v: not support method", vm.ErrExecutionReverted)
-		}
-	}()
-	if err != nil {
-		result.Err = vm.ErrExecutionReverted
-		result.ReturnData = []byte(err.Error())
-	} else {
-		result.ReturnData = ret
-	}
-	result.UsedGas = common.CalculateDynamicGas(msg.Data)
-	return result, nil
+func (m *EpochManager) CurrentEpoch() (*rbft.EpochInfo, error) {
+	return GetCurrentEpochInfo(m.stateLedger)
 }
 
-func (m *EpochManager) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
-	var data []byte
-	if callArgs.Data != nil {
-		data = *callArgs.Data
-	}
+func (m *EpochManager) NextEpoch() (*rbft.EpochInfo, error) {
+	return GetNextEpochInfo(m.stateLedger)
+}
 
-	_, _, err := common.ParseContractCallArgs(epochManagerABI, data, methodSig2ArgsReceiverConstructor)
-	if err != nil {
-		return 0, errors.Errorf("%v: %v", vm.ErrExecutionReverted, err)
-	}
-
-	return common.CalculateDynamicGas(*callArgs.Data), nil
+func (m *EpochManager) HistoryEpoch(epochID uint64) (*rbft.EpochInfo, error) {
+	return GetEpochInfo(m.stateLedger, epochID)
 }
 
 func historyEpochInfoKey(epoch uint64) []byte {

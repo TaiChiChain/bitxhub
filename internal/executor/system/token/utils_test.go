@@ -4,37 +4,21 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
-
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
 	admin1             = "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"
 	admin2             = "0x79a1215469FaB6f9c63c1816b45183AD3624bE34"
 	defaultTotalSupply = "24000000000000000000000000000"
-)
-
-const (
-	nameMethod         = "name"
-	symbolMethod       = "symbol"
-	totalSupplyMethod  = "totalSupply"
-	decimalsMethod     = "decimals"
-	balanceOfMethod    = "balanceOf"
-	transferMethod     = "transfer"
-	approveMethod      = "approve"
-	allowanceMethod    = "allowance"
-	transferFromMethod = "transferFrom"
-	mintMethod         = "mint"
-	burnMethod         = "burn"
 )
 
 type mockLedger struct {
@@ -141,34 +125,4 @@ func mockAxmManager(t *testing.T) *AxmManager {
 
 	am := &AxmManager{logger: logger, account: contractAccount, stateLedger: mockLg}
 	return am
-}
-
-func generateRunData(t *testing.T, method string, args ...any) []byte {
-	var (
-		inputs []byte
-		err    error
-	)
-	m := axmManagerABI.Methods[method]
-	if len(args) == 0 || len(m.Inputs) == 0 {
-		inputs, err = m.Inputs.Pack()
-	} else {
-		inputs, err = m.Inputs.Pack(args...)
-	}
-	require.Nil(t, err)
-	inputs = append(m.ID, inputs...)
-
-	return inputs
-}
-
-func wrapperReturnData(t *testing.T, method string, data ...any) []byte {
-	var wd []byte
-	var err error
-	m := axmManagerABI.Methods[method]
-	if len(data) == 0 || len(m.Outputs) == 0 {
-		wd, err = m.Outputs.Pack()
-	} else {
-		wd, err = m.Outputs.Pack(data...)
-	}
-	require.Nil(t, err)
-	return wd
 }

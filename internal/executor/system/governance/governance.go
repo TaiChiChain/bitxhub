@@ -1,23 +1,23 @@
 package governance
 
 import (
-	"bytes"
+	_ "embed"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
 
+// TODO remove
 var (
 	ErrMethodName         = errors.New("no this method")
 	ErrVoteResult         = errors.New("vote result is invalid")
@@ -29,32 +29,21 @@ var (
 	ErrDesc               = errors.New("description is invalid")
 	ErrTooLongDesc        = errors.New("description is too long, max is 10000 characters")
 	ErrBlockNumber        = errors.New("block number is invalid")
-	ErrProposalID         = errors.New("proposal id is invalid")
 	ErrProposalFinished   = errors.New("proposal has already finished")
 	ErrBlockNumberOutDate = errors.New("block number is out of date")
-)
 
-const jsondata = `
-[
-	{"type": "function", "name": "propose", "inputs": [{"name": "proposalType", "type": "uint8"}, {"name": "title", "type": "string"}, {"name": "desc", "type": "string"}, {"name": "blockNumber", "type": "uint64"}, {"name": "extra", "type": "bytes"}], "outputs": [{"name": "proposalId", "type": "uint64"}]},
-	{"type": "function", "name": "vote", "inputs": [{"name": "proposalId", "type": "uint64"}, {"name": "voteResult", "type": "uint8"}, {"name": "extra", "type": "bytes"}]},
-	{"type": "function", "name": "proposal", "stateMutability": "view", "inputs": [{"name": "proposalId", "type": "uint64"}], "outputs": [{"name": "proposal", "type": "bytes"}]}
-]
-`
+	ErrRepeatedRegister = errors.New("repeated register")
+	ErrNotFoundProposal = errors.New("not found proposal")
+)
 
 const (
-	ProposeMethod  = "propose"
-	VoteMethod     = "vote"
-	ProposalMethod = "proposal"
-	MaxTitleLength = 200
-	MaxDescLength  = 10000
+	ProposeMethod             = "propose"
+	VoteMethod                = "vote"
+	GetLatestProposalIDMethod = "getLatestProposalID"
+	ProposalKey               = "proposalKey"
+	MaxTitleLength            = 200
+	MaxDescLength             = 10000
 )
-
-var method2Sig = map[string]string{
-	ProposeMethod:  "propose(uint8,string,string,uint64,bytes)",
-	VoteMethod:     "vote(uint64,uint8,bytes)",
-	ProposalMethod: "proposal(uint64)",
-}
 
 type ProposalType uint8
 
@@ -85,246 +74,276 @@ const (
 	Reject
 )
 
-type BaseProposalArgs struct {
-	ProposalType uint8
-	Title        string
-	Desc         string
-	BlockNumber  uint64
+// GovernanceMethod2Sig is method name to method signature mapping
+var GovernanceMethod2Sig = map[string]string{
+	"propose":             "propose(uint8,string,string,uint64,bytes)",
+	"vote":                "vote(uint64,uint8)",
+	"proposal":            "proposal(uint64)",
+	"getLatestProposalID": "getLatestProposalID()",
 }
 
-type ProposalArgs struct {
-	BaseProposalArgs
-	Extra []byte
+type IGovenance interface {
+	Propose(proposalType uint8, title, desc string, expiredBlockNumber uint64, extra []byte) error
+
+	Vote(proposalID uint64, voteResult uint8) error
+
+	Proposal(proposalID uint64) (*Proposal, error)
+
+	GetLatestProposalID() uint64
 }
 
-type BaseVoteArgs struct {
-	ProposalId uint64
-	VoteResult uint8
-}
-
-type VoteArgs struct {
-	BaseVoteArgs
-	Extra []byte
-}
-
-type GetProposalArgs struct {
-	ProposalID uint64
+type IExecutor interface {
+	ProposeCheck(proposalType ProposalType, extra []byte) error
+	Execute(proposal *Proposal) error
 }
 
 type Governance struct {
-	proposalTypes []ProposalType
-	logger        logrus.FieldLogger
+	logger logrus.FieldLogger
 
-	gabi       *abi.ABI
-	method2Sig map[string][]byte
+	// type2Executor is mapping proposal type to executor
+	type2Executor map[ProposalType]IExecutor
+	// governance records which executor implements IGovernance interface
+	// which instance in governance would call self overide method
+	governance map[ProposalType]IGovenance
+
+	account                ledger.IAccount
+	proposalID             *ProposalID
+	addr2NameSystem        *Addr2NameSystem
+	notFinishedProposalMgr *NotFinishedProposalMgr
+
+	currentUser   *ethcommon.Address
+	currentHeight uint64
+	currentLogs   *[]common.Log
+	stateLedger   ledger.StateLedger
 }
 
-func NewGov(proposalTypes []ProposalType, logger logrus.FieldLogger) (*Governance, error) {
-	gabi, err := GetABI()
-	if err != nil {
-		return nil, err
+func NewGov(cfg *common.SystemContractConfig) *Governance {
+	gov := &Governance{
+		logger:        loggers.Logger(loggers.Governance),
+		type2Executor: make(map[ProposalType]IExecutor),
+		governance:    make(map[ProposalType]IGovenance),
 	}
 
-	return &Governance{
-		proposalTypes: proposalTypes,
-		logger:        logger,
-		gabi:          gabi,
-		method2Sig:    initMethodSignature(),
-	}, nil
+	// register governance execute contract
+	councilManager := NewCouncilManager(gov)
+	if err := gov.Register(CouncilElect, councilManager); err != nil {
+		panic(err)
+	}
+
+	nodeManager := NewNodeManager(gov)
+	if err := gov.Register(NodeAdd, nodeManager); err != nil {
+		panic(err)
+	}
+	if err := gov.Register(NodeRemove, nodeManager); err != nil {
+		panic(err)
+	}
+	if err := gov.Register(NodeUpgrade, nodeManager); err != nil {
+		panic(err)
+	}
+
+	gasManager := NewGasManager(gov)
+	if err := gov.Register(GasUpdate, gasManager); err != nil {
+		panic(err)
+	}
+
+	whiteListProviderManager := NewWhiteListProviderManager(gov)
+	if err := gov.Register(WhiteListProviderAdd, whiteListProviderManager); err != nil {
+		panic(err)
+	}
+	if err := gov.Register(WhiteListProviderRemove, whiteListProviderManager); err != nil {
+		panic(err)
+	}
+
+	return gov
 }
 
-// GetABI get system contract abi
-func GetABI() (*abi.ABI, error) {
-	gabi, err := abi.JSON(strings.NewReader(jsondata))
-	if err != nil {
-		return nil, err
+func (g *Governance) Register(proposalType ProposalType, executor IExecutor) error {
+	if _, ok := g.type2Executor[proposalType]; ok {
+		return ErrRepeatedRegister
 	}
-	return &gabi, nil
+	g.type2Executor[proposalType] = executor
+
+	// if executor also implements IGovenance interface, add it to governance
+	if gov, ok := executor.(IGovenance); ok {
+		g.governance[proposalType] = gov
+	}
+	return nil
 }
 
-func initMethodSignature() map[string][]byte {
-	m2sig := make(map[string][]byte)
-	for methodName, methodSig := range method2Sig {
-		m2sig[methodName] = crypto.Keccak256([]byte(methodSig))
-	}
-	return m2sig
+func (g *Governance) SetContext(context *common.VMContext) {
+	g.currentUser = context.CurrentUser
+	g.currentHeight = context.CurrentHeight
+	g.currentLogs = context.CurrentLogs
+	g.stateLedger = context.StateLedger
+
+	addr := types.NewAddressByStr(common.GovernanceContractAddr)
+	g.account = g.stateLedger.GetOrCreateAccount(addr)
+	g.proposalID = NewProposalID(g.stateLedger)
+	g.addr2NameSystem = NewAddr2NameSystem(g.stateLedger)
+	g.notFinishedProposalMgr = NewNotFinishedProposalMgr(g.stateLedger)
 }
 
-// GetMethodName quickly returns the name of a method.
-// This is a quick way to get the name of a method.
-// The method name is the first 4 bytes of the keccak256 hash of the method signature.
-// If the method name is not found, the empty string is returned.
-func (g *Governance) GetMethodName(data []byte) (string, error) {
-	for methodName, methodSig := range g.method2Sig {
-		id := methodSig[:4]
-		g.logger.Debugf("method id: %v, get method id: %v", id, data[:4])
-		if bytes.Equal(id, data[:4]) {
-			return methodName, nil
-		}
-	}
-
-	return "", ErrMethodName
-}
-
-// ParseArgs parse the arguments to specified interface by method name
-func (g *Governance) ParseArgs(msg *vm.Message, methodName string, ret any) error {
-	if len(msg.Data) < 4 {
-		return fmt.Errorf("msg data length is not improperly formatted: %q - Bytes: %+v", msg.Data, msg.Data)
-	}
-
-	// discard method id
-	data := msg.Data[4:]
-
-	var args abi.Arguments
-	if method, ok := g.gabi.Methods[methodName]; ok {
-		if len(data)%32 != 0 {
-			return fmt.Errorf("gabi: improperly formatted output: %q - Bytes: %+v", data, data)
-		}
-		args = method.Inputs
-	}
-
-	if args == nil {
-		return fmt.Errorf("gabi: could not locate named method: %s", methodName)
-	}
-
-	unpacked, err := args.Unpack(data)
+func (g *Governance) checkAndUpdateState(method string) error {
+	notFinishedProposals, err := g.notFinishedProposalMgr.GetProposals()
 	if err != nil {
 		return err
 	}
-	return args.Copy(ret, unpacked)
-}
 
-// GetArgs get system contract arguments from a message
-func (g *Governance) GetArgs(msg *vm.Message) (any, error) {
-	data := msg.Data
-	if data == nil {
-		return nil, vm.ErrExecutionReverted
-	}
+	for _, notFinishedProposal := range notFinishedProposals {
+		if notFinishedProposal.DeadlineBlockNumber <= g.currentHeight {
+			// update original proposal status
+			proposal, err := g.LoadProposal(notFinishedProposal.ID)
+			if err != nil {
+				return err
+			}
 
-	method, err := g.GetMethodName(data)
-	if err != nil {
-		return nil, err
-	}
+			if proposal.GetStatus() == Approved || proposal.GetStatus() == Rejected {
+				// proposal is finnished, no need update
+				continue
+			}
 
-	switch method {
-	case ProposeMethod:
-		proposalArgs := &ProposalArgs{}
-		if err := g.ParseArgs(msg, ProposeMethod, proposalArgs); err != nil {
-			return nil, err
+			// means proposal is out of deadline,status change to rejected
+			proposal.SetStatus(Rejected)
+
+			err = g.SaveProposal(proposal)
+			if err != nil {
+				return err
+			}
+
+			// remove proposal from not finished proposals
+			if err = g.notFinishedProposalMgr.RemoveProposal(notFinishedProposal.ID); err != nil {
+				return err
+			}
+
+			// post log
+			g.RecordLog(method, proposal)
 		}
-		return proposalArgs, nil
-	case VoteMethod:
-		voteArgs := &VoteArgs{}
-		if err := g.ParseArgs(msg, VoteMethod, voteArgs); err != nil {
-			return nil, err
-		}
-		return voteArgs, nil
-	case ProposalMethod:
-		getProposalArgs := &GetProposalArgs{}
-		if err := g.ParseArgs(msg, ProposalMethod, getProposalArgs); err != nil {
-			return nil, err
-		}
-		return getProposalArgs, nil
-	default:
-		return nil, ErrMethodName
 	}
+
+	return nil
 }
 
-// PackOutputArgs pack the output arguments by method name
-func (g *Governance) PackOutputArgs(methodName string, outputArgs ...any) ([]byte, error) {
-	var args abi.Arguments
-	if method, ok := g.gabi.Methods[methodName]; ok {
-		args = method.Outputs
-	}
-
-	if args == nil {
-		return nil, fmt.Errorf("gabi: could not locate named method: %s", methodName)
-	}
-
-	return args.Pack(outputArgs...)
-}
-
-// UnpackOutputArgs unpack the output arguments by method name
-func (g *Governance) UnpackOutputArgs(methodName string, packed []byte) ([]any, error) {
-	var args abi.Arguments
-	if method, ok := g.gabi.Methods[methodName]; ok {
-		args = method.Outputs
-	}
-
-	if args == nil {
-		return nil, fmt.Errorf("gabi: could not locate named method: %s", methodName)
-	}
-
-	return args.Unpack(packed)
-}
-
-func (g *Governance) checkBeforePropose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64, lastHeight uint64) (bool, error) {
+func (g *Governance) CheckProposeArgs(user *ethcommon.Address, proposalType ProposalType, title, desc string, expiredBlockNumber uint64, currentHeight uint64) error {
 	if user == nil {
-		return false, ErrUser
+		return ErrUser
 	}
 
-	isVaildProposalType := common.IsInSlice[ProposalType](proposalType, g.proposalTypes)
+	_, isVaildProposalType := g.type2Executor[proposalType]
 	if !isVaildProposalType {
-		return false, ErrProposalType
+		return ErrProposalType
 	}
 
 	if title == "" || len(title) > MaxTitleLength {
 		if title == "" {
-			return false, ErrTitle
+			return ErrTitle
 		}
-		return false, ErrTooLongTitle
+		return ErrTooLongTitle
 	}
 
 	if desc == "" || len(desc) > MaxDescLength {
 		if desc == "" {
-			return false, ErrDesc
+			return ErrDesc
 		}
-		return false, ErrTooLongDesc
+		return ErrTooLongDesc
 	}
 
-	if blockNumber == 0 {
-		return false, ErrBlockNumber
+	if expiredBlockNumber == 0 {
+		return ErrBlockNumber
 	}
 
 	// check out of date block number
-	if blockNumber <= lastHeight {
-		return false, ErrBlockNumberOutDate
+	if expiredBlockNumber < currentHeight {
+		return ErrBlockNumberOutDate
 	}
 
-	return true, nil
+	return nil
 }
 
-func (g *Governance) Propose(user *ethcommon.Address, proposalType ProposalType, title, desc string, blockNumber uint64, lastHeight uint64, nodeAddRole bool) (*BaseProposal, error) {
-	_, err := g.checkBeforePropose(user, proposalType, title, desc, blockNumber, lastHeight)
+func (g *Governance) Propose(pType uint8, title, desc string, blockNumber uint64, extra []byte) error {
+	proposalType := ProposalType(pType)
+	_, ok := g.type2Executor[proposalType]
+	if !ok {
+		return ErrProposalType
+	}
+
+	gov, ok := g.governance[proposalType]
+	if ok {
+		// call overide function
+		return gov.Propose(pType, title, desc, blockNumber, extra)
+	}
+
+	if err := g.CheckProposeArgs(g.currentUser, proposalType, title, desc, blockNumber, g.currentHeight); err != nil {
+		return err
+	}
+
+	executor, ok := g.type2Executor[proposalType]
+	if !ok {
+		return ErrProposalType
+	}
+	if err := executor.ProposeCheck(proposalType, extra); err != nil {
+		return err
+	}
+
+	// check proposer is council member
+	isCouncilMember, council := CheckInCouncil(g.account, g.currentUser.String())
+	if !isCouncilMember {
+		return ErrNotFoundCouncilMember
+	}
+
+	return g.CreateProposal(council, proposalType, title, desc, blockNumber, extra, true)
+}
+
+func (g *Governance) CreateProposal(council *Council, proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte, includeUser bool) error {
+	proposal := &Proposal{
+		Type:               proposalType,
+		Strategy:           NowProposalStrategy,
+		Proposer:           g.currentUser.String(),
+		Title:              title,
+		Desc:               desc,
+		BlockNumber:        blockNumber,
+		Status:             Voting,
+		Extra:              extra,
+		CreatedBlockNumber: g.currentHeight,
+	}
+
+	id, err := g.proposalID.GetAndAddID()
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	proposal := &BaseProposal{
-		Type:        proposalType,
-		Strategy:    NowProposalStrategy,
-		Proposer:    user.String(),
-		Title:       title,
-		Desc:        desc,
-		BlockNumber: blockNumber,
-		Status:      Voting,
-	}
-
+	proposal.ID = id
+	proposal.TotalVotes = lo.Sum[uint64](lo.Map[CouncilMember, uint64](council.Members, func(item CouncilMember, index int) uint64 {
+		return item.Weight
+	}))
 	// proposer vote pass by default
-	if !nodeAddRole {
-		proposal.PassVotes = []string{user.String()}
+	if includeUser {
+		proposal.PassVotes = []string{g.currentUser.String()}
 	}
 
-	return proposal, nil
+	if err := g.SaveProposal(proposal); err != nil {
+		return err
+	}
+
+	// propose generate not finished proposal
+	if err = g.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  proposal.ID,
+		DeadlineBlockNumber: proposal.BlockNumber,
+		Type:                proposal.Type,
+	}); err != nil {
+		return err
+	}
+
+	// record log
+	g.RecordLog(ProposeMethod, proposal)
+
+	// check and update state
+	g.checkAndUpdateState(ProposeMethod)
+
+	return nil
 }
 
-func (g *Governance) checkBeforeVote(user *ethcommon.Address, proposal *BaseProposal, voteResult VoteResult) (bool, error) {
+func (g *Governance) CheckBeforeVote(user *ethcommon.Address, proposal *Proposal, voteResult VoteResult) (bool, error) {
 	if user == nil {
 		return false, ErrUser
-	}
-
-	if proposal.ID == 0 {
-		return false, ErrProposalID
 	}
 
 	if voteResult != Pass && voteResult != Reject {
@@ -345,42 +364,136 @@ func (g *Governance) checkBeforeVote(user *ethcommon.Address, proposal *BaseProp
 }
 
 // Vote a proposal, return vote status
-func (g *Governance) Vote(user *ethcommon.Address, proposal *BaseProposal, voteResult VoteResult) (ProposalStatus, error) {
-	if _, err := g.checkBeforeVote(user, proposal, voteResult); err != nil {
-		return Voting, err
+func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
+	voteResult := VoteResult(voteRes)
+	proposal, err := g.LoadProposal(proposalID)
+	if err != nil {
+		return err
+	}
+
+	proposalType := proposal.Type
+	_, ok := g.type2Executor[proposalType]
+	if !ok {
+		return ErrProposalType
+	}
+
+	gov, ok := g.governance[proposalType]
+	if ok {
+		// call overide function
+		return gov.Vote(proposalID, voteRes)
+	}
+
+	if _, err := g.CheckBeforeVote(g.currentUser, proposal, voteResult); err != nil {
+		return err
+	}
+
+	// check user can vote
+	isExist, _ := CheckInCouncil(g.account, g.currentUser.String())
+	if !isExist {
+		return ErrNotFoundCouncilMember
 	}
 
 	switch voteResult {
 	case Pass:
-		proposal.PassVotes = append(proposal.PassVotes, user.String())
+		proposal.PassVotes = append(proposal.PassVotes, g.currentUser.String())
 	case Reject:
-		proposal.RejectVotes = append(proposal.RejectVotes, user.String())
+		proposal.RejectVotes = append(proposal.RejectVotes, g.currentUser.String())
+	}
+	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes)))
+
+	isProposalSaved := false
+	// update not finished proposal
+	if proposal.Status == Approved || proposal.Status == Rejected {
+		proposal.EffectiveBlockNumber = g.currentHeight
+		if err := g.SaveProposal(proposal); err != nil {
+			return err
+		}
+		isProposalSaved = true
+
+		if err := g.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+			return err
+		}
 	}
 
-	return CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes))), nil
+	if !isProposalSaved {
+		if err := g.SaveProposal(proposal); err != nil {
+			return err
+		}
+	}
+
+	// if proposal approved, then execute
+	if proposal.Status == Approved {
+		executor, ok := g.type2Executor[proposal.Type]
+		if !ok {
+			return ErrProposalType
+		}
+		if err := executor.Execute(proposal); err != nil {
+			return err
+		}
+	}
+
+	g.RecordLog(VoteMethod, proposal)
+
+	// check and update state
+	g.checkAndUpdateState(VoteMethod)
+
+	return nil
+}
+
+// GetLatestProposalID return current proposal lastest id
+func (g *Governance) GetLatestProposalID() uint64 {
+	return g.proposalID.GetID() - 1
+}
+
+func (g *Governance) Proposal(proposalID uint64) (*Proposal, error) {
+	return g.LoadProposal(proposalID)
+}
+
+func (g *Governance) SaveProposal(proposal *Proposal) error {
+	b, err := json.Marshal(proposal)
+	if err != nil {
+		return err
+	}
+
+	g.account.SetState([]byte(fmt.Sprintf("%s%d", ProposalKey, proposal.GetID())), b)
+	return nil
+}
+
+func (g *Governance) LoadProposal(proposalID uint64) (*Proposal, error) {
+	isExist, b := g.account.GetState([]byte(fmt.Sprintf("%s%d", ProposalKey, proposalID)))
+	if !isExist {
+		return nil, ErrNotFoundProposal
+	}
+
+	proposal := &Proposal{}
+	if err := json.Unmarshal(b, proposal); err != nil {
+		return nil, err
+	}
+	return proposal, nil
 }
 
 // RecordLog record execution log for governance
-func (g *Governance) RecordLog(currentLog *common.Log, method string, proposal *BaseProposal, data []byte) {
+func (g *Governance) RecordLog(method string, proposal *Proposal) error {
 	// set method signature, proposal id, proposal type, proposer as log topic for index
 	idhash := make([]byte, 8)
 	binary.BigEndian.PutUint64(idhash, proposal.ID)
 	typeHash := make([]byte, 2)
 	binary.BigEndian.PutUint16(typeHash, uint16(proposal.Type))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(g.method2Sig[method]),
+
+	data, err := json.Marshal(proposal)
+	if err != nil {
+		return err
+	}
+
+	currentLog := common.Log{
+		Address: types.NewAddressByStr(common.GovernanceContractAddr),
+	}
+	// topic add method signature, id, proposal type, proposer
+	currentLog.Topics = append(currentLog.Topics, types.NewHashByStr(method),
 		types.NewHash(idhash), types.NewHash(typeHash), types.NewHash([]byte(proposal.Proposer)))
 	currentLog.Data = data
 	currentLog.Removed = false
-}
 
-// SaveLog save log
-func (g *Governance) SaveLog(stateLedger ledger.StateLedger, currentLog *common.Log) {
-	if currentLog.Data != nil {
-		stateLedger.AddLog(&types.EvmLog{
-			Address: currentLog.Address,
-			Topics:  currentLog.Topics,
-			Data:    currentLog.Data,
-			Removed: currentLog.Removed,
-		})
-	}
+	*g.currentLogs = append(*g.currentLogs, currentLog)
+	return nil
 }

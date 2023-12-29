@@ -281,8 +281,8 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 	stateLedger.SetTxContext(types.NewHash([]byte("mockTx")), 0)
 
 	// check if call system contract
-	systemContract, ok := api.Broker().GetSystemContract(msg.To)
-	if ok {
+	systemContract := api.Broker().GetSystemContract()
+	if msg.To != nil && systemContract.IsSystemContract(types.NewAddress(msg.To.Bytes())) {
 		chainMeta, err := api.Chain().Meta()
 		if err != nil {
 			return nil, err
@@ -333,8 +333,8 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	api.logger.Debugf("eth_estimateGas, args: %s", args)
 
 	// Judge whether this is system contract
-	systemContract, ok := api.api.Broker().GetSystemContract(args.To)
-	if ok {
+	systemContract := api.api.Broker().GetSystemContract()
+	if args.To != nil && systemContract.IsSystemContract(types.NewAddress(args.To.Bytes())) {
 		gas, err := systemContract.EstimateGas(&args)
 		return ethhexutil.Uint64(gas), err
 	}

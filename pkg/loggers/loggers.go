@@ -13,38 +13,40 @@ import (
 )
 
 const (
-	P2P        = "p2p"
-	Consensus  = "consensus"
-	Executor   = "executor"
-	Governance = "governance"
-	App        = "app"
-	API        = "api"
-	CoreAPI    = "coreapi"
-	Storage    = "storage"
-	Profile    = "profile"
-	Finance    = "finance"
-	BlockSync  = "blocksync"
-	Access     = "access"
-	TxPool     = "txpool"
-	Epoch      = "epoch"
+	P2P            = "p2p"
+	Consensus      = "consensus"
+	Executor       = "executor"
+	Governance     = "governance"
+	App            = "app"
+	API            = "api"
+	CoreAPI        = "coreapi"
+	Storage        = "storage"
+	Profile        = "profile"
+	Finance        = "finance"
+	BlockSync      = "blocksync"
+	Access         = "access"
+	TxPool         = "txpool"
+	Epoch          = "epoch"
+	SystemContract = "system_contract"
 )
 
 var w = &LoggerWrapper{
 	loggers: map[string]*logrus.Entry{
-		P2P:        log.NewWithModule(P2P),
-		Consensus:  log.NewWithModule(Consensus),
-		Executor:   log.NewWithModule(Executor),
-		Governance: log.NewWithModule(Governance),
-		App:        log.NewWithModule(App),
-		API:        log.NewWithModule(API),
-		CoreAPI:    log.NewWithModule(CoreAPI),
-		Storage:    log.NewWithModule(Storage),
-		Profile:    log.NewWithModule(Profile),
-		Finance:    log.NewWithModule(Finance),
-		Access:     log.NewWithModule(Access),
-		TxPool:     log.NewWithModule(TxPool),
-		BlockSync:  log.NewWithModule(BlockSync),
-		Epoch:      log.NewWithModule(Epoch),
+		P2P:            log.NewWithModule(P2P),
+		Consensus:      log.NewWithModule(Consensus),
+		Executor:       log.NewWithModule(Executor),
+		Governance:     log.NewWithModule(Governance),
+		App:            log.NewWithModule(App),
+		API:            log.NewWithModule(API),
+		CoreAPI:        log.NewWithModule(CoreAPI),
+		Storage:        log.NewWithModule(Storage),
+		Profile:        log.NewWithModule(Profile),
+		Finance:        log.NewWithModule(Finance),
+		Access:         log.NewWithModule(Access),
+		TxPool:         log.NewWithModule(TxPool),
+		BlockSync:      log.NewWithModule(BlockSync),
+		Epoch:          log.NewWithModule(Epoch),
+		SystemContract: log.NewWithModule(SystemContract),
 	},
 }
 
@@ -128,6 +130,8 @@ func Initialize(ctx context.Context, rep *repo.Repo, persist bool) error {
 	m[TxPool].Logger.SetLevel(log.ParseLevel(config.Log.Module.TxPool))
 	m[Epoch] = log.NewWithModule(Epoch)
 	m[Epoch].Logger.SetLevel(log.ParseLevel(config.Log.Module.Epoch))
+	m[SystemContract] = log.NewWithModule(SystemContract)
+	m[SystemContract].Logger.SetLevel(log.ParseLevel(config.Log.Module.SystemContract))
 
 	w = &LoggerWrapper{loggers: m}
 	InitializeEthLog(m[API])

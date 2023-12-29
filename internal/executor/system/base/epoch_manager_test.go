@@ -3,7 +3,6 @@ package base
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 func prepareLedger(t *testing.T) ledger.StateLedger {
@@ -77,88 +75,30 @@ func TestEpochManager(t *testing.T) {
 	epochMgr := NewEpochManager(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
-	epochMgr.Reset(1, stateLedger)
-	_, err = epochMgr.EstimateGas(&types.CallArgs{
-		Data: &hexutil.Bytes{},
+	epochMgr.SetContext(&common.VMContext{
+		StateLedger:   stateLedger,
+		CurrentHeight: 1,
 	})
-	assert.Error(t, err)
 
 	t.Run("query currentEpoch", func(t *testing.T) {
-		method := epochManagerABI.Methods["currentEpoch"]
-
-		inputs, err := method.Inputs.Pack()
-		assert.Nil(t, err)
-		inputs = append(method.ID, inputs...)
-
-		_, err = epochMgr.EstimateGas(&types.CallArgs{
-			Data: (*hexutil.Bytes)(&inputs),
-		})
-		assert.Nil(t, err)
-		res, err := epochMgr.Run(&vm.Message{
-			Data: inputs,
-		})
-		assert.Nil(t, err)
-		assert.Nil(t, res.Err, string(res.ReturnData))
-
-		unpacked, err := method.Outputs.Unpack(res.ReturnData)
-		assert.Nil(t, err)
-		decodedEpoch := &rbft.EpochInfo{}
-		err = method.Outputs.Copy(&decodedEpoch, unpacked)
+		res, err := epochMgr.CurrentEpoch()
 		assert.Nil(t, err)
 
-		assert.EqualValues(t, currentEpoch, decodedEpoch)
+		assert.EqualValues(t, currentEpoch, res)
 	})
 
 	t.Run("query nextEpoch", func(t *testing.T) {
-		method := epochManagerABI.Methods["nextEpoch"]
-
-		inputs, err := method.Inputs.Pack()
-		assert.Nil(t, err)
-		inputs = append(method.ID, inputs...)
-
-		_, err = epochMgr.EstimateGas(&types.CallArgs{
-			Data: (*hexutil.Bytes)(&inputs),
-		})
-		assert.Nil(t, err)
-		res, err := epochMgr.Run(&vm.Message{
-			Data: inputs,
-		})
-		assert.Nil(t, err)
-		assert.Nil(t, res.Err, string(res.ReturnData))
-
-		unpacked, err := method.Outputs.Unpack(res.ReturnData)
-		assert.Nil(t, err)
-		decodedEpoch := &rbft.EpochInfo{}
-		err = method.Outputs.Copy(&decodedEpoch, unpacked)
+		res, err := epochMgr.NextEpoch()
 		assert.Nil(t, err)
 
-		assert.EqualValues(t, nextEpoch, decodedEpoch)
+		assert.EqualValues(t, nextEpoch, res)
 	})
 
 	t.Run("query historyEpoch", func(t *testing.T) {
-		method := epochManagerABI.Methods["historyEpoch"]
-
-		inputs, err := method.Inputs.Pack(uint64(2))
-		assert.Nil(t, err)
-		inputs = append(method.ID, inputs...)
-
-		_, err = epochMgr.EstimateGas(&types.CallArgs{
-			Data: (*hexutil.Bytes)(&inputs),
-		})
-		assert.Nil(t, err)
-		res, err := epochMgr.Run(&vm.Message{
-			Data: inputs,
-		})
-		assert.Nil(t, err)
-		assert.Nil(t, res.Err, string(res.ReturnData))
-
-		unpacked, err := method.Outputs.Unpack(res.ReturnData)
-		assert.Nil(t, err)
-		decodedEpoch := &rbft.EpochInfo{}
-		err = method.Outputs.Copy(&decodedEpoch, unpacked)
+		res, err := epochMgr.HistoryEpoch(2)
 		assert.Nil(t, err)
 
-		assert.EqualValues(t, epoch2, decodedEpoch)
+		assert.EqualValues(t, epoch2, res)
 	})
 }
 
