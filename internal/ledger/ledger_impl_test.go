@@ -5,6 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	rbft "github.com/axiomesh/axiom-bft"
+	"math/big"
+	"os"
+	"path/filepath"
+	"sort"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	crypto1 "github.com/ethereum/go-ethereum/crypto"
@@ -12,11 +19,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"os"
-	"path/filepath"
-	"sort"
-	"testing"
 
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/storage"
@@ -24,7 +26,6 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -267,8 +268,8 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.NotEqual(t, stateRoot4, stateRoot5)
 			// assert.Equal(t, uint64(5), ledger.maxJnlHeight)
 
-			minHeight, maxHeight := snapshot.GetJournalRange(sl.snapshotCacheDB)
-			journal5 := snapshot.GetBlockJournal(maxHeight, sl.snapshotCacheDB)
+			minHeight, maxHeight := sl.snapshot.GetJournalRange()
+			journal5 := sl.snapshot.GetBlockJournal(maxHeight)
 			assert.Equal(t, uint64(1), minHeight)
 			assert.Equal(t, uint64(5), maxHeight)
 			assert.Equal(t, 1, len(journal5.Journals))
@@ -1653,20 +1654,21 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.NotEqual(t, stateRoot4, stateRoot5)
 
 			// iterate trie of block 1
+			block1 := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number:    1,
+					StateRoot: stateRoot1,
+					Epoch:     1,
+				},
+			}
 			s1 := initKVStorage(createMockRepo(t).RepoRoot)
 			errC1 := make(chan error)
-			go sl.IterateTrie(stateRoot1.ETHHash(), s1, errC1)
+			go sl.IterateTrie(block1, s1, errC1)
 			err, ok := <-errC1
 			assert.True(t, ok)
 			assert.Nil(t, err)
 
 			// check state ledger in block 1
-			block1 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    1,
-					StateRoot: stateRoot1,
-				},
-			}
 			sl1 := sl.NewViewWithoutCache(block1, false)
 			sl1.(*StateLedgerImpl).cachedDB = s1
 			sl1 = sl1.NewViewWithoutCache(block1, false)
@@ -1676,22 +1678,33 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(0), sl1.GetNonce(account1))
 			assert.Equal(t, uint64(0), sl1.GetNonce(account2))
 			assert.Equal(t, uint64(0), sl1.GetNonce(account3))
+			v, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieHeightKey)
+			assert.Nil(t, err)
+			assert.Equal(t, "1", v)
+			v, err = sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieHashKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block1.Hash().String(), v)
+			info, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieNodeInfoKey)
+			assert.Nil(t, err)
+			assert.NotNil(t, info)
+			assert.Equal(t, block1.BlockHeader.Epoch, info.(*rbft.EpochInfo).Epoch)
+			assert.Equal(t, "P2PNodeID-1", info.(*rbft.EpochInfo).ValidatorSet[0].P2PNodeID)
 
 			// iterate trie of block 2
-			s2 := initKVStorage(createMockRepo(t).RepoRoot)
-			errC2 := make(chan error)
-			go sl.IterateTrie(stateRoot2.ETHHash(), s2, errC2)
-			err, ok = <-errC2
-			assert.True(t, ok)
-			assert.Nil(t, err)
-
-			// check state ledger in block 2
 			block2 := &types.Block{
 				BlockHeader: &types.BlockHeader{
 					Number:    2,
 					StateRoot: stateRoot2,
 				},
 			}
+			s2 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC2 := make(chan error)
+			go sl.IterateTrie(block2, s2, errC2)
+			err, ok = <-errC2
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 2
 			sl2 := sl.NewViewWithoutCache(block2, false)
 			sl2.(*StateLedgerImpl).cachedDB = s2
 			sl2 = sl2.NewViewWithoutCache(block2, false)
@@ -1701,22 +1714,24 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(12), sl2.GetNonce(account1))
 			assert.Equal(t, uint64(22), sl2.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl2.GetNonce(account3))
+			assert.Equal(t, "2", string(sl2.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
+			assert.Equal(t, block2.Hash().String(), string(sl2.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
 
 			// iterate trie of block 3
-			s3 := initKVStorage(createMockRepo(t).RepoRoot)
-			errC3 := make(chan error)
-			go sl.IterateTrie(stateRoot3.ETHHash(), s3, errC3)
-			err, ok = <-errC3
-			assert.True(t, ok)
-			assert.Nil(t, err)
-
-			// check state ledger in block 3
 			block3 := &types.Block{
 				BlockHeader: &types.BlockHeader{
 					Number:    3,
 					StateRoot: stateRoot3,
 				},
 			}
+			s3 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC3 := make(chan error)
+			go sl.IterateTrie(block3, s3, errC3)
+			err, ok = <-errC3
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 3
 			sl3 := sl.NewViewWithoutCache(block3, false)
 			sl3.(*StateLedgerImpl).cachedDB = s3
 			assert.Equal(t, uint64(103), sl3.GetBalance(account1).Uint64())
@@ -1725,22 +1740,24 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(13), sl3.GetNonce(account1))
 			assert.Equal(t, uint64(23), sl3.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl3.GetNonce(account3))
+			assert.Equal(t, "3", string(sl3.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
+			assert.Equal(t, block3.Hash().String(), string(sl3.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
 
 			// iterate trie of block 4
-			s4 := initKVStorage(createMockRepo(t).RepoRoot)
-			errC4 := make(chan error)
-			go sl.IterateTrie(stateRoot4.ETHHash(), s4, errC4)
-			err, ok = <-errC4
-			assert.True(t, ok)
-			assert.Nil(t, err)
-
-			// check state ledger in block 4
 			block4 := &types.Block{
 				BlockHeader: &types.BlockHeader{
 					Number:    4,
 					StateRoot: stateRoot4,
 				},
 			}
+			s4 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC4 := make(chan error)
+			go sl.IterateTrie(block4, s4, errC4)
+			err, ok = <-errC4
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 4
 			sl4 := sl.NewViewWithoutCache(block4, false)
 			sl4.(*StateLedgerImpl).cachedDB = s4
 			sl4 = sl4.NewViewWithoutCache(block4, false)
@@ -1750,22 +1767,24 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(13), sl4.GetNonce(account1))
 			assert.Equal(t, uint64(23), sl4.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl4.GetNonce(account3))
+			assert.Equal(t, "4", string(sl4.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
+			assert.Equal(t, block4.Hash().String(), string(sl4.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
 
 			// iterate trie of block 5
-			s5 := initKVStorage(createMockRepo(t).RepoRoot)
-			errC5 := make(chan error)
-			go sl.IterateTrie(stateRoot5.ETHHash(), s5, errC5)
-			err, ok = <-errC5
-			assert.True(t, ok)
-			assert.Nil(t, err)
-
-			// check state ledger in block 5
 			block5 := &types.Block{
 				BlockHeader: &types.BlockHeader{
 					Number:    5,
 					StateRoot: stateRoot5,
 				},
 			}
+			s5 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC5 := make(chan error)
+			go sl.IterateTrie(block5, s5, errC5)
+			err, ok = <-errC5
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 5
 			sl5 := sl.NewViewWithoutCache(block5, false)
 			sl5.(*StateLedgerImpl).cachedDB = s5
 			sl5 = sl5.NewViewWithoutCache(block5, false)
@@ -1775,6 +1794,8 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(15), sl5.GetNonce(account1))
 			assert.Equal(t, uint64(25), sl5.GetNonce(account2))
 			assert.Equal(t, uint64(35), sl5.GetNonce(account3))
+			assert.Equal(t, "5", string(sl5.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
+			assert.Equal(t, block5.Hash().String(), string(sl5.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
 		})
 	}
 }
@@ -1819,6 +1840,16 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 	rep.Config.Monitor.EnableExpensive = true
 	l, err := NewLedger(rep)
 	require.Nil(t, err)
+	l.WithGetEpochInfoFunc(func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error) {
+		return &rbft.EpochInfo{
+			Epoch: epoch,
+			ValidatorSet: []rbft.NodeInfo{
+				{
+					P2PNodeID: "P2PNodeID-1",
+				},
+			},
+		}, nil
+	})
 
 	return l, rep.RepoRoot
 }

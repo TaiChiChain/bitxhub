@@ -22,6 +22,7 @@ const (
 	Consensus  = "consensus"
 	Epoch      = "epoch"
 	TxPool     = "txpool"
+	Sync       = "sync"
 )
 
 var globalStorageMgr = &storageMgr{

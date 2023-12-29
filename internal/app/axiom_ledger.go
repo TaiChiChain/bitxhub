@@ -209,6 +209,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	if err != nil {
 		return nil, err
 	}
+	vl.WithGetEpochInfoFunc(base.GetEpochInfo)
 	return axm, nil
 }
 

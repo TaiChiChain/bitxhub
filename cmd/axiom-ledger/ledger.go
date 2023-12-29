@@ -18,8 +18,10 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/app"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -40,6 +42,11 @@ var ledgerSimpleSyncArgs = struct {
 	SourceStorage     string
 	TargetStorage     string
 	Force             bool
+}{}
+
+var ledgerGenerateTrieArgs = struct {
+	TargetBlockNumber uint64
+	TargetStoragePath string
 }{}
 
 var ledgerCMD = &cli.Command{
@@ -131,6 +138,27 @@ var ledgerCMD = &cli.Command{
 					Usage:       "disable interactive confirmation",
 					Destination: &ledgerSimpleSyncArgs.Force,
 					Required:    false,
+				},
+			},
+		},
+		{
+			Name:   "generate-trie",
+			Usage:  "Generate world state trie at specific block",
+			Action: generateTrie,
+			Flags: []cli.Flag{
+				&cli.Uint64Flag{
+					Name:        "target-block-number",
+					Aliases:     []string{"b"},
+					Usage:       "block number of target trie, must be less than or equal to the latest block height",
+					Destination: &ledgerGenerateTrieArgs.TargetBlockNumber,
+					Required:    true,
+				},
+				&cli.StringFlag{
+					Name:        "target-storage",
+					Aliases:     []string{"t"},
+					Usage:       "directory to store trie instance",
+					Destination: &ledgerGenerateTrieArgs.TargetStoragePath,
+					Required:    true,
 				},
 			},
 		},
@@ -370,6 +398,45 @@ func simpleSync(ctx *cli.Context) error {
 	}, func(n uint64) (*types.Block, error) {
 		return sourceChainLedger.GetBlock(n)
 	}, targetBlockNumber)
+}
+
+func generateTrie(ctx *cli.Context) error {
+	logger := loggers.Logger(loggers.App)
+	logger.Infof("start generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
+
+	r, err := prepareRepo(ctx)
+	if err != nil {
+		return err
+	}
+
+	chainLedger, err := ledger.NewChainLedger(r, "")
+	if err != nil {
+		return fmt.Errorf("init chain ledger failed: %w", err)
+	}
+	block, err := chainLedger.GetBlock(ledgerGenerateTrieArgs.TargetBlockNumber)
+	if err != nil {
+		return fmt.Errorf("get block failed: %w", err)
+	}
+
+	targetStateStoragePath := path.Join(repo.GetStoragePath(r.RepoRoot, storagemgr.Sync), ledgerGenerateTrieArgs.TargetStoragePath)
+	targetStateStorage, err := storagemgr.Open(targetStateStoragePath)
+	if err != nil {
+		return fmt.Errorf("create targetStateStorage: %w", err)
+	}
+
+	originStateLedger, err := ledger.NewStateLedger(r, "")
+	if err != nil {
+		return fmt.Errorf("init state ledger failed: %w", err)
+	}
+	originStateLedger.(*ledger.StateLedgerImpl).WithGetEpochInfoFunc(base.GetEpochInfo)
+
+	errC := make(chan error)
+	go originStateLedger.IterateTrie(block, targetStateStorage, errC)
+	err = <-errC
+
+	logger.Infof("success generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
+
+	return err
 }
 
 func prepareRepo(ctx *cli.Context) (*repo.Repo, error) {

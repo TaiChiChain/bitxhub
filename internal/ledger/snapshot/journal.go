@@ -46,16 +46,16 @@ func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
 	}
 }
 
-func GetJournalRange(ldb storage.Storage) (uint64, uint64) {
+func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
-	data := ldb.Get(CompositeSnapJournalKey(MinHeightStr))
+	data := snap.diskdb.Get(CompositeSnapJournalKey(MinHeightStr))
 	if data != nil {
 		minHeight = unmarshalHeight(data)
 	}
 
-	data = ldb.Get(CompositeSnapJournalKey(MaxHeightStr))
+	data = snap.diskdb.Get(CompositeSnapJournalKey(MaxHeightStr))
 	if data != nil {
 		maxHeight = unmarshalHeight(data)
 	}
@@ -63,8 +63,8 @@ func GetJournalRange(ldb storage.Storage) (uint64, uint64) {
 	return minHeight, maxHeight
 }
 
-func GetBlockJournal(height uint64, ldb storage.Storage) *BlockJournal {
-	data := ldb.Get(CompositeSnapJournalKey(height))
+func (snap *Snapshot) GetBlockJournal(height uint64) *BlockJournal {
+	data := snap.diskdb.Get(CompositeSnapJournalKey(height))
 	if data == nil {
 		return nil
 	}

@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
@@ -50,15 +52,15 @@ type StateLedgerImpl struct {
 	refund     uint64
 	logs       *evmLogs
 
-	snapshotDB      storage.Storage
-	snapshotCacheDB storage.Storage
-	snapshot        *snapshot.Snapshot
+	snapshot *snapshot.Snapshot
 
 	transientStorage transientStorage
 
 	// enableExpensiveMetric determines if costly metrics gathering is allowed or not.
 	// The goal is to separate standard metrics for health monitoring and debug metrics that might impact runtime performance.
 	enableExpensiveMetric bool
+
+	getEpochInfoFunc func(epoch uint64) (*rbft.EpochInfo, error)
 }
 
 // NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
@@ -78,8 +80,6 @@ func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) State
 		enableExpensiveMetric: l.enableExpensiveMetric,
 	}
 	if enableSnapshot {
-		lg.snapshotDB = l.snapshotDB
-		lg.snapshotCacheDB = l.snapshotCacheDB
 		lg.snapshot = l.snapshot
 	}
 	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
@@ -104,12 +104,16 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block, enableSnapshot
 		enableExpensiveMetric: l.enableExpensiveMetric,
 	}
 	if enableSnapshot {
-		lg.snapshotDB = l.snapshotDB
-		lg.snapshotCacheDB = l.snapshotCacheDB
 		lg.snapshot = l.snapshot
 	}
 	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
 	return lg
+}
+
+func (l *StateLedgerImpl) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {
+	l.getEpochInfoFunc = func(epoch uint64) (*rbft.EpochInfo, error) {
+		return f(l, epoch)
+	}
 }
 
 func (l *StateLedgerImpl) Finalise() {
@@ -128,10 +132,11 @@ func (l *StateLedgerImpl) Finalise() {
 }
 
 // todo make arguments configurable
-func (l *StateLedgerImpl) IterateTrie(rootHash common.Hash, kv storage.Storage, errC chan error) {
-	l.logger.Debugf("[IterateTrie] rootHash: %v", rootHash)
+func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, errC chan error) {
+	stateRoot := block.BlockHeader.StateRoot.ETHHash()
+	l.logger.Debugf("[IterateTrie] blockhash: %v, rootHash: %v", block.BlockHash, stateRoot)
 
-	iter := jmt.NewIterator(rootHash, l.cachedDB, 100, time.Second)
+	iter := jmt.NewIterator(stateRoot, l.cachedDB, 100, time.Second)
 	go iter.Iterate()
 
 	var finish bool
@@ -158,10 +163,43 @@ func (l *StateLedgerImpl) IterateTrie(rootHash common.Hash, kv storage.Storage, 
 			break
 		}
 	}
-	batch.Put(rootHash[:], l.cachedDB.Get(rootHash[:]))
+	batch.Put(stateRoot[:], l.cachedDB.Get(stateRoot[:]))
+	batch.Put([]byte(TrieHeightKey), []byte(fmt.Sprintf("%v", block.BlockHeader.Number)))
+	batch.Put([]byte(TrieHashKey), []byte(block.Hash().String()))
+
+	epochInfo, err := l.getEpochInfoFunc(block.BlockHeader.Epoch)
+	if err != nil {
+		// todo err handle
+		l.logger.Errorf("l.getEpochInfoFunc error:%v\n", err.Error())
+	}
+	blob, err := json.Marshal(epochInfo)
+	if err != nil {
+		errC <- err
+		return
+	}
+	batch.Put([]byte(TrieNodeInfoKey), blob)
+
 	batch.Commit()
 
 	errC <- nil
+}
+
+func (l *StateLedgerImpl) GetTrieSnapshotMeta(metaKey string) (interface{}, error) {
+	switch metaKey {
+	case TrieHashKey:
+		return string(l.cachedDB.Get([]byte(TrieHashKey))), nil
+	case TrieHeightKey:
+		return string(l.cachedDB.Get([]byte(TrieHeightKey))), nil
+	case TrieNodeInfoKey:
+		blob := l.cachedDB.Get([]byte(TrieNodeInfoKey))
+		info := &rbft.EpochInfo{}
+		err := info.Unmarshal(blob)
+		if err != nil {
+			return err, nil
+		}
+		return info, nil
+	}
+	return nil, fmt.Errorf("[GetTrieSnapshotMeta] unsupported trie snapshot key")
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
@@ -188,8 +226,6 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 
 	if snapshotStorage != nil {
 		snapshotCachedStorage := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
-		ledger.snapshotDB = snapshotStorage
-		ledger.snapshotCacheDB = snapshotCachedStorage
 		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage)
 	}
 

@@ -2,12 +2,13 @@ package ledger
 
 import (
 	"fmt"
-	"github.com/axiomesh/axiom-kit/storage"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	vm "github.com/axiomesh/eth-kit/evm"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 //go:generate mockgen -destination mock_ledger/mock_ledger.go -package mock_ledger -source ledger.go -typed
@@ -84,7 +85,9 @@ type StateLedger interface {
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger
 
-	IterateTrie(rootHash common.Hash, kv storage.Storage, errC chan error)
+	IterateTrie(block *types.Block, kv storage.Storage, errC chan error)
+
+	GetTrieSnapshotMeta(metaKey string) (interface{}, error)
 }
 
 // StateAccessor manipulates the state data
