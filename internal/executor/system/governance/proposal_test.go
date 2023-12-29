@@ -69,7 +69,7 @@ func TestProposal_CheckAndUpdateState(t *testing.T) {
 	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
 
 	for _, testcase := range testcases {
-		baseProposal := &BaseProposal{ID: 1, BlockNumber: testcase.BlockNumber, Status: testcase.Status}
+		baseProposal := &Proposal{ID: 1, BlockNumber: testcase.BlockNumber, Status: testcase.Status}
 
 		_, err := saveCouncilProposal(stateLedger, baseProposal)
 		assert.Nil(t, err)
@@ -106,7 +106,7 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
 
 	// test council
-	baseProposal := &BaseProposal{ID: 1, BlockNumber: 10, Status: Voting}
+	baseProposal := &Proposal{ID: 1, BlockNumber: 10, Status: Voting}
 	_, err := saveCouncilProposal(stateLedger, baseProposal)
 	assert.Nil(t, err)
 
@@ -125,7 +125,7 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 	assert.Equal(t, Rejected, proposal.Status)
 
 	// test node
-	baseProposal = &BaseProposal{ID: 2, BlockNumber: 10, Status: Voting}
+	baseProposal = &Proposal{ID: 2, BlockNumber: 10, Status: Voting}
 	_, err = saveNodeProposal(stateLedger, baseProposal)
 	assert.Nil(t, err)
 
@@ -144,7 +144,7 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 	assert.Equal(t, Rejected, nodeProposal.Status)
 
 	// test white list provider
-	baseProposal = &BaseProposal{ID: 3, BlockNumber: 10, Status: Voting}
+	baseProposal = &Proposal{ID: 3, BlockNumber: 10, Status: Voting}
 	_, err = saveProviderProposal(stateLedger, baseProposal)
 	assert.Nil(t, err)
 
@@ -163,7 +163,7 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 	assert.Equal(t, Rejected, providerProposal.Status)
 
 	// test gas
-	baseProposal = &BaseProposal{ID: 4, BlockNumber: 10, Status: Voting}
+	baseProposal = &Proposal{ID: 4, BlockNumber: 10, Status: Voting}
 	_, err = saveProviderProposal(stateLedger, baseProposal)
 	assert.Nil(t, err)
 

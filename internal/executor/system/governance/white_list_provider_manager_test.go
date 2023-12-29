@@ -552,7 +552,7 @@ func generateProviderVoteData(t *testing.T, proposalID uint64, voteResult VoteRe
 
 func generateManagerReturnData(t *testing.T, testProposal *TestWhiteListProviderProposal) []byte {
 	proposal := &WhiteListProviderProposal{
-		BaseProposal: BaseProposal{
+		Proposal: Proposal{
 			ID:          testProposal.ID,
 			Type:        testProposal.Type,
 			Strategy:    NowProposalStrategy,

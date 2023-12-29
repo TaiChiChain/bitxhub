@@ -32,7 +32,7 @@ var (
 	ErrNilProposalAccount = errors.New("ProposalID must be reset then use")
 )
 
-type BaseProposal struct {
+type Proposal struct {
 	ID          uint64
 	Type        ProposalType
 	Strategy    ProposalStrategy
@@ -50,22 +50,29 @@ type BaseProposal struct {
 
 	RejectVotes []string
 	Status      ProposalStatus
+	// Extra record extra information for some specail proposal
+	Extra []byte
+
+	// CreatedBlockNumber is block number when the proposal has be created
+	CreatedBlockNumber uint64
+	// EffectiveBlockNumber is block number when the proposal has be take effect
+	EffectiveBlockNumber uint64
 }
 
-func (baseProposal *BaseProposal) GetID() uint64 {
-	return baseProposal.ID
+func (proposal *Proposal) GetID() uint64 {
+	return proposal.ID
 }
 
-func (baseProposal *BaseProposal) GetStatus() ProposalStatus {
-	return baseProposal.Status
+func (proposal *Proposal) GetStatus() ProposalStatus {
+	return proposal.Status
 }
 
-func (baseProposal *BaseProposal) SetStatus(status ProposalStatus) {
-	baseProposal.Status = status
+func (proposal *Proposal) SetStatus(status ProposalStatus) {
+	proposal.Status = status
 }
 
-func (baseProposal *BaseProposal) GetBlockNumber() uint64 {
-	return baseProposal.BlockNumber
+func (proposal *Proposal) GetBlockNumber() uint64 {
+	return proposal.BlockNumber
 }
 
 type ProposalID struct {
@@ -160,7 +167,7 @@ func nameKey(name string) []byte {
 type NotFinishedProposal struct {
 	ID                  uint64
 	DeadlineBlockNumber uint64
-	ContractAddr        string
+	Type                ProposalType
 }
 
 type NotFinishedProposalMgr struct {
@@ -220,93 +227,4 @@ func (nfpm *NotFinishedProposalMgr) GetProposals() (map[uint64]NotFinishedPropos
 
 func notFinishedProposalsKey() []byte {
 	return []byte(NotFinishedProposalsKey)
-}
-
-func loadProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal) (ProposalObject, error) {
-	switch nfp.ContractAddr {
-	case common.CouncilManagerContractAddr:
-		return loadCouncilProposal(stateLedger, nfp.ID)
-	case common.NodeManagerContractAddr:
-		return loadNodeProposal(stateLedger, nfp.ID)
-	case common.WhiteListProviderManagerContractAddr:
-		return loadProviderProposal(stateLedger, nfp.ID)
-	case common.GasManagerContractAddr:
-		return loadProviderProposal(stateLedger, nfp.ID)
-	default:
-		return nil, errors.New("no this contract")
-	}
-}
-
-func saveProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal, proposal ProposalObject) error {
-	switch nfp.ContractAddr {
-	case common.CouncilManagerContractAddr:
-		_, err := saveCouncilProposal(stateLedger, proposal)
-		return err
-	case common.NodeManagerContractAddr:
-		_, err := saveNodeProposal(stateLedger, proposal)
-		return err
-	case common.WhiteListProviderManagerContractAddr:
-		_, err := saveProviderProposal(stateLedger, proposal)
-		return err
-	case common.GasManagerContractAddr:
-		_, err := saveProviderProposal(stateLedger, proposal)
-		return err
-	default:
-		return errors.New("no this contract")
-	}
-}
-
-type ProposalObject interface {
-	GetID() uint64
-	GetStatus() ProposalStatus
-	SetStatus(status ProposalStatus)
-	GetBlockNumber() uint64
-}
-
-func CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) error {
-	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
-	notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
-	if err != nil {
-		return err
-	}
-
-	for _, notFinishedProposal := range notFinishedProposals {
-		if notFinishedProposal.DeadlineBlockNumber <= lastHeight {
-			// update original proposal status
-			proposal, err := loadProposal(stateLedger, &notFinishedProposal)
-			if err != nil {
-				return err
-			}
-
-			if proposal.GetStatus() == Approved || proposal.GetStatus() == Rejected {
-				// proposal is finnished, no need update
-				continue
-			}
-
-			// means proposal is out of deadline,status change to rejected
-			proposal.SetStatus(Rejected)
-
-			err = saveProposal(stateLedger, &notFinishedProposal, proposal)
-			if err != nil {
-				return err
-			}
-
-			// remove proposal from not finished proposals
-			if err = notFinishedProposalMgr.RemoveProposal(notFinishedProposal.ID); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func GetNotFinishedProposals(stateLedger ledger.StateLedger) (map[uint64]NotFinishedProposal, error) {
-	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
-	notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
-	if err != nil {
-		return nil, err
-	}
-
-	return notFinishedProposals, nil
 }

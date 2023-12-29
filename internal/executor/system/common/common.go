@@ -1,8 +1,13 @@
 package common
 
 import (
+	_ "embed"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtype "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -19,21 +24,93 @@ const (
 
 	// ProposalIDContractAddr is the contract to used to generate the proposal ID
 	ProposalIDContractAddr = "0x0000000000000000000000000000000000001000"
-
-	NodeManagerContractAddr    = "0x0000000000000000000000000000000000001001"
-	CouncilManagerContractAddr = "0x0000000000000000000000000000000000001002"
+	GovernanceContractAddr = "0x0000000000000000000000000000000000001001"
 
 	// Addr2NameContractAddr for unique name mapping to address
-	Addr2NameContractAddr                = "0x0000000000000000000000000000000000001003"
-	WhiteListContractAddr                = "0x0000000000000000000000000000000000001004"
-	WhiteListProviderManagerContractAddr = "0x0000000000000000000000000000000000001005"
-	NotFinishedProposalContractAddr      = "0x0000000000000000000000000000000000001006"
+	Addr2NameContractAddr           = "0x0000000000000000000000000000000000001003"
+	WhiteListContractAddr           = "0x0000000000000000000000000000000000001004"
+	NotFinishedProposalContractAddr = "0x0000000000000000000000000000000000001006"
 
 	// EpochManagerContractAddr is the contract to used to manager chain epoch info
 	EpochManagerContractAddr = "0x0000000000000000000000000000000000001007"
 
-	GasManagerContractAddr = "0x0000000000000000000000000000000000001008"
+	ProposeMethod                = "propose"
+	VoteMethod                   = "vote"
+	GetLatestProposalIDMethod    = "getLatestProposalID"
+	SubmitMethod                 = "submit"
+	RemoveMethod                 = "remove"
+	QueryAuthInfoMethod          = "queryAuthInfo"
+	QueryWhiteListProviderMethod = "queryWhiteListProvider"
+	CurrentEpochMethod           = "currentEpoch"
+	NextEpochMethod              = "nextEpoch"
+	HistoryEpochMethod           = "historyEpoch"
 )
+
+//go:embed sol/Governance.abi
+var governanceABI string
+
+//go:embed sol/WhiteList.abi
+var whiteListABI string
+
+//go:embed sol/EpochManager.abi
+var epochManagerABI string
+
+// governanceMethod2Sig is method name to method signature mapping
+var governanceMethod2Sig = map[string]string{
+	"propose":             "propose(uint8,string,string,uint64,bytes)",
+	"vote":                "vote(uint64,uint8)",
+	"proposal":            "proposal(uint64)",
+	"getLatestProposalID": "getLatestProposalID()",
+}
+
+var whiteListMethod2Sig = map[string]string{
+	SubmitMethod:                 "submit(bytes)",
+	RemoveMethod:                 "remove(bytes)",
+	QueryAuthInfoMethod:          "queryAuthInfo(bytes)",
+	QueryWhiteListProviderMethod: "queryWhiteListProvider(bytes)",
+}
+
+var epochManagerMethod2Sig = map[string]string{
+	CurrentEpochMethod: "currentEpoch()",
+	NextEpochMethod:    "nextEpoch()",
+	HistoryEpochMethod: "historyEpoch(uint64)",
+}
+
+// contractAddr2MethodSig is system contract address to method sig mapping
+var contractAddr2MethodSig = map[string]map[string]string{
+	GovernanceContractAddr:   governanceMethod2Sig,
+	WhiteListContractAddr:    whiteListMethod2Sig,
+	EpochManagerContractAddr: epochManagerMethod2Sig,
+}
+
+var contract2ABIFile = map[string]string{
+	GovernanceContractAddr:   governanceABI,
+	WhiteListContractAddr:    whiteListABI,
+	EpochManagerContractAddr: epochManagerABI,
+}
+
+var Contract2MethodSig map[string]map[string][]byte
+var Contract2ABI map[string]abi.ABI
+
+func init() {
+	Contract2MethodSig = make(map[string]map[string][]byte)
+	for contractAddr, method2Sig := range contractAddr2MethodSig {
+		m2sig := make(map[string][]byte)
+		for methodName, methodSig := range method2Sig {
+			m2sig[methodName] = crypto.Keccak256([]byte(methodSig))
+		}
+		Contract2MethodSig[contractAddr] = m2sig
+	}
+
+	Contract2ABI = make(map[string]abi.ABI)
+	for contractAddr, abiFile := range contract2ABIFile {
+		contractABI, err := abi.JSON(strings.NewReader(abiFile))
+		if err != nil {
+			panic(err)
+		}
+		Contract2ABI[contractAddr] = contractABI
+	}
+}
 
 type SystemContractConfig struct {
 	Logger logrus.FieldLogger
@@ -42,6 +119,9 @@ type SystemContractConfig struct {
 type SystemContractConstruct func(cfg *SystemContractConfig) SystemContract
 
 type SystemContract interface {
+	// IsSystemContract judge if is system contract
+	IsSystemContract(addr *types.Address) bool
+
 	// Reset the state of the system contract
 	Reset(uint64, ledger.StateLedger)
 
@@ -50,6 +130,21 @@ type SystemContract interface {
 
 	// EstimateGas estimate the gas cost of the system contract
 	EstimateGas(*types.CallArgs) (uint64, error)
+
+	// View return a view system contract
+	View() SystemContract
+}
+
+type SystemContractContext struct {
+	StateLedger   ledger.StateLedger
+	CurrentHeight uint64
+	CurrentLogs   *[]Log
+	CurrentUser   *ethcommon.Address
+}
+
+// InnerSystemContract must be implemented by all system contract
+type InnerSystemContract interface {
+	SetContext(*SystemContractContext)
 }
 
 func IsInSlice[T ~uint8 | ~string](value T, slice []T) bool {

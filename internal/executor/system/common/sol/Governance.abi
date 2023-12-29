@@ -1,0 +1,157 @@
+[
+  {
+    "inputs": [],
+    "name": "getLatestProposalID",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "proposalID",
+        "type": "uint64"
+      }
+    ],
+    "name": "proposal",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "ID",
+            "type": "uint64"
+          },
+          {
+            "internalType": "enum ProposalType",
+            "name": "Type",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum ProposalStrategy",
+            "name": "Strategy",
+            "type": "uint8"
+          },
+          {
+            "internalType": "string",
+            "name": "Proposer",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "Title",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "Desc",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "BlockNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "TotalVotes",
+            "type": "uint64"
+          },
+          {
+            "internalType": "string[]",
+            "name": "PassVotes",
+            "type": "string[]"
+          },
+          {
+            "internalType": "string[]",
+            "name": "RejectVotes",
+            "type": "string[]"
+          },
+          {
+            "internalType": "enum ProposalStatus",
+            "name": "Status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bytes",
+            "name": "Extra",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint64",
+            "name": "CreatedBlockNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "EffectiveBlockNumber",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct Proposal",
+        "name": "proposal",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum ProposalType",
+        "name": "proposalType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "string",
+        "name": "title",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "desc",
+        "type": "string"
+      },
+      {
+        "internalType": "uint64",
+        "name": "blockNumber",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bytes",
+        "name": "extra",
+        "type": "bytes"
+      }
+    ],
+    "name": "propose",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "proposalID",
+        "type": "uint64"
+      },
+      {
+        "internalType": "enum VoteResult",
+        "name": "voteResult",
+        "type": "uint8"
+      }
+    ],
+    "name": "vote",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

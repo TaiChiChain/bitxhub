@@ -19,9 +19,8 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
-	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -324,12 +323,11 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	// TODO: Move to system contract
 	snapshot := statedb.Snapshot()
 
-	contract, ok := system.GetSystemContract(tx.GetTo())
-	if ok {
+	if exec.systemContract.IsSystemContract(tx.GetTo()) {
 		// execute built contract
-		contract.Reset(exec.currentHeight, statedb)
+		exec.systemContract.Reset(height, statedb)
 		// TODO: Move the error section to result
-		result, err = contract.Run(msg)
+		result, err = exec.systemContract.Run(msg)
 		if result != nil && result.UsedGas != 0 {
 			fee := new(big.Int).SetUint64(result.UsedGas)
 			fee.Mul(fee, msg.GasPrice)
@@ -433,7 +431,7 @@ func getBlockHashFunc(chainLedger ledger.ChainLedger) ethvm.GetHashFunc {
 
 func newEvm(evmCfg repo.EVM, number uint64, timestamp uint64, chainCfg *params.ChainConfig, db ledger.StateLedger, chainLedger ledger.ChainLedger, coinbase string) *ethvm.EVM {
 	if coinbase == "" {
-		coinbase = syscommon.ZeroAddress
+		coinbase = sys_common.ZeroAddress
 	}
 
 	blkCtx := ethvm.NewEVMBlockContext(number, timestamp, coinbase, getBlockHashFunc(chainLedger))
@@ -459,6 +457,10 @@ func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx ethvm.TxContext, vmConfig 
 
 func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {
 	return exec.evmChainCfg
+}
+
+func (exec *BlockExecutor) NewViewSystemContract() sys_common.SystemContract {
+	return exec.systemContract.View()
 }
 
 // getCurrentGasPrice returns the current block's gas price, which is

@@ -1,0 +1,66 @@
+[
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "user",
+				"type": "bytes"
+			}
+		],
+		"name": "queryAuthInfo",
+		"outputs": [
+			{
+				"internalType": "bytes",
+				"name": "authInfo",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "whiteListProviderAddr",
+				"type": "bytes"
+			}
+		],
+		"name": "queryWhiteListProvider",
+		"outputs": [
+			{
+				"internalType": "bytes",
+				"name": "whiteListProvider",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "addresses",
+				"type": "bytes"
+			}
+		],
+		"name": "remove",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "addresses",
+				"type": "bytes"
+			}
+		],
+		"name": "submit",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+]
