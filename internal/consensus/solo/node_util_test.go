@@ -34,7 +34,7 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 	logger := log.NewWithModule("consensus")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	repoRoot := t.TempDir()
-	r, err := repo.Load(repoRoot)
+	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot)
 	require.Nil(t, err)
 	txpoolConf := txpool2.Config{
 		IsTimed:             false,
@@ -56,7 +56,7 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	logger := log.NewWithModule("consensus")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	repoRoot := t.TempDir()
-	r, err := repo.Load(repoRoot)
+	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot)
 	require.Nil(t, err)
 	cfg := r.ConsensusConfig
 

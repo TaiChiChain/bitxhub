@@ -181,7 +181,7 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 
 	var addrs []peer.AddrInfo
 	for i := 0; i < peerCnt; i++ {
-		rep, err := repo.DefaultWithNodeIndex(t.TempDir(), i, true)
+		rep, err := repo.DefaultWithNodeIndex(t.TempDir(), i, true, repo.DefaultKeyJsonPassword)
 		require.Nil(t, err)
 		if versionChange && i == peerCnt-1 {
 			repo.BuildVersionSecret = "Shanghai"

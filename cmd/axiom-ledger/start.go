@@ -36,7 +36,7 @@ func start(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(p)
+	r, err := repo.Load(configGenerateArgs.Auth, p)
 	if err != nil {
 		return err
 	}

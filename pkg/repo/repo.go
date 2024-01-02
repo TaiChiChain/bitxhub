@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pelletier/go-toml/v2"
@@ -28,10 +29,10 @@ type Repo struct {
 	Config          *Config
 	ConsensusConfig *ConsensusConfig
 	GenesisConfig   *GenesisConfig
-	AccountKey      *ecdsa.PrivateKey
-	AccountAddress  string
+	P2PAddress      string
 	P2PKey          *ecdsa.PrivateKey
 	P2PID           string
+	CoinbaseAddress string
 
 	// TODO: Move to epoch manager service
 	// Track current epoch info, will be updated bt executor
@@ -42,7 +43,9 @@ type Repo struct {
 
 func (r *Repo) PrintNodeInfo() {
 	fmt.Printf("%s-repo: %s\n", AppName, r.RepoRoot)
-	fmt.Println("account-addr:", r.AccountAddress)
+	//fmt.Println("account-addr:", r.AccountAddress)
+	fmt.Println("coinbase-addr:", r.CoinbaseAddress)
+	fmt.Println("p2p-addr:", r.P2PAddress)
 	fmt.Println("p2p-id:", r.P2PID)
 	fmt.Printf("p2p-addr: /ip4/0.0.0.0/tcp/%d/p2p/%s\n", r.Config.Port.P2P, r.P2PID)
 }
@@ -56,8 +59,8 @@ func (*signerOpts) HashFunc() crypto.Hash {
 
 var signOpt = &signerOpts{}
 
-func (r *Repo) AccountKeySign(data []byte) ([]byte, error) {
-	return r.AccountKey.Sign(rand.Reader, data, signOpt)
+func (r *Repo) P2PKeySign(data []byte) ([]byte, error) {
+	return r.P2PKey.Sign(rand.Reader, data, signOpt)
 }
 
 func (r *Repo) Flush() error {
@@ -69,12 +72,6 @@ func (r *Repo) Flush() error {
 	}
 	if err := writeConfigWithEnv(path.Join(r.RepoRoot, genesisCfgFileName), r.GenesisConfig); err != nil {
 		return errors.Wrap(err, "failed to write genesis config")
-	}
-	if err := WriteKey(path.Join(r.RepoRoot, p2pKeyFileName), r.P2PKey); err != nil {
-		return errors.Wrap(err, "failed to write node key")
-	}
-	if err := WriteKey(path.Join(r.RepoRoot, AccountKeyFileName), r.AccountKey); err != nil {
-		return errors.Wrap(err, "failed to write node key")
 	}
 	return nil
 }
@@ -120,29 +117,30 @@ func MarshalConfig(config any) (string, error) {
 }
 
 func Default(repoRoot string) (*Repo, error) {
-	return DefaultWithNodeIndex(repoRoot, 0, false)
+	return DefaultWithNodeIndex(repoRoot, 0, false, DefaultKeyJsonPassword)
 }
 
-func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool) (*Repo, error) {
-	var p2pKey, accountKey *ecdsa.PrivateKey
+func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth string) (*Repo, error) {
+	var p2pKey *ecdsa.PrivateKey
 	var err error
+	var p2pAddress string
 	if nodeIndex < 0 || nodeIndex > len(DefaultNodeKeys)-1 {
-		p2pKey, err = GenerateKey()
-		if err != nil {
-			return nil, err
-		}
-		accountKey, err = GenerateKey()
+		p2pKey, err = fromP2PKeyJson(auth, repoRoot)
 		if err != nil {
 			return nil, err
 		}
 		nodeIndex = 0
 	} else {
 		p2pKey, err = ParseKey([]byte(DefaultNodeKeys[nodeIndex]))
+		_, err = GenerateP2PKeyJson(auth, repoRoot, p2pKey)
 		if err != nil {
 			return nil, err
 		}
-		accountKey = p2pKey
+		if err != nil {
+			return nil, err
+		}
 	}
+	p2pAddress = ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String()
 
 	id, err := KeyToNodeID(p2pKey)
 	if err != nil {
@@ -151,6 +149,7 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool) (*Re
 
 	cfg := DefaultConfig()
 	cfg.Port.P2P = int64(4001 + nodeIndex)
+	cfg.Coinbase.CoinbaseAddress = p2pAddress
 
 	genesisCfg := DefaultGenesisConfig(epochEnable)
 
@@ -159,8 +158,8 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool) (*Re
 		Config:          cfg,
 		ConsensusConfig: DefaultConsensusConfig(),
 		GenesisConfig:   genesisCfg,
-		AccountKey:      accountKey,
-		AccountAddress:  ethcrypto.PubkeyToAddress(accountKey.PublicKey).String(),
+		CoinbaseAddress: p2pAddress,
+		P2PAddress:      p2pAddress,
 		P2PKey:          p2pKey,
 		P2PID:           id,
 		EpochInfo:       genesisCfg.EpochInfo,
@@ -168,23 +167,19 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool) (*Re
 }
 
 // load config from the repo, which is automatically initialized when the repo is empty
-func Load(repoRoot string) (*Repo, error) {
+func Load(auth string, repoRoot string) (*Repo, error) {
 	repoRoot, err := LoadRepoRootFromEnv(repoRoot)
 	if err != nil {
 		return nil, err
 	}
 
-	p2pKey, err := LoadP2PKey(repoRoot)
+	p2pKey, err := fromP2PKeyJson(auth, repoRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load node p2pKey: %w", err)
 	}
 	id, err := KeyToNodeID(p2pKey)
 	if err != nil {
 		return nil, err
-	}
-	accountKey, err := LoadAccountKey(repoRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load node p2pKey: %w", err)
 	}
 
 	cfg, err := LoadConfig(repoRoot)
@@ -207,8 +202,8 @@ func Load(repoRoot string) (*Repo, error) {
 		Config:          cfg,
 		ConsensusConfig: consensusCfg,
 		GenesisConfig:   genesisCfg,
-		AccountKey:      accountKey,
-		AccountAddress:  ethcrypto.PubkeyToAddress(accountKey.PublicKey).String(),
+		CoinbaseAddress: cfg.Coinbase.CoinbaseAddress,
+		P2PAddress:      ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String(),
 		P2PKey:          p2pKey,
 		P2PID:           id,
 		EpochInfo:       genesisCfg.EpochInfo,

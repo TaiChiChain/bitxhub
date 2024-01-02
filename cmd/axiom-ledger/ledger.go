@@ -71,6 +71,7 @@ var ledgerCMD = &cli.Command{
 					Destination: &ledgerGetBlockArgs.Hash,
 					Required:    false,
 				},
+				passwordFlag(),
 			},
 		},
 		{
@@ -381,7 +382,7 @@ func prepareRepo(ctx *cli.Context) (*repo.Repo, error) {
 		return nil, errors.New("axiom-ledger repo not exist")
 	}
 
-	r, err := repo.Load(p)
+	r, err := repo.Load(configGenerateArgs.Auth, p)
 	if err != nil {
 		return nil, err
 	}
