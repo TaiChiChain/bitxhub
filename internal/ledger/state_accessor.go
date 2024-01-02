@@ -386,6 +386,8 @@ func (l *StateLedgerImpl) Version() uint64 {
 // This manner will not affect the correctness of ledger,
 // todo but maybe need to optimize to free allocated space in KV.
 func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) error {
+	l.logger.Debugf("[RollbackState] rollback state to height=%v\n", height)
+
 	// clean cache account
 	l.Clear()
 	l.accountCache.clear()

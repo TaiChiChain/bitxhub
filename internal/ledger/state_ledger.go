@@ -156,7 +156,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 		snapshotCachedStorage := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
 		ledger.snapshotDB = snapshotStorage
 		ledger.snapshotCacheDB = snapshotCachedStorage
-		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage)
+		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage, ledger.logger)
 	}
 
 	ledger.refreshAccountTrie(nil)
