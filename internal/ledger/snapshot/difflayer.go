@@ -1,7 +1,7 @@
 package snapshot
 
 //
-//import (
+// import (
 //	"bytes"
 //	"math/big"
 //	"sync"
@@ -9,9 +9,9 @@ package snapshot
 //	"github.com/ethereum/go-ethereum/common"
 //
 //	"github.com/axiomesh/axiom-kit/types"
-//)
+// )
 //
-//type diffLayer struct {
+// type diffLayer struct {
 //	parent Layer // Parent snapshot modified by this one, never nil
 //	origin Layer // bottom disk layer
 //
@@ -23,27 +23,27 @@ package snapshot
 //	storage   map[string]map[string][]byte
 //
 //	lock sync.RWMutex
-//}
+// }
 //
-//// Root returns stateRoot hash for which this snapshot was made.
-//func (dl *diffLayer) Root() common.Hash {
+// // Root returns stateRoot hash for which this snapshot was made.
+// func (dl *diffLayer) Root() common.Hash {
 //	return dl.stateRoot
-//}
+// }
 //
-//// Parent always returns nil as there's no layer below the disk.
-//func (dl *diffLayer) Parent() Layer {
+// // Parent always returns nil as there's no layer below the disk.
+// func (dl *diffLayer) Parent() Layer {
 //	return dl.parent
-//}
+// }
 //
-//func (dl *diffLayer) Available() bool {
+// func (dl *diffLayer) Available() bool {
 //	dl.lock.RLock()
 //	defer dl.lock.RUnlock()
 //
 //	return dl.available
-//}
+// }
 //
-//// parameter 'storage' means <contract address --> <storage key --> storage value>>
-//func (dl *diffLayer) New(parent Layer, stateRoot common.Hash, destructs map[string]struct{}, accounts map[string][]byte, storage map[string]map[string][]byte) Layer {
+// // parameter 'storage' means <contract address --> <storage key --> storage value>>
+// func (dl *diffLayer) New(parent Layer, stateRoot common.Hash, destructs map[string]struct{}, accounts map[string][]byte, storage map[string]map[string][]byte) Layer {
 //	l := &diffLayer{
 //		parent:    parent,
 //		stateRoot: stateRoot,
@@ -52,9 +52,9 @@ package snapshot
 //		storage:   storage,
 //	}
 //	return l
-//}
+// }
 //
-//func (dl *diffLayer) Account(addr *types.Address) (*types.InnerAccount, error) {
+// func (dl *diffLayer) Account(addr *types.Address) (*types.InnerAccount, error) {
 //	dl.lock.RLock()
 //	defer dl.lock.RUnlock()
 //
@@ -82,9 +82,9 @@ package snapshot
 //
 //	// find target account in disk layer
 //	return dl.origin.Account(addr)
-//}
+// }
 //
-//func (dl *diffLayer) Storage(addr *types.Address, key []byte) ([]byte, error) {
+// func (dl *diffLayer) Storage(addr *types.Address, key []byte) ([]byte, error) {
 //	dl.lock.RLock()
 //	defer dl.lock.RUnlock()
 //
@@ -110,12 +110,12 @@ package snapshot
 //
 //	// find target storage slot in disk layer
 //	return dl.origin.Storage(addr, key)
-//}
+// }
 //
-//func (dl *diffLayer) Journal(buffer *bytes.Buffer) (common.Hash, error) {
+// func (dl *diffLayer) Journal(buffer *bytes.Buffer) (common.Hash, error) {
 //	return common.Hash{}, nil
-//}
+// }
 //
-//func (dl *diffLayer) Update(stateRoot common.Hash, destructs map[string]struct{}, accounts map[string]*types.InnerAccount, storage map[string]map[string][]byte) {
+// func (dl *diffLayer) Update(stateRoot common.Hash, destructs map[string]struct{}, accounts map[string]*types.InnerAccount, storage map[string]map[string][]byte) {
 //
-//}
+// }

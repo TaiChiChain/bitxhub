@@ -108,7 +108,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 
 	exec.cumulativeGasUsed = 0
-	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, exec.rep.CoinbaseAddress)
+	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
 	// get last block's stateRoot to init the latest world state trie
 	parentBlock, err := exec.ledger.ChainLedger.GetBlock(block.Height() - 1)
 	if err != nil {
@@ -451,7 +451,7 @@ func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx ethvm.TxContext, vmConfig 
 	}
 
 	lg := exec.ledger.NewView()
-	blkCtx = ethvm.NewEVMBlockContext(meta.Height, uint64(block.BlockHeader.Timestamp), exec.rep.CoinbaseAddress, getBlockHashFunc(exec.ledger.ChainLedger))
+	blkCtx = ethvm.NewEVMBlockContext(meta.Height, uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
 	return ethvm.NewEVM(blkCtx, txCtx, lg.StateLedger, exec.evmChainCfg, vmConfig), nil
 }
 

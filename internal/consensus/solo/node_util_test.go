@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -87,9 +88,12 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	require.Nil(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 
+	s, err := types.GenerateSigner()
+	assert.Nil(t, err)
 	soloNode := &Node{
 		config: &common.Config{
-			Config: r.ConsensusConfig,
+			Config:  r.ConsensusConfig,
+			PrivKey: s.Sk,
 		},
 		lastExec:         uint64(0),
 		isTimed:          txpoolConf.IsTimed,

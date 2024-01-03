@@ -2,17 +2,17 @@ package genesis
 
 import (
 	"encoding/json"
-
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestInitialize(t *testing.T) {

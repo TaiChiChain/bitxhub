@@ -516,7 +516,6 @@ func TestTps(t *testing.T) {
 		for {
 			select {
 			case blocks := <-syncs[localId].Commit():
-				//fmt.Println("receive commit blocks: ", blocks[len(blocks)-1].Height())
 				if blocks[len(blocks)-1].Height() == end {
 					taskDone = true
 				}

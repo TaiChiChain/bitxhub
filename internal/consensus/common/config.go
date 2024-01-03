@@ -24,7 +24,6 @@ type Config struct {
 	ConsensusType                               string
 	ConsensusStorageType                        string
 	PrivKey                                     *ecdsa.PrivateKey
-	SelfAccountAddress                          string
 	GenesisEpochInfo                            *rbft.EpochInfo
 	Network                                     network.Network
 	BlockSync                                   block_sync.Sync
@@ -82,12 +81,6 @@ func WithNetwork(net network.Network) Option {
 func WithBlockSync(blockSync block_sync.Sync) Option {
 	return func(config *Config) {
 		config.BlockSync = blockSync
-	}
-}
-
-func WithSelfAccountAddress(selfAccountAddress string) Option {
-	return func(config *Config) {
-		config.SelfAccountAddress = selfAccountAddress
 	}
 }
 

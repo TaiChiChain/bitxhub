@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pelletier/go-toml/v2"
@@ -32,7 +31,6 @@ type Repo struct {
 	P2PAddress      string
 	P2PKey          *ecdsa.PrivateKey
 	P2PID           string
-	CoinbaseAddress string
 
 	// TODO: Move to epoch manager service
 	// Track current epoch info, will be updated bt executor
@@ -43,9 +41,7 @@ type Repo struct {
 
 func (r *Repo) PrintNodeInfo() {
 	fmt.Printf("%s-repo: %s\n", AppName, r.RepoRoot)
-	//fmt.Println("account-addr:", r.AccountAddress)
-	fmt.Println("coinbase-addr:", r.CoinbaseAddress)
-	fmt.Println("p2p-addr:", r.P2PAddress)
+	fmt.Println("node-key-addr:", r.P2PAddress)
 	fmt.Println("p2p-id:", r.P2PID)
 	fmt.Printf("p2p-addr: /ip4/0.0.0.0/tcp/%d/p2p/%s\n", r.Config.Port.P2P, r.P2PID)
 }
@@ -136,9 +132,6 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 		if err != nil {
 			return nil, err
 		}
-		if err != nil {
-			return nil, err
-		}
 	}
 	p2pAddress = ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String()
 
@@ -149,7 +142,6 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 
 	cfg := DefaultConfig()
 	cfg.Port.P2P = int64(4001 + nodeIndex)
-	cfg.Coinbase.CoinbaseAddress = p2pAddress
 
 	genesisCfg := DefaultGenesisConfig(epochEnable)
 
@@ -158,7 +150,6 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 		Config:          cfg,
 		ConsensusConfig: DefaultConsensusConfig(),
 		GenesisConfig:   genesisCfg,
-		CoinbaseAddress: p2pAddress,
 		P2PAddress:      p2pAddress,
 		P2PKey:          p2pKey,
 		P2PID:           id,
@@ -202,7 +193,6 @@ func Load(auth string, repoRoot string) (*Repo, error) {
 		Config:          cfg,
 		ConsensusConfig: consensusCfg,
 		GenesisConfig:   genesisCfg,
-		CoinbaseAddress: cfg.Coinbase.CoinbaseAddress,
 		P2PAddress:      ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String(),
 		P2PKey:          p2pKey,
 		P2PID:           id,

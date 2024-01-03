@@ -3,11 +3,12 @@ package ledger
 import (
 	"sync"
 
-	"github.com/axiomesh/axiom-kit/jmt"
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axiomesh/axiom-kit/jmt"
+	"github.com/axiomesh/axiom-kit/storage"
 )
 
 var (
@@ -169,7 +170,6 @@ func (sp *subPreloader) reset() {
 	sp.stop = make(chan struct{})
 	sp.term = make(chan struct{})
 	sp.cached = make(map[string]struct{})
-
 }
 
 func (sp *subPreloader) loop() {

@@ -34,3 +34,18 @@ func TestDefaultKeys(t *testing.T) {
 		assert.Equal(t, defaultNodeIDs[i], nodeID)
 	}
 }
+
+func TestP2PID2PubKey(t *testing.T) {
+	k, err := GenerateKey()
+	assert.Nil(t, err)
+
+	priKey, err := Libp2pKeyFromECDSAKey(k)
+	assert.Nil(t, err)
+
+	id, err := KeyToNodeID(k)
+	assert.Nil(t, err)
+
+	pubKey, err := Libp2pIDToPubKey(id)
+	assert.Nil(t, err)
+	assert.True(t, pubKey.Equals(priKey.GetPublic()))
+}

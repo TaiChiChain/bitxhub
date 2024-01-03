@@ -54,7 +54,7 @@ func generateRbftConfig(config *common.Config) (rbft.Config, error) {
 	}
 	defaultConfig := defaultRbftConfig()
 	defaultConfig.GenesisEpochInfo = config.GenesisEpochInfo
-	defaultConfig.SelfAccountAddress = config.SelfAccountAddress
+	defaultConfig.SelfP2PNodeID = config.Network.PeerID()
 	lastServiceState := &rbfttypes.ServiceState{
 		MetaState: &rbfttypes.MetaState{
 			Height: config.Applied,

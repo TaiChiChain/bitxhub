@@ -28,8 +28,10 @@ func TestNode_Start(t *testing.T) {
 
 	mockCtl := gomock.NewController(t)
 	mockNetwork := mock_network.NewMockNetwork(mockCtl)
-
+	s, err := types.GenerateSigner()
+	assert.Nil(t, err)
 	config, err := common.GenerateConfig(
+		common.WithPrivKey(s.Sk),
 		common.WithConfig(r.RepoRoot, r.ConsensusConfig),
 		common.WithGenesisEpochInfo(r.GenesisConfig.EpochInfo),
 		common.WithLogger(log.NewWithModule("consensus")),

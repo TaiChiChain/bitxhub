@@ -2,9 +2,11 @@ package adaptor
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"fmt"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/event"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -29,19 +31,21 @@ var _ rbft.EpochService = (*RBFTAdaptor)(nil)
 var _ rbft.Ledger = (*RBFTAdaptor)(nil)
 
 type RBFTAdaptor struct {
-	epochStore        storage.Storage
-	store             rbft.Storage
-	priv              *ecdsa.PrivateKey
-	network           network.Network
-	msgPipes          map[int32]p2p.Pipe
-	globalMsgPipe     p2p.Pipe
-	ReadyC            chan *Ready
-	BlockC            chan *common.CommitEvent
-	logger            logrus.FieldLogger
-	getChainMetaFunc  func() *types.ChainMeta
-	getBlockFunc      func(uint64) (*types.Block, error)
-	StateUpdating     bool
-	StateUpdateHeight uint64
+	epochStore            storage.Storage
+	store                 rbft.Storage
+	libp2pKey             libp2pcrypto.PrivKey
+	p2pID2PubKeyCache     map[string]libp2pcrypto.PubKey
+	p2pID2PubKeyCacheLock *sync.RWMutex
+	network               network.Network
+	msgPipes              map[int32]p2p.Pipe
+	globalMsgPipe         p2p.Pipe
+	ReadyC                chan *Ready
+	BlockC                chan *common.CommitEvent
+	logger                logrus.FieldLogger
+	getChainMetaFunc      func() *types.ChainMeta
+	getBlockFunc          func(uint64) (*types.Block, error)
+	StateUpdating         bool
+	StateUpdateHeight     uint64
 
 	currentSyncHeight uint64
 	Cancel            context.CancelFunc
@@ -85,19 +89,26 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 		return nil, err
 	}
 
+	libp2pKey, err := repo.Libp2pKeyFromECDSAKey(config.PrivKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert ecdsa p2pKey: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	stack := &RBFTAdaptor{
-		epochStore:       epochStore,
-		store:            store,
-		priv:             config.PrivKey,
-		network:          config.Network,
-		ReadyC:           make(chan *Ready, 1024),
-		BlockC:           make(chan *common.CommitEvent, 1024),
-		quitSync:         make(chan struct{}, 1),
-		logger:           config.Logger,
-		getChainMetaFunc: config.GetChainMetaFunc,
-		getBlockFunc:     config.GetBlockFunc,
-		config:           config,
+		epochStore:            epochStore,
+		store:                 store,
+		libp2pKey:             libp2pKey,
+		p2pID2PubKeyCache:     make(map[string]libp2pcrypto.PubKey),
+		p2pID2PubKeyCacheLock: new(sync.RWMutex),
+		network:               config.Network,
+		ReadyC:                make(chan *Ready, 1024),
+		BlockC:                make(chan *common.CommitEvent, 1024),
+		quitSync:              make(chan struct{}, 1),
+		logger:                config.Logger,
+		getChainMetaFunc:      config.GetChainMetaFunc,
+		getBlockFunc:          config.GetBlockFunc,
+		config:                config,
 
 		sync: config.BlockSync,
 

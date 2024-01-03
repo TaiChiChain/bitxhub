@@ -183,6 +183,7 @@ func TestGasManager_RunForPropose(t *testing.T) {
 			}
 		}
 	}
+
 }
 
 func TestGasManager_VoteExecute(t *testing.T) {

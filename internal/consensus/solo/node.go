@@ -28,6 +28,7 @@ func init() {
 
 type Node struct {
 	config           *common.Config
+	proposerAccount  string
 	isTimed          bool
 	commitC          chan *common.CommitEvent                                             // block channel
 	logger           logrus.FieldLogger                                                   // logger
@@ -57,12 +58,18 @@ func NewNode(config *common.Config) (*Node, error) {
 		return nil, err
 	}
 
+	proposerAccount, err := repo.KeyToNodeID(config.PrivKey)
+	if err != nil {
+		return nil, err
+	}
+
 	// init batch timer manager
 	recvCh := make(chan consensusEvent, maxChanSize)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	soloNode := &Node{
 		config:           config,
+		proposerAccount:  proposerAccount,
 		isTimed:          currentEpoch.ConsensusParams.EnableTimedGenEmptyBlock,
 		noTxBatchTimeout: config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration(),
 		batchTimeout:     config.Config.Solo.BatchTimeout.ToDuration(),
@@ -373,7 +380,7 @@ func (n *Node) listenReadyBlock() {
 					Epoch:           1,
 					Number:          n.lastExec + 1,
 					Timestamp:       e.Timestamp / int64(time.Second),
-					ProposerAccount: n.config.SelfAccountAddress,
+					ProposerAccount: n.proposerAccount,
 				},
 				Transactions: e.TxList,
 			}

@@ -202,7 +202,6 @@ func TestStateTransit(t *testing.T) {
 	a22, err := snapshot.Account(addr2)
 	require.Nil(t, err)
 	require.True(t, isEqualAccount(a22, account22))
-
 }
 
 func TestRollback(t *testing.T) {

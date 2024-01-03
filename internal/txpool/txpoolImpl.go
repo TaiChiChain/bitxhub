@@ -496,7 +496,6 @@ func (p *txPoolImpl[T, Constraint]) dispatchLocalEvent(event *localEvent) {
 		}
 		p.logger.Debugf("handle rotate tx locals event")
 	}
-
 }
 
 func (p *txPoolImpl[T, Constraint]) handleGcAccountEvent() int {
@@ -551,6 +550,7 @@ func (p *txPoolImpl[T, Constraint]) AddRemoteTxs(txs []*T) {
 
 	p.postEvent(ev)
 }
+
 func (p *txPoolImpl[T, Constraint]) AddRebroadcastTxs(txs []*T) {
 	req := &reqRemoteTxs[T, Constraint]{
 		txs: txs,

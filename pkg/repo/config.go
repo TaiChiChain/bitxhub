@@ -72,7 +72,6 @@ type Config struct {
 	Monitor   Monitor   `mapstructure:"monitor" toml:"monitor"`
 	Log       Log       `mapstructure:"log" toml:"log"`
 	Access    Access    `mapstructure:"access" toml:"access"`
-	Coinbase  Coinbase  `mapstructure:"coinbase" toml:"coinbase"`
 }
 
 type Port struct {
@@ -219,10 +218,6 @@ type Executor struct {
 	Type            string `mapstructure:"type" toml:"type"`
 	DisableRollback bool   `mapstructure:"disable_rollback" toml:"disable_rollback"`
 	EVM             EVM    `mapstructure:"evm" toml:"evm"`
-}
-
-type Coinbase struct {
-	CoinbaseAddress string `mapstructure:"coinbase_address" toml:"coinbase_address"`
 }
 
 var SupportMultiNode = make(map[string]bool)

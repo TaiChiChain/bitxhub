@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/urfave/cli/v2"
 
+	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/txpool"
-	"github.com/urfave/cli/v2"
 )
 
 var txpoolCMD = &cli.Command{

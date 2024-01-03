@@ -103,7 +103,6 @@ func TestNewNode(t *testing.T) {
 		ConsensusType:        repo.ConsensusTypeRbft,
 		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
 		PrivKey:              s.Sk,
-		SelfAccountAddress:   s.Addr.String(),
 		GenesisEpochInfo:     r.GenesisConfig.EpochInfo,
 		Applied:              100,
 		Digest:               "0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7",
@@ -129,7 +128,9 @@ func TestNewNode(t *testing.T) {
 		GetAccountBalance: nil,
 		GetAccountNonce:   nil,
 	}
-	mockNetwork := testutil.MockMiniNetwork(ctrl, cnf.SelfAccountAddress)
+	p2pID, err := repo.KeyToNodeID(s.Sk)
+	assert.Nil(t, err)
+	mockNetwork := testutil.MockMiniNetwork(ctrl, p2pID)
 	cnf.Network = mockNetwork
 	_, err = NewNode(cnf)
 

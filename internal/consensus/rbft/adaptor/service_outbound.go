@@ -35,7 +35,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 
 	// get the validator set of the current local epoch
 	for _, v := range a.EpochInfo.ValidatorSet {
-		if v.AccountAddress != a.config.SelfAccountAddress {
+		if v.P2PNodeID != a.network.PeerID() {
 			peers = append(peers, v.P2PNodeID)
 		}
 	}

@@ -5,8 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 func TestTxRecords(t *testing.T) {

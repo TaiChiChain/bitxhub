@@ -92,7 +92,6 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			rep.Config.Consensus.Type,
 			common.WithTxPool(axm.TxPool),
 			common.WithConfig(rep.RepoRoot, rep.ConsensusConfig),
-			common.WithSelfAccountAddress(rep.P2PAddress),
 			common.WithGenesisEpochInfo(rep.GenesisConfig.EpochInfo.Clone()),
 			common.WithConsensusType(rep.Config.Consensus.Type),
 			common.WithConsensusStorageType(rep.Config.Consensus.StorageType),

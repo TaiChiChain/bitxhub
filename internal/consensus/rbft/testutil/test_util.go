@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -16,7 +15,6 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
-
 	"github.com/axiomesh/axiom-ledger/internal/block_sync/mock_block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
@@ -128,7 +126,6 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		ConsensusType:        "",
 		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
 		PrivKey:              s.Sk,
-		SelfAccountAddress:   crypto.PubkeyToAddress(s.Sk.PublicKey).String(),
 		GenesisEpochInfo:     genesisEpochInfo,
 		Applied:              0,
 		Digest:               "",
@@ -151,7 +148,10 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		},
 	}
 
-	mockNetwork := MockMiniNetwork(ctrl, conf.SelfAccountAddress)
+	p2pID, err := repo.KeyToNodeID(s.Sk)
+	assert.Nil(t, err)
+
+	mockNetwork := MockMiniNetwork(ctrl, p2pID)
 	conf.Network = mockNetwork
 
 	mockBlockSync := MockMiniBlockSync(ctrl)

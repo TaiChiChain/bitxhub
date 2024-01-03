@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -39,7 +38,17 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 }
 
 func Libp2pKeyFromECDSAKey(sk *ecdsa.PrivateKey) (libp2pcrypto.PrivKey, error) {
-	return libp2pcrypto.UnmarshalSecp256k1PrivateKey(ethcrypto.FromECDSA(sk))
+	raw := ethcrypto.FromECDSA(sk)
+	return libp2pcrypto.UnmarshalSecp256k1PrivateKey(raw)
+}
+
+func Libp2pIDToPubKey(id string) (libp2pcrypto.PubKey, error) {
+	p2pID, err := peer.Decode(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return p2pID.ExtractPublicKey()
 }
 
 func KeyToNodeID(sk *ecdsa.PrivateKey) (string, error) {

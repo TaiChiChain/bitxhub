@@ -128,9 +128,4 @@ var (
 		"16Uiu2HAmQv3m5SSyYAoafKmYbTbGmXBaS4DXHXR9wxWKQ9xLzC3n",
 		"16Uiu2HAkx1o5fzWLdAobanvE6vqbf1XSbDSgCnid3AoqDGQYFVxo",
 	}
-
-	//DefaultCoinbase = []string{
-	//	"0x664aE70F6058A010eE077b2932055D8ae8AC0D16",                       // address
-	//	"0b2624302ce7688a770512b1c494050d2275f7996258c470687c9d8a0ee4c041", // key
-	//}
 )
