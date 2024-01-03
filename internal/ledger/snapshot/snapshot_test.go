@@ -9,16 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
 func TestNormalCase(t *testing.T) {
+	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage)
+	snapshot := NewSnapshot(pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -112,11 +114,12 @@ func TestNormalCase(t *testing.T) {
 }
 
 func TestStateTransit(t *testing.T) {
+	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage)
+	snapshot := NewSnapshot(pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -203,11 +206,12 @@ func TestStateTransit(t *testing.T) {
 }
 
 func TestRollback(t *testing.T) {
+	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage)
+	snapshot := NewSnapshot(pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -395,11 +399,12 @@ func TestRollback(t *testing.T) {
 }
 
 func TestRemoveJournal(t *testing.T) {
+	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage)
+	snapshot := NewSnapshot(pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -538,11 +543,12 @@ func TestRemoveJournal(t *testing.T) {
 }
 
 func TestEmptySnapshot(t *testing.T) {
+	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage)
+	snapshot := NewSnapshot(pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{104}, 20))

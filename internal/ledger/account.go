@@ -430,22 +430,19 @@ func (o *SimpleAccount) Finalise() [][]byte {
 
 func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
 	entry := &snapshot.BlockJournalEntry{Address: o.Addr}
+	prevStates := o.getStateJournal()
 
-	if o.originAccount.InnerAccountChanged(o.dirtyAccount) || o.suicided {
+	if o.originAccount.InnerAccountChanged(o.dirtyAccount) || len(prevStates) != 0 || o.suicided {
 		entry.AccountChanged = true
 		entry.PrevAccount = o.originAccount
+		entry.PrevStates = prevStates
 	}
 
 	if o.originCode == nil && o.originAccount != nil && o.originAccount.CodeHash != nil {
 		o.originCode = o.ldb.Get(compositeCodeKey(o.Addr, o.originAccount.CodeHash))
 	}
 
-	prevStates := o.getStateJournal()
-	if len(prevStates) != 0 {
-		entry.PrevStates = prevStates
-	}
-
-	if entry.AccountChanged || len(entry.PrevStates) != 0 {
+	if entry.AccountChanged {
 		return entry
 	}
 

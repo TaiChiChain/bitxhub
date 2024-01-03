@@ -1,9 +1,13 @@
 package snapshot
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 )
@@ -24,24 +28,40 @@ type BlockJournalEntry struct {
 	PrevStates     map[string][]byte
 }
 
+func (entry *BlockJournalEntry) String() string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("[BlockJournalEntry]: addr=%v,prevAccount=%v,changed=%v,prevStates=[",
+		entry.Address.String(), entry.PrevAccount, entry.AccountChanged))
+	for k, v := range entry.PrevStates {
+		builder.WriteString(fmt.Sprintf("k=%v,v=%v;", hexutil.Encode([]byte(k)), hexutil.Encode(v)))
+	}
+	builder.WriteString("]")
+	return builder.String()
+}
+
 func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
-	if journal.AccountChanged {
-		if journal.PrevAccount != nil {
-			data, err := journal.PrevAccount.Marshal()
-			if err != nil {
-				panic(err)
-			}
-			batch.Put(CompositeSnapAccountKey(journal.Address.String()), data)
-		} else {
-			batch.Delete(CompositeSnapAccountKey(journal.Address.String()))
+	if !journal.AccountChanged {
+		return
+	}
+	if journal.PrevAccount != nil {
+		data, err := journal.PrevAccount.Marshal()
+		if err != nil {
+			panic(err)
 		}
+		batch.Put(CompositeSnapAccountKey(journal.Address.String()), data)
+	} else {
+		batch.Delete(CompositeSnapAccountKey(journal.Address.String()))
 	}
 
 	for key, val := range journal.PrevStates {
+		decodedKey, err := base64.StdEncoding.DecodeString(key)
+		if err != nil {
+			panic(fmt.Sprintf("decode key from base64 err: %v", err))
+		}
 		if val != nil {
-			batch.Put(CompositeSnapStorageKey(journal.Address.String(), []byte(key)), val)
+			batch.Put(CompositeSnapStorageKey(journal.Address.String(), decodedKey), val)
 		} else {
-			batch.Delete(CompositeSnapStorageKey(journal.Address.String(), []byte(key)))
+			batch.Delete(CompositeSnapStorageKey(journal.Address.String(), decodedKey))
 		}
 	}
 }
