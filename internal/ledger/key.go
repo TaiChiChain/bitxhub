@@ -18,8 +18,7 @@ const (
 	transactionMetaKey = "tx-meta-"
 	chainMetaKey       = "chain-meta"
 	codeKey            = "code-"
-	TrieHeightKey      = "trie-height-"
-	TrieHashKey        = "trie-hash-"
+	TrieBlockKey       = "trie-block-"
 	TrieNodeInfoKey    = "trie-nodeInfo-"
 )
 

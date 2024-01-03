@@ -1678,12 +1678,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(0), sl1.GetNonce(account1))
 			assert.Equal(t, uint64(0), sl1.GetNonce(account2))
 			assert.Equal(t, uint64(0), sl1.GetNonce(account3))
-			v, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieHeightKey)
+			v, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
 			assert.Nil(t, err)
-			assert.Equal(t, "1", v)
-			v, err = sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieHashKey)
-			assert.Nil(t, err)
-			assert.Equal(t, block1.Hash().String(), v)
+			assert.Equal(t, block1.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
 			info, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieNodeInfoKey)
 			assert.Nil(t, err)
 			assert.NotNil(t, info)
@@ -1714,8 +1711,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(12), sl2.GetNonce(account1))
 			assert.Equal(t, uint64(22), sl2.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl2.GetNonce(account3))
-			assert.Equal(t, "2", string(sl2.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
-			assert.Equal(t, block2.Hash().String(), string(sl2.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
+			v, err = sl2.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block2.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
 
 			// iterate trie of block 3
 			block3 := &types.Block{
@@ -1740,8 +1738,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(13), sl3.GetNonce(account1))
 			assert.Equal(t, uint64(23), sl3.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl3.GetNonce(account3))
-			assert.Equal(t, "3", string(sl3.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
-			assert.Equal(t, block3.Hash().String(), string(sl3.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
+			v, err = sl3.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block3.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
 
 			// iterate trie of block 4
 			block4 := &types.Block{
@@ -1767,8 +1766,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(13), sl4.GetNonce(account1))
 			assert.Equal(t, uint64(23), sl4.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl4.GetNonce(account3))
-			assert.Equal(t, "4", string(sl4.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
-			assert.Equal(t, block4.Hash().String(), string(sl4.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
+			v, err = sl4.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block4.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
 
 			// iterate trie of block 5
 			block5 := &types.Block{
@@ -1794,8 +1794,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(15), sl5.GetNonce(account1))
 			assert.Equal(t, uint64(25), sl5.GetNonce(account2))
 			assert.Equal(t, uint64(35), sl5.GetNonce(account3))
-			assert.Equal(t, "5", string(sl5.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHeightKey))))
-			assert.Equal(t, block5.Hash().String(), string(sl5.(*StateLedgerImpl).cachedDB.Get([]byte(TrieHashKey))))
+			v, err = sl5.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block5.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
 		})
 	}
 }

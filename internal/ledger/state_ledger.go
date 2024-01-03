@@ -164,8 +164,12 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 		}
 	}
 	batch.Put(stateRoot[:], l.cachedDB.Get(stateRoot[:]))
-	batch.Put([]byte(TrieHeightKey), []byte(fmt.Sprintf("%v", block.BlockHeader.Number)))
-	batch.Put([]byte(TrieHashKey), []byte(block.Hash().String()))
+	blockData, err := block.Marshal()
+	if err != nil {
+		errC <- err
+		return
+	}
+	batch.Put([]byte(TrieBlockKey), blockData)
 
 	epochInfo, err := l.getEpochInfoFunc(block.BlockHeader.Epoch)
 	if err != nil {
@@ -186,10 +190,14 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 
 func (l *StateLedgerImpl) GetTrieSnapshotMeta(metaKey string) (interface{}, error) {
 	switch metaKey {
-	case TrieHashKey:
-		return string(l.cachedDB.Get([]byte(TrieHashKey))), nil
-	case TrieHeightKey:
-		return string(l.cachedDB.Get([]byte(TrieHeightKey))), nil
+	case TrieBlockKey:
+		blob := l.cachedDB.Get([]byte(TrieBlockKey))
+		info := &types.Block{}
+		err := info.Unmarshal(blob)
+		if err != nil {
+			return err, nil
+		}
+		return info, nil
 	case TrieNodeInfoKey:
 		blob := l.cachedDB.Get([]byte(TrieNodeInfoKey))
 		info := &rbft.EpochInfo{}
