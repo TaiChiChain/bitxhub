@@ -1801,6 +1801,287 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 	}
 }
 
+func TestStateLedger_IterateStorageTrie(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			lg, _ := initLedger(t, "", tc.kvType)
+			sl := lg.StateLedger.(*StateLedgerImpl)
+
+			// create an account
+			account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+			account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+			account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+
+			// set storage account data in block 1
+			// account1: k1=v1
+			// account2: k1=v1
+			// account3: k1=v1
+			sl.blockHeight = 1
+			sl.SetState(account1, []byte("k1"), []byte("v1"))
+			sl.SetState(account2, []byte("k1"), []byte("v1"))
+			sl.SetState(account3, []byte("k1"), []byte("v1"))
+			sl.Finalise()
+			stateRoot1, err := sl.Commit()
+			assert.NotNil(t, stateRoot1)
+			assert.Nil(t, err)
+			isSuicide := sl.HasSuicide(account1)
+			assert.Equal(t, isSuicide, false)
+			assert.Equal(t, uint64(1), sl.Version())
+
+			// set storage account data in block 2
+			// account1: k1=v1, k2=v2
+			// account2: k1=v1, k2=v22
+			// account3: k1=v1
+			sl.blockHeight = 2
+			sl.SetState(account1, []byte("k2"), []byte("v2"))
+			sl.SetState(account2, []byte("k2"), []byte("v22"))
+			sl.Finalise()
+			stateRoot2, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(2), sl.Version())
+			assert.NotEqual(t, stateRoot1, stateRoot2)
+
+			// set storage account data in block 3
+			// account1: k1=v11, k2=v2
+			// account2: k1=v22, k2=v22
+			// account3: k1=v1, k2=v22
+			sl.blockHeight = 3
+			sl.SetState(account1, []byte("k1"), []byte("v11"))
+			sl.SetState(account2, []byte("k1"), []byte("v22"))
+			sl.SetState(account3, []byte("k2"), []byte("v22"))
+			sl.Finalise()
+			stateRoot3, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(3), sl.Version())
+			assert.NotEqual(t, stateRoot2, stateRoot3)
+
+			// set storage account data in block 4 (same with block 3)
+			// account1: k1=v11, k2=v2
+			// account2: k1=v22, k2=v22
+			// account3: k1=v1, k2=v22
+			sl.blockHeight = 4
+			sl.Finalise()
+			stateRoot4, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(4), sl.Version())
+			assert.Equal(t, stateRoot3, stateRoot4)
+
+			// set storage account data in block 5
+			// account1: k1=v11, k2=v22
+			// account2: k1=v11, k2=v22
+			// account3: k1=v11, k2=v22
+			sl.blockHeight = 5
+			sl.SetState(account1, []byte("k2"), []byte("v22"))
+			sl.SetState(account2, []byte("k1"), []byte("v11"))
+			sl.SetState(account3, []byte("k1"), []byte("v11"))
+			sl.Finalise()
+			stateRoot5, err := sl.Commit()
+			assert.Nil(t, err)
+			assert.Equal(t, uint64(5), sl.Version())
+			assert.NotEqual(t, stateRoot4, stateRoot5)
+
+			// iterate trie of block 1
+			block1 := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number:    1,
+					StateRoot: stateRoot1,
+					Epoch:     1,
+				},
+			}
+			s1 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC1 := make(chan error)
+			go sl.IterateTrie(block1, s1, errC1)
+			err, ok := <-errC1
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 1
+			sl1 := sl.NewViewWithoutCache(block1, false)
+			sl1.(*StateLedgerImpl).cachedDB = s1
+			sl1 = sl1.NewViewWithoutCache(block1, false)
+			exist, val := sl1.GetState(account1, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			exist, val = sl1.GetState(account2, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			exist, val = sl1.GetState(account3, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			v, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block1.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			info, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieNodeInfoKey)
+			assert.Nil(t, err)
+			assert.NotNil(t, info)
+			assert.Equal(t, block1.BlockHeader.Epoch, info.(*rbft.EpochInfo).Epoch)
+			assert.Equal(t, "P2PNodeID-1", info.(*rbft.EpochInfo).ValidatorSet[0].P2PNodeID)
+
+			// iterate trie of block 2
+			block2 := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number:    2,
+					StateRoot: stateRoot2,
+				},
+			}
+			s2 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC2 := make(chan error)
+			go sl.IterateTrie(block2, s2, errC2)
+			err, ok = <-errC2
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 2
+			sl2 := sl.NewViewWithoutCache(block2, false)
+			sl2.(*StateLedgerImpl).cachedDB = s2
+			sl2 = sl2.NewViewWithoutCache(block2, false)
+			exist, val = sl2.GetState(account1, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			exist, val = sl2.GetState(account1, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v2"), val)
+			exist, val = sl2.GetState(account2, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			exist, val = sl2.GetState(account2, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl2.GetState(account3, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			v, err = sl2.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block2.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+
+			// iterate trie of block 3
+			block3 := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number:    3,
+					StateRoot: stateRoot3,
+				},
+			}
+			s3 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC3 := make(chan error)
+			go sl.IterateTrie(block3, s3, errC3)
+			err, ok = <-errC3
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 3
+			sl3 := sl.NewViewWithoutCache(block3, false)
+			sl3.(*StateLedgerImpl).cachedDB = s3
+			exist, val = sl3.GetState(account1, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v11"), val)
+			exist, val = sl3.GetState(account1, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v2"), val)
+			exist, val = sl3.GetState(account2, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl3.GetState(account2, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl3.GetState(account3, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			exist, val = sl3.GetState(account3, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			v, err = sl3.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block3.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+
+			// iterate trie of block 4
+			block4 := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number:    4,
+					StateRoot: stateRoot4,
+				},
+			}
+			s4 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC4 := make(chan error)
+			go sl.IterateTrie(block4, s4, errC4)
+			err, ok = <-errC4
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 4
+			sl4 := sl.NewViewWithoutCache(block4, false)
+			sl4.(*StateLedgerImpl).cachedDB = s4
+			sl4 = sl4.NewViewWithoutCache(block4, false)
+			exist, val = sl4.GetState(account1, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v11"), val)
+			exist, val = sl4.GetState(account1, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v2"), val)
+			exist, val = sl4.GetState(account2, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl4.GetState(account2, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl4.GetState(account3, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v1"), val)
+			exist, val = sl4.GetState(account3, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			v, err = sl4.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block4.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+
+			// iterate trie of block 5
+			block5 := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number:    5,
+					StateRoot: stateRoot5,
+				},
+			}
+			s5 := initKVStorage(createMockRepo(t).RepoRoot)
+			errC5 := make(chan error)
+			go sl.IterateTrie(block5, s5, errC5)
+			err, ok = <-errC5
+			assert.True(t, ok)
+			assert.Nil(t, err)
+
+			// check state ledger in block 5
+			sl5 := sl.NewViewWithoutCache(block5, false)
+			sl5.(*StateLedgerImpl).cachedDB = s5
+			sl5 = sl5.NewViewWithoutCache(block5, false)
+			exist, val = sl5.GetState(account1, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v11"), val)
+			exist, val = sl5.GetState(account1, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl5.GetState(account2, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v11"), val)
+			exist, val = sl5.GetState(account2, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			exist, val = sl5.GetState(account3, []byte("k1"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v11"), val)
+			exist, val = sl5.GetState(account3, []byte("k2"))
+			assert.True(t, exist)
+			assert.Equal(t, []byte("v22"), val)
+			v, err = sl5.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			assert.Nil(t, err)
+			assert.Equal(t, block5.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+		})
+	}
+}
+
 func genBlockData(height uint64, stateRoot *types.Hash) *BlockData {
 	block := &types.Block{
 		BlockHeader: &types.BlockHeader{

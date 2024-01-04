@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"path"
 	"time"
 
@@ -136,34 +137,51 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 	stateRoot := block.BlockHeader.StateRoot.ETHHash()
 	l.logger.Debugf("[IterateTrie] blockhash: %v, rootHash: %v", block.BlockHash, stateRoot)
 
-	iter := jmt.NewIterator(stateRoot, l.cachedDB, 100, time.Second)
-	go iter.Iterate()
-
-	var finish bool
+	queue := []common.Hash{stateRoot}
 	batch := kv.NewBatch()
-	for {
-		select {
-		case <-iter.StopC:
-			finish = true
-			err, ok := <-iter.ErrC
-			if ok {
-				errC <- err
-				return
-			}
-		default:
-			for {
-				node, ok := <-iter.BufferC
-				if !ok {
-					break
+	for len(queue) > 0 {
+		trieRoot := queue[0]
+		iter := jmt.NewIterator(trieRoot, l.cachedDB, 100, time.Second)
+		l.logger.Debugf("[IterateTrie] trie root=%v", trieRoot)
+		go iter.Iterate()
+
+		var finish bool
+		for {
+			select {
+			case <-iter.StopC:
+				finish = true
+				err, ok := <-iter.ErrC
+				if ok {
+					errC <- err
+					return
 				}
-				batch.Put(node.Key, node.Value)
+			default:
+				for {
+					node, ok := <-iter.BufferC
+					if !ok {
+						break
+					}
+					batch.Put(node.RawKey, node.RawValue)
+					if trieRoot == stateRoot && len(node.LeafContent) > 0 {
+						// resolve potential contract account
+						acc := &types.InnerAccount{Balance: big.NewInt(0)}
+						if err := acc.Unmarshal(node.LeafContent); err != nil {
+							panic(err)
+						}
+						if acc.StorageRoot != (common.Hash{}) {
+							queue = append(queue, acc.StorageRoot)
+						}
+					}
+				}
+			}
+			if finish {
+				break
 			}
 		}
-		if finish {
-			break
-		}
+		queue = queue[1:]
+		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
 	}
-	batch.Put(stateRoot[:], l.cachedDB.Get(stateRoot[:]))
+
 	blockData, err := block.Marshal()
 	if err != nil {
 		errC <- err
