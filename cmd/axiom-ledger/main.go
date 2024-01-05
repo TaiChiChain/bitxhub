@@ -45,6 +45,7 @@ func main() {
 					Destination: &startArgs.Readonly,
 					Required:    false,
 				},
+				passwordFlag(),
 			},
 		},
 		{

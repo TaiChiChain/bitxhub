@@ -18,6 +18,9 @@ const (
 
 	P2PKeyFileName = "p2p.key"
 
+	// NodeP2PIdName is the name of the custom field in custom key json named p2p.key
+	NodeP2PIdName = "node_p2p_id"
+
 	DefaultKeyJsonPassword = "2023@axiomesh"
 
 	pidFileName = "running.pid"

@@ -3,11 +3,14 @@ package repo
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/accounts"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -85,10 +88,10 @@ func ReadKey(keyPath string) (*ecdsa.PrivateKey, error) {
 	return ParseKey(keyFile)
 }
 
-// GenerateKeyJson generates a JSON key for authentication and store it in the given directory.
+// GenerateCustomKeyJson generates a JSON key for authentication and store it in the given directory.
 //
 // It returns a string which is the address of the generated key.
-func GenerateKeyJson(auth string, keyDir string, privateKey *ecdsa.PrivateKey) (string, error) {
+func GenerateCustomKeyJson(auth string, keyDir string, privateKey *ecdsa.PrivateKey) (string, error) {
 	var err error
 	// if key is not exist, generate it
 	if privateKey == nil {
@@ -104,9 +107,40 @@ func GenerateKeyJson(auth string, keyDir string, privateKey *ecdsa.PrivateKey) (
 		fmt.Println("Error creating keystore:", err)
 		return "", err
 	}
-	fmt.Println("Account URL:", account.URL.String()) // todo
+	// add custom field, such as nodeId
+	nodeID, err := KeyToNodeID(privateKey)
+	if err != nil {
+		return "", err
+	}
+	err = addCustomFieldToKeyJson(account, nodeID)
+	if err != nil {
+		return "", err
+	}
+	if DefaultKeyJsonPassword == auth {
+		fmt.Println("Warning: Using default keystore password [", DefaultKeyJsonPassword, "], please change it")
+	}
 	fmt.Println("Account generated:", account.Address.Hex())
 	return account.Address.Hex(), nil
+}
+
+func addCustomFieldToKeyJson(account accounts.Account, nodeId string) error {
+	keyJsonPath := account.URL.Path
+	keyJsonData, err := os.ReadFile(keyJsonPath)
+	if err != nil {
+		return err
+	}
+	var keyJson map[string]interface{}
+	if err := json.Unmarshal(keyJsonData, &keyJson); err != nil {
+		return err
+	}
+	// Add the custom NodeId field
+	keyJson[NodeP2PIdName] = nodeId
+	modifiedKeyJsonData, err := json.Marshal(keyJson)
+	if err != nil {
+		return err
+	}
+	// Write the modified key file
+	return os.WriteFile(keyJsonPath, modifiedKeyJsonData, 0600)
 }
 
 // GenerateP2PKeyJson generates a P2P key JSON file for the given authentication string, key directory, and private key.
@@ -119,7 +153,7 @@ func GenerateP2PKeyJson(auth string, keyDir string, privateKey *ecdsa.PrivateKey
 	if auth == "" {
 		auth = DefaultKeyJsonPassword
 	}
-	addr, err := GenerateKeyJson(auth, keyDir, privateKey)
+	addr, err := GenerateCustomKeyJson(auth, keyDir, privateKey)
 	if err != nil {
 		return "", err
 	}
@@ -152,6 +186,10 @@ func FromKeyJson(auth string, keyPath string) (*ecdsa.PrivateKey, error) {
 
 func ChangeAuthOfKeyJson(oldAuth string, newAuth string, keyPath string) error {
 	keyJSON, err := os.ReadFile(keyPath)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(keyPath)
 	if err != nil {
 		return err
 	}
@@ -188,4 +226,21 @@ func renameKeystoreFile(keystoreDir string, accountAddress string, newName strin
 	// maybe there are multiple files, but we only need the first one
 	keystoreFile := files[0]
 	return os.Rename(keystoreFile, path.Join(keystoreDir, newName))
+}
+
+type CustomKeyJson struct {
+	Address   string `json:"address"`
+	NodeP2PId string `json:"node_p2p_id"`
+}
+
+func GetCustomKeyJson(keyPath string) (*CustomKeyJson, error) {
+	keyFile, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, err
+	}
+	var keyJson CustomKeyJson
+	if err := json.Unmarshal(keyFile, &keyJson); err != nil {
+		return nil, err
+	}
+	return &keyJson, nil
 }

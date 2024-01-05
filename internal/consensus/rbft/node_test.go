@@ -89,7 +89,7 @@ func TestNewNode(t *testing.T) {
 	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync)
 	assert.Nil(t, err)
 
-	r, err := repo.Load(repo.DefaultKeyJsonPassword, t.TempDir())
+	r, err := repo.Load(repo.DefaultKeyJsonPassword, t.TempDir(), true)
 	assert.Nil(t, err)
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)

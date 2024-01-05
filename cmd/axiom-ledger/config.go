@@ -6,6 +6,8 @@ import (
 	"path"
 	"path/filepath"
 
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
@@ -23,7 +25,7 @@ var configGenerateArgs = struct {
 func passwordFlag() *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "password",
-		Usage:       "generate account key with specified password",
+		Usage:       "Generate or decode p2p.key with password",
 		Destination: &configGenerateArgs.Auth,
 		Aliases:     []string{"p", "P", "pwd"},
 		Required:    false,
@@ -77,33 +79,21 @@ var configCMD = &cli.Command{
 			Name:   "node-info",
 			Usage:  "show node info",
 			Action: nodeInfo,
-			Flags: []cli.Flag{
-				passwordFlag(),
-			},
 		},
 		{
 			Name:   "show",
 			Usage:  "Show the complete config processed by the environment variable",
 			Action: show,
-			Flags: []cli.Flag{
-				passwordFlag(),
-			},
 		},
 		{
 			Name:   "show-consensus",
 			Usage:  "Show the complete consensus config processed by the environment variable",
 			Action: showConsensus,
-			Flags: []cli.Flag{
-				passwordFlag(),
-			},
 		},
 		{
 			Name:   "check",
 			Usage:  "Check if the config file is valid",
 			Action: check,
-			Flags: []cli.Flag{
-				passwordFlag(),
-			},
 		},
 	},
 }
@@ -201,7 +191,7 @@ func changeKeyPassword(ctx *cli.Context) error {
 	if _, err := fmt.Scanln(&oldPassword); err != nil {
 		return err
 	}
-	address, err := repo.FromKeyJson(oldPassword, keyPath)
+	key, err := repo.FromKeyJson(oldPassword, keyPath)
 	if err != nil {
 		return err
 	}
@@ -210,10 +200,18 @@ func changeKeyPassword(ctx *cli.Context) error {
 	if _, err := fmt.Scanln(&newPassword); err != nil {
 		return err
 	}
+	fmt.Println("Please enter the new password again: ")
+	var newPassword2 string
+	if _, err := fmt.Scanln(&newPassword2); err != nil {
+		return err
+	}
+	if newPassword != newPassword2 {
+		return errors.New("new password not match")
+	}
 	if err := repo.ChangeAuthOfKeyJson(oldPassword, newPassword, keyPath); err != nil {
 		return err
 	}
-	fmt.Printf("Change password of [%s] success!\n", address)
+	fmt.Printf("Change password of [%s] success!\n", ethcrypto.PubkeyToAddress(key.PublicKey).String())
 	return nil
 }
 
@@ -227,7 +225,7 @@ func nodeInfo(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(configGenerateArgs.Auth, p)
+	r, err := repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		return err
 	}
@@ -246,7 +244,7 @@ func show(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(configGenerateArgs.Auth, p)
+	r, err := repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		return err
 	}
@@ -268,7 +266,7 @@ func showConsensus(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(configGenerateArgs.Auth, p)
+	r, err := repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		return err
 	}
@@ -290,7 +288,7 @@ func check(ctx *cli.Context) error {
 		return nil
 	}
 
-	_, err = repo.Load(configGenerateArgs.Auth, p)
+	_, err = repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		fmt.Println("config file format error, please check:", err)
 		os.Exit(1)

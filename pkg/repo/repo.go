@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
@@ -157,18 +158,9 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 	}, nil
 }
 
-// load config from the repo, which is automatically initialized when the repo is empty
-func Load(auth string, repoRoot string) (*Repo, error) {
+// Load config from the repo, which is automatically initialized when the repo is empty
+func Load(auth string, repoRoot string, needAuth bool) (*Repo, error) {
 	repoRoot, err := LoadRepoRootFromEnv(repoRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	p2pKey, err := fromP2PKeyJson(auth, repoRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load node p2pKey: %w", err)
-	}
-	id, err := KeyToNodeID(p2pKey)
 	if err != nil {
 		return nil, err
 	}
@@ -188,14 +180,36 @@ func Load(auth string, repoRoot string) (*Repo, error) {
 		return nil, err
 	}
 
+	var p2pKey *ecdsa.PrivateKey
+	var p2pAddress string
+	var p2pId string
+	if needAuth {
+		p2pKey, err = fromP2PKeyJson(auth, repoRoot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load node p2pKey: %w", err)
+		}
+		p2pAddress = ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String()
+		p2pId, err = KeyToNodeID(p2pKey)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		customKeyJson, err := GetCustomKeyJson(path.Join(repoRoot, P2PKeyFileName))
+		if err != nil {
+			return nil, err
+		}
+		p2pId = customKeyJson.NodeP2PId
+		p2pAddress = ethcommon.HexToAddress(customKeyJson.Address).String()
+	}
+
 	repo := &Repo{
 		RepoRoot:        repoRoot,
 		Config:          cfg,
 		ConsensusConfig: consensusCfg,
 		GenesisConfig:   genesisCfg,
-		P2PAddress:      ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String(),
-		P2PKey:          p2pKey,
-		P2PID:           id,
+		P2PAddress:      p2pAddress,
+		P2PKey:          p2pKey, // maybe nil
+		P2PID:           p2pId,
 		EpochInfo:       genesisCfg.EpochInfo,
 	}
 

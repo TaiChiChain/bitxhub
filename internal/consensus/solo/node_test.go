@@ -23,7 +23,7 @@ import (
 
 func TestNode_Start(t *testing.T) {
 	repoRoot := t.TempDir()
-	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot)
+	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
 	require.Nil(t, err)
 
 	mockCtl := gomock.NewController(t)
