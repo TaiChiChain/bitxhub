@@ -15,6 +15,7 @@ import (
 
 type GenesisConfig struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
+	Timestamp              int64           `mapstructure:"timestamp" toml:"timestamp"`
 	Token                  *Token          `mapstructure:"token" toml:"token"`
 	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
@@ -144,8 +145,9 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 	}
 	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(adminLen+len(accounts))))
 	return &GenesisConfig{
-		ChainID: 1356,
-		Balance: balance.String(),
+		ChainID:   1356,
+		Timestamp: 1704038400,
+		Balance:   balance.String(),
 		Admins: lo.Map(DefaultNodeAddrs[0:adminLen], func(item string, idx int) *Admin {
 			return &Admin{
 				Address: item,
