@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	eth_common "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
@@ -76,8 +77,26 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 
 	// initialize system contract
 	blockExecutor.systemContract = system.New()
+	fillEvmPrecompileContracts(blockExecutor.systemContract)
 
 	return blockExecutor, nil
+}
+
+func fillEvmPrecompileContracts(sc sys_common.SystemContract) {
+	if impl, ok := sc.(*system.SystemContractImpl); ok {
+		contracts := impl.Contract2Instance
+		for addr, contract := range contracts {
+			vm.PrecompiledAddressesByzantium = append(vm.PrecompiledAddressesByzantium, eth_common.HexToAddress(addr))
+			vm.PrecompiledAddressesBerlin = append(vm.PrecompiledAddressesBerlin, eth_common.HexToAddress(addr))
+			vm.PrecompiledAddressesHomestead = append(vm.PrecompiledAddressesHomestead, eth_common.HexToAddress(addr))
+			vm.PrecompiledAddressesIstanbul = append(vm.PrecompiledAddressesIstanbul, eth_common.HexToAddress(addr))
+
+			vm.PrecompiledContractsBerlin[eth_common.HexToAddress(addr)] = contract
+			vm.PrecompiledContractsByzantium[eth_common.HexToAddress(addr)] = contract
+			vm.PrecompiledContractsHomestead[eth_common.HexToAddress(addr)] = contract
+			vm.PrecompiledContractsIstanbul[eth_common.HexToAddress(addr)] = contract
+		}
+	}
 }
 
 // Start starts executor

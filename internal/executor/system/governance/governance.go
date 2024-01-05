@@ -106,6 +106,14 @@ type Governance struct {
 	stateLedger   ledger.StateLedger
 }
 
+func (g *Governance) RequiredGas(bytes []byte) uint64 {
+	return common.CalculateDynamicGas(bytes)
+}
+
+func (g *Governance) Run(bytes []byte) ([]byte, error) {
+	return nil, common.ErrCallingSystemFunction
+}
+
 func NewGov(cfg *common.SystemContractConfig) *Governance {
 	gov := &Governance{
 		logger:        loggers.Logger(loggers.Governance),

@@ -42,7 +42,7 @@ type SystemContractImpl struct {
 	// contract address mapping to contract abi
 	contract2ABI map[string]abi.ABI
 	// contract address mapping to contact instance
-	contract2Instance map[string]common.InnerSystemContract
+	Contract2Instance map[string]common.InnerSystemContract
 }
 
 func New() common.SystemContract {
@@ -50,7 +50,7 @@ func New() common.SystemContract {
 		logger:             loggers.Logger(loggers.SystemContract),
 		contract2MethodSig: common.Contract2MethodSig,
 		contract2ABI:       common.Contract2ABI,
-		contract2Instance:  make(map[string]common.InnerSystemContract),
+		Contract2Instance:  make(map[string]common.InnerSystemContract),
 	}
 
 	cfg := &common.SystemContractConfig{
@@ -70,15 +70,15 @@ func (sc *SystemContractImpl) View() common.SystemContract {
 		logger:             sc.logger,
 		contract2MethodSig: sc.contract2MethodSig,
 		contract2ABI:       sc.contract2ABI,
-		contract2Instance:  sc.contract2Instance,
+		Contract2Instance:  sc.Contract2Instance,
 	}
 }
 
 func (sc *SystemContractImpl) Deploy(addr string, instance common.InnerSystemContract) {
-	if _, ok := sc.contract2Instance[addr]; ok {
+	if _, ok := sc.Contract2Instance[addr]; ok {
 		panic("deploy system contract repeated")
 	}
-	sc.contract2Instance[addr] = instance
+	sc.Contract2Instance[addr] = instance
 }
 
 func (sc *SystemContractImpl) Reset(currentHeight uint64, stateLedger ledger.StateLedger) {
@@ -102,7 +102,7 @@ func (sc *SystemContractImpl) Run(msg *vm.Message) (executionResult *vm.Executio
 	if err != nil {
 		return nil, err
 	}
-	contractInstance, ok := sc.contract2Instance[contractAddr]
+	contractInstance, ok := sc.Contract2Instance[contractAddr]
 	if !ok {
 		return nil, ErrNotDeploySystemContract
 	}
@@ -306,7 +306,7 @@ func (sc *SystemContractImpl) IsSystemContract(addr *types.Address) bool {
 		return false
 	}
 
-	if _, ok := sc.contract2Instance[addr.String()]; ok {
+	if _, ok := sc.Contract2Instance[addr.String()]; ok {
 		return true
 	}
 	return false

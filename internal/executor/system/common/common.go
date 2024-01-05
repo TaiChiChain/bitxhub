@@ -89,6 +89,10 @@ var contract2ABIFile = map[string]string{
 	EpochManagerContractAddr: epochManagerABI,
 }
 
+var (
+	ErrCallingSystemFunction = errors.New("calling system functions is not allowed")
+)
+
 var Contract2MethodSig map[string]map[string][]byte
 var Contract2ABI map[string]abi.ABI
 
@@ -145,6 +149,10 @@ type SystemContractContext struct {
 // InnerSystemContract must be implemented by all system contract
 type InnerSystemContract interface {
 	SetContext(*SystemContractContext)
+
+	RequiredGas([]byte) uint64
+
+	Run([]byte) ([]byte, error)
 }
 
 func IsInSlice[T ~uint8 | ~string](value T, slice []T) bool {

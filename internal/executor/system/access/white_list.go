@@ -3,6 +3,7 @@ package access
 import (
 	"encoding/json"
 	"errors"
+	vm "github.com/axiomesh/eth-kit/evm"
 	"sort"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -93,6 +94,16 @@ type WhiteList struct {
 
 	providers []string
 }
+
+func (wl *WhiteList) RequiredGas(input []byte) uint64 {
+	return common.CalculateDynamicGas(input)
+}
+
+func (wl *WhiteList) Run(input []byte) ([]byte, error) {
+	return nil, common.ErrCallingSystemFunction
+}
+
+var _ vm.PrecompiledContract = (*WhiteList)(nil)
 
 // NewWhiteList constructs a new WhiteList
 func NewWhiteList(cfg *common.SystemContractConfig) *WhiteList {

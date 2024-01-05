@@ -56,6 +56,14 @@ type EpochManager struct {
 	stateLedger ledger.StateLedger
 }
 
+func (em *EpochManager) RequiredGas(bytes []byte) uint64 {
+	return common.CalculateDynamicGas(bytes)
+}
+
+func (em *EpochManager) Run(bytes []byte) ([]byte, error) {
+	return nil, common.ErrCallingSystemFunction
+}
+
 func NewEpochManager(cfg *common.SystemContractConfig) *EpochManager {
 	return &EpochManager{
 		logger: loggers.Logger(loggers.Epoch),
