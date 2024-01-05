@@ -231,7 +231,7 @@ func loadProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal) (Pro
 	case common.WhiteListProviderManagerContractAddr:
 		return loadProviderProposal(stateLedger, nfp.ID)
 	case common.GasManagerContractAddr:
-		return loadProviderProposal(stateLedger, nfp.ID)
+		return loadGasProposal(stateLedger, nfp.ID)
 	default:
 		return nil, errors.New("no this contract")
 	}
@@ -249,7 +249,7 @@ func saveProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal, prop
 		_, err := saveProviderProposal(stateLedger, proposal)
 		return err
 	case common.GasManagerContractAddr:
-		_, err := saveProviderProposal(stateLedger, proposal)
+		_, err := saveGasProposal(stateLedger, proposal)
 		return err
 	default:
 		return errors.New("no this contract")

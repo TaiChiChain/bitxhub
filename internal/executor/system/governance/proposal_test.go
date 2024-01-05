@@ -164,7 +164,7 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 
 	// test gas
 	baseProposal = &BaseProposal{ID: 4, BlockNumber: 10, Status: Voting}
-	_, err = saveProviderProposal(stateLedger, baseProposal)
+	_, err = saveGasProposal(stateLedger, baseProposal)
 	assert.Nil(t, err)
 
 	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
@@ -177,7 +177,7 @@ func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
 	err = CheckAndUpdateState(20, stateLedger)
 	assert.Nil(t, err)
 
-	gasProposal, err := loadProviderProposal(stateLedger, baseProposal.ID)
+	gasProposal, err := loadGasProposal(stateLedger, baseProposal.ID)
 	assert.Nil(t, err)
 	assert.Equal(t, Rejected, gasProposal.Status)
 }
