@@ -52,6 +52,7 @@ var epochCMD = &cli.Command{
 					Aliases:     []string{"e"},
 					Destination: &historyEpochArgs.Epoch,
 					Usage:       "history epoch number",
+					DefaultText: "1",
 					Required:    true,
 				},
 			},
@@ -101,6 +102,10 @@ func getNextEpoch(ctx *cli.Context) error {
 }
 
 func getHistoryEpoch(ctx *cli.Context) error {
+	if !ctx.IsSet("epoch") {
+		historyEpochArgs.Epoch = 1
+	}
+
 	epochManager, err := bindEpochManagerContract(ctx)
 	if err != nil {
 		return err

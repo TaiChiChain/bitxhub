@@ -50,7 +50,7 @@ func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 			TxRoot:          &types.Hash{},
 			ReceiptRoot:     &types.Hash{},
 			ParentHash:      &types.Hash{},
-			Timestamp:       0,
+			Timestamp:       genesis.Timestamp,
 			GasPrice:        int64(genesis.EpochInfo.FinanceParams.StartGasPrice),
 			Epoch:           genesis.EpochInfo.Epoch,
 			Bloom:           new(types.Bloom),
