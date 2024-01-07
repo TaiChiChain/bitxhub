@@ -13,6 +13,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
+	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/finance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -47,6 +48,8 @@ type BlockExecutor struct {
 	gasLimit    uint64
 	rep         *repo.Repo
 	lock        *sync.Mutex
+
+	nvm sys_common.VirtualMachine
 }
 
 // New creates executor instance
@@ -71,8 +74,8 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 
 	blockExecutor.evm = newEvm(rep.Config.Executor.EVM, 1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
 
-	// initialize system contract
-	system.Initialize(loggers.Logger(loggers.Governance))
+	// initialize native vm
+	blockExecutor.nvm = system.New()
 
 	return blockExecutor, nil
 }

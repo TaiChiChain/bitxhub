@@ -1,202 +1,59 @@
 package governance
 
 import (
-	"strings"
+	"encoding/json"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
-
-func TestGovernance_GetABI(t *testing.T) {
-	gabi, err := GetABI()
-	assert.Nil(t, err)
-	assert.NotNil(t, gabi)
-
-	data, err := gabi.Pack(ProposeMethod, uint8(NodeUpgrade), "title", "desc", uint64(1000), []byte(""))
-	assert.Nil(t, err)
-	assert.NotNil(t, data)
-}
-
-func TestGovernance_GetMethodName(t *testing.T) {
-	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
-
-	data, err := gov.gabi.Pack(ProposeMethod, uint8(NodeUpgrade), "title", "desc", uint64(1000), []byte(""))
-	assert.Nil(t, err)
-
-	methodName, err := gov.GetMethodName(data)
-	assert.Nil(t, err)
-
-	assert.Equal(t, ProposeMethod, methodName)
-}
-
-func TestGovernance_GetErrMethodName(t *testing.T) {
-	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
-
-	errMethod := "no_this_method"
-	data, err := gov.gabi.Pack(errMethod, uint8(NodeUpgrade), "title", "desc", uint64(1000), []byte(""))
-	assert.NotNil(t, err)
-
-	test_jsondata := `[
-		{"type": "function", "name": "___", "inputs": [{"name": "proposalType", "type": "uint8"}, {"name": "title", "type": "string"}, {"name": "desc", "type": "string"}, {"name": "blockNumber", "type": "uint64"}, {"name": "extra", "type": "bytes"}], "outputs": [{"name": "proposalId", "type": "uint64"}]}
-	]`
-	newAbi, err := abi.JSON(strings.NewReader(strings.ReplaceAll(test_jsondata, "___", errMethod)))
-	assert.Nil(t, err)
-	data, err = newAbi.Pack(errMethod, NodeUpgrade, "title", "desc", uint64(1000), []byte(""))
-	assert.Nil(t, err)
-
-	_, err = gov.GetMethodName(data)
-	assert.Equal(t, ErrMethodName, err)
-}
-
-func TestGovernance_ParseErrorArgs(t *testing.T) {
-	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
-
-	truedata, err := gov.gabi.Pack(ProposeMethod, uint8(NodeUpgrade), "title", "desc", uint64(1000), []byte(""))
-	assert.Nil(t, err)
-	testcases := []struct {
-		method string
-		data   []byte
-	}{
-		{
-			method: "propose",
-			data:   []byte{1},
-		},
-		{
-			method: "propose",
-			data:   []byte{1, 2, 3, 4},
-		},
-		{
-			method: "propose",
-			data:   []byte{1, 2, 3, 4, 5, 6, 7, 8},
-		},
-		{
-			method: "propose",
-			data:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36},
-		},
-		{
-			method: "test method",
-			data:   truedata,
-		},
-		{
-			method: "propose",
-			data:   truedata,
-		},
-	}
-
-	for _, test := range testcases {
-		err = gov.ParseArgs(&vm.Message{
-			Data: test.data,
-		}, test.method, nil)
-		assert.NotNil(t, err)
-	}
-}
-
-func TestGovernance_GetArgsForProposal(t *testing.T) {
-	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
-
-	title := "title"
-	desc := "desc"
-	blockNumber := uint64(1000)
-	extra := []byte("hello")
-	data, err := gov.gabi.Pack(ProposeMethod, uint8(NodeUpgrade), title, desc, blockNumber, extra)
-	assert.Nil(t, err)
-
-	arg, err := gov.GetArgs(&vm.Message{
-		Data: data,
-	})
-	assert.Nil(t, err)
-
-	proposalArg, ok := arg.(*ProposalArgs)
-	assert.True(t, ok)
-
-	assert.Equal(t, NodeUpgrade, ProposalType(proposalArg.ProposalType))
-	assert.Equal(t, title, proposalArg.Title)
-	assert.Equal(t, desc, proposalArg.Desc)
-	assert.Equal(t, blockNumber, proposalArg.BlockNumber)
-	assert.Equal(t, extra, proposalArg.Extra)
-}
-
-func TestGovernance_GetArgsForVote(t *testing.T) {
-	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
-
-	proposalId := uint64(100)
-	voteResult := Pass
-	extra := []byte("hello")
-	data, err := gov.gabi.Pack(VoteMethod, proposalId, uint8(voteResult), extra)
-	assert.Nil(t, err)
-
-	arg, err := gov.GetArgs(&vm.Message{
-		Data: data,
-	})
-	assert.Nil(t, err)
-
-	voteArg, ok := arg.(*VoteArgs)
-	assert.True(t, ok)
-
-	assert.Equal(t, proposalId, voteArg.ProposalId)
-	assert.Equal(t, voteResult, VoteResult(voteArg.VoteResult))
-	assert.Equal(t, extra, voteArg.Extra)
-}
-
-func TestGovernance_GetErrArgs(t *testing.T) {
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logrus.New())
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
-
-	testjsondata := `
-	[
-		{"type": "function", "name": "this_method", "inputs": [{"name": "proposalType", "type": "uint8"}, {"name": "title", "type": "string"}, {"name": "desc", "type": "string"}, {"name": "blockNumber", "type": "uint64"}, {"name": "extra", "type": "bytes"}], "outputs": [{"name": "proposalId", "type": "uint64"}]}
-	]
-	`
-	gabi, err := abi.JSON(strings.NewReader(testjsondata))
-	gov.gabi = &gabi
-
-	errMethod := "no_this_method"
-	errMethodData, err := gov.gabi.Pack(errMethod, uint8(NodeUpgrade), "title", "desc", uint64(1000), []byte(""))
-	assert.NotNil(t, err)
-
-	thisMethod := "this_method"
-	thisMethodData, err := gov.gabi.Pack(thisMethod, uint8(NodeUpgrade), "title", "desc", uint64(1000), []byte(""))
-	assert.Nil(t, err)
-
-	testcases := [][]byte{
-		nil,
-		{1, 2, 3, 4},
-		errMethodData,
-		thisMethodData,
-	}
-
-	for _, test := range testcases {
-		_, err = gov.GetArgs(&vm.Message{Data: test})
-		assert.NotNil(t, err)
-	}
-}
 
 func TestGovernance_Propose(t *testing.T) {
 	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
 	assert.Nil(t, err)
-	assert.NotNil(t, gov)
 
 	testcases := []struct {
 		input struct {
@@ -206,7 +63,8 @@ func TestGovernance_Propose(t *testing.T) {
 			desc         string
 			BlockNumber  uint64
 		}
-		err error
+		err    error
+		hasErr bool
 	}{
 		{
 			input: struct {
@@ -216,13 +74,13 @@ func TestGovernance_Propose(t *testing.T) {
 				desc         string
 				BlockNumber  uint64
 			}{
-				user:         "0x1000000000000000000000000000000000000000",
+				user:         admin1,
 				proposalType: NodeUpgrade,
 				title:        "test title",
 				desc:         "test desc",
 				BlockNumber:  10000,
 			},
-			err: nil,
+			hasErr: false,
 		},
 		{
 			input: struct {
@@ -288,120 +146,372 @@ func TestGovernance_Propose(t *testing.T) {
 			},
 			err: ErrBlockNumber,
 		},
+		{
+			input: struct {
+				user         string
+				proposalType ProposalType
+				title        string
+				desc         string
+				BlockNumber  uint64
+			}{
+				user:         "0x1000000000000000000000000000000000000000",
+				proposalType: NodeUpgrade,
+				title:        "test title",
+				desc:         "test desc",
+				BlockNumber:  2,
+			},
+			err: ErrNotFoundCouncilMember,
+		},
 	}
 
 	for _, test := range testcases {
 		addr := types.NewAddressByStr(test.input.user)
 		ethaddr := addr.ETHAddress()
 
-		proposal, err := gov.Propose(&ethaddr, test.input.proposalType, test.input.title, test.input.desc, test.input.BlockNumber, 1, false)
-		if err != nil {
+		logs := make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			StateLedger:   stateLedger,
+			CurrentHeight: 1,
+			CurrentUser:   &ethaddr,
+			CurrentLogs:   &logs,
+		})
+
+		arg := UpgradeExtraArgs{
+			DownloadUrls: []string{"http://127.0.0.1:10000"},
+			CheckHash:    "",
+		}
+		data, err := json.Marshal(arg)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(test.input.proposalType), test.input.title, test.input.desc, test.input.BlockNumber, data)
+		if test.err != nil {
 			assert.Equal(t, test.err, err)
 		} else {
-			assert.Equal(t, test.input.user, proposal.Proposer)
-			assert.Equal(t, test.input.proposalType, proposal.Type)
-			assert.Equal(t, test.input.title, proposal.Title)
-			assert.Equal(t, test.input.desc, proposal.Desc)
-			assert.Equal(t, test.input.BlockNumber, proposal.BlockNumber)
+			if test.hasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		}
 	}
 }
 
 func TestGovernance_Vote(t *testing.T) {
 	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
-	assert.Nil(t, err)
-	assert.NotNil(t, gov)
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
+	})
 
-	addr := types.NewAddressByStr("0x1000000000000000000000000000000000000000")
-	anotherAddr := types.NewAddressByStr("0x2000000000000000000000000000000000000000")
-	ethAddr := addr.ETHAddress()
-	anotherEthAddr := anotherAddr.ETHAddress()
-	proposal, err := gov.Propose(&ethAddr, NodeUpgrade, "test title", "test desc", uint64(10000), 1, false)
-	assert.Nil(t, err)
-	assert.NotNil(t, proposal)
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	proposal.ID = 10000
-	proposal.TotalVotes = 3
-	proposal.PassVotes = nil
-	proposal.RejectVotes = nil
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 
-	testcases := []struct {
-		result   VoteResult
-		expected ProposalStatus
-		err      error
-	}{
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
 		{
-			result:   Reject,
-			expected: Rejected,
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
 		},
 		{
-			result:   Pass,
-			expected: Approved,
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
+	assert.Nil(t, err)
+
+	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
+	admin2Addr := types.NewAddressByStr(admin2).ETHAddress()
+	admin3Addr := types.NewAddressByStr(admin3).ETHAddress()
+	admin4Addr := types.NewAddressByStr(admin4).ETHAddress()
+	addr := types.NewAddressByStr("0x10010000000").ETHAddress()
+
+	arg := UpgradeExtraArgs{
+		DownloadUrls: []string{"http://127.0.0.1:10000"},
+		CheckHash:    "",
+	}
+	data, err := json.Marshal(arg)
+	assert.Nil(t, err)
+
+	logs := make([]common.Log, 0)
+	gov.SetContext(&common.VMContext{
+		CurrentUser:   &admin1Addr,
+		CurrentHeight: 1,
+		StateLedger:   stateLedger,
+		CurrentLogs:   &logs,
+	})
+	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+	assert.Nil(t, err)
+
+	testcases := []struct {
+		from   *ethcommon.Address
+		id     uint64
+		result uint8
+		err    error
+		hasErr bool
+	}{
+		{
+			from:   &admin2Addr,
+			id:     100,
+			result: uint8(Reject),
+			err:    ErrNotFoundProposal,
+		},
+		{
+			from:   &admin2Addr,
+			id:     1,
+			result: uint8(100),
+			err:    ErrVoteResult,
+		},
+		{
+			from:   &admin1Addr,
+			id:     1,
+			result: uint8(Pass),
+			err:    ErrUseHasVoted,
+		},
+		{
+			from:   &addr,
+			id:     1,
+			result: uint8(Pass),
+			err:    ErrNotFoundCouncilMember,
+		},
+		{
+			// vote success
+			from:   &admin2Addr,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
+		},
+		{
+			from:   &admin3Addr,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
+		},
+		{
+			// has finish the proposal
+			from:   &admin4Addr,
+			id:     1,
+			result: uint8(Pass),
+			err:    ErrProposalFinished,
 		},
 	}
 
 	for _, test := range testcases {
-		status, err := gov.Vote(&ethAddr, proposal, test.result)
-		assert.Nil(t, err)
-		assert.Equal(t, Voting, status)
+		logs = make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			StateLedger:   stateLedger,
+			CurrentHeight: 1,
+			CurrentLogs:   &logs,
+			CurrentUser:   test.from,
+		})
 
-		status, err = gov.Vote(&anotherEthAddr, proposal, test.result)
-		assert.Nil(t, err)
-		assert.Equal(t, test.expected, status)
-
-		proposal.PassVotes = nil
-		proposal.RejectVotes = nil
+		err := gov.Vote(test.id, test.result)
+		if test.err != nil {
+			assert.Equal(t, test.err, err)
+		} else {
+			if test.hasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		}
 	}
 }
 
-func TestGovernance_PackOutputArgs(t *testing.T) {
+func TestGovernance_GetLatestProposalID(t *testing.T) {
 	logger := logrus.New()
-	gov, err := NewGov([]ProposalType{NodeUpgrade}, logger)
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
 	assert.Nil(t, err)
-	assert.NotNil(t, gov)
+
+	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
+
+	arg := UpgradeExtraArgs{
+		DownloadUrls: []string{"http://127.0.0.1:10000"},
+		CheckHash:    "",
+	}
+	data, err := json.Marshal(arg)
+	assert.Nil(t, err)
+
+	logs := make([]common.Log, 0)
+	gov.SetContext(&common.VMContext{
+		CurrentUser:   &admin1Addr,
+		CurrentHeight: 1,
+		StateLedger:   stateLedger,
+		CurrentLogs:   &logs,
+	})
+
+	proposalID := gov.GetLatestProposalID()
+	assert.EqualValues(t, 0, proposalID)
+	
+	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+	assert.Nil(t, err)
+
+	proposalID = gov.GetLatestProposalID()
+	assert.EqualValues(t, 1, proposalID)
+}
+
+func TestGovernance_Proposal(t *testing.T) {
+	logger := logrus.New()
+	gov := NewGov(&common.SystemContractConfig{
+		Logger: logger,
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+		{
+			Address: admin1,
+			Weight:  1,
+			Name:    "111",
+		},
+		{
+			Address: admin2,
+			Weight:  1,
+			Name:    "222",
+		},
+		{
+			Address: admin3,
+			Weight:  1,
+			Name:    "333",
+		},
+		{
+			Address: admin4,
+			Weight:  1,
+			Name:    "444",
+		},
+	}, "10")
+	assert.Nil(t, err)
+
+	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
+	admin2Addr := types.NewAddressByStr(admin2).ETHAddress()
+	admin3Addr := types.NewAddressByStr(admin3).ETHAddress()
+
+	arg := UpgradeExtraArgs{
+		DownloadUrls: []string{"http://127.0.0.1:10000"},
+		CheckHash:    "",
+	}
+	data, err := json.Marshal(arg)
+	assert.Nil(t, err)
+
+	logs := make([]common.Log, 0)
+	gov.SetContext(&common.VMContext{
+		CurrentUser:   &admin1Addr,
+		CurrentHeight: 1,
+		StateLedger:   stateLedger,
+		CurrentLogs:   &logs,
+	})
+	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+	assert.Nil(t, err)
+
+	proposal, err := gov.Proposal(1)
+	assert.Nil(t, err)
+	assert.EqualValues(t, Voting, proposal.Status)
+	assert.EqualValues(t, 1, proposal.CreatedBlockNumber)
+	assert.Equal(t, 1, len(logs))
 
 	testcases := []struct {
-		Method string
-		Inputs []any
-		IsErr  bool
+		from   *ethcommon.Address
+		id     uint64
+		result uint8
+		err    error
+		hasErr bool
 	}{
 		{
-			Method: ProposeMethod,
-			Inputs: []any{[]byte("{}")},
-			IsErr:  true,
+			// vote success
+			from:   &admin2Addr,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
 		},
 		{
-			Method: ProposeMethod,
-			Inputs: []any{"test str"},
-			IsErr:  true,
-		},
-		{
-			Method: ProposeMethod,
-			Inputs: []any{uint64(999)},
-			IsErr:  false,
-		},
-		{
-			Method: ProposeMethod,
-			Inputs: []any{"test str", 100, []byte("bytes")},
-			IsErr:  true,
-		},
-		{
-			Method: ProposalMethod,
-			Inputs: []any{[]byte("bytes")},
-			IsErr:  false,
+			from:   &admin3Addr,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
 		},
 	}
-	for _, testcase := range testcases {
-		packed, err := gov.PackOutputArgs(testcase.Method, testcase.Inputs...)
-		if testcase.IsErr {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
 
-			ret, err := gov.UnpackOutputArgs(testcase.Method, packed)
-			assert.Nil(t, err)
-			assert.Equal(t, testcase.Inputs, ret)
+	for _, test := range testcases {
+		logs = make([]common.Log, 0)
+		gov.SetContext(&common.VMContext{
+			StateLedger:   stateLedger,
+			CurrentHeight: 2,
+			CurrentLogs:   &logs,
+			CurrentUser:   test.from,
+		})
+
+		err := gov.Vote(test.id, test.result)
+		if test.err != nil {
+			assert.Equal(t, test.err, err)
+		} else {
+			if test.hasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		}
 	}
+
+	proposal, err = gov.Proposal(1)
+	assert.Nil(t, err)
+	assert.EqualValues(t, Approved, proposal.Status)
+	assert.EqualValues(t, 1, proposal.CreatedBlockNumber)
+	assert.EqualValues(t, 2, proposal.EffectiveBlockNumber)
+	assert.Equal(t, 1, len(logs))
 }

@@ -162,20 +162,21 @@ type Log struct {
 }
 
 type LogModule struct {
-	P2P        string `mapstructure:"p2p" toml:"p2p"`
-	Consensus  string `mapstructure:"consensus" toml:"consensus"`
-	Executor   string `mapstructure:"executor" toml:"executor"`
-	Governance string `mapstructure:"governance" toml:"governance"`
-	API        string `mapstructure:"api" toml:"api"`
-	APP        string `mapstructure:"app" toml:"app"`
-	CoreAPI    string `mapstructure:"coreapi" toml:"coreapi"`
-	Storage    string `mapstructure:"storage" toml:"storage"`
-	Profile    string `mapstructure:"profile" toml:"profile"`
-	Finance    string `mapstructure:"finance" toml:"finance"`
-	TxPool     string `mapstructure:"txpool" toml:"txpool"`
-	Access     string `mapstructure:"access" toml:"access"`
-	BlockSync  string `mapstructure:"blocksync" toml:"blocksync"`
-	Epoch      string `mapstructure:"epoch" toml:"epoch"`
+	P2P            string `mapstructure:"p2p" toml:"p2p"`
+	Consensus      string `mapstructure:"consensus" toml:"consensus"`
+	Executor       string `mapstructure:"executor" toml:"executor"`
+	Governance     string `mapstructure:"governance" toml:"governance"`
+	API            string `mapstructure:"api" toml:"api"`
+	APP            string `mapstructure:"app" toml:"app"`
+	CoreAPI        string `mapstructure:"coreapi" toml:"coreapi"`
+	Storage        string `mapstructure:"storage" toml:"storage"`
+	Profile        string `mapstructure:"profile" toml:"profile"`
+	Finance        string `mapstructure:"finance" toml:"finance"`
+	TxPool         string `mapstructure:"txpool" toml:"txpool"`
+	Access         string `mapstructure:"access" toml:"access"`
+	BlockSync      string `mapstructure:"blocksync" toml:"blocksync"`
+	Epoch          string `mapstructure:"epoch" toml:"epoch"`
+	SystemContract string `mapstructure:"system_contract" toml:"system_contract"`
 }
 
 type Access struct {
@@ -342,20 +343,21 @@ func DefaultConfig() *Config {
 			MaxSize:          128,
 			RotationTime:     Duration(24 * time.Hour),
 			Module: LogModule{
-				P2P:        "info",
-				Consensus:  "debug",
-				Executor:   "info",
-				Governance: "info",
-				API:        "info",
-				CoreAPI:    "info",
-				Storage:    "info",
-				Profile:    "info",
-				Finance:    "error",
-				BlockSync:  "info",
-				APP:        "info",
-				Access:     "info",
-				TxPool:     "debug",
-				Epoch:      "info",
+				P2P:            "info",
+				Consensus:      "debug",
+				Executor:       "info",
+				Governance:     "info",
+				API:            "info",
+				CoreAPI:        "info",
+				Storage:        "info",
+				Profile:        "info",
+				Finance:        "error",
+				BlockSync:      "info",
+				APP:            "info",
+				Access:         "info",
+				TxPool:         "debug",
+				Epoch:          "info",
+				SystemContract: "debug",
 			},
 		},
 		Access: Access{

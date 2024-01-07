@@ -1,7 +1,6 @@
 package api
 
 import (
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -30,7 +29,7 @@ type BrokerAPI interface {
 	GetBlocks(start uint64, end uint64) ([]*types.Block, error)
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error)
-	GetSystemContract(addr *ethcommon.Address) (common.SystemContract, bool)
+	GetNativeVm() common.VirtualMachine
 	ConsensusReady() error
 	GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
 

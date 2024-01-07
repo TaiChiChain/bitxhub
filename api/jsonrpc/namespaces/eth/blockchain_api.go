@@ -281,14 +281,14 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 	stateLedger.SetTxContext(types.NewHash([]byte("mockTx")), 0)
 
 	// check if call system contract
-	systemContract, ok := api.Broker().GetSystemContract(msg.To)
-	if ok {
+	nvm := api.Broker().GetNativeVm()
+	if msg.To != nil && nvm.IsSystemContract(types.NewAddress(msg.To.Bytes())) {
 		chainMeta, err := api.Chain().Meta()
 		if err != nil {
 			return nil, err
 		}
-		systemContract.Reset(chainMeta.Height, stateLedger)
-		return systemContract.Run(msg)
+		nvm.Reset(chainMeta.Height, stateLedger)
+		return nvm.Run(msg)
 	}
 
 	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true, DisableMaxCodeSizeLimit: evmCfg.DisableMaxCodeSizeLimit})
@@ -333,9 +333,9 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	api.logger.Debugf("eth_estimateGas, args: %s", args)
 
 	// Judge whether this is system contract
-	systemContract, ok := api.api.Broker().GetSystemContract(args.To)
-	if ok {
-		gas, err := systemContract.EstimateGas(&args)
+	nvm := api.api.Broker().GetNativeVm()
+	if args.To != nil && nvm.IsSystemContract(types.NewAddress(args.To.Bytes())) {
+		gas, err := nvm.EstimateGas(&args)
 		return ethhexutil.Uint64(gas), err
 	}
 

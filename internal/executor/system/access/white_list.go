@@ -1,16 +1,11 @@
 package access
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -18,19 +13,12 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
-	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 const (
-	SubmitMethod                 = "submit"
-	RemoveMethod                 = "remove"
-	QueryAuthInfoMethod          = "queryAuthInfo"
-	QueryWhiteListProviderMethod = "queryWhiteListProvider"
-	AuthInfoKey                  = "authinfo"
-	WhiteListProviderKey         = "providers"
+	AuthInfoKey          = "authinfo"
+	WhiteListProviderKey = "providers"
 )
-
-var _ common.SystemContract = (*WhiteList)(nil)
 
 var (
 	ErrCheckSubmitInfo        = errors.New("submit args check fail")
@@ -44,8 +32,12 @@ var (
 	ErrNotFound               = errors.New("not found")
 )
 
-// Global variable
-var Providers []string
+const (
+	SubmitMethod                 = "submit"
+	RemoveMethod                 = "remove"
+	QueryAuthInfoMethod          = "queryAuthInfo"
+	QueryWhiteListProviderMethod = "queryWhiteListProvider"
+)
 
 type Role uint8
 
@@ -61,11 +53,22 @@ const (
 	SuperUser
 )
 
+var WhiteListMethod2Sig = map[string]string{
+	SubmitMethod:                 "submit(bytes)",
+	RemoveMethod:                 "remove(bytes)",
+	QueryAuthInfoMethod:          "queryAuthInfo(bytes)",
+	QueryWhiteListProviderMethod: "queryWhiteListProvider(bytes)",
+}
+
 type AuthInfo struct {
 	User      string
 	Providers []string
 	Role      Role
 }
+
+// Global providers
+// TODO: refactor
+var Providers []string
 
 type BaseExtraArgs struct {
 	Extra []byte
@@ -95,69 +98,27 @@ type WhiteListProviderArgs struct {
 	Providers []WhiteListProvider
 }
 
-var method2Sig = map[string]string{
-	SubmitMethod:                 "submit(bytes)",
-	RemoveMethod:                 "remove(bytes)",
-	QueryAuthInfoMethod:          "queryAuthInfo(bytes)",
-	QueryWhiteListProviderMethod: "queryWhiteListProvider(bytes)",
-}
-
 type WhiteList struct {
 	stateLedger ledger.StateLedger
 	account     ledger.IAccount
-	currentLog  *common.Log
+	currentLogs *[]common.Log
+	currentUser *ethcommon.Address
 	logger      logrus.FieldLogger
-	method2Sig  map[string][]byte
-	gabi        *abi.ABI
 }
 
 // NewWhiteList constructs a new WhiteList
 func NewWhiteList(cfg *common.SystemContractConfig) *WhiteList {
-	gabi, err := GetABI()
-	if err != nil {
-		panic(err)
-	}
-
 	return &WhiteList{
-		logger:     loggers.Logger(loggers.Access),
-		gabi:       gabi,
-		method2Sig: initMethodSignature(),
+		logger: loggers.Logger(loggers.Access),
 	}
 }
 
-const jsondata = `
-[
-	{"type": "function", "name": "submit", "inputs": [{"name": "addresses", "type": "bytes"}]},
-	{"type": "function", "name": "remove", "inputs": [{"name": "addresses", "type": "bytes"}]},
-	{"type": "function", "name": "queryAuthInfo", "stateMutability": "view", "inputs": [{"name": "user", "type": "bytes"}], "outputs": [{"name": "authInfo", "type": "bytes"}]},
-	{"type": "function", "name": "queryWhiteListProvider", "stateMutability": "view", "inputs": [{"name": "whiteListProviderAddr", "type": "bytes"}], "outputs": [{"name": "whiteListProvider", "type": "bytes"}]}
-]
-`
-
-// GetABI get system contract abi
-func GetABI() (*abi.ABI, error) {
-	gabi, err := abi.JSON(strings.NewReader(jsondata))
-	if err != nil {
-		return nil, err
-	}
-	return &gabi, nil
-}
-
-func initMethodSignature() map[string][]byte {
-	m2sig := make(map[string][]byte)
-	for methodName, methodSig := range method2Sig {
-		m2sig[methodName] = crypto.Keccak256([]byte(methodSig))
-	}
-	return m2sig
-}
-
-func (c *WhiteList) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
+func (c *WhiteList) SetContext(context *common.VMContext) {
 	addr := types.NewAddressByStr(common.WhiteListContractAddr)
-	c.account = stateLedger.GetOrCreateAccount(addr)
-	c.stateLedger = stateLedger
-	c.currentLog = &common.Log{
-		Address: addr,
-	}
+	c.account = context.StateLedger.GetOrCreateAccount(addr)
+	c.stateLedger = context.StateLedger
+	c.currentLogs = context.CurrentLogs
+	c.currentUser = context.CurrentUser
 
 	// TODO: lazy load
 	state, b := c.account.GetState([]byte(WhiteListProviderKey))
@@ -174,163 +135,39 @@ func (c *WhiteList) Reset(lastHeight uint64, stateLedger ledger.StateLedger) {
 	}
 }
 
-func (c *WhiteList) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
-	_, err := c.getArgs(&vm.Message{Data: *callArgs.Data})
-	if err != nil {
-		return 0, err
+func (c *WhiteList) Submit(data []byte) error {
+	from := c.currentUser
+	if from == nil {
+		return ErrUser
 	}
-	dynamicGas := common.CalculateDynamicGas(*callArgs.Data)
-	return dynamicGas, nil
-}
 
-func (c *WhiteList) CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) {}
-
-func (c *WhiteList) Run(msg *vm.Message) (*vm.ExecutionResult, error) {
-	defer c.SaveLog(c.stateLedger, c.currentLog)
-	// parse method and arguments from msg payload
-	args, err := c.getArgs(msg)
-	if err != nil {
-		return nil, err
-	}
-	var result *vm.ExecutionResult
-	switch v := args.(type) {
-	case *SubmitArgs:
-		result, err = c.submit(&msg.From, v)
-	case *RemoveArgs:
-		result, err = c.remove(&msg.From, v)
-	case *QueryAuthInfoArgs:
-		result, err = c.queryAuthInfo(&msg.From, v)
-	case *QueryWhiteListProviderArgs:
-		result, err = c.queryWhiteListProvider(&msg.From, v)
-	default:
-		return nil, errors.New("unknown access args")
-	}
-	usedGas := common.CalculateDynamicGas(msg.Data)
-	if result != nil {
-		result.UsedGas = usedGas
-	}
-	return result, err
-}
-
-func (c *WhiteList) getArgs(msg *vm.Message) (any, error) {
-	data := msg.Data
-	if data == nil {
-		return nil, vm.ErrExecutionReverted
-	}
-	method, err := c.getMethodName(data)
-	if err != nil {
-		return nil, err
-	}
-	switch method {
-	case SubmitMethod:
-		args := &BaseExtraArgs{}
-		if err = c.ParseArgs(msg, SubmitMethod, args); err != nil {
-			return nil, err
-		}
-		submitArgs := &SubmitArgs{}
-		if err = json.Unmarshal(args.Extra, submitArgs); err != nil {
-			return nil, err
-		}
-		return submitArgs, nil
-	case RemoveMethod:
-		args := &BaseExtraArgs{}
-		if err = c.ParseArgs(msg, RemoveMethod, args); err != nil {
-			return nil, err
-		}
-		removeArgs := &RemoveArgs{}
-		if err = json.Unmarshal(args.Extra, removeArgs); err != nil {
-			return nil, err
-		}
-		return removeArgs, nil
-	case QueryAuthInfoMethod:
-		args := &BaseExtraArgs{}
-		if err = c.ParseArgs(msg, QueryAuthInfoMethod, args); err != nil {
-			return nil, err
-		}
-		queryAuthInfoArgs := &QueryAuthInfoArgs{}
-		if err = json.Unmarshal(args.Extra, queryAuthInfoArgs); err != nil {
-			return nil, err
-		}
-		return queryAuthInfoArgs, nil
-	case QueryWhiteListProviderMethod:
-		args := &BaseExtraArgs{}
-		if err = c.ParseArgs(msg, QueryWhiteListProviderMethod, args); err != nil {
-			return nil, err
-		}
-		providerArgs := &QueryWhiteListProviderArgs{}
-		if err = json.Unmarshal(args.Extra, providerArgs); err != nil {
-			return nil, err
-		}
-		return providerArgs, nil
-	default:
-		return nil, errors.New("wrong method name")
-	}
-}
-
-// ParseArgs parse the arguments to specified interface by method name
-func (c *WhiteList) ParseArgs(msg *vm.Message, methodName string, ret any) error {
-	if len(msg.Data) < 4 {
-		c.logger.Debugf("access error: Parse_args: msg data length is not improperly formatted: %q - Bytes: %+v", msg.Data, msg.Data)
-		return ErrParseArgs
-	}
-	// discard method id
-	data := msg.Data[4:]
-	var args abi.Arguments
-	if method, ok := c.gabi.Methods[methodName]; ok {
-		if len(data)%32 != 0 {
-			c.logger.Debugf("access error: parse_args: improperly formatted output: %q - Bytes: %+v", data, data)
-			return ErrParseArgs
-		}
-		args = method.Inputs
-	}
-	if args == nil {
-		c.logger.Debugf("access error: parse_args: could not locate named method: %s", methodName)
-		return ErrParseArgs
-	}
-	unpacked, err := args.Unpack(data)
-	if err != nil {
+	var args SubmitArgs
+	if err := json.Unmarshal(data, &args); err != nil {
 		return err
 	}
-	return args.Copy(ret, unpacked)
-}
 
-func (c *WhiteList) getMethodName(data []byte) (string, error) {
-	for methodName, methodSig := range c.method2Sig {
-		id := methodSig[:4]
-		if bytes.Equal(id, data[:4]) {
-			return methodName, nil
-		}
-	}
-	c.logger.Debugf("access error: get_method_name: get method id: %v", data[:4])
-	return "", ErrGetMethodName
-}
-
-func (c *WhiteList) submit(from *ethcommon.Address, args *SubmitArgs) (*vm.ExecutionResult, error) {
-	if from == nil {
-		return nil, ErrUser
-	}
 	c.logger.Debugf("begin submit: msg sender is %s, args is %v", from.String(), args.Addresses)
 	if err := CheckInServices(c.account, from.String()); err != nil {
 		c.logger.Debugf("access error: submit: fail by checking providers")
-		return nil, err
+		return err
 	}
 	for _, address := range args.Addresses {
 		// check user addr
 		if addr := types.NewAddressByStr(address); addr.ETHAddress().String() != address {
 			c.logger.Debugf("access error: info user addr is invalid")
-			return nil, ErrCheckSubmitInfo
+			return ErrCheckSubmitInfo
 		}
 		authInfo := c.getAuthInfo(address)
 		if authInfo != nil {
 			// check super role
 			if authInfo.Role == SuperUser {
 				c.logger.Debugf("access error: submit: try to modify super user")
-				return nil, ErrCheckSubmitInfo
+				return ErrCheckSubmitInfo
 			}
 			// check exist info
 			if common.IsInSlice(from.String(), authInfo.Providers) {
 				c.logger.Debugf("access error: auth information already exist")
-				return nil, ErrCheckSubmitInfo
+				return ErrCheckSubmitInfo
 			}
 		} else {
 			authInfo = &AuthInfo{
@@ -342,28 +179,32 @@ func (c *WhiteList) submit(from *ethcommon.Address, args *SubmitArgs) (*vm.Execu
 		// fill auth info with providers
 		authInfo.Providers = append(authInfo.Providers, from.String())
 		if err := c.saveAuthInfo(authInfo); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	b, err := json.Marshal(args)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	// record log
-	c.RecordLog(c.currentLog, SubmitMethod, b)
-	return &vm.ExecutionResult{
-		ReturnData: b,
-	}, nil
+	c.RecordLog(SubmitMethod, b)
+	return nil
 }
 
-func (c *WhiteList) remove(from *ethcommon.Address, args *RemoveArgs) (*vm.ExecutionResult, error) {
+func (c *WhiteList) Remove(data []byte) error {
+	from := c.currentUser
 	if from == nil {
-		return nil, ErrUser
+		return ErrUser
 	}
+	var args RemoveArgs
+	if err := json.Unmarshal(data, &args); err != nil {
+		return err
+	}
+
 	c.logger.Debugf("begin remove: msg sender is %s, args is %v", from.String(), args.Addresses)
 	if err := CheckInServices(c.account, from.String()); err != nil {
-		return nil, err
+		return err
 	}
 	for _, addr := range args.Addresses {
 		// check admin
@@ -371,35 +212,38 @@ func (c *WhiteList) remove(from *ethcommon.Address, args *RemoveArgs) (*vm.Execu
 		if info != nil {
 			if info.Role == SuperUser {
 				c.logger.Debugf("access error: remove: try to modify super user [%s]", addr)
-				return nil, ErrCheckRemoveInfo
+				return ErrCheckRemoveInfo
 			}
 			if !common.IsInSlice(from.String(), info.Providers) {
 				c.logger.Debugf("access error: remove: try to remove auth info that does not exist")
-				return nil, ErrCheckRemoveInfo
+				return ErrCheckRemoveInfo
 			}
 		} else {
 			c.logger.Debugf("access error: remove: try to remove [%s] auth info that does not exist", addr)
-			return nil, ErrCheckRemoveInfo
+			return ErrCheckRemoveInfo
 		}
 		info.Providers = common.RemoveFirstMatchStrInSlice(info.Providers, from.String())
 		if err := c.saveAuthInfo(info); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	b, err := json.Marshal(args)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	// record log
-	c.RecordLog(c.currentLog, RemoveMethod, b)
-	return &vm.ExecutionResult{
-		ReturnData: b,
-	}, nil
+	c.RecordLog(RemoveMethod, b)
+	return nil
 }
 
-func (c *WhiteList) queryAuthInfo(addr *ethcommon.Address, args *QueryAuthInfoArgs) (*vm.ExecutionResult, error) {
+func (c *WhiteList) QueryAuthInfo(data []byte) ([]byte, error) {
+	addr := c.currentUser
 	if addr == nil {
 		return nil, ErrUser
+	}
+	var args QueryAuthInfoArgs
+	if err := json.Unmarshal(data, &args); err != nil {
+		return nil, err
 	}
 
 	userAddr := types.NewAddressByStr(args.User).ETHAddress().String()
@@ -412,23 +256,22 @@ func (c *WhiteList) queryAuthInfo(addr *ethcommon.Address, args *QueryAuthInfoAr
 		return nil, ErrQueryPermission
 	}
 
-	res := &vm.ExecutionResult{}
 	state, b := c.account.GetState([]byte(AuthInfoKey + args.User))
 	if state {
-		outputArgs, err := c.PackOutputArgs(QueryAuthInfoMethod, b)
-		if err != nil {
-			return nil, err
-		}
-		res.ReturnData = outputArgs
-		return res, nil
+		return b, nil
 	}
 
 	return nil, ErrNotFound
 }
 
-func (c *WhiteList) queryWhiteListProvider(addr *ethcommon.Address, args *QueryWhiteListProviderArgs) (*vm.ExecutionResult, error) {
+func (c *WhiteList) QueryWhiteListProvider(data []byte) ([]byte, error) {
+	addr := c.currentUser
 	if addr == nil {
 		return nil, ErrUser
+	}
+	var args QueryWhiteListProviderArgs
+	if err := json.Unmarshal(data, &args); err != nil {
+		return nil, err
 	}
 	if types.NewAddressByStr(args.WhiteListProviderAddr).ETHAddress().String() != args.WhiteListProviderAddr {
 		return nil, errors.New("provider address is invalid")
@@ -437,10 +280,9 @@ func (c *WhiteList) queryWhiteListProvider(addr *ethcommon.Address, args *QueryW
 	if authInfo == nil || authInfo.Role != SuperUser {
 		return nil, ErrQueryPermission
 	}
-	res := &vm.ExecutionResult{}
 	state, b := c.account.GetState([]byte(WhiteListProviderKey))
 	if !state {
-		return res, nil
+		return nil, ErrNotFound
 	}
 	var whiteListProviders []WhiteListProvider
 	if err := json.Unmarshal(b, &whiteListProviders); err != nil {
@@ -457,11 +299,7 @@ func (c *WhiteList) queryWhiteListProvider(addr *ethcommon.Address, args *QueryW
 	if err != nil {
 		return nil, err
 	}
-	res.ReturnData, err = c.PackOutputArgs(QueryWhiteListProviderMethod, b)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
+	return b, nil
 }
 
 func Verify(lg ledger.StateLedger, needApprove string) error {
@@ -638,48 +476,13 @@ func InitProvidersAndWhiteList(lg ledger.StateLedger, initVerifiedUsers []string
 	return nil
 }
 
-func (c *WhiteList) RecordLog(currentLog *common.Log, method string, data []byte) {
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(c.method2Sig[method]))
+func (c *WhiteList) RecordLog(method string, data []byte) {
+	currentLog := common.Log{
+		Address: types.NewAddressByStr(common.WhiteListContractAddr),
+	}
+	currentLog.Topics = append(currentLog.Topics, types.NewHashByStr(method))
 	currentLog.Data = data
 	currentLog.Removed = false
-}
 
-// SaveLog save log
-func (c *WhiteList) SaveLog(stateLedger ledger.StateLedger, currentLog *common.Log) {
-	if currentLog.Data != nil {
-		stateLedger.AddLog(&types.EvmLog{
-			Address: currentLog.Address,
-			Topics:  currentLog.Topics,
-			Data:    currentLog.Data,
-			Removed: currentLog.Removed,
-		})
-	}
-}
-
-// PackOutputArgs pack the output arguments by method name
-func (c *WhiteList) PackOutputArgs(methodName string, outputArgs ...any) ([]byte, error) {
-	var args abi.Arguments
-	if method, ok := c.gabi.Methods[methodName]; ok {
-		args = method.Outputs
-	}
-
-	if args == nil {
-		return nil, fmt.Errorf("gabi: could not locate named method: %s", methodName)
-	}
-
-	return args.Pack(outputArgs...)
-}
-
-// UnpackOutputArgs unpack the output arguments by method name
-func (c *WhiteList) UnpackOutputArgs(methodName string, packed []byte) ([]any, error) {
-	var args abi.Arguments
-	if method, ok := c.gabi.Methods[methodName]; ok {
-		args = method.Outputs
-	}
-
-	if args == nil {
-		return nil, fmt.Errorf("gabi: could not locate named method: %s", methodName)
-	}
-
-	return args.Unpack(packed)
+	*c.currentLogs = append(*c.currentLogs, currentLog)
 }

@@ -3,12 +3,9 @@ package access
 import (
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -17,7 +14,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 const (
@@ -27,8 +23,8 @@ const (
 	admin4 = "0x1240000000000000000000000000000000000000"
 )
 
-func TestWhiteList_RunForSubmit(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
+func TestWhiteList_Submit(t *testing.T) {
+	whitelist := NewWhiteList(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -45,298 +41,85 @@ func TestWhiteList_RunForSubmit(t *testing.T) {
 	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller   string
-		Data     []byte
-		Expected vm.ExecutionResult
-		Err      error
+		Caller string
+		Data   []byte
+		Err    error
+		HasErr bool
 	}{
 		{ // case1 : submit success
 			Caller: admin1,
-			Data: generateRunData(t, SubmitMethod, &SubmitArgs{
+			Data: generateRunData(t, &SubmitArgs{
 				Addresses: []string{admin3},
 			}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateRunData(t, SubmitMethod, &SubmitArgs{
-					Addresses: []string{admin3},
-				})),
-				Err: nil,
-				ReturnData: generateReturnData(t, &SubmitArgs{
-					Addresses: []string{admin3},
-				}),
-			},
-			Err: nil,
+			HasErr: false,
 		},
-		{ // case2 : wrong method
+		{ // case2 : wrong user
+			Caller: "",
+			Data: generateRunData(t, &SubmitArgs{
+				Addresses: []string{admin3},
+			}),
+			Err: ErrUser,
+		},
+		{
 			Caller: admin1,
-			Data:   []byte{0, 1, 2, 3},
-			Err:    ErrGetMethodName,
+			Data:   []byte("error data"),
+			HasErr: true,
 		},
-		{ // case3 : query provider fail
+		{
 			Caller: admin3,
-			Data:   generateRunData(t, QueryWhiteListProviderMethod, &QueryWhiteListProviderArgs{WhiteListProviderAddr: admin1}),
-			Err:    ErrQueryPermission,
+			Data: generateRunData(t, &SubmitArgs{
+				Addresses: []string{admin3},
+			}),
+			Err: ErrCheckWhiteListProvider,
 		},
-		{ // case4 : query provider success
+		{
 			Caller: admin1,
-			Data:   generateRunData(t, QueryWhiteListProviderMethod, &QueryWhiteListProviderArgs{WhiteListProviderAddr: admin1}),
-			Expected: vm.ExecutionResult{
-				UsedGas:    common.CalculateDynamicGas(generateRunData(t, QueryWhiteListProviderMethod, &QueryWhiteListProviderArgs{WhiteListProviderAddr: admin1})),
-				Err:        nil,
-				ReturnData: generateQueryReturnData(t, QueryWhiteListProviderMethod, &WhiteListProvider{WhiteListProviderAddr: admin1}),
-			},
-			Err: nil,
+			Data: generateRunData(t, &SubmitArgs{
+				Addresses: []string{"0x111"},
+			}),
+			Err: ErrCheckSubmitInfo,
 		},
-		{ // case4 : query auth info fail
-			Caller: admin3,
-			Data:   generateRunData(t, QueryAuthInfoMethod, &QueryAuthInfoArgs{User: admin3}),
-			Err:    ErrQueryPermission,
-		},
-		{ // case5 : query auth info success
+		{
 			Caller: admin1,
-			Data:   generateRunData(t, QueryAuthInfoMethod, &QueryAuthInfoArgs{User: admin3}),
-			Expected: vm.ExecutionResult{
-				UsedGas: common.CalculateDynamicGas(generateRunData(t, QueryAuthInfoMethod, &QueryAuthInfoArgs{User: admin3})),
-				Err:     nil,
-				ReturnData: generateQueryReturnData(t, QueryAuthInfoMethod, &AuthInfo{
-					User:      admin3,
-					Providers: []string{admin1},
-					Role:      BasicUser,
-				}),
-			},
-			Err: nil,
-		},
-		{ // case6 : remove auth info success
-			Caller: admin1,
-			Data:   generateRunData(t, RemoveMethod, &RemoveArgs{Addresses: []string{admin3}}),
-			Expected: vm.ExecutionResult{
-				UsedGas:    common.CalculateDynamicGas(generateRunData(t, RemoveMethod, &RemoveArgs{Addresses: []string{admin3}})),
-				Err:        nil,
-				ReturnData: generateReturnData(t, &RemoveArgs{Addresses: []string{admin3}}),
-			},
-			Err: nil,
+			Data: generateRunData(t, &SubmitArgs{
+				Addresses: []string{admin2},
+			}),
+			Err: ErrCheckSubmitInfo,
 		},
 	}
 
 	for _, test := range testcases {
-		cm.Reset(1, stateLedger)
-
-		result, err := cm.Run(&vm.Message{
-			From: types.NewAddressByStr(test.Caller).ETHAddress(),
-			Data: test.Data,
+		from := types.NewAddressByStr(test.Caller).ETHAddress()
+		user := &from
+		if test.Caller == "" {
+			user = nil
+		}
+		logs := make([]common.Log, 0)
+		whitelist.SetContext(&common.VMContext{
+			CurrentHeight: 1,
+			StateLedger:   stateLedger,
+			CurrentUser:   user,
+			CurrentLogs:   &logs,
 		})
-		assert.Equal(t, test.Err, err)
 
-		if result != nil {
-			assert.Equal(t, nil, result.Err)
-			assert.Equal(t, test.Expected.UsedGas, result.UsedGas)
-			assert.Equal(t, test.Expected.ReturnData, result.ReturnData)
+		err := whitelist.Submit(test.Data)
+		if test.Err != nil {
+			assert.Equal(t, test.Err, err)
+		} else {
+			if test.HasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
 		}
 	}
 }
 
-func generateReturnData(t *testing.T, s any) []byte {
-	marshal, err := json.Marshal(s)
-	assert.Nil(t, err)
-	return marshal
-}
-
-func generateQueryReturnData(t *testing.T, methodName string, s any) []byte {
-	marshal, err := json.Marshal(s)
-	assert.Nil(t, err)
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	b, err := cm.PackOutputArgs(methodName, marshal)
-	assert.Nil(t, err)
-	return b
-}
-
-func TestEstimateGas(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	from := types.NewAddressByStr(admin1).ETHAddress()
-	to := types.NewAddressByStr(common.WhiteListContractAddr).ETHAddress()
-
-	data := hexutil.Bytes(generateRunData(t, SubmitMethod, &SubmitArgs{
-		Addresses: []string{
-			admin3,
-		},
-	}))
-	gas, err := cm.EstimateGas(&types.CallArgs{
-		From: &from,
-		To:   &to,
-		Data: &data,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, common.CalculateDynamicGas(data), gas)
-
-	data = hexutil.Bytes(generateRunData(t, RemoveMethod, &RemoveArgs{Addresses: []string{admin1}}))
-	gas, err = cm.EstimateGas(&types.CallArgs{
-		From: &from,
-		To:   &to,
-		Data: &data,
-	})
-	assert.Nil(t, err)
-	assert.Equal(t, common.CalculateDynamicGas(data), gas)
-
-	// test error args
-	data = hexutil.Bytes([]byte{0, 1, 2, 3})
-	gas, err = cm.EstimateGas(&types.CallArgs{
-		From: &from,
-		To:   &to,
-		Data: &data,
-	})
-	assert.NotNil(t, err)
-	assert.Equal(t, uint64(0), gas)
-}
-
-func generateRunData(t *testing.T, method string, anyArgs any) []byte {
+func generateRunData(t *testing.T, anyArgs any) []byte {
 	marshal, err := json.Marshal(anyArgs)
 	assert.Nil(t, err)
 
-	gabi, err := GetABI()
-	assert.Nil(t, err)
-	data, err := gabi.Pack(method, marshal)
-	assert.Nil(t, err)
-
-	return data
-}
-
-func TestWhiteList_CheckAndUpdateState(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	cm.CheckAndUpdateState(100, stateLedger)
-}
-
-func TestWhiteList_ParseErrorArgs(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	truedata, err := cm.gabi.Pack(SubmitMethod, []byte(""))
-	assert.Nil(t, err)
-	testcases := []struct {
-		method   string
-		data     []byte
-		Expected error
-	}{
-		{
-			method:   SubmitMethod,
-			data:     []byte{1},
-			Expected: ErrParseArgs,
-		},
-		{
-			method:   SubmitMethod,
-			data:     []byte{1, 2, 3, 4},
-			Expected: errors.New("abi: attempting to unmarshall an empty string while arguments are expected"),
-		},
-		{
-			method:   SubmitMethod,
-			data:     []byte{1, 2, 3, 4, 5, 6, 7, 8},
-			Expected: ErrParseArgs,
-		},
-		{
-			method:   "test method",
-			data:     []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36},
-			Expected: ErrParseArgs,
-		},
-		{
-			method:   "test method",
-			data:     truedata,
-			Expected: ErrParseArgs,
-		},
-	}
-
-	for _, test := range testcases {
-		args := &SubmitArgs{}
-		err := cm.ParseArgs(&vm.Message{
-			Data: test.data,
-		}, test.method, args)
-		assert.Equal(t, test.Expected, err)
-	}
-}
-
-func TestGetArgsForSubmit(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	submitArgs := &SubmitArgs{Addresses: []string{
-		admin3,
-	}}
-	marshal, err := json.Marshal(submitArgs)
-	assert.Nil(t, err)
-	data, err := cm.gabi.Pack(SubmitMethod, marshal)
-	assert.Nil(t, err)
-
-	arg, err := cm.getArgs(&vm.Message{
-		Data: data,
-	})
-	assert.Nil(t, err)
-
-	actualArgs, ok := arg.(*SubmitArgs)
-	assert.True(t, ok)
-	assert.Equal(t, submitArgs.Addresses[0], actualArgs.Addresses[0])
-}
-
-func TestGetArgsForRemove(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	removeArgs := &RemoveArgs{Addresses: []string{
-		admin1,
-		admin2,
-	}}
-	marshal, err := json.Marshal(removeArgs)
-	assert.Nil(t, err)
-	data, err := cm.gabi.Pack(RemoveMethod, marshal)
-	assert.Nil(t, err)
-	arg, err := cm.getArgs(&vm.Message{
-		Data: data,
-	})
-	assert.Nil(t, err)
-
-	actualArgs, ok := arg.(*RemoveArgs)
-	assert.True(t, ok)
-
-	assert.Equal(t, removeArgs.Addresses[0], actualArgs.Addresses[0])
-}
-
-func TestWhiteList_GetErrArgs(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	testjsondata := `
-	[
-		{"type": "function", "name": "this_method", "inputs": [{"name": "extra", "type": "bytes"}], "outputs": [{"name": "proposalId", "type": "uint64"}]}
-	]
-	`
-	gabi, err := abi.JSON(strings.NewReader(testjsondata))
-	cm.gabi = &gabi
-
-	errMethod := "no_this_method"
-	errMethodData, err := cm.gabi.Pack(errMethod, []byte(""))
-	assert.NotNil(t, err)
-
-	thisMethod := "this_method"
-	thisMethodData, err := cm.gabi.Pack(thisMethod, []byte(""))
-	assert.Nil(t, err)
-
-	testcases := [][]byte{
-		nil,
-		{1, 2, 3, 4},
-		errMethodData,
-		thisMethodData,
-	}
-
-	for _, test := range testcases {
-		_, err = cm.getArgs(&vm.Message{Data: test})
-		assert.NotNil(t, err)
-	}
+	return marshal
 }
 
 func TestAddAndRemoveProviders(t *testing.T) {
@@ -435,31 +218,8 @@ func TestSetProviders(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestWhiteList_SaveLog(t *testing.T) {
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.WhiteListContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-	assert.Nil(t, cm.currentLog)
-	cm.Reset(1, stateLedger)
-	assert.NotNil(t, cm.currentLog)
-	cm.currentLog.Removed = false
-	cm.currentLog.Data = []byte{0, 1, 2}
-	cm.currentLog.Address = types.NewAddressByStr(admin1)
-	cm.currentLog.Topics = []*types.Hash{
-		types.NewHash([]byte{0, 1, 2}),
-	}
-	cm.SaveLog(stateLedger, cm.currentLog)
-}
-
 func TestVerify(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
+	whitelist := NewWhiteList(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 	mockCtl := gomock.NewController(t)
@@ -541,16 +301,19 @@ func TestVerify(t *testing.T) {
 	}
 
 	for _, test := range testcases {
-		cm.Reset(1, stateLedger)
-		err := cm.saveAuthInfo(&test.authInfo)
+		whitelist.SetContext(&common.VMContext{
+			CurrentHeight: 1,
+			StateLedger:   stateLedger,
+		})
+		err := whitelist.saveAuthInfo(&test.authInfo)
 		assert.Nil(t, err)
 		err = Verify(stateLedger, test.needApprove)
 		assert.Equal(t, test.expected, err)
 	}
 }
 
-func TestWhiteList_ErrorSubmit(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
+func TestWhiteList_Remove(t *testing.T) {
+	whitelist := NewWhiteList(&common.SystemContractConfig{
 		Logger: logrus.New(),
 	})
 
@@ -563,117 +326,40 @@ func TestWhiteList_ErrorSubmit(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	cm.Reset(1, stateLedger)
 	admins := []string{admin1}
 	err := InitProvidersAndWhiteList(stateLedger, admins, admins)
 	assert.Nil(t, err)
 
-	testcases := []struct {
-		from     ethcommon.Address
-		args     *SubmitArgs
-		expected error
-	}{
-		{
-			from: types.NewAddressByStr(admin2).ETHAddress(),
-			args: &SubmitArgs{
-				Addresses: []string{admin2},
-			},
-			expected: ErrCheckWhiteListProvider,
-		},
-		{
-			from: types.NewAddressByStr(admin1).ETHAddress(),
-			args: &SubmitArgs{
-				Addresses: []string{admin2},
-			},
-			expected: nil,
-		},
-		{
-			from: types.NewAddressByStr(admin1).ETHAddress(),
-			args: &SubmitArgs{
-				Addresses: []string{"admin3"},
-			},
-			expected: ErrCheckSubmitInfo,
-		},
-		{
-			from: types.NewAddressByStr(admin1).ETHAddress(),
-			args: &SubmitArgs{
-				Addresses: []string{admin1},
-			},
-			expected: ErrCheckSubmitInfo,
-		},
-	}
-
-	for _, test := range testcases {
-		_, expected := cm.submit(&test.from, test.args)
-		assert.Equal(t, test.expected, expected)
-	}
-
-	// test auth info already existed
-	testcases = []struct {
-		from     ethcommon.Address
-		args     *SubmitArgs
-		expected error
-	}{
-		{
-			from: types.NewAddressByStr(admin1).ETHAddress(),
-			args: &SubmitArgs{
-				Addresses: []string{admin4},
-			},
-			expected: ErrCheckSubmitInfo,
-		},
-	}
-	b, _ := json.Marshal(&AuthInfo{
-		User:      admin4,
-		Providers: []string{admin1},
-		Role:      0,
+	// add a user
+	user1 := types.NewAddressByStr(admin1).ETHAddress()
+	logs := make([]common.Log, 0)
+	whitelist.SetContext(&common.VMContext{
+		StateLedger:   stateLedger,
+		CurrentHeight: 1,
+		CurrentUser:   &user1,
+		CurrentLogs:   &logs,
 	})
-	account.SetState([]byte(AuthInfoKey+admin4), b)
-	_, err = cm.submit(&testcases[0].from, testcases[0].args)
-	assert.Equal(t, testcases[0].expected, err)
-
-	// test nil submit
-	testcase := struct {
-		from     *ethcommon.Address
-		args     *SubmitArgs
-		expected error
-	}{
-		from: nil,
-		args: &SubmitArgs{
-			Addresses: []string{},
-		},
-		expected: ErrUser,
-	}
-	_, err = cm.submit(testcase.from, testcase.args)
-	assert.Equal(t, testcase.expected, err)
-}
-
-func TestWhiteList_ErrorRemove(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.WhiteListContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	cm.Reset(1, stateLedger)
-	admins := []string{admin1}
-	err := InitProvidersAndWhiteList(stateLedger, admins, admins)
+	err = whitelist.Submit(generateRunData(t, SubmitArgs{
+		Addresses: []string{admin2},
+	}))
 	assert.Nil(t, err)
 
 	// before case: auth info not exist
 	testcases := []struct {
-		from ethcommon.Address
-		args *RemoveArgs
-		err  error
+		from   ethcommon.Address
+		args   *RemoveArgs
+		err    error
+		hasErr bool
 	}{
 		{
-			from: types.NewAddressByStr(admin2).ETHAddress(),
+			from: types.NewAddressByStr(admin1).ETHAddress(),
+			args: &RemoveArgs{
+				Addresses: []string{admin2},
+			},
+			hasErr: false,
+		},
+		{
+			from: types.NewAddressByStr(admin3).ETHAddress(),
 			args: &RemoveArgs{
 				Addresses: []string{admin1},
 			},
@@ -693,47 +379,260 @@ func TestWhiteList_ErrorRemove(t *testing.T) {
 			},
 			err: ErrCheckRemoveInfo,
 		},
+		{
+			from: ethcommon.Address{},
+			args: &RemoveArgs{
+				Addresses: []string{admin1},
+			},
+			err: ErrUser,
+		},
+		{
+			from: types.NewAddressByStr(admin1).ETHAddress(),
+			args: &RemoveArgs{
+				Addresses: []string{"0x1222"},
+			},
+			hasErr: true,
+		},
 	}
 	for _, test := range testcases {
-		_, err := cm.remove(&test.from, test.args)
-		assert.Equal(t, test.err, err)
+		user := &test.from
+		if (test.from == ethcommon.Address{}) {
+			user = nil
+		}
+		logs := make([]common.Log, 0)
+		whitelist.SetContext(&common.VMContext{
+			CurrentHeight: 1,
+			StateLedger:   stateLedger,
+			CurrentUser:   user,
+			CurrentLogs:   &logs,
+		})
+		err := whitelist.Remove(generateRunData(t, test.args))
+		if test.err != nil {
+			assert.Equal(t, test.err, err)
+		} else {
+			if test.hasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		}
 	}
+}
 
-	authInfo := &AuthInfo{
-		User:      admin3,
-		Providers: []string{admin2},
-		Role:      BasicUser,
-	}
-	err = cm.saveAuthInfo(authInfo)
+func TestWhiteList_QueryAuthInfo(t *testing.T) {
+	whitelist := NewWhiteList(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.WhiteListContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	admins := []string{admin1}
+	err := InitProvidersAndWhiteList(stateLedger, admins, admins)
 	assert.Nil(t, err)
-	testcases = []struct {
-		from ethcommon.Address
-		args *RemoveArgs
-		err  error
+
+	user1 := types.NewAddressByStr(admin1).ETHAddress()
+	logs := make([]common.Log, 0)
+	whitelist.SetContext(&common.VMContext{
+		StateLedger:   stateLedger,
+		CurrentHeight: 1,
+		CurrentUser:   &user1,
+		CurrentLogs:   &logs,
+	})
+
+	err = whitelist.Submit(generateRunData(t, SubmitArgs{
+		Addresses: []string{admin2},
+	}))
+	assert.Nil(t, err)
+
+	testcases := []struct {
+		from        string
+		arg         *QueryAuthInfoArgs
+		expectedErr error
+		hasErr      bool
 	}{
 		{
-			from: types.NewAddressByStr(admin2).ETHAddress(),
-			args: &RemoveArgs{
-				Addresses: []string{admin3},
+			from: admin1,
+			arg: &QueryAuthInfoArgs{
+				User: admin1,
 			},
-			err: ErrCheckWhiteListProvider,
+			hasErr: false,
 		},
 		{
-			from: types.NewAddressByStr(admin1).ETHAddress(),
-			args: &RemoveArgs{
-				Addresses: []string{admin3},
+			from: admin1,
+			arg: &QueryAuthInfoArgs{
+				User: admin2,
 			},
-			err: ErrCheckRemoveInfo,
+			hasErr: false,
+		},
+		{
+			from: admin1,
+			arg: &QueryAuthInfoArgs{
+				User: admin3,
+			},
+			expectedErr: ErrNotFound,
+		},
+		{
+			from: admin1,
+			arg: &QueryAuthInfoArgs{
+				User: "qwty",
+			},
+			hasErr: true,
+		},
+		{
+			from: admin3,
+			arg: &QueryAuthInfoArgs{
+				User: admin1,
+			},
+			expectedErr: ErrQueryPermission,
+		},
+		{
+			from: "",
+			arg: &QueryAuthInfoArgs{
+				User: admin1,
+			},
+			expectedErr: ErrUser,
+		},
+		{
+			from:   admin1,
+			arg:    nil,
+			hasErr: true,
 		},
 	}
-	for _, test := range testcases {
-		_, err := cm.remove(&test.from, test.args)
-		assert.Equal(t, test.err, err)
+
+	for _, testcase := range testcases {
+		user := types.NewAddressByStr(testcase.from).ETHAddress()
+		from := &user
+		if testcase.from == "" {
+			from = nil
+		}
+		whitelist.SetContext(&common.VMContext{
+			StateLedger:   stateLedger,
+			CurrentHeight: 1,
+			CurrentUser:   from,
+			CurrentLogs:   &logs,
+		})
+
+		data, err := json.Marshal(testcase.arg)
+		if err != nil {
+			data = nil
+		}
+
+		_, err = whitelist.QueryAuthInfo(data)
+		if testcase.expectedErr != nil {
+			assert.Equal(t, testcase.expectedErr, err)
+		} else {
+			if testcase.hasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		}
+	}
+}
+
+func TestWhiteList_QueryWhiteListProvider(t *testing.T) {
+	whitelist := NewWhiteList(&common.SystemContractConfig{
+		Logger: logrus.New(),
+	})
+
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.WhiteListContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	admins := []string{admin1}
+	err := InitProvidersAndWhiteList(stateLedger, admins, admins)
+	assert.Nil(t, err)
+
+	testcases := []struct {
+		from        string
+		arg         *QueryWhiteListProviderArgs
+		expectedErr error
+		hasErr      bool
+	}{
+		{
+			from: admin1,
+			arg: &QueryWhiteListProviderArgs{
+				WhiteListProviderAddr: admin1,
+			},
+			hasErr: false,
+		},
+		{
+			from: admin1,
+			arg: &QueryWhiteListProviderArgs{
+				WhiteListProviderAddr: admin2,
+			},
+			expectedErr: ErrNotFound,
+		},
+		{
+			from: admin1,
+			arg: &QueryWhiteListProviderArgs{
+				WhiteListProviderAddr: "tyu",
+			},
+			hasErr: true,
+		},
+		{
+			from: admin3,
+			arg: &QueryWhiteListProviderArgs{
+				WhiteListProviderAddr: admin1,
+			},
+			expectedErr: ErrQueryPermission,
+		},
+		{
+			from: "",
+			arg: &QueryWhiteListProviderArgs{
+				WhiteListProviderAddr: admin1,
+			},
+			expectedErr: ErrUser,
+		},
+		{
+			from:   admin1,
+			arg:    nil,
+			hasErr: true,
+		},
 	}
 
-	// others: test err user
-	_, err = cm.remove(nil, testcases[0].args)
-	assert.Equal(t, ErrUser, err)
+	for _, testcase := range testcases {
+		user := types.NewAddressByStr(testcase.from).ETHAddress()
+		from := &user
+		if testcase.from == "" {
+			from = nil
+		}
+		logs := make([]common.Log, 0)
+		whitelist.SetContext(&common.VMContext{
+			StateLedger:   stateLedger,
+			CurrentHeight: 1,
+			CurrentUser:   from,
+			CurrentLogs:   &logs,
+		})
+
+		data, err := json.Marshal(testcase.arg)
+		if err != nil {
+			data = nil
+		}
+
+		_, err = whitelist.QueryWhiteListProvider(data)
+		if testcase.expectedErr != nil {
+			assert.Equal(t, testcase.expectedErr, err)
+		} else {
+			if testcase.hasErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+		}
+	}
 }
 
 func TestCheckInServices(t *testing.T) {
@@ -749,7 +648,7 @@ func TestCheckInServices(t *testing.T) {
 	err := InitProvidersAndWhiteList(stateLedger, nil, []string{admin1})
 	assert.Nil(t, err)
 	state = CheckInServices(account, admin1)
-	assert.Equal(t, true, true)
+	assert.Nil(t, state)
 }
 
 func TestInitProvidersAndWhiteList(t *testing.T) {
@@ -772,110 +671,4 @@ func TestInitProvidersAndWhiteList(t *testing.T) {
 	}
 	err := InitProvidersAndWhiteList(stateLedger, append(richAccounts, append(adminAccounts, services...)...), services)
 	assert.Nil(t, err)
-}
-
-func TestWhiteList_getErrorArgs(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	testcases := []struct {
-		method   string
-		data     *vm.Message
-		Expected string
-	}{
-		{
-			method: SubmitMethod,
-			data: &vm.Message{
-				Data: []byte{239, 127, 167, 27, 0},
-			},
-			Expected: ErrParseArgs.Error(),
-		},
-		{
-			method: RemoveMethod,
-			data: &vm.Message{
-				Data: []byte{88, 237, 239, 76, 0},
-			},
-			Expected: ErrParseArgs.Error(),
-		},
-		{
-			method: QueryWhiteListProviderMethod,
-			data: &vm.Message{
-				Data: []byte{154, 100, 149, 61, 0},
-			},
-			Expected: ErrParseArgs.Error(),
-		},
-		{
-			method: QueryAuthInfoMethod,
-			data: &vm.Message{
-				Data: []byte{254, 117, 73, 238, 0},
-			},
-			Expected: ErrParseArgs.Error(),
-		},
-	}
-
-	for _, test := range testcases {
-		getArgs, err := cm.getArgs(test.data)
-		assert.Nil(t, getArgs)
-		assert.Equal(t, test.Expected, err.Error())
-	}
-}
-
-func TestWhiteList_Reset(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.WhiteListContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	account.SetState([]byte(WhiteListProviderKey), []byte{1, 2, 3})
-	cm.Reset(1, stateLedger)
-}
-
-func TestWhiteList_PackOutputArgs(t *testing.T) {
-	cm := NewWhiteList(&common.SystemContractConfig{
-		Logger: logrus.New(),
-	})
-
-	testcases := []struct {
-		Method string
-		Inputs []any
-		IsErr  bool
-	}{
-		{
-			Method: SubmitMethod,
-			Inputs: []any{[]byte("{}")},
-			IsErr:  true,
-		},
-		{
-			Method: SubmitMethod,
-			Inputs: []any{"test str"},
-			IsErr:  true,
-		},
-		{
-			Method: SubmitMethod,
-			Inputs: []any{uint64(999)},
-			IsErr:  true,
-		},
-		{
-			Method: QueryAuthInfoMethod,
-			Inputs: []any{[]byte("bytes")},
-			IsErr:  false,
-		},
-	}
-	for _, testcase := range testcases {
-		packed, err := cm.PackOutputArgs(testcase.Method, testcase.Inputs...)
-		if testcase.IsErr {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-
-			ret, err := cm.UnpackOutputArgs(testcase.Method, packed)
-			assert.Nil(t, err)
-			assert.Equal(t, testcase.Inputs, ret)
-		}
-	}
 }
