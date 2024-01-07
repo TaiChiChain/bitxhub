@@ -33,6 +33,10 @@ func (wlpm *WhiteListProviderManager) ProposeCheck(proposalType ProposalType, ex
 	}
 
 	extraArgs, err := wlpm.getExtraArgs(extra)
+	if err != nil {
+		return err
+	}
+
 	if len(extraArgs.Providers) < 1 {
 		return errors.New("empty providers")
 	}

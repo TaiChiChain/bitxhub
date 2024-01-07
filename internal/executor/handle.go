@@ -323,11 +323,11 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	// TODO: Move to system contract
 	snapshot := statedb.Snapshot()
 
-	if exec.systemContract.IsSystemContract(tx.GetTo()) {
+	if exec.nvm.IsSystemContract(tx.GetTo()) {
 		// execute built contract
-		exec.systemContract.Reset(height, statedb)
+		exec.nvm.Reset(height, statedb)
 		// TODO: Move the error section to result
-		result, err = exec.systemContract.Run(msg)
+		result, err = exec.nvm.Run(msg)
 		if result != nil && result.UsedGas != 0 {
 			fee := new(big.Int).SetUint64(result.UsedGas)
 			fee.Mul(fee, msg.GasPrice)
@@ -459,8 +459,8 @@ func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {
 	return exec.evmChainCfg
 }
 
-func (exec *BlockExecutor) NewViewSystemContract() sys_common.SystemContract {
-	return exec.systemContract.View()
+func (exec *BlockExecutor) NewViewNativeVM() sys_common.VirtualMachine {
+	return exec.nvm.View()
 }
 
 // getCurrentGasPrice returns the current block's gas price, which is

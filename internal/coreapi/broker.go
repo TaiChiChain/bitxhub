@@ -128,8 +128,8 @@ func (b *BrokerAPI) GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error
 	return b.axiomLedger.BlockExecutor.NewEvmWithViewLedger(txContext, *vmConfig)
 }
 
-func (b *BrokerAPI) GetSystemContract() common.SystemContract {
-	return b.axiomLedger.BlockExecutor.NewViewSystemContract()
+func (b *BrokerAPI) GetNativeVm() common.VirtualMachine {
+	return b.axiomLedger.BlockExecutor.NewViewNativeVM()
 }
 
 func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error) {

@@ -49,7 +49,7 @@ type BlockExecutor struct {
 	rep         *repo.Repo
 	lock        *sync.Mutex
 
-	systemContract sys_common.SystemContract
+	nvm sys_common.VirtualMachine
 }
 
 // New creates executor instance
@@ -74,8 +74,8 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 
 	blockExecutor.evm = newEvm(rep.Config.Executor.EVM, 1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
 
-	// initialize system contract
-	blockExecutor.systemContract = system.New()
+	// initialize native vm
+	blockExecutor.nvm = system.New()
 
 	return blockExecutor, nil
 }

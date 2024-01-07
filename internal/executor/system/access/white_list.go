@@ -104,8 +104,6 @@ type WhiteList struct {
 	currentLogs *[]common.Log
 	currentUser *ethcommon.Address
 	logger      logrus.FieldLogger
-
-	providers []string
 }
 
 // NewWhiteList constructs a new WhiteList

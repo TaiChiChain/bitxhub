@@ -37,7 +37,7 @@ type Executor interface {
 
 	NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error)
 
-	NewViewSystemContract() sys_common.SystemContract
+	NewViewNativeVM() sys_common.VirtualMachine
 
 	GetChainConfig() *params.ChainConfig
 }

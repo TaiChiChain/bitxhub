@@ -336,7 +336,9 @@ func (g *Governance) CreateProposal(council *Council, proposalType ProposalType,
 	g.RecordLog(ProposeMethod, proposal)
 
 	// check and update state
-	g.checkAndUpdateState(ProposeMethod)
+	if err := g.checkAndUpdateState(ProposeMethod); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -435,7 +437,9 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 	g.RecordLog(VoteMethod, proposal)
 
 	// check and update state
-	g.checkAndUpdateState(VoteMethod)
+	if err := g.checkAndUpdateState(VoteMethod); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -473,17 +477,14 @@ func (g *Governance) LoadProposal(proposalID uint64) (*Proposal, error) {
 }
 
 // RecordLog record execution log for governance
-func (g *Governance) RecordLog(method string, proposal *Proposal) error {
+func (g *Governance) RecordLog(method string, proposal *Proposal) {
 	// set method signature, proposal id, proposal type, proposer as log topic for index
 	idhash := make([]byte, 8)
 	binary.BigEndian.PutUint64(idhash, proposal.ID)
 	typeHash := make([]byte, 2)
 	binary.BigEndian.PutUint16(typeHash, uint16(proposal.Type))
 
-	data, err := json.Marshal(proposal)
-	if err != nil {
-		return err
-	}
+	data, _ := json.Marshal(proposal)
 
 	currentLog := common.Log{
 		Address: types.NewAddressByStr(common.GovernanceContractAddr),
@@ -495,5 +496,4 @@ func (g *Governance) RecordLog(method string, proposal *Proposal) error {
 	currentLog.Removed = false
 
 	*g.currentLogs = append(*g.currentLogs, currentLog)
-	return nil
 }

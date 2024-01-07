@@ -115,7 +115,7 @@ func (exec *ExecutorDev) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Co
 	return nil, nil
 }
 
-func (exec *ExecutorDev) NewViewSystemContract() sys_common.SystemContract {
+func (exec *ExecutorDev) NewViewNativeVM() sys_common.VirtualMachine {
 	return nil
 }
 

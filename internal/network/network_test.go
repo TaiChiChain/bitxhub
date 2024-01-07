@@ -98,11 +98,11 @@ func TestSwarm_OnConnected(t *testing.T) {
 		func(addr *types.Address, key []byte, value []byte) {},
 	).AnyTimes()
 
-	mockLedger.StateLedger.SetState(types.NewAddressByStr(common.NodeManagerContractAddr), []byte(common.NodeManagerContractAddr), jsonBytes)
+	mockLedger.StateLedger.SetState(types.NewAddressByStr(common.GovernanceContractAddr), []byte(common.GovernanceContractAddr), jsonBytes)
 
 	var peerID = "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK"
 
-	success, data := mockLedger.StateLedger.GetState(types.NewAddressByStr(common.NodeManagerContractAddr), []byte(common.NodeManagerContractAddr))
+	success, data := mockLedger.StateLedger.GetState(types.NewAddressByStr(common.GovernanceContractAddr), []byte(common.GovernanceContractAddr))
 	if success {
 		stringData := strings.Split(string(data), ",")
 		for _, nodeID := range stringData {

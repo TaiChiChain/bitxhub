@@ -328,7 +328,9 @@ func (nm *NodeManager) voteNodeAddRemove(user *ethcommon.Address, proposal *Prop
 	nm.gov.RecordLog(VoteMethod, proposal)
 
 	// check and update state
-	nm.gov.checkAndUpdateState(VoteMethod)
+	if err := nm.gov.checkAndUpdateState(VoteMethod); err != nil {
+		return err
+	}
 
 	// vote not return value
 	return nil
@@ -378,7 +380,9 @@ func (nm *NodeManager) voteUpgrade(user *ethcommon.Address, proposal *Proposal, 
 	nm.gov.RecordLog(VoteMethod, proposal)
 
 	// check and update state
-	nm.gov.checkAndUpdateState(VoteMethod)
+	if err := nm.gov.checkAndUpdateState(VoteMethod); err != nil {
+		return err
+	}
 
 	// vote not return value
 	return nil

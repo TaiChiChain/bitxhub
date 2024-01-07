@@ -29,7 +29,7 @@ type BrokerAPI interface {
 	GetBlocks(start uint64, end uint64) ([]*types.Block, error)
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error)
-	GetSystemContract() common.SystemContract
+	GetNativeVm() common.VirtualMachine
 	ConsensusReady() error
 	GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
 

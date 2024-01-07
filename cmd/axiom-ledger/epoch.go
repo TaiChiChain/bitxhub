@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common/sol/binding"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/sol/binding"
 )
 
 var rpc = "http://127.0.0.1:8881"

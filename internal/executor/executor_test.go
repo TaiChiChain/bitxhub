@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	common2 "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,40 @@ const (
 	from        = "0x3f9d18f7c3a6e5e4c0b877fe3e688ab08840b997"
 	minGasPrice = 1000000000000
 )
+
+var proposeABI = `[{
+	"inputs": [
+	  {
+		"internalType": "enum ProposalType",
+		"name": "proposalType",
+		"type": "uint8"
+	  },
+	  {
+		"internalType": "string",
+		"name": "title",
+		"type": "string"
+	  },
+	  {
+		"internalType": "string",
+		"name": "desc",
+		"type": "string"
+	  },
+	  {
+		"internalType": "uint64",
+		"name": "blockNumber",
+		"type": "uint64"
+	  },
+	  {
+		"internalType": "bytes",
+		"name": "extra",
+		"type": "bytes"
+	  }
+	],
+	"name": "propose",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+  }]`
 
 func TestNew(t *testing.T) {
 	r, err := repo.Default(t.TempDir())
@@ -248,7 +284,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 			return true, []byte("10")
 		}).AnyTimes()
 
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	err = base.InitEpochInfo(stateLedger, r.GenesisConfig.EpochInfo)
 	assert.Nil(t, err)
@@ -399,7 +435,7 @@ func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
 	val, err := json.Marshal(hash)
 	assert.Nil(t, err)
 
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	stateRoot := &types.Hash{}
 
@@ -496,7 +532,7 @@ func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
 		},
 	})
 	assert.Nil(t, err)
-	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.NodeManagerContractAddr), big.NewInt(0), data, signer)
+	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.GovernanceContractAddr), big.NewInt(0), data, signer)
 	assert.Nil(t, err)
 
 	txs3 = append(txs3, tx4, tx5, tx6)
@@ -531,7 +567,7 @@ func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
 	val, err := json.Marshal(hash)
 	assert.Nil(t, err)
 
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GovernanceContractAddr))
 
 	contractAddr := types.NewAddressByStr("0xdac17f958d2ee523a2206206994597c13d831ec7")
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
@@ -625,7 +661,7 @@ func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
 		},
 	})
 	assert.Nil(t, err)
-	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.NodeManagerContractAddr), big.NewInt(0), data, signer)
+	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.GovernanceContractAddr), big.NewInt(0), data, signer)
 	assert.Nil(t, err)
 
 	txs3 = append(txs3, tx4, tx5, tx6)
@@ -634,7 +670,7 @@ func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
 
 func generateNodeAddProposeData(t *testing.T, extraArgs NodeExtraArgs) []byte {
 	// test system contract
-	gabi, err := governance.GetABI()
+	gabi, err := abi.JSON(strings.NewReader(proposeABI))
 	assert.Nil(t, err)
 
 	title := "title"
