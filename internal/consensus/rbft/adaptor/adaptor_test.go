@@ -73,18 +73,18 @@ func TestSignAndVerify(t *testing.T) {
 	msgSign, err := adaptor.Sign([]byte("test sign"))
 	ast.Nil(err)
 
-	err = adaptor.Verify(adaptor.config.SelfAccountAddress, msgSign, []byte("test sign"))
+	err = adaptor.Verify(adaptor.network.PeerID(), msgSign, []byte("test sign"))
 	ast.Nil(err)
 
 	err = adaptor.Verify("wrong", msgSign, []byte("test sign"))
 	ast.Error(err)
 
-	err = adaptor.Verify(adaptor.config.SelfAccountAddress, msgSign, []byte("wrong sign"))
+	err = adaptor.Verify(adaptor.network.PeerID(), msgSign, []byte("wrong sign"))
 	ast.Error(err)
 
 	wrongSign := msgSign
 	wrongSign[0] = 255 - wrongSign[0]
-	err = adaptor.Verify(adaptor.config.SelfAccountAddress, wrongSign, []byte("test sign"))
+	err = adaptor.Verify(adaptor.network.PeerID(), wrongSign, []byte("test sign"))
 	ast.Error(err)
 }
 
@@ -145,7 +145,7 @@ func TestStateUpdate(t *testing.T) {
 	peerSet := make([]string, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
 	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
-		if item.P2PNodeID != adaptor.config.SelfAccountAddress {
+		if item.P2PNodeID != adaptor.network.PeerID() {
 			peerSet = append(peerSet, item.P2PNodeID)
 		}
 	})
@@ -189,7 +189,7 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 	peerSet := make([]string, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
 	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
-		if item.P2PNodeID != adaptor.config.SelfAccountAddress {
+		if item.P2PNodeID != adaptor.network.PeerID() {
 			peerSet = append(peerSet, item.P2PNodeID)
 		}
 	})
@@ -239,7 +239,7 @@ func TestStateUpdateWithRollback(t *testing.T) {
 	peerSet := make([]string, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
 	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
-		if item.P2PNodeID != adaptor.config.SelfAccountAddress {
+		if item.P2PNodeID != adaptor.network.PeerID() {
 			peerSet = append(peerSet, item.P2PNodeID)
 		}
 	})

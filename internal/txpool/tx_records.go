@@ -4,14 +4,14 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
-	"path/filepath"
-
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/sirupsen/logrus"
-
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 // devNull mimic the behavior of the Unix /dev/null.
@@ -23,7 +23,8 @@ const TxRecordPrefixLength = 8
 const TxRecordsBatchSize = 1000
 
 func (*devNull) Write(p []byte) (n int, err error) { return len(p), nil }
-func (*devNull) Close() error                      { return nil }
+
+func (*devNull) Close() error { return nil }
 
 type txRecords[T any, Constraint types.TXConstraint[T]] struct {
 	logger   logrus.FieldLogger

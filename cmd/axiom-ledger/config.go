@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
@@ -18,7 +19,18 @@ var configGenerateArgs = struct {
 	DefaultNodeIndex int
 	Solo             bool
 	EpochEnable      bool
+	Auth             string
 }{}
+
+func passwordFlag() *cli.StringFlag {
+	return &cli.StringFlag{
+		Name:        "password",
+		Usage:       "Generate or decode p2p.key with password",
+		Destination: &configGenerateArgs.Auth,
+		Aliases:     []string{"p", "P", "pwd"},
+		Required:    false,
+	}
+}
 
 var configCMD = &cli.Command{
 	Name:  "config",
@@ -47,12 +59,21 @@ var configCMD = &cli.Command{
 					Destination: &configGenerateArgs.EpochEnable,
 					Required:    false,
 				},
+				passwordFlag(),
 			},
 		},
 		{
 			Name:   "generate-account-key",
 			Usage:  "Generate account private key",
 			Action: generateAccountKey,
+			Flags: []cli.Flag{
+				passwordFlag(),
+			},
+		},
+		{
+			Name:   "change-key-password",
+			Usage:  "Modifying the auth of the p2p.key secret in the system.",
+			Action: changeKeyPassword,
 		},
 		{
 			Name:   "node-info",
@@ -94,7 +115,7 @@ func generate(ctx *cli.Context) error {
 		}
 	}
 
-	r, err := repo.DefaultWithNodeIndex(p, configGenerateArgs.DefaultNodeIndex-1, configGenerateArgs.EpochEnable)
+	r, err := repo.DefaultWithNodeIndex(p, configGenerateArgs.DefaultNodeIndex-1, configGenerateArgs.EpochEnable, configGenerateArgs.Auth)
 	if err != nil {
 		return err
 	}
@@ -119,7 +140,7 @@ func generateAccountKey(ctx *cli.Context) error {
 		return nil
 	}
 
-	keyPath := path.Join(p, repo.AccountKeyFileName)
+	keyPath := path.Join(p, repo.P2PKeyFileName)
 	if fileutil.Exist(keyPath) {
 		fmt.Printf("%s exists, do you want to overwrite it? y/n\n", keyPath)
 		var choice string
@@ -130,16 +151,67 @@ func generateAccountKey(ctx *cli.Context) error {
 			return errors.New("interrupt by user")
 		}
 	}
-	key, err := repo.GenerateKey()
+	fmt.Println("Enter the password to generate the secret key: ")
+	var password string
+	if _, err := fmt.Scanln(&password); err != nil {
+		return err
+	}
+	if len(password) == 0 {
+		return errors.New("password cannot be empty")
+	}
+	fmt.Println("Enter the password again: ")
+	var password2 string
+	if _, err := fmt.Scanln(&password2); err != nil {
+		return err
+	}
+	if password != password2 {
+		return errors.New("password not match")
+	}
+	addr, err := repo.GenerateP2PKeyJson(password, p, nil)
 	if err != nil {
 		return err
 	}
-	if err := repo.WriteKey(keyPath, key); err != nil {
+	fmt.Println("generate account-addr:", addr)
+
+	return nil
+}
+
+func changeKeyPassword(ctx *cli.Context) error {
+	p, err := getRootPath(ctx)
+	if err != nil {
 		return err
 	}
-	fmt.Println("generate account-addr:", ethcrypto.PubkeyToAddress(key.PublicKey).String())
-	fmt.Println("generate account-key:", repo.KeyString(key))
-
+	keyPath := path.Join(p, repo.P2PKeyFileName)
+	if !fileutil.Exist(keyPath) {
+		fmt.Printf("%s not exist \n", keyPath)
+		return nil
+	}
+	fmt.Println("Please enter the old password: ")
+	var oldPassword string
+	if _, err := fmt.Scanln(&oldPassword); err != nil {
+		return err
+	}
+	key, err := repo.FromKeyJson(oldPassword, keyPath)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Please enter the new password: ")
+	var newPassword string
+	if _, err := fmt.Scanln(&newPassword); err != nil {
+		return err
+	}
+	fmt.Println("Please enter the new password again: ")
+	var newPassword2 string
+	if _, err := fmt.Scanln(&newPassword2); err != nil {
+		return err
+	}
+	if newPassword != newPassword2 {
+		return errors.New("new password not match")
+	}
+	if err := repo.ChangeAuthOfKeyJson(oldPassword, newPassword, keyPath); err != nil {
+		return err
+	}
+	fmt.Printf("Change password of [%s] success!\n", ethcrypto.PubkeyToAddress(key.PublicKey).String())
 	return nil
 }
 
@@ -153,7 +225,7 @@ func nodeInfo(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(p)
+	r, err := repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		return err
 	}
@@ -172,7 +244,7 @@ func show(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(p)
+	r, err := repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		return err
 	}
@@ -194,7 +266,7 @@ func showConsensus(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(p)
+	r, err := repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		return err
 	}
@@ -216,7 +288,7 @@ func check(ctx *cli.Context) error {
 		return nil
 	}
 
-	_, err = repo.Load(p)
+	_, err = repo.Load(configGenerateArgs.Auth, p, false)
 	if err != nil {
 		fmt.Println("config file format error, please check:", err)
 		os.Exit(1)

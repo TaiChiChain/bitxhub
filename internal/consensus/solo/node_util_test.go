@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -34,7 +35,7 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 	logger := log.NewWithModule("consensus")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	repoRoot := t.TempDir()
-	r, err := repo.Load(repoRoot)
+	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
 	require.Nil(t, err)
 	txpoolConf := txpool2.Config{
 		IsTimed:             false,
@@ -56,7 +57,7 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	logger := log.NewWithModule("consensus")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	repoRoot := t.TempDir()
-	r, err := repo.Load(repoRoot)
+	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
 	require.Nil(t, err)
 	cfg := r.ConsensusConfig
 
@@ -87,9 +88,12 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	require.Nil(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 
+	s, err := types.GenerateSigner()
+	assert.Nil(t, err)
 	soloNode := &Node{
 		config: &common.Config{
-			Config: r.ConsensusConfig,
+			Config:  r.ConsensusConfig,
+			PrivKey: s.Sk,
 		},
 		lastExec:         uint64(0),
 		isTimed:          txpoolConf.IsTimed,

@@ -24,6 +24,7 @@ func init() {
 
 type NodeDev struct {
 	config          *common.Config
+	proposerAccount string
 	persistDoneC    chan struct{}            // signal of tx had been persisted
 	commitC         chan *common.CommitEvent // block channel
 	lastExec        uint64                   // the index of the last-applied block
@@ -35,8 +36,14 @@ type NodeDev struct {
 }
 
 func NewNode(config *common.Config) (*NodeDev, error) {
+	proposerAccount, err := repo.KeyToNodeID(config.PrivKey)
+	if err != nil {
+		return nil, err
+	}
+
 	return &NodeDev{
 		config:          config,
+		proposerAccount: proposerAccount,
 		persistDoneC:    make(chan struct{}),
 		commitC:         make(chan *common.CommitEvent),
 		lastExec:        config.Applied,
@@ -62,7 +69,7 @@ func (n *NodeDev) Prepare(tx *types.Transaction) error {
 			Epoch:           1,
 			Number:          n.lastExec + 1,
 			Timestamp:       time.Now().Unix(),
-			ProposerAccount: n.config.SelfAccountAddress,
+			ProposerAccount: n.proposerAccount,
 		},
 		Transactions: []*types.Transaction{tx},
 	}

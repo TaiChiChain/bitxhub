@@ -236,7 +236,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	// metrics for cal tx tps
 	txCounter.Add(float64(len(data.Block.Transactions)))
-	if block.BlockHeader.ProposerAccount == exec.rep.AccountAddress {
+	if block.BlockHeader.ProposerAccount == exec.rep.P2PAddress {
 		proposedBlockCounter.Inc()
 	}
 
@@ -451,7 +451,7 @@ func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx ethvm.TxContext, vmConfig 
 	}
 
 	lg := exec.ledger.NewView()
-	blkCtx = ethvm.NewEVMBlockContext(meta.Height, uint64(block.BlockHeader.Timestamp), exec.rep.AccountAddress, getBlockHashFunc(exec.ledger.ChainLedger))
+	blkCtx = ethvm.NewEVMBlockContext(meta.Height, uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
 	return ethvm.NewEVM(blkCtx, txCtx, lg.StateLedger, exec.evmChainCfg, vmConfig), nil
 }
 

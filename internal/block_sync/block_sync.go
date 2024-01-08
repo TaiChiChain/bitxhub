@@ -118,6 +118,7 @@ func (bs *BlockSync) produceRequester(count uint64) {
 		bs.requesterCh <- struct{}{}
 	}
 }
+
 func (bs *BlockSync) consumeRequester() chan struct{} {
 	return bs.requesterCh
 }

@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
@@ -651,10 +651,10 @@ type TestPointer struct {
 
 func TestName222(t *testing.T) {
 	m := map[string]*TestPointer{
-		"1": &TestPointer{
+		"1": {
 			Name: "1",
 		},
-		"2": &TestPointer{
+		"2": {
 			Name: "3",
 		},
 	}

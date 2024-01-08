@@ -106,9 +106,9 @@ func newMockMinLedger(t *testing.T) *mockLedger {
 		return mockLg.accountDb[address.String()].GetBalance()
 	}).AnyTimes()
 	//
-	//contractAccount := newMockAccount(types.NewAddressByStr(common.TokenManagerContractAddr))
-	//contractAccount.
-	//mockLg.accountDb[common.TokenManagerContractAddr] = contractAccount
+	// contractAccount := newMockAccount(types.NewAddressByStr(common.TokenManagerContractAddr))
+	// contractAccount.
+	// mockLg.accountDb[common.TokenManagerContractAddr] = contractAccount
 	return mockLg
 }
 
