@@ -92,19 +92,19 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	stack := &RBFTAdaptor{
-		epochStore:       config.EpochStore,
-		store:            store,
+		epochStore:            config.EpochStore,
+		store:                 store,
 		libp2pKey:             libp2pKey,
 		p2pID2PubKeyCache:     make(map[string]libp2pcrypto.PubKey),
 		p2pID2PubKeyCacheLock: new(sync.RWMutex),
-		network:          config.Network,
-		ReadyC:           make(chan *Ready, 1024),
-		BlockC:           make(chan *common.CommitEvent, 1024),
-		quitSync:         make(chan struct{}, 1),
-		logger:           config.Logger,
-		getChainMetaFunc: config.GetChainMetaFunc,
-		getBlockFunc:     config.GetBlockFunc,
-		config:           config,
+		network:               config.Network,
+		ReadyC:                make(chan *Ready, 1024),
+		BlockC:                make(chan *common.CommitEvent, 1024),
+		quitSync:              make(chan struct{}, 1),
+		logger:                config.Logger,
+		getChainMetaFunc:      config.GetChainMetaFunc,
+		getBlockFunc:          config.GetBlockFunc,
+		config:                config,
 
 		sync: config.BlockSync,
 

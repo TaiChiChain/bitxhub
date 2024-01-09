@@ -1874,18 +1874,18 @@ func (c *StateLedgerGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bo
 }
 
 // GetTrieSnapshotMeta mocks base method.
-func (m *MockStateLedger) GetTrieSnapshotMeta(metaKey string) (any, error) {
+func (m *MockStateLedger) GetTrieSnapshotMeta() (*ledger.SnapshotMeta, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTrieSnapshotMeta", metaKey)
-	ret0, _ := ret[0].(any)
+	ret := m.ctrl.Call(m, "GetTrieSnapshotMeta")
+	ret0, _ := ret[0].(*ledger.SnapshotMeta)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTrieSnapshotMeta indicates an expected call of GetTrieSnapshotMeta.
-func (mr *MockStateLedgerMockRecorder) GetTrieSnapshotMeta(metaKey any) *StateLedgerGetTrieSnapshotMetaCall {
+func (mr *MockStateLedgerMockRecorder) GetTrieSnapshotMeta() *StateLedgerGetTrieSnapshotMetaCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTrieSnapshotMeta", reflect.TypeOf((*MockStateLedger)(nil).GetTrieSnapshotMeta), metaKey)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTrieSnapshotMeta", reflect.TypeOf((*MockStateLedger)(nil).GetTrieSnapshotMeta))
 	return &StateLedgerGetTrieSnapshotMetaCall{Call: call}
 }
 
@@ -1895,19 +1895,19 @@ type StateLedgerGetTrieSnapshotMetaCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetTrieSnapshotMetaCall) Return(arg0 any, arg1 error) *StateLedgerGetTrieSnapshotMetaCall {
+func (c *StateLedgerGetTrieSnapshotMetaCall) Return(arg0 *ledger.SnapshotMeta, arg1 error) *StateLedgerGetTrieSnapshotMetaCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetTrieSnapshotMetaCall) Do(f func(string) (any, error)) *StateLedgerGetTrieSnapshotMetaCall {
+func (c *StateLedgerGetTrieSnapshotMetaCall) Do(f func() (*ledger.SnapshotMeta, error)) *StateLedgerGetTrieSnapshotMetaCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func(string) (any, error)) *StateLedgerGetTrieSnapshotMetaCall {
+func (c *StateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func() (*ledger.SnapshotMeta, error)) *StateLedgerGetTrieSnapshotMetaCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

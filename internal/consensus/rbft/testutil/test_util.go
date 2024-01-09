@@ -9,7 +9,6 @@ import (
 
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	common2 "github.com/axiomesh/axiom-ledger/internal/sync/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

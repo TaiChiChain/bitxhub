@@ -2110,14 +2110,11 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(0), sl1.GetNonce(account1))
 			assert.Equal(t, uint64(0), sl1.GetNonce(account2))
 			assert.Equal(t, uint64(0), sl1.GetNonce(account3))
-			v, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block1.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
-			info, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieNodeInfoKey)
-			assert.Nil(t, err)
-			assert.NotNil(t, info)
-			assert.Equal(t, block1.BlockHeader.Epoch, info.(*rbft.EpochInfo).Epoch)
-			assert.Equal(t, "P2PNodeID-1", info.(*rbft.EpochInfo).ValidatorSet[0].P2PNodeID)
+			assert.Equal(t, block1.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+			assert.Equal(t, block1.BlockHeader.Epoch, meta.EpochInfo.Epoch)
+			assert.Equal(t, "P2PNodeID-1", meta.EpochInfo.ValidatorSet[0].P2PNodeID)
 
 			// iterate trie of block 2
 			block2 := &types.Block{
@@ -2143,9 +2140,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(12), sl2.GetNonce(account1))
 			assert.Equal(t, uint64(22), sl2.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl2.GetNonce(account3))
-			v, err = sl2.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl2.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block2.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block2.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 
 			// iterate trie of block 3
 			block3 := &types.Block{
@@ -2170,9 +2167,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(13), sl3.GetNonce(account1))
 			assert.Equal(t, uint64(23), sl3.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl3.GetNonce(account3))
-			v, err = sl3.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl3.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block3.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block3.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 
 			// iterate trie of block 4
 			block4 := &types.Block{
@@ -2198,9 +2195,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(13), sl4.GetNonce(account1))
 			assert.Equal(t, uint64(23), sl4.GetNonce(account2))
 			assert.Equal(t, uint64(32), sl4.GetNonce(account3))
-			v, err = sl4.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl4.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block4.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block4.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 
 			// iterate trie of block 5
 			block5 := &types.Block{
@@ -2226,9 +2223,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 			assert.Equal(t, uint64(15), sl5.GetNonce(account1))
 			assert.Equal(t, uint64(25), sl5.GetNonce(account2))
 			assert.Equal(t, uint64(35), sl5.GetNonce(account3))
-			v, err = sl5.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl5.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block5.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block5.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 		})
 	}
 }
@@ -2346,14 +2343,11 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 			exist, val = sl1.GetState(account3, []byte("k1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("v1"), val)
-			v, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block1.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
-			info, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieNodeInfoKey)
-			assert.Nil(t, err)
-			assert.NotNil(t, info)
-			assert.Equal(t, block1.BlockHeader.Epoch, info.(*rbft.EpochInfo).Epoch)
-			assert.Equal(t, "P2PNodeID-1", info.(*rbft.EpochInfo).ValidatorSet[0].P2PNodeID)
+			assert.Equal(t, block1.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+			assert.Equal(t, block1.BlockHeader.Epoch, meta.EpochInfo.Epoch)
+			assert.Equal(t, "P2PNodeID-1", meta.EpochInfo.ValidatorSet[0].P2PNodeID)
 
 			// iterate trie of block 2
 			block2 := &types.Block{
@@ -2388,9 +2382,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 			exist, val = sl2.GetState(account3, []byte("k1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("v1"), val)
-			v, err = sl2.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl2.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block2.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block2.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 
 			// iterate trie of block 3
 			block3 := &types.Block{
@@ -2427,9 +2421,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 			exist, val = sl3.GetState(account3, []byte("k2"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("v22"), val)
-			v, err = sl3.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl3.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block3.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block3.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 
 			// iterate trie of block 4
 			block4 := &types.Block{
@@ -2467,9 +2461,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 			exist, val = sl4.GetState(account3, []byte("k2"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("v22"), val)
-			v, err = sl4.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl4.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block4.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block4.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 
 			// iterate trie of block 5
 			block5 := &types.Block{
@@ -2507,9 +2501,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 			exist, val = sl5.GetState(account3, []byte("k2"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("v22"), val)
-			v, err = sl5.(*StateLedgerImpl).GetTrieSnapshotMeta(TrieBlockKey)
+			meta, err = sl5.(*StateLedgerImpl).GetTrieSnapshotMeta()
 			assert.Nil(t, err)
-			assert.Equal(t, block5.BlockHeader.StateRoot.String(), v.(*types.Block).BlockHeader.StateRoot.String())
+			assert.Equal(t, block5.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 		})
 	}
 }

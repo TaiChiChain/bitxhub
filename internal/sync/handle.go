@@ -100,7 +100,7 @@ func (sm *SyncManager) handleFetchEpochState(s network.Stream, msg *pb.Message) 
 		if err != nil {
 			sm.logger.WithFields(logrus.Fields{
 				"err": err,
-			}).Error("Send epoch state responsefailed")
+			}).Error("Send epoch state response failed")
 			return err
 		}
 		return nil
@@ -124,15 +124,15 @@ func (sm *SyncManager) constructEpochStateResponse(msg *pb.Message) *pb.FetchEpo
 		sm.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Error("Unmarshal fetch epoch state request failed")
-		return wrapFailedSyncStateResp(err.Error())
+		return wrapFailedSyncStateResp(fmt.Errorf("unmarshal fetch epoch state request failed: %v", err).Error())
 	}
 
 	eps, err := rbft.GetEpochQuorumCheckpoint(sm.getEpochStateFunc, req.Epoch)
 	if err != nil {
 		sm.logger.WithFields(logrus.Fields{
 			"err": err,
-		}).Error("Get epochState failed")
-		return wrapFailedSyncStateResp(err.Error())
+		}).Error("get epochState failed")
+		return wrapFailedSyncStateResp(fmt.Errorf("get epochState failed: %v", err).Error())
 	}
 
 	data, err := eps.MarshalVT()

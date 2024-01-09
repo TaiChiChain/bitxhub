@@ -99,12 +99,6 @@ func NewNode(config *common.Config) (*Node, error) {
 	}, nil
 }
 
-func (n *Node) UpdateConfig(opts ...common.Option) {
-	for _, opt := range opts {
-		opt(n.config)
-	}
-}
-
 func (n *Node) initConsensusMsgPipes() error {
 	n.consensusMsgPipes = make(map[int32]p2p.Pipe, len(consensus.Type_name))
 	if n.config.Config.Rbft.EnableMultiPipes {

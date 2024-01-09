@@ -50,7 +50,8 @@ type mockLedger struct {
 	receiptsDb   map[uint64][]*types.Receipt
 	epochStateDb map[string]*consensus.QuorumCheckpoint
 
-	stateResponse chan *pb.Message
+	stateResponse      chan *pb.Message
+	epochStateResponse chan *pb.Message
 }
 
 func genReceipts(block *types.Block) []*types.Receipt {
@@ -70,9 +71,10 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 		blockDb: map[uint64]*types.Block{
 			genesis.Height(): genesis,
 		},
-		receiptsDb:    make(map[uint64][]*types.Receipt),
-		epochStateDb:  make(map[string]*consensus.QuorumCheckpoint),
-		stateResponse: make(chan *pb.Message, 1),
+		receiptsDb:         make(map[uint64][]*types.Receipt),
+		epochStateDb:       make(map[string]*consensus.QuorumCheckpoint),
+		stateResponse:      make(chan *pb.Message, 1),
+		epochStateResponse: make(chan *pb.Message, 1),
 		chainMeta: &types.ChainMeta{
 			Height:    genesis.Height(),
 			BlockHash: genesis.BlockHash,
@@ -83,7 +85,7 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 
 	mockLg.EXPECT().GetBlock(gomock.Any()).DoAndReturn(func(height uint64) (*types.Block, error) {
 		if mockLg.blockDb[height] == nil {
-			return nil, errors.New("commitDataCache not found")
+			return nil, errors.New("block not found")
 		}
 		return mockLg.blockDb[height], nil
 	}).AnyTimes()
@@ -438,6 +440,7 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 					resp := &pb.Message{From: to, Type: pb.Message_FETCH_EPOCH_STATE_RESPONSE, Data: data}
 					return resp, nil
 				}
+
 				req := &pb.SyncStateRequest{}
 				if err := req.UnmarshalVT(msg.Data); err != nil {
 					return nil, fmt.Errorf("unmarshal sync state request failed: %w", err)
@@ -472,11 +475,20 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 		if wrongSendStream {
 			return errors.New("send stream error")
 		}
+		if msg.Type == pb.Message_FETCH_EPOCH_STATE_RESPONSE {
+			resp := &pb.FetchEpochStateResponse{}
+			if err := resp.UnmarshalVT(msg.Data); err != nil {
+				return fmt.Errorf("unmarshal fetch epoch state response failed: %w", err)
+			}
+			ledgers[msg.From].epochStateResponse <- msg
+			return nil
+		}
+
 		resp := &pb.SyncStateResponse{}
 		if err := resp.UnmarshalVT(msg.Data); err != nil {
 			return fmt.Errorf("unmarshal sync state response failed: %w", err)
 		}
-		ledgers[localId].stateResponse <- msg
+		ledgers[msg.From].stateResponse <- msg
 		return nil
 	}).AnyTimes()
 }

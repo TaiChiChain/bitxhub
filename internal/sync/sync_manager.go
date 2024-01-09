@@ -571,7 +571,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 						}
 						return nil
 					}
-				}, strategy.Backoff(backoff.Fibonacci(500*time.Millisecond))); err != nil {
+				}, strategy.Limit(common.MaxRetryCount), strategy.Backoff(backoff.Fibonacci(500*time.Millisecond))); err != nil {
 					sm.logger.Errorf("Retry send sync state request failed: %s", err)
 					return
 				}
@@ -707,22 +707,8 @@ func (sm *SyncManager) listenSyncChainDataRequest() {
 			sm.logger.Errorf("Handle sync chainData request failed: %s", err)
 			continue
 		}
-		if err := retry.Retry(func(attempt uint) error {
-			err := sm.chainDataResponsePipe.Send(sm.ctx, msg.From, data)
-			if err != nil {
-				sm.logger.WithFields(logrus.Fields{
-					"from": msg.From,
-					"err":  err,
-				}).Error("Send sync commitData response failed")
-				return err
-			}
-			sm.logger.WithFields(logrus.Fields{
-				"from": msg.From,
-			}).Debug("Send sync commitData response success")
-			return nil
-		}, strategy.Limit(common.MaxRetryCount), strategy.Wait(500*time.Millisecond)); err != nil {
-			sm.logger.Errorf("Retry send sync chainData response failed: %s", err)
-
+		if err = sm.sendCommitDataResponse(common.SyncModeSnapshot, msg.From, data); err != nil {
+			sm.logger.Errorf("Send sync commitData response failed: %s", err)
 			continue
 		}
 	}
@@ -742,26 +728,106 @@ func (sm *SyncManager) listenSyncBlockDataRequest() {
 			continue
 		}
 
-		if err := retry.Retry(func(attempt uint) error {
-			err := sm.blockDataResponsePipe.Send(sm.ctx, msg.From, data)
-			if err != nil {
-				sm.logger.WithFields(logrus.Fields{
-					"from": msg.From,
-					"err":  err,
-				}).Error("Send sync block response failed")
-				return err
-			}
-			sm.logger.WithFields(logrus.Fields{
-				"from": msg.From,
-			}).Debug("Send sync block response success")
-			return nil
-		}, strategy.Limit(common.MaxRetryCount), strategy.Wait(500*time.Millisecond)); err != nil {
-			sm.logger.Errorf("Retry send sync block response failed: %s", err)
-
+		if err = sm.sendCommitDataResponse(common.SyncModeFull, msg.From, data); err != nil {
+			sm.logger.Errorf("Send sync commitData response failed: %s", err)
 			continue
 		}
 	}
 }
+
+func (sm *SyncManager) sendCommitDataResponse(mode common.SyncMode, to string, respData []byte) error {
+	var pipe network.Pipe
+	switch mode {
+	case common.SyncModeFull:
+		pipe = sm.blockDataResponsePipe
+	case common.SyncModeSnapshot:
+		pipe = sm.chainDataResponsePipe
+	}
+	if err := retry.Retry(func(attempt uint) error {
+		err := pipe.Send(sm.ctx, to, respData)
+		if err != nil {
+			sm.logger.WithFields(logrus.Fields{
+				"to":  to,
+				"err": err,
+			}).Error("Send sync commitData response failed")
+			return err
+		}
+		sm.logger.WithFields(logrus.Fields{
+			"to": to,
+		}).Debug("Send sync commitData response success")
+		return nil
+	}, strategy.Limit(common.MaxRetryCount), strategy.Wait(500*time.Millisecond)); err != nil {
+		sm.logger.Errorf("Retry send sync chainData response failed: %s", err)
+		return err
+	}
+	return nil
+}
+
+//func (sm *SyncManager) listenSyncChainDataRequest() {
+//	for {
+//		select {
+//		case <-sm.ctx.Done():
+//			sm.logger.Info("Stop listen sync chainData request")
+//			return
+//		default:
+//			msg := sm.chainDataRequestPipe.Receive(sm.ctx)
+//			if msg == nil {
+//				sm.logger.Info("Stop listen sync chainData request")
+//				return
+//			}
+//
+//			if err := sm.handleAndSendSyncResponse(msg, common.SyncModeSnapshot, sm.chainDataResponsePipe); err != nil {
+//				sm.logger.Errorf("Handle and send sync chainData response failed: %s", err)
+//			}
+//		}
+//	}
+//}
+//
+//func (sm *SyncManager) listenSyncBlockDataRequest() {
+//	for {
+//		select {
+//		case <-sm.ctx.Done():
+//			sm.logger.Info("Stop listen sync block request")
+//			return
+//		default:
+//			msg := sm.blockRequestPipe.Receive(sm.ctx)
+//			if msg == nil {
+//				sm.logger.Info("Stop listen sync block request")
+//				return
+//			}
+//
+//			if err := sm.handleAndSendSyncResponse(msg, common.SyncModeFull, sm.blockDataResponsePipe); err != nil {
+//				sm.logger.Errorf("Handle and send sync block response failed: %s", err)
+//			}
+//		}
+//	}
+//}
+//
+//func (sm *SyncManager) handleAndSendSyncResponse(msg *network2.PipeMsg, mode common.SyncMode, responsePipe *network2.Pipe) error {
+//	data, err := sm.handleCommitDataRequest(msg, mode)
+//	if err != nil {
+//		return err
+//	}
+//
+//	return retrySendSyncResponse(sm.ctx, msg.From, data, responsePipe, sm.logger)
+//}
+//
+//func retrySendSyncResponse(ctx context.Context, from string, data []byte, responsePipe *network2.Pipe, logger logrus.FieldLogger) error {
+//	return retry.Retry(func(attempt uint) error {
+//		err := responsePipe.Send(ctx, from, data)
+//		if err != nil {
+//			logger.WithFields(logrus.Fields{
+//				"from": from,
+//				"err":  err,
+//			}).Error("Send sync response failed")
+//			return err
+//		}
+//		logger.WithFields(logrus.Fields{
+//			"from": from,
+//		}).Debug("Send sync response success")
+//		return nil
+//	}, strategy.Limit(common.MaxRetryCount), strategy.Wait(500*time.Millisecond))
+//}
 
 func (sm *SyncManager) listenSyncCommitDataResponse() {
 	for {
@@ -1097,11 +1163,7 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 		}).Warn("Handle error msg Block")
 
 		invalidBlockNumber.WithLabelValues("send_request_err").Inc()
-		newPeer, err := sm.pickRandomPeer(msg.NodeID)
-		if err != nil {
-			panic(err)
-		}
-
+		newPeer := sm.pickRandomPeer(msg.NodeID)
 		r.retryCh <- newPeer
 
 	case common.SyncMsgType_InvalidBlock:
@@ -1115,10 +1177,7 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 		r.clearBlock()
 		sm.decreaseBlockSize()
 
-		newPeer, err := sm.pickRandomPeer(msg.NodeID)
-		if err != nil {
-			panic(err)
-		}
+		newPeer := sm.pickRandomPeer(msg.NodeID)
 		r.retryCh <- newPeer
 	case common.SyncMsgType_TimeoutBlock:
 		sm.logger.WithFields(logrus.Fields{
@@ -1128,19 +1187,13 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 
 		invalidBlockNumber.WithLabelValues("timeout_response").Inc()
 
-		if err := sm.addPeerTimeoutCount(msg.NodeID); err != nil {
-			panic(err)
-		}
-		newPeer, err := sm.pickRandomPeer(msg.NodeID)
-		if err != nil {
-			panic(err)
-		}
+		sm.addPeerTimeoutCount(msg.NodeID)
+		newPeer := sm.pickRandomPeer(msg.NodeID)
 		r.retryCh <- newPeer
 	}
 }
 
-func (sm *SyncManager) addPeerTimeoutCount(peerID string) error {
-	var err error
+func (sm *SyncManager) addPeerTimeoutCount(peerID string) {
 	lo.ForEach(sm.peers, func(p *common.Peer, _ int) {
 		if p.PeerID == peerID {
 			p.TimeoutCount++
@@ -1153,7 +1206,6 @@ func (sm *SyncManager) addPeerTimeoutCount(peerID string) error {
 			}
 		}
 	})
-	return err
 }
 
 func (sm *SyncManager) getRequester(height uint64) *requester {
@@ -1169,7 +1221,7 @@ func (sm *SyncManager) pickPeer(height uint64) string {
 	return sm.peers[idx].PeerID
 }
 
-func (sm *SyncManager) pickRandomPeer(exceptPeerId string) (string, error) {
+func (sm *SyncManager) pickRandomPeer(exceptPeerId string) string {
 	if exceptPeerId != "" {
 		newPeers := lo.Filter(sm.peers, func(p *common.Peer, _ int) bool {
 			return p.PeerID != exceptPeerId
@@ -1178,9 +1230,9 @@ func (sm *SyncManager) pickRandomPeer(exceptPeerId string) (string, error) {
 			sm.resetPeers()
 			newPeers = sm.peers
 		}
-		return newPeers[rand.Intn(len(newPeers))].PeerID, nil
+		return newPeers[rand.Intn(len(newPeers))].PeerID
 	}
-	return sm.peers[rand.Intn(len(sm.peers))].PeerID, nil
+	return sm.peers[rand.Intn(len(sm.peers))].PeerID
 }
 
 func (sm *SyncManager) removePeer(peerId string) bool {

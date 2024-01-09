@@ -90,7 +90,7 @@ type StateLedger interface {
 
 	IterateTrie(block *types.Block, kv storage.Storage, errC chan error)
 
-	GetTrieSnapshotMeta(metaKey string) (interface{}, error)
+	GetTrieSnapshotMeta() (*SnapshotMeta, error)
 }
 
 // StateAccessor manipulates the state data

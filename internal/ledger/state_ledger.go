@@ -64,6 +64,11 @@ type StateLedgerImpl struct {
 	getEpochInfoFunc func(epoch uint64) (*rbft.EpochInfo, error)
 }
 
+type SnapshotMeta struct {
+	Block     *types.Block
+	EpochInfo *rbft.EpochInfo
+}
+
 // NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
 func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) StateLedger {
 	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot)
@@ -145,37 +150,26 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 		l.logger.Debugf("[IterateTrie] trie root=%v", trieRoot)
 		go iter.Iterate()
 
-		var finish bool
 		for {
-			select {
-			case <-iter.StopC:
-				finish = true
-				err, ok := <-iter.ErrC
-				if ok {
+			node, err := iter.Next()
+			if err != nil {
+				if err == jmt.ErrorNoMoreData {
+					break
+				} else {
 					errC <- err
 					return
 				}
-			default:
-				for {
-					node, ok := <-iter.BufferC
-					if !ok {
-						break
-					}
-					batch.Put(node.RawKey, node.RawValue)
-					if trieRoot == stateRoot && len(node.LeafContent) > 0 {
-						// resolve potential contract account
-						acc := &types.InnerAccount{Balance: big.NewInt(0)}
-						if err := acc.Unmarshal(node.LeafContent); err != nil {
-							panic(err)
-						}
-						if acc.StorageRoot != (common.Hash{}) {
-							queue = append(queue, acc.StorageRoot)
-						}
-					}
-				}
 			}
-			if finish {
-				break
+			batch.Put(node.RawKey, node.RawValue)
+			if trieRoot == stateRoot && len(node.LeafContent) > 0 {
+				// resolve potential contract account
+				acc := &types.InnerAccount{Balance: big.NewInt(0)}
+				if err := acc.Unmarshal(node.LeafContent); err != nil {
+					panic(err)
+				}
+				if acc.StorageRoot != (common.Hash{}) {
+					queue = append(queue, acc.StorageRoot)
+				}
 			}
 		}
 		queue = queue[1:]
@@ -187,45 +181,47 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 		errC <- err
 		return
 	}
-	batch.Put([]byte(TrieBlockKey), blockData)
+	batch.Put([]byte(trieBlockKey), blockData)
 
 	epochInfo, err := l.getEpochInfoFunc(block.BlockHeader.Epoch)
 	if err != nil {
-		// todo err handle
 		l.logger.Errorf("l.getEpochInfoFunc error:%v\n", err.Error())
+		errC <- err
 	}
 	blob, err := json.Marshal(epochInfo)
 	if err != nil {
 		errC <- err
 		return
 	}
-	batch.Put([]byte(TrieNodeInfoKey), blob)
+	batch.Put([]byte(trieNodeInfoKey), blob)
 
 	batch.Commit()
 
 	errC <- nil
 }
 
-func (l *StateLedgerImpl) GetTrieSnapshotMeta(metaKey string) (interface{}, error) {
-	switch metaKey {
-	case TrieBlockKey:
-		blob := l.cachedDB.Get([]byte(TrieBlockKey))
-		info := &types.Block{}
-		err := info.Unmarshal(blob)
-		if err != nil {
-			return err, nil
-		}
-		return info, nil
-	case TrieNodeInfoKey:
-		blob := l.cachedDB.Get([]byte(TrieNodeInfoKey))
-		info := &rbft.EpochInfo{}
-		err := info.Unmarshal(blob)
-		if err != nil {
-			return err, nil
-		}
-		return info, nil
+func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
+	rawBlock := l.cachedDB.Get([]byte(trieBlockKey))
+	rawEpochInfo := l.cachedDB.Get([]byte(trieNodeInfoKey))
+	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 {
+		return nil, ErrNotFound
 	}
-	return nil, fmt.Errorf("[GetTrieSnapshotMeta] unsupported trie snapshot key")
+	block := &types.Block{}
+	err := block.Unmarshal(rawBlock)
+	if err != nil {
+		return nil, err
+	}
+	epochInfo := &rbft.EpochInfo{}
+	err = epochInfo.Unmarshal(rawEpochInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	meta := &SnapshotMeta{
+		Block:     block,
+		EpochInfo: epochInfo,
+	}
+	return meta, nil
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {

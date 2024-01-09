@@ -2,7 +2,6 @@ package rbft
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -400,15 +399,4 @@ func mockAddTx(node *Node, ctx context.Context, wg *sync.WaitGroup) {
 			}
 		}
 	}()
-}
-
-func TestUpdateConfig(t *testing.T) {
-	ast := assert.New(t)
-	ctrl := gomock.NewController(t)
-	node := MockMinNode(ctrl, t)
-	fmt.Println(node.config.Applied)
-	oldApplied := node.config.Applied
-	newApp := oldApplied + 1
-	node.UpdateConfig(common.WithApplied(newApp))
-	ast.Equal(newApp, node.config.Applied)
 }

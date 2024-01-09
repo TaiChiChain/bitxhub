@@ -52,12 +52,6 @@ func NewNode(config *common.Config) (*NodeDev, error) {
 	}, nil
 }
 
-func (n *NodeDev) UpdateConfig(opts ...common.Option) {
-	for _, opt := range opts {
-		opt(n.config)
-	}
-}
-
 func (n *NodeDev) Start() error {
 	n.logger.Info("consensus dev started")
 	return nil

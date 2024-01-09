@@ -21,33 +21,27 @@ type snapMeta struct {
 }
 
 func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
-	block, err := lg.StateLedger.GetTrieSnapshotMeta(ledger.TrieBlockKey)
+	meta, err := lg.StateLedger.GetTrieSnapshotMeta()
 	if err != nil {
 		return nil, fmt.Errorf("get snapshot meta hash: %w", err)
 	}
-	snapBlock := block.(*types.Block)
 
-	info, err := lg.StateLedger.GetTrieSnapshotMeta(ledger.TrieNodeInfoKey)
-	if err != nil {
-		return nil, fmt.Errorf("get snapshot meta node info: %w", err)
-	}
-	snapEpochInfo := info.(*rbft.EpochInfo)
-	snapPersistedEpoch := snapEpochInfo.Epoch - 1
-	if snapEpochInfo.EpochPeriod+snapEpochInfo.StartBlock-1 == snapBlock.Height() {
-		snapPersistedEpoch = snapEpochInfo.Epoch
+	snapPersistedEpoch := meta.EpochInfo.Epoch - 1
+	if meta.EpochInfo.EpochPeriod+meta.EpochInfo.StartBlock-1 == meta.Block.Height() {
+		snapPersistedEpoch = meta.EpochInfo.Epoch
 	}
 
 	var peers []string
 
 	// get the validator set of the current local epoch
-	for _, v := range snapEpochInfo.ValidatorSet {
-		if v.AccountAddress != rep.AccountAddress {
+	for _, v := range meta.EpochInfo.ValidatorSet {
+		if v.P2PNodeID != rep.P2PID {
 			peers = append(peers, v.P2PNodeID)
 		}
 	}
 
 	return &snapMeta{
-		snapBlock:        snapBlock,
+		snapBlock:        meta.Block,
 		snapPeers:        peers,
 		snapPersistEpoch: snapPersistedEpoch,
 	}, nil
@@ -164,8 +158,10 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 	storeEpochStateFn := func(key string, value []byte) error {
 		return common2.StoreEpochState(axm.epochStore, key, value)
 	}
-	if err := rbft.PersistEpochQuorumCheckpoint(storeEpochStateFn, data.EpochState); err != nil {
-		return err
+	if data.EpochState != nil {
+		if err := rbft.PersistEpochQuorumCheckpoint(storeEpochStateFn, data.EpochState); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -177,7 +173,7 @@ func (axm *AxiomLedger) genSnapSyncParams(peers []string, startHeight, targetHei
 	return &common.SyncParams{
 		Peers:            peers,
 		LatestBlockHash:  latestBlockHash,
-		Quorum:           uint64(len(peers)),
+		Quorum:           common2.GetQuorum(axm.Repo.Config.Consensus.Type, len(peers)),
 		CurHeight:        startHeight,
 		TargetHeight:     targetHeight,
 		QuorumCheckpoint: quorumCkpt,

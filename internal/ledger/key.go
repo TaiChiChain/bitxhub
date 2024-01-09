@@ -18,8 +18,8 @@ const (
 	transactionMetaKey = "tx-meta-"
 	chainMetaKey       = "chain-meta"
 	codeKey            = "code-"
-	TrieBlockKey       = "trie-block-"
-	TrieNodeInfoKey    = "trie-nodeInfo-"
+	trieBlockKey       = "trie-block-"
+	trieNodeInfoKey    = "trie-nodeInfo-"
 )
 
 func compositeKey(prefix string, value any) []byte {

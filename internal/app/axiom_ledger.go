@@ -163,7 +163,9 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 			return nil, err
 		}
 		rwLdg, err = ledger.NewLedgerWithStores(rep, nil, stateLg, nil, nil)
-
+		if err != nil {
+			return nil, err
+		}
 		snap, err = loadSnapMeta(rwLdg, rep)
 		if err != nil {
 			return nil, err

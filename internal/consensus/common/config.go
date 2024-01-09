@@ -213,3 +213,15 @@ func (lg *Logger) Noticef(format string, v ...any) {
 func NeedChangeEpoch(height uint64, epochInfo *rbft.EpochInfo) bool {
 	return height == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1)
 }
+
+func GetQuorum(consensusType string, N int) uint64 {
+	switch consensusType {
+	case repo.ConsensusTypeRbft:
+		f := (N - 1) / 3
+		return uint64((N + f + 2) / 2)
+	case repo.ConsensusTypeSolo, repo.ConsensusTypeSoloDev:
+		fallthrough
+	default:
+		return 0
+	}
+}

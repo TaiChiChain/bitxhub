@@ -120,12 +120,6 @@ func (n *Node) GetLowWatermark() uint64 {
 	return <-req.Resp
 }
 
-func (n *Node) UpdateConfig(opts ...common.Option) {
-	for _, opt := range opts {
-		opt(n.config)
-	}
-}
-
 func (n *Node) Start() error {
 	n.txpool.Init(txpool.ConsensusConfig{
 		NotifyGenerateBatchFn: n.notifyGenerateBatch,
