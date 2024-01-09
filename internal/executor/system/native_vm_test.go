@@ -187,7 +187,6 @@ func TestContractRun(t *testing.T) {
 	getIDData := hexutil.Bytes(generateGetLatestProposalIDData(t))
 
 	nvm := New()
-	nvm.Reset(2, stateLedger)
 
 	testcases := []struct {
 		Message       *vm.Message
@@ -207,7 +206,7 @@ func TestContractRun(t *testing.T) {
 				To:   &to,
 				Data: data,
 			},
-			IsExpectedErr: false,
+			IsExpectedErr: true,
 		},
 		{
 			Message: &vm.Message{
@@ -243,7 +242,8 @@ func TestContractRun(t *testing.T) {
 		},
 	}
 	for _, testcase := range testcases {
-		_, err := nvm.Run(testcase.Message)
+		nvm.Reset(2, stateLedger, testcase.Message.From, testcase.Message.To)
+		_, err := nvm.Run(testcase.Message.Data)
 		if testcase.IsExpectedErr {
 			assert.NotNil(t, err)
 		} else {
@@ -270,4 +270,28 @@ func generateGetLatestProposalIDData(t *testing.T) []byte {
 	assert.Nil(t, err)
 
 	return data
+}
+
+func TestNativeVM_RequiredGas(t *testing.T) {
+	nvm := New()
+	gas := nvm.RequiredGas([]byte{1})
+	assert.Equal(t, uint64(21016), gas)
+}
+
+func TestRunAxiomNativeVM(t *testing.T) {
+	nvm := New()
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
+	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+	from := types.NewAddressByStr(admin1).ETHAddress()
+	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
+	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
+	nativeVM := RunAxiomNativeVM(nvm, 2, stateLedger, data, from, &to)
+	assert.NotNil(t, nativeVM.Err)
 }

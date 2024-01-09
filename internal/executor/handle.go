@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system"
+
 	"github.com/cbergoon/merkletree"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -324,10 +326,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	snapshot := statedb.Snapshot()
 
 	if exec.nvm.IsSystemContract(tx.GetTo()) {
-		// execute built contract
-		exec.nvm.Reset(height, statedb)
-		// TODO: Move the error section to result
-		result, err = exec.nvm.Run(msg)
+		result = system.RunAxiomNativeVM(exec.nvm, height, statedb, msg.Data, msg.From, msg.To)
 		if result != nil && result.UsedGas != 0 {
 			fee := new(big.Int).SetUint64(result.UsedGas)
 			fee.Mul(fee, msg.GasPrice)

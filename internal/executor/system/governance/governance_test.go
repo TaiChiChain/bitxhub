@@ -391,7 +391,7 @@ func TestGovernance_GetLatestProposalID(t *testing.T) {
 
 	proposalID := gov.GetLatestProposalID()
 	assert.EqualValues(t, 0, proposalID)
-	
+
 	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
 	assert.Nil(t, err)
 

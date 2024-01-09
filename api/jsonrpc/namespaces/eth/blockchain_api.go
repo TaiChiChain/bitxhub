@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
@@ -287,8 +289,8 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 		if err != nil {
 			return nil, err
 		}
-		nvm.Reset(chainMeta.Height, stateLedger)
-		return nvm.Run(msg)
+		ret := system.RunAxiomNativeVM(nvm, chainMeta.Height, stateLedger, msg.Data, msg.From, msg.To)
+		return ret, ret.Err
 	}
 
 	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true, DisableMaxCodeSizeLimit: evmCfg.DisableMaxCodeSizeLimit})
