@@ -14,7 +14,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-// RPC namespaces and API version
+// RPC namespaces and AxmAPI version
 const (
 	Web3Namespace   = "web3"
 	EthNamespace    = "eth"

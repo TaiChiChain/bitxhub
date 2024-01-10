@@ -20,7 +20,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -46,6 +47,9 @@ var epochManagerABI string
 
 //go:embed sol/AxmManager.abi
 var axmManagerABI string
+
+//go:embed sol/AxcManager.abi
+var axcManagerABI string
 
 var _ common.VirtualMachine = (*NativeVM)(nil)
 
@@ -82,7 +86,8 @@ func New() common.VirtualMachine {
 	nvm.Deploy(common.GovernanceContractAddr, governanceABI, governance.GovernanceMethod2Sig, governance.NewGov(cfg))
 	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI, base.EpochManagerMethod2Sig, base.NewEpochManager(cfg))
 	nvm.Deploy(common.WhiteListContractAddr, whiteListABI, access.WhiteListMethod2Sig, access.NewWhiteList(cfg))
-	nvm.Deploy(common.TokenManagerContractAddr, axmManagerABI, token.AxmManagerMethod2Sig, token.NewTokenManager(cfg))
+	nvm.Deploy(common.AXMContractAddr, axmManagerABI, axm.Method2Sig, axm.New(cfg))
+	nvm.Deploy(common.AXCContractAddr, axcManagerABI, axc.Method2Sig, axc.New(cfg))
 
 	return nvm
 }
@@ -162,7 +167,7 @@ func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 		CurrentUser:   &nvm.from,
 	})
 
-	// method name may be propose, but we implement Propose
+	// method name may be proposed, but we implement Propose
 	// capitalize the first letter of a function
 	funcName := methodName
 	if len(methodName) >= 2 {
@@ -355,6 +360,10 @@ func (nvm *NativeVM) setEVMPrecompiled(addr string) {
 	vm.PrecompiledContractsIstanbul[ethcommon.HexToAddress(addr)] = nvm
 }
 
+func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContract {
+	return nvm.contract2Instance[addr.String()]
+}
+
 func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte, from ethcommon.Address, to *ethcommon.Address) *vm.ExecutionResult {
 	nvm.Reset(height, ledger, from, to)
 	usedGas := nvm.RequiredGas(data)
@@ -380,11 +389,19 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 
-	tokenConfig, err := token.GenerateGenesisTokenConfig(genesis)
+	axmConfig, err := axm.GenerateConfig(genesis)
 	if err != nil {
 		return err
 	}
-	if err = token.InitAxmTokenManager(lg, tokenConfig); err != nil {
+	if err = axm.Init(lg, axmConfig); err != nil {
+		return err
+	}
+
+	axcConfig, err := axc.GenerateConfig(genesis)
+	if err != nil {
+		return err
+	}
+	if err = axc.Init(lg, axcConfig); err != nil {
 		return err
 	}
 

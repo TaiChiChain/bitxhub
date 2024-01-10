@@ -67,9 +67,11 @@ const (
 	// to validate whether they fit into the pool or not.
 	DefaultTxMaxSize = 4 * txSlotSize // 128KB
 
-	DefaultAXMBalance = "1000000000" // one billion AXM
+	DefaultAXMBalance = "1000000000000000000000000000" // one billion AXM
 
 	DefaultDecimals = 18
+
+	DefaultAXCTotalSupply = "2000000000000000000000000000"
 )
 
 var (
@@ -130,5 +132,39 @@ var (
 		"16Uiu2HAm2CVtLveAtroaN7pcR8U2saBKjwYqRAikMSwxqdoYMxtv",
 		"16Uiu2HAmQv3m5SSyYAoafKmYbTbGmXBaS4DXHXR9wxWKQ9xLzC3n",
 		"16Uiu2HAkx1o5fzWLdAobanvE6vqbf1XSbDSgCnid3AoqDGQYFVxo",
+	}
+
+	DefaultAXCDistribution = []Distribution{
+		{
+			Name:         "Community",
+			Addr:         "0xf16F8B02df2Dd7c4043C41F3f1EBB17f15358888",
+			Percentage:   0.55,
+			InitEmission: 0,
+		},
+		{
+			Name:         "Consultant",
+			Addr:         "0x6F878f6355646240878bc732e91d875DE8649999",
+			Percentage:   0.05,
+			InitEmission: 0.07,
+		},
+		{
+			Name:         "Contributors",
+			Addr:         "0xF0aD804C24caE19F5Ab061dDDfa843B3A5976666",
+			Percentage:   0.2,
+			InitEmission: 0.07,
+		},
+		{
+			Name:         "Foundation",
+			Addr:         "0x150776D3268c0eAEdAB7d880fd929fe1c5666666",
+			Percentage:   0.2,
+			InitEmission: 0.07,
+		},
+	}
+
+	DefaultAXCDistributionPrivateKey = map[string]string{
+		"Community":    "c1e0c69234f8d95c150d31c861951675608cc3a3a8941466911f9b9901d4295c",
+		"Consultant":   "cf3dda5b1d28ea25149e74a53b9442b79238944e45ff4a592e84aa9467e7bb28",
+		"Contributors": "4a4d0a01f7fbe7a61b132564fa785bf32c04983828dfd581e7a73b51ad8d9d7b",
+		"Foundation":   "5b11af4b31ea70763486004cf0f3e0521da98d2c95cce4013a207287f8aeabc6",
 	}
 )

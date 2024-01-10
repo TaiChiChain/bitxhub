@@ -16,7 +16,10 @@ import (
 type GenesisConfig struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
 	Timestamp              int64           `mapstructure:"timestamp" toml:"timestamp"`
-	Token                  *Token          `mapstructure:"token" toml:"token"`
+	Axm                    *Token          `mapstructure:"axm" toml:"axm"`
+	Axc                    *Token          `mapstructure:"axc" toml:"axc"`
+	Incentive              *Incentive      `mapstructure:"incentive" toml:"incentive"`
+	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
 	Accounts               []*Account      `mapstructure:"accounts" toml:"accounts"`
@@ -34,6 +37,24 @@ type Token struct {
 	Symbol      string `mapstructure:"symbol" toml:"symbol"`
 	Decimals    uint8  `mapstructure:"decimals" toml:"decimals"`
 	TotalSupply string `mapstructure:"total_supply" toml:"total_supply"`
+}
+
+type Incentive struct {
+	Mining        *Mining         `mapstructure:"mining" toml:"mining"`
+	Distributions []*Distribution `mapstructure:"distributions" toml:"distributions"`
+}
+
+type Mining struct {
+	BlockNumToHalf uint64 `mapstructure:"block_num_to_half" toml:"block_num_to_half"`
+	BlockNumToNone uint64 `mapstructure:"block_num_to_none" toml:"block_num_to_none"`
+	TotalAmount    string `mapstructure:"total_amount" toml:"total_amount"`
+}
+
+type Distribution struct {
+	Name         string  `mapstructure:"name" toml:"name"`
+	Addr         string  `mapstructure:"addr" toml:"addr"`
+	Percentage   float64 `mapstructure:"percentage" toml:"percentage"`
+	InitEmission float64 `mapstructure:"init_emission" toml:"init_emission"`
 }
 
 type Admin struct {
@@ -170,11 +191,32 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 				Name:    DefaultAdminNames[idx],
 			}
 		}),
-		Token: &Token{
+		Axm: &Token{
 			Name:        "Axiom",
 			Symbol:      "AXM",
 			Decimals:    DefaultDecimals,
 			TotalSupply: totalSupply.String(),
+		},
+		Axc: &Token{
+			Name:        "Axiomesh Credit",
+			Symbol:      "axc",
+			Decimals:    DefaultDecimals,
+			TotalSupply: DefaultAXCTotalSupply,
+		},
+		Incentive: &Incentive{
+			Mining: &Mining{
+				BlockNumToHalf: 126144000,
+				BlockNumToNone: 630720001,
+				TotalAmount:    "330000000000000000000000000",
+			},
+			Distributions: lo.Map(DefaultAXCDistribution, func(item Distribution, _ int) *Distribution {
+				return &Distribution{
+					Name:         item.Name,
+					Addr:         item.Addr,
+					Percentage:   item.Percentage,
+					InitEmission: item.InitEmission,
+				}
+			}),
 		},
 		NodeNames:              GenesisNodeNameInfo(epochEnable),
 		InitWhiteListProviders: DefaultNodeAddrs,

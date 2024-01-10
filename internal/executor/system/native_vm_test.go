@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,8 @@ var systemContractAddrs = []string{
 	common.GovernanceContractAddr,
 	common.EpochManagerContractAddr,
 	common.WhiteListContractAddr,
-	common.TokenManagerContractAddr,
+	common.AXMContractAddr,
+	common.AXCContractAddr,
 }
 
 var notSystemContractAddrs = []string{
@@ -76,10 +77,14 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis := repo.DefaultGenesisConfig(false)
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.TokenManagerContractAddr {
-				return tokenAccount
+			if address.String() == common.AXMContractAddr {
+				return axmAccount
+			}
+			if address.String() == common.AXCContractAddr {
+				return axcAccount
 			}
 			return account
 		}).AnyTimes()
@@ -104,10 +109,14 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis.EpochInfo.ValidatorSet[0].AccountAddress = "wrong address"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.TokenManagerContractAddr {
-				return tokenAccount
+			if address.String() == common.AXMContractAddr {
+				return axmAccount
+			}
+			if address.String() == common.AXCContractAddr {
+				return axcAccount
 			}
 			return account
 		}).AnyTimes()
@@ -133,10 +142,14 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis.Accounts[0].Balance = "wrong balance"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.TokenManagerContractAddr {
-				return tokenAccount
+			if address.String() == common.AXMContractAddr {
+				return axmAccount
+			}
+			if address.String() == common.AXCContractAddr {
+				return axcAccount
 			}
 			return account
 		}).AnyTimes()
@@ -149,10 +162,10 @@ func TestContractInitGenesisData(t *testing.T) {
 
 		genesis = repo.DefaultGenesisConfig(false)
 		// decrease total supply
-		genesis.Token.TotalSupply = "10"
+		genesis.Axm.TotalSupply = "10"
 		err = InitGenesisData(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), token.ErrTotalSupply.Error())
+		assert.Contains(t, err.Error(), axm.ErrTotalSupply.Error())
 	})
 
 }
@@ -170,13 +183,22 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	//WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
-	tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+	axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.TokenManagerContractAddr {
-			return tokenAccount
+		if address.String() == common.AXMContractAddr {
+			return axmAccount
 		}
 		return account
 	}).AnyTimes()
+
+	axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+		if address.String() == common.AXCContractAddr {
+			return axcAccount
+		}
+		return account
+	}).AnyTimes()
+
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	err := InitGenesisData(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)

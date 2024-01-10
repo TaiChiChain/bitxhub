@@ -50,7 +50,7 @@ type Proposal struct {
 
 	RejectVotes []string
 	Status      ProposalStatus
-	// Extra record extra information for some special proposal
+	// Extra information for some special proposal
 	Extra []byte
 
 	// CreatedBlockNumber is block number when the proposal has be created
