@@ -235,6 +235,10 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (ret map[stri
 	} else {
 		fields["logsBloom"] = receipt.Bloom.ETHBloom()
 	}
+	if hexutil.Uint(tx.GetType()) == types.IncentiveTxType {
+		fields["incentiveAddress"] = tx.GetInner().GetIncentiveAddress()
+	}
+
 	ethLogs := make([]*types3.Log, 0)
 	for _, log := range receipt.EvmLogs {
 		ethLog := &types3.Log{

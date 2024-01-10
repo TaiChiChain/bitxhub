@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
@@ -93,19 +92,26 @@ func NewRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	}
 
 	switch tx.GetType() {
-	case ethtypes.AccessListTxType:
+	case types.AccessListTxType:
 		al := tx.GetInner().GetAccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.GetChainID())
-	case ethtypes.DynamicFeeTxType:
+	case types.DynamicFeeTxType:
 		al := tx.GetInner().GetAccessList()
 		result.Accesses = &al
 		result.ChainID = (*hexutil.Big)(tx.GetChainID())
 		result.GasFeeCap = (*hexutil.Big)(tx.GetInner().GetGasFeeCap())
 		result.GasTipCap = (*hexutil.Big)(tx.GetInner().GetGasTipCap())
 		result.GasPrice = result.GasFeeCap
+	case types.IncentiveTxType:
+		al := tx.GetInner().GetAccessList()
+		result.Accesses = &al
+		result.ChainID = (*hexutil.Big)(tx.GetChainID())
+		result.GasFeeCap = (*hexutil.Big)(tx.GetInner().GetGasFeeCap())
+		result.GasTipCap = (*hexutil.Big)(tx.GetInner().GetGasTipCap())
+		result.GasPrice = result.GasFeeCap
+		result.IncentiveAddress = *tx.Inner.GetIncentiveAddress()
 	}
-
 	return result
 }
 
