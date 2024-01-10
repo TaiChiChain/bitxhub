@@ -90,7 +90,7 @@ func (sm *SyncManager) constructSyncStateResponse(msg *pb.Message) Response {
 		}
 	}
 
-	// set checkpoint state in current commitDataCache
+	// set checkpoint state in current commitData
 	checkpointState := &pb.CheckpointState{
 		Height:       block.Height(),
 		Digest:       block.BlockHash.String(),

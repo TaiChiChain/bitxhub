@@ -268,7 +268,7 @@ func (net *mockMiniNetwork) newMockBlockResponsePipe(nets map[string]*mockMiniNe
 	}
 	mockPipe := mock_network.NewMockPipe(ctrl)
 	if wrongSendBlockResponse {
-		mockPipe.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("send commitDataCache response error")).AnyTimes()
+		mockPipe.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("send commitData response error")).AnyTimes()
 	} else {
 		mockPipe.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx context.Context, to string, data []byte) error {

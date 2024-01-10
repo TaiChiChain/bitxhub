@@ -76,7 +76,7 @@ func TestStartSync(t *testing.T) {
 	for _, sync := range syncs {
 		sync.conf.TimeoutCountLimit = 1
 	}
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -134,7 +134,7 @@ func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -174,7 +174,7 @@ func TestMultiEpochSync(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -263,7 +263,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -282,8 +282,8 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 		},
 	}
 
-	// wrong commitDataCache is not epoch commitDataCache
-	// mock wrong commitDataCache
+	// wrong commitData is not epoch commitData
+	// mock wrong commitData
 	wrongHeight := uint64(7)
 	oldRightBlock, err := ledgers[remoteId].GetBlock(wrongHeight)
 	require.Nil(t, err)
@@ -335,7 +335,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	require.False(t, syncs[0].syncStatus.Load())
 
 	t.Run("wrong block is epoch block", func(t *testing.T) {
-		// mock wrong commitDataCache
+		// mock wrong commitData
 		wrongHeight = uint64(100)
 		oldRightBlock, err = ledgers[remoteId].GetBlock(wrongHeight)
 		require.Nil(t, err)
@@ -493,7 +493,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
 	}
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
@@ -549,7 +549,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 	require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
 	require.Equal(t, oldRightBlock.BlockHash.String(), blocks1[timeoutBlockHeight-2].GetHash())
 
-	// reset right commitDataCache
+	// reset right commitData
 	err = ledgers[wrongId].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
 	require.Nil(t, err)
 	require.False(t, syncs[0].syncStatus.Load())
@@ -591,7 +591,7 @@ func TestHandleSyncErrMsg(t *testing.T) {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
 	}
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -650,7 +650,7 @@ func TestValidateChunk(t *testing.T) {
 	syncs[0].increaseRequester(newRequest, 1)
 	<-oldRequest.quitCh
 
-	t.Run("get requester commitDataCache err: commitDataCache is nil", func(t *testing.T) {
+	t.Run("get requester commitData err: commitData is nil", func(t *testing.T) {
 		invalidMsgs, err := syncs[0].validateChunk()
 		require.Nil(t, err)
 		require.Equal(t, 1, len(invalidMsgs))
@@ -673,7 +673,7 @@ func TestRequestState(t *testing.T) {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
 		}
-		// node0 start sync commitDataCache
+		// node0 start sync commitData
 		peers := []string{"1", "2", "3"}
 		remoteId := "1"
 		wrongLatestBlockHash := "wrong hash"
@@ -719,7 +719,7 @@ func TestRequestState(t *testing.T) {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
 		}
-		// node0 start sync commitDataCache
+		// node0 start sync commitData
 		peers := []string{"1", "2", "3"}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
@@ -751,7 +751,12 @@ func TestSwitchMode(t *testing.T) {
 	originMode := syncs[0].mode
 	require.Equal(t, common.SyncModeFull, originMode)
 
-	err := syncs[0].SwitchMode(originMode)
+	wrongMode := common.SyncMode(1000)
+	err := syncs[0].SwitchMode(wrongMode)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "invalid mode")
+
+	err = syncs[0].SwitchMode(originMode)
 	require.NotNil(t, err)
 	require.Contains(t, err.Error(), "current mode is same as switch mode")
 
@@ -779,7 +784,7 @@ func TestStartSyncWithSnapshotMode(t *testing.T) {
 	// store blocks expect node 0
 	prepareLedger(t, ledgers, localId, 300)
 
-	// node0 start sync commitDataCache
+	// node0 start sync commitData
 	peers := []string{"1", "2", "3"}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -874,7 +879,7 @@ func TestTps(t *testing.T) {
 			},
 		}
 		now := time.Now()
-		// start sync commitDataCache
+		// start sync commitData
 		syncTaskDone := make(chan error, 1)
 		err = syncs[localId].StartSync(genSyncParams(peers, latestBlockHash, 2, begin, end, quorumCkpt, epochChanges...), syncTaskDone)
 		require.Nil(t, err)
@@ -907,7 +912,37 @@ func TestTps(t *testing.T) {
 
 func TestPickPeer(t *testing.T) {
 	t.Parallel()
-	t.Run("test update peers, latestHeight equal target height", func(t *testing.T) {
+	t.Run("test pick random peer", func(t *testing.T) {
+		sm := &SyncManager{}
+		peers := []string{"1", "2", "3"}
+		sm.peers = []*common.Peer{
+			{PeerID: peers[0]},
+			{PeerID: peers[1]},
+			{PeerID: peers[2]},
+		}
+		expectPeer := peers[0]
+		peer := sm.pickRandomPeer("not exist peer")
+		exist := false
+		lo.ForEach(peers, func(p string, _ int) {
+			if p == peer {
+				exist = true
+			}
+		})
+		require.True(t, exist)
+
+		peer = sm.pickRandomPeer(expectPeer)
+		require.NotEqual(t, expectPeer, peer)
+
+		sm.initPeers = []*common.Peer{
+			{PeerID: expectPeer},
+		}
+		sm.removePeer(peers[1])
+		sm.removePeer(peers[2])
+
+		peer = sm.pickRandomPeer(expectPeer)
+		require.Equal(t, expectPeer, peer, "if we just set expectPeer in initPeers, it will always return expectPeer")
+	})
+	t.Run("test update peers, defaultLatestHeight equal target height", func(t *testing.T) {
 		n := 4
 		localId := "0"
 		latestHeight := 10
@@ -919,7 +954,7 @@ func TestPickPeer(t *testing.T) {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
 		}
-		// node0 start sync commitDataCache
+		// node0 start sync commitData
 		peers := []string{"1", "2", "3"}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
@@ -947,7 +982,7 @@ func TestPickPeer(t *testing.T) {
 		})
 	})
 
-	t.Run("test update peers, latestHeight is bigger than target height", func(t *testing.T) {
+	t.Run("test update peers, defaultLatestHeight is bigger than target height", func(t *testing.T) {
 		n := 4
 		localId := "0"
 		latestHeight := uint64(10)
@@ -959,7 +994,7 @@ func TestPickPeer(t *testing.T) {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
 		}
-		// node0 start sync commitDataCache
+		// node0 start sync commitData
 		peers := []string{"1", "2", "3"}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
@@ -991,7 +1026,7 @@ func TestPickPeer(t *testing.T) {
 		require.True(t, updatedCount >= syncs[0].quorum)
 	})
 
-	t.Run("test update peers, latestHeight is smaller than target height", func(t *testing.T) {
+	t.Run("test update peers, defaultLatestHeight is smaller than target height", func(t *testing.T) {
 		n := 4
 		localId := "0"
 		latestHeight := uint64(10)
@@ -1003,7 +1038,7 @@ func TestPickPeer(t *testing.T) {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
 		}
-		// node0 start sync commitDataCache
+		// node0 start sync commitData
 		peers := []string{"1", "2", "3"}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
@@ -1016,13 +1051,15 @@ func TestPickPeer(t *testing.T) {
 		quorum := 2
 		removeCount := N - quorum + 1
 
-		// decrease latestHeight(smaller than targetHeight)
+		illegalPeers := make([]string, 0)
+		// decrease defaultLatestHeight(smaller than targetHeight)
 		for id, ledger := range ledgers {
 			if id == localId {
 				continue
 			}
 			ledger.chainMeta.Height = targetHeight - 1
 			removeCount--
+			illegalPeers = append(illegalPeers, id)
 			if removeCount == 0 {
 				break
 			}
@@ -1043,13 +1080,15 @@ func TestPickPeer(t *testing.T) {
 		err = <-syncTaskDoneCh
 		require.Nil(t, err)
 
-		// peers' latest height had been updated(count is bigger than quorum)
-		updatedCount := uint64(0)
+		var matchPeerId string
 		lo.ForEach(syncs[0].peers, func(peer *common.Peer, _ int) {
-			if peer.LatestHeight == latestHeight {
-				updatedCount++
+			if peer.LatestHeight > targetHeight {
+				matchPeerId = peer.PeerID
 			}
 		})
-		require.Equal(t, 1, int(updatedCount))
+
+		lo.ForEach(illegalPeers, func(illegalPeer string, _ int) {
+			require.NotEqual(t, matchPeerId, illegalPeer)
+		})
 	})
 }

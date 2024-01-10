@@ -7,8 +7,8 @@ type Sync interface {
 	SwitchMode(mode SyncMode) error
 	Stop()
 
-	// Commit in full mode, we only need to commit commitDataCache
-	// in snapshot mode, we need to commit chain data(both commitDataCache and receipt)
+	// Commit in full mode, we only need to commit commitData
+	// in snapshot mode, we need to commit chain data(both commitData and receipt)
 	Commit() chan any
 
 	StartSync(params *SyncParams, syncTaskDoneCh chan error) error

@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	latestHeight = 100
-	wrongMsgType = 1000
-	wrongReqData = "proto: illegal wireType 7"
-	wrongBlock   = "block not found"
-	wrongEpoch   = "epoch 101 quorum checkpoint not found"
+	defaultLatestHeight = 100
+	wrongMsgType        = 1000
+	wrongReqData        = "proto: illegal wireType 7"
+	wrongBlock          = "block not found"
+	wrongEpoch          = "epoch 101 quorum checkpoint not found"
 )
 
 func TestHandleState(t *testing.T) {
@@ -31,7 +31,7 @@ func TestHandleState(t *testing.T) {
 	_, err := syncs[0].Prepare()
 	require.Nil(t, err)
 
-	requestHeight := uint64(latestHeight)
+	requestHeight := uint64(defaultLatestHeight)
 	prepareLedger(t, ledgers, strconv.Itoa(localId), int(requestHeight))
 	block100, err := ledgers[strconv.Itoa(remoteId)].GetBlock(requestHeight)
 	require.Nil(t, err)
@@ -211,7 +211,7 @@ func genWrongRespMsg(typ pb.Message_Type, err string) Response {
 		}
 		if strings.Contains(err, wrongBlock) {
 			resp.(*pb.SyncStateResponse).CheckpointState = &pb.CheckpointState{
-				LatestHeight: uint64(latestHeight),
+				LatestHeight: uint64(defaultLatestHeight),
 			}
 		}
 

@@ -41,10 +41,10 @@ type SyncManager struct {
 	initPeers          []*common.Peer      // p2p set of latest epoch validatorSet with init
 	peers              []*common.Peer      // p2p set of latest epoch validatorSet
 	quorum             uint64              // quorum of latest epoch validatorSet
-	curHeight          uint64              // current commitDataCache which we need sync
-	targetHeight       uint64              // sync target commitDataCache height
-	recvBlockSize      atomic.Int64        // current chunk had received commitDataCache size
-	latestCheckedState *pb.CheckpointState // latest checked commitDataCache state
+	curHeight          uint64              // current commitData which we need sync
+	targetHeight       uint64              // sync target commitData height
+	recvBlockSize      atomic.Int64        // current chunk had received commitData size
+	latestCheckedState *pb.CheckpointState // latest checked commitData state
 	requesters         sync.Map            // requester map
 	requesterLen       atomic.Int64        // requester length
 
@@ -61,7 +61,7 @@ type SyncManager struct {
 	blockRequestPipe      network.Pipe
 	blockDataResponsePipe network.Pipe
 
-	commitDataCache []common.CommitData // store commitDataCache of a chunk temporary
+	commitDataCache []common.CommitData // store commitData of a chunk temporary
 
 	chunk            *common.Chunk                 // every chunk task
 	recvStateCh      chan *common.WrapperStateResp // receive state from remote peer
@@ -286,7 +286,7 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 	sm.syncCtx = syncCtx
 	sm.syncCancel = syncCancel
 
-	// 1. update commitDataCache sync info
+	// 1. update commitData sync info
 	sm.InitBlockSyncInfo(params.Peers, params.LatestBlockHash, params.Quorum, params.CurHeight, params.TargetHeight, params.QuorumCheckpoint, params.EpochChanges...)
 
 	// 2. send sync state request to all validators, waiting for Quorum response
@@ -308,13 +308,13 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 		return err
 	}
 
-	// 4. start listen sync commitDataCache response
+	// 4. start listen sync commitData response
 	go sm.listenSyncCommitDataResponse()
 
 	// 5. produce requesters for first chunk
 	sm.produceRequester(sm.chunk.ChunkSize)
 
-	// 6. start sync commitDataCache task
+	// 6. start sync commitData task
 	go func() {
 		for {
 			select {
@@ -368,12 +368,12 @@ func (sm *SyncManager) validateChunk() ([]*common.InvalidMsg, error) {
 
 			invalidMsgs := make([]*common.InvalidMsg, 0)
 
-			// if we have not previous requester, it means we had already checked previous commitDataCache,
-			// so we just return current invalid commitDataCache
+			// if we have not previous requester, it means we had already checked previous commitData,
+			// so we just return current invalid commitData
 			prevR := sm.getRequester(i - 1)
 			if prevR != nil {
-				// we are not sure which commitDataCache is wrong,
-				// maybe parent commitDataCache has wrong hash, maybe current commitDataCache has wrong parent hash, so we return two invalidMsg
+				// we are not sure which commitData is wrong,
+				// maybe parent commitData has wrong hash, maybe current commitData has wrong parent hash, so we return two invalidMsg
 				prevInvalidMsg := &common.InvalidMsg{
 					NodeID: prevR.peerID,
 					Height: i - 1,
@@ -504,7 +504,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 	go sm.listenSyncStateResp(stateCtx, stateCancel, height, localHash)
 
 	wp := workerpool.New(len(sm.peers))
-	// send sync state request to all validators, check our local state(latest commitDataCache) is equal to Quorum state
+	// send sync state request to all validators, check our local state(latest commitData) is equal to Quorum state
 	req := &pb.SyncStateRequest{
 		Height: height,
 	}
@@ -868,10 +868,10 @@ func (sm *SyncManager) listenSyncCommitDataResponse() {
 			if updated {
 				if sm.collectChunkTaskDone() {
 					sm.logger.WithFields(logrus.Fields{
-						"latest commitDataCache": commitData.GetHeight(),
-						"hash":                   commitData.GetHash(),
-						"peer":                   msg.From,
-					}).Debug("Receive chunk commitDataCache success")
+						"latest commitData": commitData.GetHeight(),
+						"hash":              commitData.GetHash(),
+						"peer":              msg.From,
+					}).Debug("Receive chunk commitData success")
 					// send valid chunk task signal
 					sm.validChunkTaskCh <- struct{}{}
 				}
@@ -896,7 +896,7 @@ func (sm *SyncManager) addCommitData(commitData common.CommitData, from string) 
 
 	if req.peerID != from {
 		sm.logger.Warningf("receive commitData which not distribute requester, height:%d, "+
-			"receive from:%s, expect from:%s, we will ignore this commitDataCache", commitData.GetHeight(), from, req.peerID)
+			"receive from:%s, expect from:%s, we will ignore this commitData", commitData.GetHeight(), from, req.peerID)
 		return nil, false
 	}
 
@@ -970,8 +970,8 @@ func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffSta
 
 		// For example, if the validator set is 4, and the Quorum is 3:
 		// 1. if the current node is forked,
-		// 2. validator need send state which obtaining low watermark height commitDataCache,
-		// 3. validator have different low watermark height commitDataCache due to network latency,
+		// 2. validator need send state which obtaining low watermark height commitData,
+		// 3. validator have different low watermark height commitData due to network latency,
 		// 4. it can lead to state inconsistency, and the node will be stuck in the state sync process.
 		sm.logger.Debug("Receive Quorum state from Peers")
 		sm.quitState(nil)
@@ -999,6 +999,8 @@ func (sm *SyncManager) SwitchMode(mode common.SyncMode) error {
 		_, _ = constructor.Prepare(nil)
 	case common.SyncModeSnapshot:
 		constructor = newModeConstructor(common.SyncModeSnapshot, common.WithContext(sm.ctx), common.WithLogger(sm.logger), common.WithNetwork(sm.network))
+	default:
+		return fmt.Errorf("invalid mode: %d", mode)
 	}
 	sm.mode = mode
 	sm.modeConstructor = constructor
@@ -1044,7 +1046,6 @@ func (sm *SyncManager) makeRequesters(height uint64) {
 	request.start(sm.conf.RequesterRetryTimeout.ToDuration())
 }
 
-// todo: add metrics
 func (sm *SyncManager) increaseRequester(r *requester, height uint64) {
 	oldR, loaded := sm.requesters.LoadOrStore(height, r)
 	if !loaded {
@@ -1084,7 +1085,7 @@ func (sm *SyncManager) resetBlockSize() {
 	sm.recvBlockSize.Store(0)
 	sm.logger.WithFields(logrus.Fields{
 		"blockSize": sm.recvBlockSize.Load(),
-	}).Debug("Reset commitDataCache size")
+	}).Debug("Reset commitData size")
 	recvBlockNumber.WithLabelValues(strconv.Itoa(int(sm.chunk.ChunkSize))).Set(0)
 }
 
@@ -1110,7 +1111,7 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 	// retry request
 	r := sm.getRequester(msg.Height)
 	if r == nil {
-		sm.logger.Errorf("Retry request commitDataCache Error, requester[height:%d] is nil", msg.Height)
+		sm.logger.Errorf("Retry request commitData Error, requester[height:%d] is nil", msg.Height)
 		return
 	}
 	switch msg.Typ {
@@ -1200,17 +1201,14 @@ func (sm *SyncManager) pickPeer(height uint64) string {
 }
 
 func (sm *SyncManager) pickRandomPeer(exceptPeerId string) string {
-	if exceptPeerId != "" {
-		newPeers := lo.Filter(sm.peers, func(p *common.Peer, _ int) bool {
-			return p.PeerID != exceptPeerId
-		})
-		if len(newPeers) == 0 {
-			sm.resetPeers()
-			newPeers = sm.peers
-		}
-		return newPeers[rand.Intn(len(newPeers))].PeerID
+	newPeers := lo.Filter(sm.peers, func(p *common.Peer, _ int) bool {
+		return p.PeerID != exceptPeerId
+	})
+	if len(newPeers) == 0 {
+		sm.resetPeers()
+		newPeers = sm.peers
 	}
-	return sm.peers[rand.Intn(len(sm.peers))].PeerID
+	return newPeers[rand.Intn(len(newPeers))].PeerID
 }
 
 func (sm *SyncManager) removePeer(peerId string) bool {

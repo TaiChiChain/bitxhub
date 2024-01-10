@@ -8,7 +8,7 @@ var (
 			Namespace: "axiom_ledger",
 			Subsystem: "sync",
 			Name:      "block_sync_duration_seconds",
-			Help:      "The total latency of commitDataCache sync",
+			Help:      "The total latency of commitData sync",
 		},
 		[]string{"sync_count"},
 	)
@@ -37,7 +37,7 @@ var (
 			Namespace: "axiom_ledger",
 			Subsystem: "sync",
 			Name:      "invalid_Block_number",
-			Help:      "The total number of invalid commitDataCache",
+			Help:      "The total number of invalid commitData",
 		},
 		[]string{"type"},
 	)

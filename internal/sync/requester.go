@@ -94,7 +94,7 @@ OUTER_LOOP:
 				r.invalidCh <- &common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, Typ: common.SyncMsgType_TimeoutBlock}
 
 			case <-r.gotCommitDataCh:
-				// We got a commitDataCache!
+				// We got a commitData!
 				// Continue the for-loop and wait til Quit.
 				r.gotBlock = true
 				continue WAIT_LOOP
