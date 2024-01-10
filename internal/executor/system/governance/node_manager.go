@@ -256,13 +256,22 @@ func (nm *NodeManager) voteNodeAddRemove(user *ethcommon.Address, proposal *Prop
 	}
 	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes)))
 
-	if err := nm.gov.SaveProposal(proposal); err != nil {
-		return err
-	}
-
+	isProposalSaved := false
 	// update not finished proposal
 	if proposal.Status == Approved || proposal.Status == Rejected {
+		proposal.EffectiveBlockNumber = nm.gov.currentHeight
+		if err := nm.gov.SaveProposal(proposal); err != nil {
+			return err
+		}
+		isProposalSaved = true
+
 		if err := nm.gov.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+			return err
+		}
+	}
+
+	if !isProposalSaved {
+		if err := nm.gov.SaveProposal(proposal); err != nil {
 			return err
 		}
 	}
