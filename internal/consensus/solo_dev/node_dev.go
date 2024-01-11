@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/sirupsen/logrus"
 
@@ -36,10 +37,7 @@ type NodeDev struct {
 }
 
 func NewNode(config *common.Config) (*NodeDev, error) {
-	proposerAccount, err := repo.KeyToNodeID(config.PrivKey)
-	if err != nil {
-		return nil, err
-	}
+	proposerAccount := crypto.PubkeyToAddress(config.PrivKey.PublicKey).Hex()
 
 	return &NodeDev{
 		config:          config,
