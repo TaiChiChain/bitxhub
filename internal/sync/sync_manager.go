@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/internal/sync/full_sync"
 	"github.com/axiomesh/axiom-ledger/internal/sync/snap_sync"
@@ -48,6 +50,7 @@ type SyncManager struct {
 
 	quorumCheckpoint  *consensus.SignedCheckpoint // latest checkpoint from remote
 	epochChanges      []*consensus.EpochChange    // every epoch change which the node behind
+	getChainMetaFunc  func() *types.ChainMeta
 	getBlockFunc      func(height uint64) (*types.Block, error)
 	getReceiptsFunc   func(height uint64) ([]*types.Receipt, error)
 	getEpochStateFunc func(key []byte) []byte
@@ -78,7 +81,7 @@ type SyncManager struct {
 	logger logrus.FieldLogger
 }
 
-func NewSyncManager(logger logrus.FieldLogger, fn func(height uint64) (*types.Block, error),
+func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.ChainMeta, fn func(height uint64) (*types.Block, error),
 	receiptFn func(height uint64) ([]*types.Receipt, error), getEpochStateFunc func(key []byte) []byte, network network.Network, cnf repo.Sync) (*SyncManager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	syncMgr := &SyncManager{
@@ -90,6 +93,7 @@ func NewSyncManager(logger logrus.FieldLogger, fn func(height uint64) (*types.Bl
 		validChunkTaskCh:  make(chan struct{}, 1),
 		quitStateCh:       make(chan error, 1),
 		requesterCh:       make(chan struct{}, cnf.ConcurrencyLimit),
+		getChainMetaFunc:  getChainMetaFn,
 		getBlockFunc:      fn,
 		getReceiptsFunc:   receiptFn,
 		getEpochStateFunc: getEpochStateFunc,
@@ -406,6 +410,7 @@ func (sm *SyncManager) InitBlockSyncInfo(peers []string, latestBlockHash string,
 		sm.peers[index] = &common.Peer{
 			PeerID:       p,
 			TimeoutCount: 0,
+			LatestHeight: targetHeight,
 		}
 	})
 	copy(sm.initPeers, sm.peers)
@@ -480,6 +485,9 @@ func (sm *SyncManager) listenSyncStateResp(ctx context.Context, cancel context.C
 		case <-ctx.Done():
 			return
 		case resp := <-sm.recvStateCh:
+			// update remote peers' latest block height,
+			// if we request block height ig bigger than remote's latest height, we should pick a new peer
+			sm.updatePeers(resp.PeerID, resp.Resp.CheckpointState.LatestHeight)
 			sm.handleSyncStateResp(resp, diffState, height, localHash, cancel)
 		}
 	}
@@ -562,11 +570,26 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 							}).Debug("receive quit signal, Quit request state")
 							return nil
 						default:
-							hash := sha256.Sum256(resp.Data)
-							sm.recvStateCh <- &common.WrapperStateResp{
-								PeerID: resp.From,
-								Hash:   types.NewHash(hash[:]).String(),
-								Resp:   stateResp,
+							if stateResp.Status == pb.Status_ERROR && strings.Contains(stateResp.Error, ledger.ErrNotFound.Error()) {
+								sm.logger.WithFields(logrus.Fields{
+									"height": height,
+									"peerID": resp.From,
+								}).Error("Block not found")
+								sm.updatePeers(resp.From, stateResp.CheckpointState.LatestHeight)
+							}
+
+							if stateResp.Status == pb.Status_SUCCESS {
+								ckps := pb.CheckpointState{
+									Height: stateResp.CheckpointState.Height,
+									Digest: stateResp.CheckpointState.Digest,
+								}
+								d, _ := ckps.MarshalVT()
+								hash := sha256.Sum256(d)
+								sm.recvStateCh <- &common.WrapperStateResp{
+									PeerID: resp.From,
+									Hash:   types.NewHash(hash[:]).String(),
+									Resp:   stateResp,
+								}
 							}
 						}
 						return nil
@@ -762,72 +785,6 @@ func (sm *SyncManager) sendCommitDataResponse(mode common.SyncMode, to string, r
 	}
 	return nil
 }
-
-//func (sm *SyncManager) listenSyncChainDataRequest() {
-//	for {
-//		select {
-//		case <-sm.ctx.Done():
-//			sm.logger.Info("Stop listen sync chainData request")
-//			return
-//		default:
-//			msg := sm.chainDataRequestPipe.Receive(sm.ctx)
-//			if msg == nil {
-//				sm.logger.Info("Stop listen sync chainData request")
-//				return
-//			}
-//
-//			if err := sm.handleAndSendSyncResponse(msg, common.SyncModeSnapshot, sm.chainDataResponsePipe); err != nil {
-//				sm.logger.Errorf("Handle and send sync chainData response failed: %s", err)
-//			}
-//		}
-//	}
-//}
-//
-//func (sm *SyncManager) listenSyncBlockDataRequest() {
-//	for {
-//		select {
-//		case <-sm.ctx.Done():
-//			sm.logger.Info("Stop listen sync block request")
-//			return
-//		default:
-//			msg := sm.blockRequestPipe.Receive(sm.ctx)
-//			if msg == nil {
-//				sm.logger.Info("Stop listen sync block request")
-//				return
-//			}
-//
-//			if err := sm.handleAndSendSyncResponse(msg, common.SyncModeFull, sm.blockDataResponsePipe); err != nil {
-//				sm.logger.Errorf("Handle and send sync block response failed: %s", err)
-//			}
-//		}
-//	}
-//}
-//
-//func (sm *SyncManager) handleAndSendSyncResponse(msg *network2.PipeMsg, mode common.SyncMode, responsePipe *network2.Pipe) error {
-//	data, err := sm.handleCommitDataRequest(msg, mode)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return retrySendSyncResponse(sm.ctx, msg.From, data, responsePipe, sm.logger)
-//}
-//
-//func retrySendSyncResponse(ctx context.Context, from string, data []byte, responsePipe *network2.Pipe, logger logrus.FieldLogger) error {
-//	return retry.Retry(func(attempt uint) error {
-//		err := responsePipe.Send(ctx, from, data)
-//		if err != nil {
-//			logger.WithFields(logrus.Fields{
-//				"from": from,
-//				"err":  err,
-//			}).Error("Send sync response failed")
-//			return err
-//		}
-//		logger.WithFields(logrus.Fields{
-//			"from": from,
-//		}).Debug("Send sync response success")
-//		return nil
-//	}, strategy.Limit(common.MaxRetryCount), strategy.Wait(500*time.Millisecond))
-//}
 
 func (sm *SyncManager) listenSyncCommitDataResponse() {
 	for {
@@ -1217,8 +1174,27 @@ func (sm *SyncManager) getRequester(height uint64) *requester {
 }
 
 func (sm *SyncManager) pickPeer(height uint64) string {
+	var peerId string
 	idx := height % uint64(len(sm.peers))
-	return sm.peers[idx].PeerID
+	for i := 0; i < len(sm.peers); i++ {
+		peer := sm.peers[idx]
+		if peer.LatestHeight < height {
+			idx = (height + uint64(i+1)) % uint64(len(sm.peers))
+			sm.logger.WithFields(logrus.Fields{
+				"height":                height,
+				"illegal latest height": peer.LatestHeight,
+				"illegal peer":          peer.PeerID,
+				"new peer":              sm.peers[idx].PeerID,
+			}).Warning("pick peer failed, peer is not exist block")
+		} else {
+			peerId = sm.peers[idx].PeerID
+			break
+		}
+	}
+	if peerId == "" {
+		panic(fmt.Errorf("pick peer failed, all peers are not exist block[height:%d]", height))
+	}
+	return peerId
 }
 
 func (sm *SyncManager) pickRandomPeer(exceptPeerId string) string {
@@ -1270,4 +1246,19 @@ func (sm *SyncManager) stopSync() error {
 
 func (sm *SyncManager) Commit() chan any {
 	return sm.modeConstructor.Commit()
+}
+
+func (sm *SyncManager) updatePeers(peerId string, latestHeight uint64) {
+	lo.ForEach(sm.peers, func(p *common.Peer, _ int) {
+		if p.PeerID == peerId {
+			if p.LatestHeight > latestHeight {
+				sm.logger.WithFields(logrus.Fields{
+					"peer":          peerId,
+					"pre height":    p.LatestHeight,
+					"latest height": latestHeight,
+				}).Warn("decrease peer latest height")
+			}
+			p.LatestHeight = latestHeight
+		}
+	})
 }

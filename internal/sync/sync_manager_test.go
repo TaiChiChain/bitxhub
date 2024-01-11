@@ -23,6 +23,9 @@ import (
 
 func TestNewSyncManager(t *testing.T) {
 	logger := loggers.Logger(loggers.BlockSync)
+	getChainMetaFn := func() *types.ChainMeta {
+		return nil
+	}
 	getBlockFn := func(height uint64) (*types.Block, error) {
 		return nil, nil
 	}
@@ -56,7 +59,7 @@ func TestNewSyncManager(t *testing.T) {
 	}).AnyTimes()
 
 	for i := 0; i < len(createPipeErrCount); i++ {
-		_, err := NewSyncManager(logger, getBlockFn, getReceiptsFn, getEpochStateFn, net, cnf)
+		_, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, net, cnf)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "create pipe err")
 	}
@@ -92,9 +95,9 @@ func TestStartSync(t *testing.T) {
 	require.Nil(t, err)
 	syncTaskDoneCh := make(chan error, 1)
 	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 10, quorumCkpt), syncTaskDoneCh)
-	actrualErr := <-syncTaskDoneCh
-	require.NotNil(t, actrualErr)
-	require.Equal(t, actrualErr, err)
+	actualErr := <-syncTaskDoneCh
+	require.NotNil(t, actualErr)
+	require.Equal(t, actualErr, err)
 	require.Contains(t, err.Error(), "status is already true")
 	err = syncs[0].switchSyncStatus(false)
 	require.Nil(t, err)
@@ -345,7 +348,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 			},
 			BlockHash: types.NewHash([]byte("wrong_block")),
 		}
-		wrongRemoteId = syncs[0].pickPeer(wrongHeight)
+		wrongRemoteId = syncs[0].peers[int(wrongHeight)%len(syncs[0].peers)].PeerID
 		err = ledgers[wrongRemoteId].PersistExecutionResult(wrongBlock, genReceipts(wrongBlock))
 		require.Nil(t, err)
 
@@ -900,4 +903,153 @@ func TestTps(t *testing.T) {
 		sum += duration
 	})
 	fmt.Printf("tps: %f\n", float64(syncCount*round)/sum.Seconds())
+}
+
+func TestPickPeer(t *testing.T) {
+	t.Parallel()
+	t.Run("test update peers, latestHeight equal target height", func(t *testing.T) {
+		n := 4
+		localId := "0"
+		latestHeight := 10
+		syncs, ledgers := newMockBlockSyncs(t, n)
+		defer stopSyncs(syncs)
+		prepareLedger(t, ledgers, localId, latestHeight)
+
+		for i := 0; i < n; i++ {
+			_, err := syncs[i].Prepare()
+			require.Nil(t, err)
+		}
+		// node0 start sync commitDataCache
+		peers := []string{"1", "2", "3"}
+		remoteId := "1"
+		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
+		block10, err := ledgers[remoteId].GetBlock(10)
+		require.Nil(t, err)
+		quorumCkpt10 := &consensus.SignedCheckpoint{
+			Checkpoint: &consensus.Checkpoint{
+				ExecuteState: &consensus.Checkpoint_ExecuteState{
+					Height: block10.Height(),
+					Digest: block10.BlockHash.String(),
+				},
+			},
+		}
+		// start sync
+		syncTaskDoneCh := make(chan error, 1)
+		targetHeight := uint64(latestHeight)
+		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), 2, 2, targetHeight, quorumCkpt10), syncTaskDoneCh)
+		require.Nil(t, err)
+		err = <-syncTaskDoneCh
+		require.Nil(t, err)
+
+		// init peers' latest height in targetHeight
+		lo.ForEach(syncs[0].peers, func(peer *common.Peer, _ int) {
+			require.Equal(t, targetHeight, peer.LatestHeight)
+		})
+	})
+
+	t.Run("test update peers, latestHeight is bigger than target height", func(t *testing.T) {
+		n := 4
+		localId := "0"
+		latestHeight := uint64(10)
+		syncs, ledgers := newMockBlockSyncs(t, n)
+		defer stopSyncs(syncs)
+		prepareLedger(t, ledgers, localId, int(latestHeight))
+
+		for i := 0; i < n; i++ {
+			_, err := syncs[i].Prepare()
+			require.Nil(t, err)
+		}
+		// node0 start sync commitDataCache
+		peers := []string{"1", "2", "3"}
+		remoteId := "1"
+		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
+		targetHeight := latestHeight - 1
+		block, err := ledgers[remoteId].GetBlock(targetHeight)
+		require.Nil(t, err)
+		quorumCkpt := &consensus.SignedCheckpoint{
+			Checkpoint: &consensus.Checkpoint{
+				ExecuteState: &consensus.Checkpoint_ExecuteState{
+					Height: block.Height(),
+					Digest: block.BlockHash.String(),
+				},
+			},
+		}
+		// start sync
+		syncTaskDoneCh := make(chan error, 1)
+		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), 2, 2, targetHeight, quorumCkpt), syncTaskDoneCh)
+		require.Nil(t, err)
+		err = <-syncTaskDoneCh
+		require.Nil(t, err)
+
+		// peers' latest height had been updated(count is bigger than quorum)
+		updatedCount := uint64(0)
+		lo.ForEach(syncs[0].peers, func(peer *common.Peer, _ int) {
+			if peer.LatestHeight == latestHeight {
+				updatedCount++
+			}
+		})
+		require.True(t, updatedCount >= syncs[0].quorum)
+	})
+
+	t.Run("test update peers, latestHeight is smaller than target height", func(t *testing.T) {
+		n := 4
+		localId := "0"
+		latestHeight := uint64(10)
+		syncs, ledgers := newMockBlockSyncs(t, n)
+		defer stopSyncs(syncs)
+		prepareLedger(t, ledgers, localId, int(latestHeight))
+
+		for i := 0; i < n; i++ {
+			_, err := syncs[i].Prepare()
+			require.Nil(t, err)
+		}
+		// node0 start sync commitDataCache
+		peers := []string{"1", "2", "3"}
+		remoteId := "1"
+		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
+		targetHeight := latestHeight - 1
+		block, err := ledgers[remoteId].GetBlock(targetHeight)
+		require.Nil(t, err)
+
+		// remove targetHeight block in remote peers(N - removeCount < quorum)
+		N := len(peers)
+		quorum := 2
+		removeCount := N - quorum + 1
+
+		// decrease latestHeight(smaller than targetHeight)
+		for id, ledger := range ledgers {
+			if id == localId {
+				continue
+			}
+			ledger.chainMeta.Height = targetHeight - 1
+			removeCount--
+			if removeCount == 0 {
+				break
+			}
+		}
+
+		quorumCkpt := &consensus.SignedCheckpoint{
+			Checkpoint: &consensus.Checkpoint{
+				ExecuteState: &consensus.Checkpoint_ExecuteState{
+					Height: block.Height(),
+					Digest: block.BlockHash.String(),
+				},
+			},
+		}
+		// start sync
+		syncTaskDoneCh := make(chan error, 1)
+		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), uint64(quorum), 2, targetHeight, quorumCkpt), syncTaskDoneCh)
+		require.Nil(t, err)
+		err = <-syncTaskDoneCh
+		require.Nil(t, err)
+
+		// peers' latest height had been updated(count is bigger than quorum)
+		updatedCount := uint64(0)
+		lo.ForEach(syncs[0].peers, func(peer *common.Peer, _ int) {
+			if peer.LatestHeight == latestHeight {
+				updatedCount++
+			}
+		})
+		require.Equal(t, 1, int(updatedCount))
+	})
 }

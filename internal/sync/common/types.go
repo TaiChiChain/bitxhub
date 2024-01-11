@@ -66,6 +66,7 @@ type Chunk struct {
 
 type Peer struct {
 	PeerID       string
+	LatestHeight uint64
 	TimeoutCount uint64
 }
 

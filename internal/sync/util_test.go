@@ -453,8 +453,9 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 
 				stateResp := &pb.SyncStateResponse{
 					CheckpointState: &pb.CheckpointState{
-						Height: block.Height(),
-						Digest: block.BlockHash.String(),
+						Height:       block.Height(),
+						Digest:       block.BlockHash.String(),
+						LatestHeight: ledgers[to].GetChainMeta().Height,
 					},
 				}
 
@@ -542,6 +543,10 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 			return ledgers[localId].GetBlock(height)
 		}
 
+		getChainMetaFn := func() *types.ChainMeta {
+			return ledgers[localId].GetChainMeta()
+		}
+
 		conf := repo.Sync{
 			RequesterRetryTimeout: repo.Duration(1 * time.Second),
 			TimeoutCountLimit:     5,
@@ -560,7 +565,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 			return val
 		}
 
-		blockSync, err := NewSyncManager(logger, getBlockFn, getReceiptsFn, getEpochStateFn, nets[strconv.Itoa(i)], conf)
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, nets[strconv.Itoa(i)], conf)
 		require.Nil(t, err)
 		syncs = append(syncs, blockSync)
 	}
@@ -630,6 +635,9 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		fmt.Printf("%s: %T", localId, lg)
 		logger := log.NewWithModule("sync" + localId)
 
+		getChainMetaFn := func() *types.ChainMeta {
+			return lg.GetChainMeta()
+		}
 		getBlockFn := func(height uint64) (*types.Block, error) {
 			return lg.GetBlock(height)
 		}
@@ -652,7 +660,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 
 		initMockMiniNetwork(t, ledgers, nets, ctrl, localId)
 
-		blockSync, err := NewSyncManager(logger, getBlockFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
 		require.Nil(t, err)
 		syncs = append(syncs, blockSync)
 	}
@@ -686,8 +694,8 @@ func genSyncParams(peers []string, latestBlockHash string, quorum uint64, curHei
 	}
 }
 
-func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, blockCount int) {
-	blocks := ConstructBlocks(blockCount, gensisBlock.BlockHash)
+func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int) {
+	blocks := ConstructBlocks(endHeight, gensisBlock.BlockHash)
 	for id, lg := range ledgers {
 		if id == exceptId {
 			continue

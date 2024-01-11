@@ -204,7 +204,8 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetBlock, vl.ChainLedger.GetReceiptsByHeight, epochStore.Get, net, rep.Config.Sync)
+		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock,
+			vl.ChainLedger.GetReceiptsByHeight, epochStore.Get, net, rep.Config.Sync)
 		if err != nil {
 			return nil, fmt.Errorf("create block sync: %w", err)
 		}
@@ -236,9 +237,20 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		// if we reached snap block, needn't sync
 		// prepare sync
 		if axm.Repo.StartArgs.SnapshotMode && latestHeight < axm.snapMeta.snapBlock.Height() {
+			// start snap sync
+			start := time.Now()
+			axm.logger.WithFields(logrus.Fields{
+				"start height":  latestHeight,
+				"target height": axm.snapMeta.snapBlock.Height(),
+			}).Info("start snap sync")
 			if err = axm.prepareSnapSync(latestHeight); err != nil {
 				return nil, fmt.Errorf("prepare sync: %w", err)
 			}
+			axm.logger.WithFields(logrus.Fields{
+				"start height":  latestHeight,
+				"target height": axm.snapMeta.snapBlock.Height(),
+				"duration":      time.Since(start),
+			}).Info("end snap sync")
 		}
 
 		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlock: nil})

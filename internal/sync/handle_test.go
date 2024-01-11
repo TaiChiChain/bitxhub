@@ -1,255 +1,232 @@
 package sync
 
 import (
+	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
+	network "github.com/axiomesh/axiom-p2p"
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandleSyncState(t *testing.T) {
-	t.Parallel()
-	t.Run("handle sync state success", func(t *testing.T) {
-		n := 4
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		_, err := syncs[0].Prepare()
-		require.Nil(t, err)
+func TestHandleState(t *testing.T) {
+	localId := 0
+	remoteId := 1
 
-		localId := 0
-		remoteId := 1
-		requestHeight := uint64(1)
+	n := 4
+	syncs, ledgers := newMockBlockSyncs(t, n)
+	_, err := syncs[0].Prepare()
+	require.Nil(t, err)
 
-		req := &pb.SyncStateRequest{
-			Height: requestHeight,
+	requestHeight := uint64(100)
+	prepareLedger(t, ledgers, strconv.Itoa(localId), int(requestHeight))
+	block100, err := ledgers[strconv.Itoa(remoteId)].GetBlock(requestHeight)
+	require.Nil(t, err)
+
+	epoch1 := ledgers[strconv.Itoa(remoteId)].epochStateDb[epochPrefix+strconv.Itoa(1)]
+	requestEpoch := epoch1.Epoch()
+
+	const (
+		wrongMsgType = 1000
+		wrongReqData = "proto: illegal wireType 7"
+		wrongBlock   = "block not found"
+		wrongEpoch   = "epoch 101 quorum checkpoint not found"
+	)
+	var (
+		wrongMsgTypeReq             = fmt.Errorf("wrong message type: %v", wrongMsgType)
+		wrongSyncStateReqData       = fmt.Errorf("unmarshal sync state request failed: %v", wrongReqData)
+		wrongFetchEpochStateReqData = fmt.Errorf("unmarshal fetch epoch state request failed: %v", wrongReqData)
+		getBlockFailed              = fmt.Errorf("get block failed: %v", wrongBlock)
+		getEpochStateFailed         = fmt.Errorf("get epoch state failed: %v", wrongEpoch)
+	)
+
+	testcases := []struct {
+		caller         func(s network.Stream, msg *pb.Message)
+		expectedReqTyp pb.Message_Type
+		req            *pb.Message
+		expectedResp   Response
+	}{
+		{ // case1 : handle sync state success
+			caller:         syncs[remoteId].handleSyncState,
+			expectedReqTyp: pb.Message_SYNC_STATE_REQUEST,
+			req:            genSuccessReqMsg(t, pb.Message_SYNC_STATE_REQUEST, localId, 100),
+			expectedResp:   genSuccessRespMsg(t, pb.Message_SYNC_STATE_RESPONSE, block100),
+		},
+
+		{ // case2 : handle sync state failed, wrong msg type
+			caller:         syncs[remoteId].handleSyncState,
+			expectedReqTyp: pb.Message_SYNC_STATE_REQUEST,
+			req:            genWrongTypeReqMsg(pb.Message_Type(wrongMsgType)),
+			expectedResp:   genWrongRespMsg(pb.Message_SYNC_STATE_RESPONSE, wrongMsgTypeReq.Error()),
+		},
+
+		{ // case3 : handle sync state failed, unmarshal sync state request failed
+			caller:         syncs[remoteId].handleSyncState,
+			expectedReqTyp: pb.Message_SYNC_STATE_REQUEST,
+			req:            genWrongDataReqMsg(t, pb.Message_SYNC_STATE_REQUEST, localId),
+			expectedResp:   genWrongRespMsg(pb.Message_SYNC_STATE_RESPONSE, wrongSyncStateReqData.Error()),
+		},
+
+		{ // case4 : handle  sync state failed, get block failed
+			caller:         syncs[remoteId].handleSyncState,
+			expectedReqTyp: pb.Message_SYNC_STATE_REQUEST,
+			req:            genSuccessReqMsg(t, pb.Message_SYNC_STATE_REQUEST, localId, requestHeight+100),
+			expectedResp:   genWrongRespMsg(pb.Message_SYNC_STATE_RESPONSE, getBlockFailed.Error()),
+		},
+
+		{ // case5 : handle fetch epoch state success
+			caller:         syncs[remoteId].handleFetchEpochState,
+			expectedReqTyp: pb.Message_FETCH_EPOCH_STATE_REQUEST,
+			req:            genSuccessReqMsg(t, pb.Message_FETCH_EPOCH_STATE_REQUEST, localId, requestEpoch),
+			expectedResp:   genSuccessRespMsg(t, pb.Message_FETCH_EPOCH_STATE_RESPONSE, epoch1),
+		},
+
+		{ // case6 : handle fetch epoch state failed, wrong msg type
+			caller:         syncs[remoteId].handleFetchEpochState,
+			expectedReqTyp: pb.Message_FETCH_EPOCH_STATE_REQUEST,
+			req:            genWrongTypeReqMsg(wrongMsgType),
+			expectedResp:   genWrongRespMsg(pb.Message_FETCH_EPOCH_STATE_RESPONSE, wrongMsgTypeReq.Error()),
+		},
+
+		{ // case7 : handle fetch epoch state failed, unmarshal fetch epoch state request failed
+			caller:         syncs[remoteId].handleFetchEpochState,
+			expectedReqTyp: pb.Message_FETCH_EPOCH_STATE_REQUEST,
+			req:            genWrongDataReqMsg(t, pb.Message_FETCH_EPOCH_STATE_REQUEST, localId),
+			expectedResp:   genWrongRespMsg(pb.Message_FETCH_EPOCH_STATE_RESPONSE, wrongFetchEpochStateReqData.Error()),
+		},
+
+		{ // case8 : handle fetch epoch state failed, get epoch state failed
+			caller:         syncs[remoteId].handleFetchEpochState,
+			expectedReqTyp: pb.Message_FETCH_EPOCH_STATE_REQUEST,
+			req:            genSuccessReqMsg(t, pb.Message_FETCH_EPOCH_STATE_REQUEST, localId, requestEpoch+100),
+			expectedResp:   genWrongRespMsg(pb.Message_FETCH_EPOCH_STATE_RESPONSE, getEpochStateFailed.Error()),
+		},
+	}
+
+	for i, test := range testcases {
+		t.Logf("test case %d", i+1)
+		test.caller(nil, test.req)
+		resp := getResp(ledgers[strconv.Itoa(remoteId)])
+		switch test.expectedReqTyp {
+		case pb.Message_SYNC_STATE_REQUEST:
+			actualResp := &pb.SyncStateResponse{}
+			err = actualResp.UnmarshalVT(resp.Data)
+			require.Nil(t, err)
+			require.True(t, reflect.DeepEqual(test.expectedResp, actualResp))
+
+		case pb.Message_FETCH_EPOCH_STATE_REQUEST:
+			actualResp := &pb.FetchEpochStateResponse{}
+			err = actualResp.UnmarshalVT(resp.Data)
+			require.Nil(t, err)
+			require.True(t, reflect.DeepEqual(test.expectedResp, actualResp))
 		}
-		reqData, err := req.MarshalVT()
-		require.Nil(t, err)
-
-		msg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_SYNC_STATE_REQUEST,
-			Data: reqData,
-		}
-
-		prepareLedger(t, ledgers, strconv.Itoa(localId), 100)
-		syncs[remoteId].handleSyncState(nil, msg)
-		resp := <-ledgers[strconv.Itoa(remoteId)].stateResponse
-		require.NotNil(t, resp, "after request, the state response should not be nil")
-		require.Equal(t, pb.Message_SYNC_STATE_RESPONSE, resp.Type)
-
-		stateResp := &pb.SyncStateResponse{}
-		err = stateResp.UnmarshalVT(resp.Data)
-		require.Nil(t, err)
-		require.Equal(t, requestHeight, stateResp.CheckpointState.Height)
-		expectBlock, err := ledgers[strconv.Itoa(remoteId)].GetBlock(stateResp.CheckpointState.Height)
-		require.Nil(t, err)
-		require.Equal(t, expectBlock.BlockHash.String(), stateResp.CheckpointState.Digest)
-	})
-	t.Run("wrong message type", func(t *testing.T) {
-		n := 4
-		syncs, _ := newMockBlockSyncs(t, n, wrongTypeSendStream, 0, 2)
-		wrongMsg := &pb.Message{
-			From: strconv.Itoa(0),
-			Type: pb.Message_FETCH_EPOCH_STATE_REQUEST,
-		}
-		syncs[0].handleSyncState(nil, wrongMsg)
-	})
-	t.Run("wrong message data", func(t *testing.T) {
-		n := 4
-		syncs, _ := newMockBlockSyncs(t, n, wrongTypeSendStream, 0, 2)
-		wrongMsg := &pb.Message{
-			From: strconv.Itoa(0),
-			Type: pb.Message_SYNC_STATE_REQUEST,
-			Data: []byte("wrong data"),
-		}
-		syncs[0].handleSyncState(nil, wrongMsg)
-	})
-
-	t.Run("get state failed", func(t *testing.T) {
-		n := 4
-		syncs, _ := newMockBlockSyncs(t, n, wrongTypeSendStream, 0, 2)
-		requestHeight := uint64(100)
-
-		req := &pb.SyncStateRequest{
-			Height: requestHeight,
-		}
-		reqData, err := req.MarshalVT()
-		require.Nil(t, err)
-
-		msg := &pb.Message{
-			From: strconv.Itoa(1),
-			Type: pb.Message_SYNC_STATE_REQUEST,
-			Data: reqData,
-		}
-		syncs[0].handleSyncState(nil, msg)
-	})
-
-	t.Run("send response failed", func(t *testing.T) {
-		n := 4
-		wrongId := 2
-		syncs, ledgers := newMockBlockSyncs(t, n, wrongTypeSendStream, 0, wrongId)
-		_, err := syncs[0].Prepare()
-		require.Nil(t, err)
-
-		localId := 0
-		remoteId := wrongId
-		requestHeight := uint64(1)
-
-		req := &pb.SyncStateRequest{
-			Height: requestHeight,
-		}
-		reqData, err := req.MarshalVT()
-		require.Nil(t, err)
-
-		msg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_SYNC_STATE_REQUEST,
-			Data: reqData,
-		}
-
-		prepareLedger(t, ledgers, strconv.Itoa(localId), 100)
-		syncs[remoteId].handleSyncState(nil, msg)
-	})
+	}
 }
 
-func TestHandleFetchEpochState(t *testing.T) {
-	t.Parallel()
-	t.Run("handle fetch epoch state success", func(t *testing.T) {
-		n := 4
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		_, err := syncs[0].Prepare()
+func getResp(ledger *mockLedger) *pb.Message {
+	for {
+		select {
+		case resp := <-ledger.stateResponse:
+			return resp
+		case resp := <-ledger.epochStateResponse:
+			return resp
+		}
+	}
+}
+
+func genSuccessReqMsg(t *testing.T, typ pb.Message_Type, localId int, input uint64) *pb.Message {
+	var (
+		reqData []byte
+		err     error
+	)
+	switch typ {
+	case pb.Message_SYNC_STATE_REQUEST:
+		req := &pb.SyncStateRequest{
+			Height: input,
+		}
+		reqData, err = req.MarshalVT()
 		require.Nil(t, err)
 
-		localId := 0
-		remoteId := 1
-		epoch := uint64(1)
-
+	case pb.Message_FETCH_EPOCH_STATE_REQUEST:
 		req := &pb.FetchEpochStateRequest{
-			Epoch: epoch,
+			Epoch: input,
 		}
-		reqData, err := req.MarshalVT()
+		reqData, err = req.MarshalVT()
 		require.Nil(t, err)
+	}
 
-		msg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_FETCH_EPOCH_STATE_REQUEST,
-			Data: reqData,
-		}
+	msg := &pb.Message{
+		From: strconv.Itoa(localId),
+		Type: typ,
+		Data: reqData,
+	}
+	return msg
+}
 
-		prepareLedger(t, ledgers, strconv.Itoa(localId), 100)
-		syncs[remoteId].handleFetchEpochState(nil, msg)
-		resp := <-ledgers[strconv.Itoa(remoteId)].epochStateResponse
-		require.NotNil(t, resp, "after request, the epoch state response should not be nil")
-		require.Equal(t, pb.Message_FETCH_EPOCH_STATE_RESPONSE, resp.Type)
-
-		epsResp := &pb.FetchEpochStateResponse{}
-		err = epsResp.UnmarshalVT(resp.Data)
-		require.Nil(t, err)
-		require.Equal(t, pb.Status_SUCCESS, epsResp.Status)
-		epochState := &consensus.QuorumCheckpoint{}
-		err = epochState.UnmarshalVT(epsResp.Data)
-		require.Nil(t, err)
-		require.Equal(t, epoch, epochState.Epoch())
-	})
-	t.Run("wrong message type", func(t *testing.T) {
-		n := 4
-		localId := 0
-		remoteId := 1
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		wrongMsg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_SYNC_STATE_REQUEST,
-		}
-		syncs[remoteId].handleFetchEpochState(nil, wrongMsg)
-		resp := <-ledgers[strconv.Itoa(remoteId)].epochStateResponse
-		require.NotNil(t, resp)
-		require.Equal(t, pb.Message_FETCH_EPOCH_STATE_RESPONSE, resp.Type)
-
-		epsResp := &pb.FetchEpochStateResponse{}
-		err := epsResp.UnmarshalVT(resp.Data)
-		require.Nil(t, err)
-		require.Equal(t, pb.Status_ERROR, epsResp.Status)
-		require.Contains(t, epsResp.Error, "wrong message type")
-	})
-	t.Run("wrong message data", func(t *testing.T) {
-		n := 4
-		localId := 0
-		remoteId := 1
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		wrongMsg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_FETCH_EPOCH_STATE_REQUEST,
-			Data: []byte("wrong data"),
-		}
-		syncs[remoteId].handleFetchEpochState(nil, wrongMsg)
-
-		resp := <-ledgers[strconv.Itoa(remoteId)].epochStateResponse
-		require.NotNil(t, resp)
-		require.Equal(t, pb.Message_FETCH_EPOCH_STATE_RESPONSE, resp.Type)
-
-		epsResp := &pb.FetchEpochStateResponse{}
-		err := epsResp.UnmarshalVT(resp.Data)
-		require.Nil(t, err)
-		require.Equal(t, pb.Status_ERROR, epsResp.Status)
-		require.Contains(t, epsResp.Error, "unmarshal fetch epoch state request failed")
-	})
-
-	t.Run("get epoch state failed", func(t *testing.T) {
-		n := 4
-		localId := 0
-		remoteId := 1
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		epoch := uint64(1)
-
-		req := &pb.FetchEpochStateRequest{
-			Epoch: epoch,
-		}
-		reqData, err := req.MarshalVT()
-		require.Nil(t, err)
-
-		msg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_FETCH_EPOCH_STATE_REQUEST,
-			Data: reqData,
-		}
-		syncs[remoteId].handleFetchEpochState(nil, msg)
-
-		resp := <-ledgers[strconv.Itoa(remoteId)].epochStateResponse
-		require.NotNil(t, resp)
-		require.Equal(t, pb.Message_FETCH_EPOCH_STATE_RESPONSE, resp.Type)
-
-		epsResp := &pb.FetchEpochStateResponse{}
-		err = epsResp.UnmarshalVT(resp.Data)
-		require.Nil(t, err)
-		require.Equal(t, pb.Status_ERROR, epsResp.Status)
-		require.Contains(t, epsResp.Error, "get epochState failed")
-	})
-
-	t.Run("send response failed", func(t *testing.T) {
-		n := 4
-		wrongId := 2
-		syncs, ledgers := newMockBlockSyncs(t, n, wrongTypeSendStream, 0, wrongId)
-		_, err := syncs[0].Prepare()
-		require.Nil(t, err)
-
-		epoch := uint64(1)
-		localId := 0
-		remoteId := wrongId
-		req := &pb.FetchEpochStateRequest{
-			Epoch: epoch,
-		}
-		reqData, err := req.MarshalVT()
-		require.Nil(t, err)
-
-		msg := &pb.Message{
-			From: strconv.Itoa(localId),
-			Type: pb.Message_FETCH_EPOCH_STATE_REQUEST,
-			Data: reqData,
+func genSuccessRespMsg(t *testing.T, typ pb.Message_Type, input any) Response {
+	var (
+		resp Response
+	)
+	switch typ {
+	case pb.Message_SYNC_STATE_RESPONSE:
+		block := input.(*types.Block)
+		resp = &pb.SyncStateResponse{
+			Status: pb.Status_SUCCESS,
+			CheckpointState: &pb.CheckpointState{
+				Height:       block.Height(),
+				Digest:       block.BlockHash.String(),
+				LatestHeight: block.Height(),
+			},
 		}
 
-		prepareLedger(t, ledgers, strconv.Itoa(localId), 100)
-		syncs[remoteId].handleFetchEpochState(nil, msg)
-	})
+	case pb.Message_FETCH_EPOCH_STATE_RESPONSE:
+		eps := input.(*consensus.QuorumCheckpoint)
+		epochState, err := eps.MarshalVT()
+		require.Nil(t, err)
+		resp = &pb.FetchEpochStateResponse{
+			Status: pb.Status_SUCCESS,
+			Data:   epochState,
+		}
+	}
+
+	return resp
+}
+
+func genWrongRespMsg(typ pb.Message_Type, err string) Response {
+	var (
+		resp Response
+	)
+	switch typ {
+	case pb.Message_SYNC_STATE_RESPONSE:
+		resp = &pb.SyncStateResponse{
+			Status: pb.Status_ERROR,
+			Error:  err,
+		}
+
+	case pb.Message_FETCH_EPOCH_STATE_RESPONSE:
+		resp = &pb.FetchEpochStateResponse{
+			Status: pb.Status_ERROR,
+			Error:  err,
+		}
+	}
+
+	return resp
+}
+
+func genWrongTypeReqMsg(wrongTyp pb.Message_Type) *pb.Message {
+	return &pb.Message{
+		Type: wrongTyp,
+		Data: []byte{},
+	}
+}
+
+func genWrongDataReqMsg(t *testing.T, typ pb.Message_Type, localId int) *pb.Message {
+	msg := genSuccessReqMsg(t, typ, localId, 1)
+	msg.Data = []byte("wrong data")
+
+	return msg
 }
