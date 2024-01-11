@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -11,6 +12,14 @@ import (
 	"github.com/axiomesh/axiom-kit/types/pb"
 	network "github.com/axiomesh/axiom-p2p"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	latestHeight = 100
+	wrongMsgType = 1000
+	wrongReqData = "proto: illegal wireType 7"
+	wrongBlock   = "block not found"
+	wrongEpoch   = "epoch 101 quorum checkpoint not found"
 )
 
 func TestHandleState(t *testing.T) {
@@ -22,7 +31,7 @@ func TestHandleState(t *testing.T) {
 	_, err := syncs[0].Prepare()
 	require.Nil(t, err)
 
-	requestHeight := uint64(100)
+	requestHeight := uint64(latestHeight)
 	prepareLedger(t, ledgers, strconv.Itoa(localId), int(requestHeight))
 	block100, err := ledgers[strconv.Itoa(remoteId)].GetBlock(requestHeight)
 	require.Nil(t, err)
@@ -30,12 +39,6 @@ func TestHandleState(t *testing.T) {
 	epoch1 := ledgers[strconv.Itoa(remoteId)].epochStateDb[epochPrefix+strconv.Itoa(1)]
 	requestEpoch := epoch1.Epoch()
 
-	const (
-		wrongMsgType = 1000
-		wrongReqData = "proto: illegal wireType 7"
-		wrongBlock   = "block not found"
-		wrongEpoch   = "epoch 101 quorum checkpoint not found"
-	)
 	var (
 		wrongMsgTypeReq             = fmt.Errorf("wrong message type: %v", wrongMsgType)
 		wrongSyncStateReqData       = fmt.Errorf("unmarshal sync state request failed: %v", wrongReqData)
@@ -205,6 +208,11 @@ func genWrongRespMsg(typ pb.Message_Type, err string) Response {
 		resp = &pb.SyncStateResponse{
 			Status: pb.Status_ERROR,
 			Error:  err,
+		}
+		if strings.Contains(err, wrongBlock) {
+			resp.(*pb.SyncStateResponse).CheckpointState = &pb.CheckpointState{
+				LatestHeight: uint64(latestHeight),
+			}
 		}
 
 	case pb.Message_FETCH_EPOCH_STATE_RESPONSE:

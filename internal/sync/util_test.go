@@ -21,6 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	network "github.com/axiomesh/axiom-p2p"
 	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -452,6 +453,7 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 				}
 
 				stateResp := &pb.SyncStateResponse{
+					Status: pb.Status_SUCCESS,
 					CheckpointState: &pb.CheckpointState{
 						Height:       block.Height(),
 						Digest:       block.BlockHash.String(),
@@ -522,12 +524,12 @@ func genGenesisBlock() *types.Block {
 func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager, map[string]*mockLedger) {
 	ctrl := gomock.NewController(t)
 	syncs := make([]*SyncManager, 0)
-	gensis := gensisBlock.Clone()
+	genesis := gensisBlock.Clone()
 
 	ledgers := make(map[string]*mockLedger)
 	// 1. prepare all ledgers
 	for i := 0; i < n; i++ {
-		lg := newMockMinLedger(t, gensis)
+		lg := newMockMinLedger(t, genesis)
 		localId := strconv.Itoa(i)
 		ledgers[localId] = lg
 	}
@@ -537,6 +539,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 	for i := 0; i < n; i++ {
 		localId := strconv.Itoa(i)
 		logger := log.NewWithModule("sync" + strconv.Itoa(i))
+		logger.Logger.SetLevel(logrus.DebugLevel)
 		initMockMiniNetwork(t, ledgers, nets, ctrl, localId, wrongPipeId...)
 
 		getBlockFn := func(height uint64) (*types.Block, error) {

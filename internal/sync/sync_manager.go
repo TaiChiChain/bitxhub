@@ -536,10 +536,12 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 							"peer":   p.PeerID,
 							"height": height,
 						}).Debug("start send sync state request")
+
 						resp, err := sm.network.Send(p.PeerID, &pb.Message{
 							Type: pb.Message_SYNC_STATE_REQUEST,
 							Data: data,
 						})
+
 						if err != nil {
 							sm.logger.WithFields(logrus.Fields{
 								"peer": p.PeerID,

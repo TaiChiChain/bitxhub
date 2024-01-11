@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	common2 "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/ethereum/go-ethereum/event"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/pkg/errors"
@@ -52,7 +52,7 @@ type RBFTAdaptor struct {
 	config            *common.Config
 	EpochInfo         *rbft.EpochInfo
 
-	sync           common2.Sync
+	sync           sync_comm.Sync
 	quitSync       chan struct{}
 	broadcastNodes []string
 	ctx            context.Context

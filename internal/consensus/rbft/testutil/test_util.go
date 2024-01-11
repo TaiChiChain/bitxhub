@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	common2 "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,14 +100,14 @@ func MockMiniBlockSync(ctrl *gomock.Controller) *mock_sync.MockSync {
 	blockCacheChan = make(chan any, 1024)
 	mock := mock_sync.NewMockSync(ctrl)
 	mock.EXPECT().StartSync(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(params *common2.SyncParams, syncTaskDoneCh chan error) error {
-			blockCache := make([]common2.CommitData, 0)
+		func(params *sync_comm.SyncParams, syncTaskDoneCh chan error) error {
+			blockCache := make([]sync_comm.CommitData, 0)
 			for i := params.CurHeight; i <= params.TargetHeight; i++ {
 				block, err := getRemoteMockBlockLedger(i)
 				if err != nil {
 					return err
 				}
-				data := &common2.BlockData{
+				data := &sync_comm.BlockData{
 					Block: block,
 				}
 				blockCache = append(blockCache, data)

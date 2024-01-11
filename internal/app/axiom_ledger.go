@@ -11,7 +11,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/storage"
 	devexecutor "github.com/axiomesh/axiom-ledger/internal/executor/dev"
-	common2 "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/sirupsen/logrus"
@@ -46,7 +46,7 @@ type AxiomLedger struct {
 	Consensus     consensus.Consensus
 	TxPool        txpool.TxPool[types.Transaction, *types.Transaction]
 	Network       network.Network
-	Sync          common2.Sync
+	Sync          sync_comm.Sync
 	Monitor       *profile.Monitor
 	Pprof         *profile.Pprof
 	LoggerWrapper *loggers.LoggerWrapper
@@ -188,15 +188,15 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		return nil, fmt.Errorf("create RW ledger: %w", err)
 	}
 
+	vl := rwLdg.NewView()
 	var net network.Network
 	if !rep.StartArgs.ReadonlyMode {
-		net, err = network.New(rep, loggers.Logger(loggers.P2P), rwLdg.NewView())
+		net, err = network.New(rep, loggers.Logger(loggers.P2P), vl)
 		if err != nil {
 			return nil, fmt.Errorf("create peer manager: %w", err)
 		}
 	}
 
-	vl := rwLdg.NewView()
 	var syncMgr *sync.SyncManager
 	var epochStore storage.Storage
 	if !rep.StartArgs.ReadonlyMode {
@@ -253,7 +253,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 			}).Info("end snap sync")
 		}
 
-		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlock: nil})
+		axm.ViewLedger.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlock: nil})
 	}
 
 	var txExec executor.Executor

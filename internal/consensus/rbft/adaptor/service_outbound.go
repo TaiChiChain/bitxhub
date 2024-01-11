@@ -6,7 +6,7 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	common2 "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -108,7 +108,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 
 	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
-		params := &common2.SyncParams{
+		params := &sync_comm.SyncParams{
 			Peers:            peers,
 			LatestBlockHash:  latestBlockHash,
 			Quorum:           CalQuorum(uint64(len(peers))),
@@ -149,7 +149,10 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			}).Info("State update finished")
 			return
 		case data := <-a.sync.Commit():
-			blockCache := data.([]common2.CommitData)
+			blockCache, ok := data.([]sync_comm.CommitData)
+			if !ok {
+				panic("state update failed: invalid commit data")
+			}
 			a.logger.WithFields(logrus.Fields{
 				"chunk start": blockCache[0].GetHeight(),
 				"chunk end":   blockCache[len(blockCache)-1].GetHeight(),
@@ -162,8 +165,12 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 					stateUpdatedCheckpoint = checkpoints[0].GetCheckpoint()
 					a.quitSync <- struct{}{}
 				}
+				block, ok := commitData.(*sync_comm.BlockData)
+				if !ok {
+					panic("state update failed: invalid commit data")
+				}
 				a.postCommitEvent(&common.CommitEvent{
-					Block:                  commitData.(*common2.BlockData).Block,
+					Block:                  block.Block,
 					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
 				})
 			}

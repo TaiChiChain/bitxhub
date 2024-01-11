@@ -35,7 +35,7 @@ func main() {
 		txpoolCMD,
 		{
 			Name:   "start",
-			Usage:  "Prepare a long-running daemon process",
+			Usage:  "Start a long-running daemon process",
 			Action: start,
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
