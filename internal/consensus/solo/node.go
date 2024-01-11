@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -58,10 +59,7 @@ func NewNode(config *common.Config) (*Node, error) {
 		return nil, err
 	}
 
-	proposerAccount, err := repo.KeyToNodeID(config.PrivKey)
-	if err != nil {
-		return nil, err
-	}
+	proposerAccount := crypto.PubkeyToAddress(config.PrivKey.PublicKey).Hex()
 
 	// init batch timer manager
 	recvCh := make(chan consensusEvent, maxChanSize)
