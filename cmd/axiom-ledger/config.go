@@ -150,6 +150,13 @@ func generateAccountKey(ctx *cli.Context) error {
 		if choice != "y" {
 			return errors.New("interrupt by user")
 		}
+	} else if configGenerateArgs.Auth != "" { // Designed to automate deployment scripts
+		addr, err := repo.GenerateP2PKeyJson(configGenerateArgs.Auth, p, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Println("generate account-addr:", addr)
+		return nil
 	}
 	fmt.Println("Enter the password to generate the secret key: ")
 	var password string
