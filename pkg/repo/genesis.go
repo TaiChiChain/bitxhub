@@ -17,12 +17,16 @@ type GenesisConfig struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
 	Timestamp              int64           `mapstructure:"timestamp" toml:"timestamp"`
 	Token                  *Token          `mapstructure:"token" toml:"token"`
-	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
-	Accounts               []string        `mapstructure:"accounts" toml:"accounts"`
+	Accounts               []*Account      `mapstructure:"accounts" toml:"accounts"`
 	EpochInfo              *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
 	NodeNames              []*NodeName     `mapstructure:"node_names" toml:"node_names"`
+}
+
+type Account struct {
+	Address string `mapstructure:"address" toml:"address"`
+	Balance string `mapstructure:"balance" toml:"balance"`
 }
 
 type Token struct {
@@ -121,7 +125,7 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 	// balance = axmBalance * 10^decimals
 	balance := new(big.Int).Mul(axmBalance, big.NewInt(10).Exp(big.NewInt(10), big.NewInt(int64(DefaultDecimals)), nil))
 	adminLen := 4
-	accounts := []string{
+	accountAddrs := []string{
 		"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 		"0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
 		"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
@@ -143,11 +147,22 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 		"0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
 		"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
 	}
-	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(adminLen+len(accounts))))
+
+	adminAddrs := DefaultNodeAddrs[0:adminLen]
+	// adminAddrs + accountAddrs
+	allAccounts := append(adminAddrs, accountAddrs...)
+
+	accounts := lo.Map(allAccounts, func(addr string, idx int) *Account {
+		return &Account{
+			Address: addr,
+			Balance: balance.String(),
+		}
+	})
+
+	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(len(allAccounts))))
 	return &GenesisConfig{
 		ChainID:   1356,
 		Timestamp: 1704038400,
-		Balance:   balance.String(),
 		Admins: lo.Map(DefaultNodeAddrs[0:adminLen], func(item string, idx int) *Admin {
 			return &Admin{
 				Address: item,

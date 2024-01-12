@@ -37,8 +37,10 @@ var AxmManagerMethod2Sig = map[string]string{
 	nameMethod:         "name()",
 	symbolMethod:       "symbol()",
 	decimalsMethod:     "decimals()",
-	mintMethod:         "mint(uint256)",
-	burnMethod:         "burn(uint256)",
+
+	// not support for outside
+	//mintMethod:         "mint(uint256)",
+	//burnMethod: "burn(uint256)",
 }
 
 var _ IToken = (*AxmManager)(nil)
@@ -64,9 +66,9 @@ func InitAxmTokenManager(lg ledger.StateLedger, config Config) error {
 		return err
 	}
 
-	lo.ForEach(config.Admins, func(admin string, _ int) {
-		adminAccount := lg.GetOrCreateAccount(types.NewAddressByStr(admin))
-		if err = transfer(contractAccount, adminAccount, config.Balance); err != nil {
+	lo.ForEach(config.InitialAccounts, func(account *InitialAccount, _ int) {
+		adminAccount := lg.GetOrCreateAccount(account.Address)
+		if err = transfer(contractAccount, adminAccount, account.Balance); err != nil {
 			return
 		}
 	})
@@ -224,7 +226,7 @@ func (am *AxmManager) TransferFrom(sender, recipient ethcommon.Address, value *b
 	}
 
 	fromAcc := am.stateLedger.GetAccount(types.NewAddressByStr(sender.String()))
-	toAcc := am.stateLedger.GetAccount(types.NewAddressByStr(recipient.String()))
+	toAcc := am.stateLedger.GetOrCreateAccount(types.NewAddressByStr(recipient.String()))
 	if err := transfer(fromAcc, toAcc, value); err != nil {
 		return err
 	}

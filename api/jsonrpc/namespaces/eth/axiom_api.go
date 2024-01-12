@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
@@ -120,9 +121,9 @@ func (api *AxiomAPI) Accounts() (ret []common.Address, err error) {
 	}(time.Now())
 
 	accounts := api.rep.GenesisConfig.Accounts
-	res := make([]common.Address, 0)
-	for _, account := range accounts {
-		res = append(res, common.HexToAddress(account))
-	}
+
+	res := lo.Map(accounts, func(ac *repo.Account, index int) common.Address {
+		return common.HexToAddress(ac.Address)
+	})
 	return res, nil
 }

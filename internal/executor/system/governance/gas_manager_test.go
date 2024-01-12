@@ -52,7 +52,7 @@ func TestGasManager_RunForPropose(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	g := repo.GenesisEpochInfo(true)
@@ -222,7 +222,7 @@ func TestGasManager_VoteExecute(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	g := repo.GenesisEpochInfo(true)
