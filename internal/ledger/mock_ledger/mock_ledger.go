@@ -13,6 +13,7 @@ import (
 	big "math/big"
 	reflect "reflect"
 
+	storage "github.com/axiomesh/axiom-kit/storage"
 	types "github.com/axiomesh/axiom-kit/types"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/ethereum/go-ethereum/common"
@@ -344,6 +345,45 @@ func (c *ChainLedgerGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, erro
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *ChainLedgerGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *ChainLedgerGetReceiptCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetReceiptsByHeight mocks base method.
+func (m *MockChainLedger) GetReceiptsByHeight(height uint64) ([]*types.Receipt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReceiptsByHeight", height)
+	ret0, _ := ret[0].([]*types.Receipt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReceiptsByHeight indicates an expected call of GetReceiptsByHeight.
+func (mr *MockChainLedgerMockRecorder) GetReceiptsByHeight(height any) *ChainLedgerGetReceiptsByHeightCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReceiptsByHeight", reflect.TypeOf((*MockChainLedger)(nil).GetReceiptsByHeight), height)
+	return &ChainLedgerGetReceiptsByHeightCall{Call: call}
+}
+
+// ChainLedgerGetReceiptsByHeightCall wrap *gomock.Call
+type ChainLedgerGetReceiptsByHeightCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *ChainLedgerGetReceiptsByHeightCall) Return(arg0 []*types.Receipt, arg1 error) *ChainLedgerGetReceiptsByHeightCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *ChainLedgerGetReceiptsByHeightCall) Do(f func(uint64) ([]*types.Receipt, error)) *ChainLedgerGetReceiptsByHeightCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *ChainLedgerGetReceiptsByHeightCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *ChainLedgerGetReceiptsByHeightCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1833,6 +1873,45 @@ func (c *StateLedgerGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bo
 	return c
 }
 
+// GetTrieSnapshotMeta mocks base method.
+func (m *MockStateLedger) GetTrieSnapshotMeta() (*ledger.SnapshotMeta, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTrieSnapshotMeta")
+	ret0, _ := ret[0].(*ledger.SnapshotMeta)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTrieSnapshotMeta indicates an expected call of GetTrieSnapshotMeta.
+func (mr *MockStateLedgerMockRecorder) GetTrieSnapshotMeta() *StateLedgerGetTrieSnapshotMetaCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTrieSnapshotMeta", reflect.TypeOf((*MockStateLedger)(nil).GetTrieSnapshotMeta))
+	return &StateLedgerGetTrieSnapshotMetaCall{Call: call}
+}
+
+// StateLedgerGetTrieSnapshotMetaCall wrap *gomock.Call
+type StateLedgerGetTrieSnapshotMetaCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerGetTrieSnapshotMetaCall) Return(arg0 *ledger.SnapshotMeta, arg1 error) *StateLedgerGetTrieSnapshotMetaCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerGetTrieSnapshotMetaCall) Do(f func() (*ledger.SnapshotMeta, error)) *StateLedgerGetTrieSnapshotMetaCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func() (*ledger.SnapshotMeta, error)) *StateLedgerGetTrieSnapshotMetaCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // HasSuicideEVM mocks base method.
 func (m *MockStateLedger) HasSuicideEVM(arg0 common.Address) bool {
 	m.ctrl.T.Helper()
@@ -1867,6 +1946,42 @@ func (c *StateLedgerHasSuicideEVMCall) Do(f func(common.Address) bool) *StateLed
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateLedgerHasSuicideEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerHasSuicideEVMCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IterateTrie mocks base method.
+func (m *MockStateLedger) IterateTrie(block *types.Block, kv storage.Storage, errC chan error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "IterateTrie", block, kv, errC)
+}
+
+// IterateTrie indicates an expected call of IterateTrie.
+func (mr *MockStateLedgerMockRecorder) IterateTrie(block, kv, errC any) *StateLedgerIterateTrieCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), block, kv, errC)
+	return &StateLedgerIterateTrieCall{Call: call}
+}
+
+// StateLedgerIterateTrieCall wrap *gomock.Call
+type StateLedgerIterateTrieCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerIterateTrieCall) Return() *StateLedgerIterateTrieCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerIterateTrieCall) Do(f func(*types.Block, storage.Storage, chan error)) *StateLedgerIterateTrieCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerIterateTrieCall) DoAndReturn(f func(*types.Block, storage.Storage, chan error)) *StateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

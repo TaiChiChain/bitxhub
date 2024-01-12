@@ -264,6 +264,20 @@ func (l *ChainLedgerImpl) GetReceipt(hash *types.Hash) (*types.Receipt, error) {
 	return rs[meta.Index], nil
 }
 
+func (l *ChainLedgerImpl) GetReceiptsByHeight(height uint64) ([]*types.Receipt, error) {
+	var rs []*types.Receipt
+	rs, ok := l.receiptCache.Get(height)
+	if !ok {
+		rsBytes, err := l.bf.Get(blockfile.BlockFileReceiptTable, height)
+		if err != nil {
+			return nil, fmt.Errorf("get receipts with height %d from blockfile failed: %w", height, err)
+		}
+
+		return types.UnmarshalReceipts(rsBytes)
+	}
+	return rs, nil
+}
+
 // PersistExecutionResult persist the execution result
 func (l *ChainLedgerImpl) PersistExecutionResult(block *types.Block, receipts []*types.Receipt) error {
 	current := time.Now()

@@ -77,14 +77,14 @@ func (p *Pprof) Stop() error {
 
 // runtimePProf will record the cpu or memory profiles every 5 second.
 func (p *Pprof) runtimePProf() {
-	p.logger.Info("Start runtime pprof")
+	p.logger.Info("Prepare runtime pprof")
 	tick := time.NewTicker(p.config.Duration.ToDuration())
 	rootPath := filepath.Join(p.repoRoot, "/pprof/")
 	exist := fileExist(rootPath)
 	if !exist {
 		err := os.Mkdir(rootPath, os.ModePerm)
 		if err != nil {
-			p.logger.Errorf("Start runtimePProf failed, err: %s", err.Error())
+			p.logger.Errorf("Prepare runtimePProf failed, err: %s", err.Error())
 			return
 		}
 	}
@@ -124,10 +124,10 @@ func (p *Pprof) runtimePProf() {
 }
 
 func (p *Pprof) httpPProf() {
-	p.logger.WithField("port", p.port).Info("Start http pprof")
+	p.logger.WithField("port", p.port).Info("Prepare http pprof")
 	err := p.server.ListenAndServe()
 	if err != nil {
-		p.logger.Errorf("Start httpPProf failed, err: %s", err.Error())
+		p.logger.Errorf("Prepare httpPProf failed, err: %s", err.Error())
 	}
 }
 

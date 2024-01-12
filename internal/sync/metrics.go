@@ -1,4 +1,4 @@
-package block_sync
+package sync
 
 import "github.com/prometheus/client_golang/prometheus"
 
@@ -6,9 +6,9 @@ var (
 	blockSyncDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Namespace: "axiom_ledger",
-			Subsystem: "block_sync",
+			Subsystem: "sync",
 			Name:      "block_sync_duration_seconds",
-			Help:      "The total latency of block sync",
+			Help:      "The total latency of commitData sync",
 		},
 		[]string{"sync_count"},
 	)
@@ -16,7 +16,7 @@ var (
 	requesterNumber = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "axiom_ledger",
-			Subsystem: "block_sync",
+			Subsystem: "sync",
 			Name:      "requester_number",
 			Help:      "The total number of requester",
 		},
@@ -25,7 +25,7 @@ var (
 	recvBlockNumber = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "axiom_ledger",
-			Subsystem: "block_sync",
+			Subsystem: "sync",
 			Name:      "recv_block_number",
 			Help:      "The recv Blcok number of every chunk",
 		},
@@ -35,9 +35,9 @@ var (
 	invalidBlockNumber = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "axiom_ledger",
-			Subsystem: "block_sync",
+			Subsystem: "sync",
 			Name:      "invalid_Block_number",
-			Help:      "The total number of invalid block",
+			Help:      "The total number of invalid commitData",
 		},
 		[]string{"type"},
 	)

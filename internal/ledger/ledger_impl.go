@@ -2,7 +2,10 @@ package ledger
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
+
+	rbft "github.com/axiomesh/axiom-bft"
 
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
@@ -13,12 +16,18 @@ import (
 type Ledger struct {
 	ChainLedger ChainLedger
 	StateLedger StateLedger
+	SnapMeta    atomic.Value
 }
 
 type BlockData struct {
 	Block      *types.Block
 	Receipts   []*types.Receipt
 	TxHashList []*types.Hash
+}
+
+type SnapInfo struct {
+	Status    bool
+	SnapBlock *types.Block
 }
 
 func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, snapshot storage.Storage, bf *blockfile.BlockFile) (*Ledger, error) {
@@ -66,6 +75,10 @@ func NewLedger(rep *repo.Repo) (*Ledger, error) {
 	return NewLedgerWithStores(rep, nil, nil, nil, nil)
 }
 
+func (l *Ledger) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {
+	l.StateLedger.(*StateLedgerImpl).WithGetEpochInfoFunc(f)
+}
+
 // PersistBlockData persists block data
 func (l *Ledger) PersistBlockData(blockData *BlockData) {
 	current := time.Now()
@@ -110,6 +123,18 @@ func (l *Ledger) Close() {
 
 // NewView load the latest state ledger and chain ledger by default
 func (l *Ledger) NewView() *Ledger {
+	snap := l.SnapMeta.Load()
+	if snap != nil && snap.(SnapInfo).Status {
+		snapBlock := snap.(SnapInfo).SnapBlock
+		var sm atomic.Value
+		sm.Store(snap)
+		return &Ledger{
+			ChainLedger: l.ChainLedger,
+			StateLedger: l.StateLedger.NewView(snapBlock, false),
+			SnapMeta:    sm,
+		}
+	}
+
 	meta := l.ChainLedger.GetChainMeta()
 	block, err := l.ChainLedger.GetBlock(meta.Height)
 	if err != nil {

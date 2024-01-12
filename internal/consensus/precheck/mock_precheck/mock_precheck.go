@@ -118,13 +118,13 @@ func (c *PreCheckPostUncheckedTxEventCall) DoAndReturn(f func(*common.UncheckedT
 // Start mocks base method.
 func (m *MockPreCheck) Start() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	m.ctrl.Call(m, "Prepare")
 }
 
 // Start indicates an expected call of Start.
 func (mr *MockPreCheckMockRecorder) Start() *PreCheckStartCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockPreCheck)(nil).Start))
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockPreCheck)(nil).Start))
 	return &PreCheckStartCall{Call: call}
 }
 

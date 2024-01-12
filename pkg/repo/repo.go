@@ -37,7 +37,7 @@ type Repo struct {
 	// Track current epoch info, will be updated bt executor
 	EpochInfo *rbft.EpochInfo
 
-	ReadonlyMode bool
+	StartArgs *StartArgs
 }
 
 func (r *Repo) PrintNodeInfo() {
@@ -155,6 +155,7 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 		P2PKey:          p2pKey,
 		P2PID:           id,
 		EpochInfo:       genesisCfg.EpochInfo,
+		StartArgs:       &StartArgs{false, false},
 	}, nil
 }
 
@@ -211,6 +212,7 @@ func Load(auth string, repoRoot string, needAuth bool) (*Repo, error) {
 		P2PKey:          p2pKey, // maybe nil
 		P2PID:           p2pId,
 		EpochInfo:       genesisCfg.EpochInfo,
+		StartArgs:       &StartArgs{false, false},
 	}
 
 	return repo, nil

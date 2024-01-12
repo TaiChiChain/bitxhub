@@ -1164,7 +1164,7 @@ func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txPointerList []*txpo
 }
 
 func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList []*txpool.WrapperTxPointer) int {
-	p.logger.Infof("start RemoveStateUpdatingTxs, len:%d", len(txPointerList))
+	p.logger.Debugf("start RemoveStateUpdatingTxs, len:%d", len(txPointerList))
 	removeCount := 0
 	dirtyAccounts := make(map[string]bool)
 	updateAccounts := make(map[string]uint64)

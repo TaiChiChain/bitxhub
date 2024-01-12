@@ -57,6 +57,11 @@ func (d *Duration) String() string {
 	return time.Duration(*d).String()
 }
 
+type StartArgs struct {
+	ReadonlyMode bool `mapstructure:"readonly_mode" toml:"readonly_mode"`
+	SnapshotMode bool `mapstructure:"snapshot_mode" toml:"snapshot_mode"`
+}
+
 type Config struct {
 	Ulimit    uint64    `mapstructure:"ulimit" toml:"ulimit"`
 	Port      Port      `mapstructure:"port" toml:"port"`
@@ -184,6 +189,7 @@ type Access struct {
 }
 
 type Sync struct {
+	WaitStatesTimeout     Duration `mapstructure:"wait_states_timeout" toml:"wait_states_timeout"`
 	RequesterRetryTimeout Duration `mapstructure:"requester_retry_timeout" toml:"requester_retry_timeout"`
 	TimeoutCountLimit     uint64   `mapstructure:"timeout_count_limit" toml:"timeout_count_limit"`
 	ConcurrencyLimit      uint64   `mapstructure:"concurrency_limit" toml:"concurrency_limit"`
@@ -294,6 +300,7 @@ func DefaultConfig() *Config {
 			},
 		},
 		Sync: Sync{
+			WaitStatesTimeout:     Duration(30 * time.Second),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,

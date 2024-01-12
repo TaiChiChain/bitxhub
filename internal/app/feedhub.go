@@ -12,7 +12,7 @@ func (axm *AxiomLedger) start() {
 }
 
 func (axm *AxiomLedger) listenWaitReportBlock() {
-	if axm.Repo.ReadonlyMode {
+	if axm.Repo.StartArgs.ReadonlyMode {
 		return
 	}
 
@@ -41,7 +41,7 @@ func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool)
 }
 
 func (axm *AxiomLedger) listenWaitExecuteBlock() {
-	if axm.Repo.ReadonlyMode {
+	if axm.Repo.StartArgs.ReadonlyMode {
 		return
 	}
 	for {

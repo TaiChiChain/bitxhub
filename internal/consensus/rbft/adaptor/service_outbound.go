@@ -6,6 +6,7 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -105,9 +106,18 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		"start":       startHeight,
 	}).Info("State update start")
 
+	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
-		err := a.sync.StartSync(peers, latestBlockHash, CalQuorum(uint64(len(peers))), startHeight, seqNo,
-			checkpoints[0], epochChanges...)
+		params := &sync_comm.SyncParams{
+			Peers:            peers,
+			LatestBlockHash:  latestBlockHash,
+			Quorum:           CalQuorum(uint64(len(peers))),
+			CurHeight:        startHeight,
+			TargetHeight:     seqNo,
+			QuorumCheckpoint: checkpoints[0],
+			EpochChanges:     epochChanges,
+		}
+		err := a.sync.StartSync(params, syncTaskDoneCh)
 		if err != nil {
 			a.logger.WithFields(logrus.Fields{
 				"target":      seqNo,
@@ -128,26 +138,39 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		case <-a.ctx.Done():
 			a.logger.Info("state update is canceled!!!!!!")
 			return
+		case syncErr := <-syncTaskDoneCh:
+			if syncErr != nil {
+				panic(syncErr)
+			}
 		case <-a.quitSync:
 			a.logger.WithFields(logrus.Fields{
 				"target":      seqNo,
 				"target_hash": digest,
 			}).Info("State update finished")
 			return
-		case blockCache := <-a.sync.Commit():
+		case data := <-a.sync.Commit():
+			blockCache, ok := data.([]sync_comm.CommitData)
+			if !ok {
+				panic("state update failed: invalid commit data")
+			}
 			a.logger.WithFields(logrus.Fields{
-				"chunk start": blockCache[0].Height(),
-				"chunk end":   blockCache[len(blockCache)-1].Height(),
+				"chunk start": blockCache[0].GetHeight(),
+				"chunk end":   blockCache[len(blockCache)-1].GetHeight(),
 			}).Info("fetch chunk")
-			for _, block := range blockCache {
+			// todo: validate epoch state not StateUpdatedCheckpoint
+			for _, commitData := range blockCache {
 				// if the block is the target block, we should resign the stateUpdatedCheckpoint in CommitEvent
 				// and send the quitSync signal to sync module
-				if block.Height() == seqNo {
+				if commitData.GetHeight() == seqNo {
 					stateUpdatedCheckpoint = checkpoints[0].GetCheckpoint()
 					a.quitSync <- struct{}{}
 				}
+				block, ok := commitData.(*sync_comm.BlockData)
+				if !ok {
+					panic("state update failed: invalid commit data")
+				}
 				a.postCommitEvent(&common.CommitEvent{
-					Block:                  block,
+					Block:                  block.Block,
 					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
 				})
 			}

@@ -45,6 +45,13 @@ func main() {
 					Destination: &startArgs.Readonly,
 					Required:    false,
 				},
+				&cli.BoolFlag{
+					Name:        "snapshot",
+					Aliases:     []string{"s"},
+					Usage:       "enable snapshot mode(sync by snapshot), state had be updated in snapshot's height",
+					Destination: &startArgs.Snapshot,
+					Required:    false,
+				},
 				passwordFlag(),
 			},
 		},

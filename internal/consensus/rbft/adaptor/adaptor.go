@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/ethereum/go-ethereum/event"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/pkg/errors"
@@ -14,7 +15,6 @@ import (
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/block_sync"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -52,7 +52,7 @@ type RBFTAdaptor struct {
 	config            *common.Config
 	EpochInfo         *rbft.EpochInfo
 
-	sync           block_sync.Sync
+	sync           sync_comm.Sync
 	quitSync       chan struct{}
 	broadcastNodes []string
 	ctx            context.Context
@@ -70,11 +70,7 @@ type Ready struct {
 }
 
 func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
-	epochStore, err := storagemgr.Open(repo.GetStoragePath(config.RepoRoot, storagemgr.Epoch))
-	if err != nil {
-		return nil, err
-	}
-
+	var err error
 	storePath := repo.GetStoragePath(config.RepoRoot, storagemgr.Consensus)
 	var store rbft.Storage
 	switch config.ConsensusStorageType {
@@ -96,7 +92,7 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	stack := &RBFTAdaptor{
-		epochStore:            epochStore,
+		epochStore:            config.EpochStore,
 		store:                 store,
 		libp2pKey:             libp2pKey,
 		p2pID2PubKeyCache:     make(map[string]libp2pcrypto.PubKey),

@@ -117,6 +117,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(0, pool.txStore.parkingLotIndex.size())
 		ast.Equal(1, pool.txStore.localTTLIndex.size())
 		ast.Equal(1, pool.txStore.removeTTLIndex.size())
+
 		poolTx := pool.txStore.allTxs[from].items[0]
 		ast.Equal(tx.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash())
 
@@ -939,7 +940,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.Nil(err)
 			ch <- batch
 		}
-		err = batchTimer.CreateTimer(timer.Batch, 1*time.Millisecond, handler)
+		err = batchTimer.CreateTimer(timer.Batch, 10*time.Millisecond, handler)
 		ast.Nil(err)
 		err = batchTimer.StartTimer(timer.Batch)
 		ast.Nil(err)
@@ -965,7 +966,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.Contains(err.Error(), "there is no pending tx, ignore generate batch")
 			ch <- batch
 		}
-		err = batchTimer.CreateTimer(timer.Batch, 1*time.Millisecond, handler)
+		err = batchTimer.CreateTimer(timer.Batch, 10*time.Millisecond, handler)
 		ast.Nil(err)
 		err = batchTimer.StartTimer(timer.Batch)
 		ast.Nil(err)
@@ -1023,7 +1024,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.Nil(err)
 			ch <- batch
 		}
-		err = noTxBatchTimer.CreateTimer(timer.NoTxBatch, 2*time.Millisecond, handler)
+		err = noTxBatchTimer.CreateTimer(timer.NoTxBatch, 10*time.Millisecond, handler)
 		ast.Nil(err)
 		err = noTxBatchTimer.StartTimer(timer.NoTxBatch)
 		ast.Nil(err)

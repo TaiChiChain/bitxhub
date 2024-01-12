@@ -85,6 +85,7 @@ func AriesConfig() *Config {
 			},
 		},
 		Sync: Sync{
+			WaitStatesTimeout:     Duration(30 * time.Second),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,
@@ -364,6 +365,7 @@ func TaurusConfig() *Config {
 			},
 		},
 		Sync: Sync{
+			WaitStatesTimeout:     Duration(30 * time.Second),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,

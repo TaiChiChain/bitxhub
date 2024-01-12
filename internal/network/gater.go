@@ -1,6 +1,8 @@
 package network
 
 import (
+	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/libp2p/go-libp2p/core/control"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -8,8 +10,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 

@@ -7,17 +7,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/block_sync/mock_block_sync"
+
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common/mock_sync"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -25,7 +28,7 @@ var (
 	mockBlockLedger      = make(map[uint64]*types.Block)
 	mockLocalBlockLedger = make(map[uint64]*types.Block)
 	mockChainMeta        *types.ChainMeta
-	blockCacheChan       = make(chan []*types.Block, 1024)
+	blockCacheChan       = make(chan any, 1024)
 )
 
 func SetMockChainMeta(chainMeta *types.ChainMeta) {
@@ -93,18 +96,21 @@ func MockMiniNetwork(ctrl *gomock.Controller, selfAddr string) *mock_network.Moc
 	return mock
 }
 
-func MockMiniBlockSync(ctrl *gomock.Controller) *mock_block_sync.MockSync {
-	blockCacheChan = make(chan []*types.Block, 1024)
-	mock := mock_block_sync.NewMockSync(ctrl)
-	mock.EXPECT().StartSync(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(peers []string, curBlockHash string, quorum, startHeight, targetHeight uint64, quorumCheckpoint *consensus.SignedCheckpoint, epc ...*consensus.EpochChange) error {
-			blockCache := make([]*types.Block, 0)
-			for i := startHeight; i <= targetHeight; i++ {
+func MockMiniBlockSync(ctrl *gomock.Controller) *mock_sync.MockSync {
+	blockCacheChan = make(chan any, 1024)
+	mock := mock_sync.NewMockSync(ctrl)
+	mock.EXPECT().StartSync(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(params *sync_comm.SyncParams, syncTaskDoneCh chan error) error {
+			blockCache := make([]sync_comm.CommitData, 0)
+			for i := params.CurHeight; i <= params.TargetHeight; i++ {
 				block, err := getRemoteMockBlockLedger(i)
 				if err != nil {
 					return err
 				}
-				blockCache = append(blockCache, block)
+				data := &sync_comm.BlockData{
+					Block: block,
+				}
+				blockCache = append(blockCache, data)
 			}
 			blockCacheChan <- blockCache
 			return nil
@@ -119,8 +125,12 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 	assert.Nil(t, err)
 
 	genesisEpochInfo := repo.GenesisEpochInfo(false)
+	rep := t.TempDir()
+
+	epochStore, err := storagemgr.Open(repo.GetStoragePath(rep, storagemgr.Epoch))
+	require.Nil(t, err)
 	conf := &common.Config{
-		RepoRoot:             t.TempDir(),
+		RepoRoot:             rep,
 		Config:               repo.DefaultConsensusConfig(),
 		Logger:               logger,
 		ConsensusType:        "",
@@ -146,6 +156,8 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*rbft.EpochInfo, error) {
 			return genesisEpochInfo, nil
 		},
+
+		EpochStore: epochStore,
 	}
 
 	p2pID, err := repo.KeyToNodeID(s.Sk)

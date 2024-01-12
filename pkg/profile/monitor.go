@@ -47,11 +47,11 @@ func (m *Monitor) init() {
 // Start start prometheus monitor
 func (m *Monitor) Start() error {
 	if m.enable {
-		m.logger.WithField("port", m.port).Info("Start monitor")
+		m.logger.WithField("port", m.port).Info("Prepare monitor")
 		go func() {
 			err := m.server.ListenAndServe()
 			if err != nil {
-				m.logger.Errorf("Start monitor failed, err: %s", err.Error())
+				m.logger.Errorf("Prepare monitor failed, err: %s", err.Error())
 			}
 		}()
 	}

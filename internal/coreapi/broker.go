@@ -22,7 +22,7 @@ type BrokerAPI CoreAPI
 var _ api.BrokerAPI = (*BrokerAPI)(nil)
 
 func (b *BrokerAPI) HandleTransaction(tx *types.Transaction) error {
-	if b.axiomLedger.Repo.ReadonlyMode {
+	if b.axiomLedger.Repo.StartArgs.ReadonlyMode {
 		return errors.New("readonly mode cannot process tx")
 	}
 
@@ -109,7 +109,7 @@ func (b *BrokerAPI) GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHea
 }
 
 func (b *BrokerAPI) ConsensusReady() error {
-	if b.axiomLedger.Repo.ReadonlyMode {
+	if b.axiomLedger.Repo.StartArgs.ReadonlyMode {
 		return nil
 	}
 

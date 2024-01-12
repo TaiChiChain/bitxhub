@@ -108,7 +108,7 @@ func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerLis
 	n.persistDoneC <- struct{}{}
 }
 
-func (n *NodeDev) Quorum() uint64 {
+func (n *NodeDev) Quorum(_ uint64) uint64 {
 	return 1
 }
 

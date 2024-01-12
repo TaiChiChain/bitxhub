@@ -6,13 +6,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	vm "github.com/axiomesh/eth-kit/evm"
 )
 
+// ChainLedger handles block, transaction and receipt data.
+//
 //go:generate mockgen -destination mock_ledger/mock_ledger.go -package mock_ledger -source ledger.go -typed
-
-// ChainLedgerImpl handles block, transaction and receipt data.
 type ChainLedger interface {
 	// GetBlock get block with height
 	GetBlock(height uint64) (*types.Block, error)
@@ -31,6 +32,9 @@ type ChainLedger interface {
 
 	// GetReceipt get the transaction receipt
 	GetReceipt(hash *types.Hash) (*types.Receipt, error)
+
+	// GetReceiptsByHeight get the transactions receipts in a block
+	GetReceiptsByHeight(height uint64) ([]*types.Receipt, error)
 
 	// PersistExecutionResult persist the execution result
 	PersistExecutionResult(block *types.Block, receipts []*types.Receipt) error
@@ -83,6 +87,10 @@ type StateLedger interface {
 
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger
+
+	IterateTrie(block *types.Block, kv storage.Storage, errC chan error)
+
+	GetTrieSnapshotMeta() (*SnapshotMeta, error)
 }
 
 // StateAccessor manipulates the state data
