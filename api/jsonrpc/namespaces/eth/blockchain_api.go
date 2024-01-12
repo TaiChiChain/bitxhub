@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
@@ -287,8 +289,8 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 		if err != nil {
 			return nil, err
 		}
-		nvm.Reset(chainMeta.Height, stateLedger)
-		return nvm.Run(msg)
+		ret := system.RunAxiomNativeVM(nvm, chainMeta.Height, stateLedger, msg.Data, msg.From, msg.To)
+		return ret, ret.Err
 	}
 
 	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true, DisableMaxCodeSizeLimit: evmCfg.DisableMaxCodeSizeLimit})
@@ -335,7 +337,7 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	// Judge whether this is system contract
 	nvm := api.api.Broker().GetNativeVm()
 	if args.To != nil && nvm.IsSystemContract(types.NewAddress(args.To.Bytes())) {
-		gas, err := nvm.EstimateGas(&args)
+		gas := nvm.RequiredGas(*args.Data)
 		return ethhexutil.Uint64(gas), err
 	}
 

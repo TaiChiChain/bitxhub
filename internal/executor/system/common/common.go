@@ -42,17 +42,13 @@ type SystemContractConfig struct {
 }
 
 type VirtualMachine interface {
+	vm.PrecompiledContract
+
 	// IsSystemContract judge if is system contract
 	IsSystemContract(addr *types.Address) bool
 
 	// Reset the state of the system contract
-	Reset(uint64, ledger.StateLedger)
-
-	// Run the system contract
-	Run(*vm.Message) (*vm.ExecutionResult, error)
-
-	// EstimateGas estimate the gas cost of the system contract
-	EstimateGas(*types.CallArgs) (uint64, error)
+	Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address)
 
 	// View return a view system contract
 	View() VirtualMachine

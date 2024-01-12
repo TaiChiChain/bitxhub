@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/samber/lo"
@@ -45,12 +47,16 @@ var epochManagerABI string
 //go:embed sol/AxmManager.abi
 var axmManagerABI string
 
+var _ common.VirtualMachine = (*NativeVM)(nil)
+
 // NativeVM handle abi decoding for parameters and abi encoding for return data
 type NativeVM struct {
 	logger        logrus.FieldLogger
 	stateLedger   ledger.StateLedger
 	currentLogs   []common.Log
 	currentHeight uint64
+	from          ethcommon.Address
+	to            *ethcommon.Address
 
 	// contract address mapping to method signature
 	contract2MethodSig map[string]map[string][]byte
@@ -112,15 +118,19 @@ func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]s
 		m2sig[methodName] = crypto.Keccak256([]byte(methodSig))
 	}
 	nvm.contract2MethodSig[addr] = m2sig
+
+	nvm.setEVMPrecompiled(addr)
 }
 
-func (nvm *NativeVM) Reset(currentHeight uint64, stateLedger ledger.StateLedger) {
+func (nvm *NativeVM) Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address) {
 	nvm.stateLedger = stateLedger
 	nvm.currentHeight = currentHeight
 	nvm.currentLogs = make([]common.Log, 0)
+	nvm.from = from
+	nvm.to = to
 }
 
-func (nvm *NativeVM) Run(msg *vm.Message) (executionResult *vm.ExecutionResult, execErr error) {
+func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 	defer nvm.saveLogs()
 	defer func() {
 		if err := recover(); err != nil {
@@ -129,13 +139,13 @@ func (nvm *NativeVM) Run(msg *vm.Message) (executionResult *vm.ExecutionResult, 
 		}
 	}()
 
-	if msg.To == nil {
+	if nvm.to == nil {
 		return nil, ErrNotExistSystemContract
 	}
 
 	// get args and method, call the contract method
-	contractAddr := msg.To.Hex()
-	methodName, err := nvm.getMethodName(contractAddr, msg.Data)
+	contractAddr := nvm.to.Hex()
+	methodName, err := nvm.getMethodName(contractAddr, data)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +159,7 @@ func (nvm *NativeVM) Run(msg *vm.Message) (executionResult *vm.ExecutionResult, 
 		StateLedger:   nvm.stateLedger,
 		CurrentHeight: nvm.currentHeight,
 		CurrentLogs:   &nvm.currentLogs,
-		CurrentUser:   &msg.From,
+		CurrentUser:   &nvm.from,
 	})
 
 	// method name may be propose, but we implement Propose
@@ -163,7 +173,7 @@ func (nvm *NativeVM) Run(msg *vm.Message) (executionResult *vm.ExecutionResult, 
 	if !method.IsValid() {
 		return nil, ErrNotImplementFuncSystemContract
 	}
-	args, err := nvm.parseArgs(contractAddr, msg.Data, methodName)
+	args, err := nvm.parseArgs(contractAddr, data, methodName)
 	if err != nil {
 		return nil, err
 	}
@@ -193,46 +203,21 @@ func (nvm *NativeVM) Run(msg *vm.Message) (executionResult *vm.ExecutionResult, 
 		returnRes = append(returnRes, result.Interface())
 	}
 
-	// calculate gas
-	// wrap the result and return
-	executionResult = &vm.ExecutionResult{
-		UsedGas: common.CalculateDynamicGas(msg.Data),
-	}
-
 	nvm.logger.Debugf("Contract addr: %s, method name: %s, return result: %+v, return error: %s", contractAddr, methodName, returnRes, returnErr)
 
 	if returnErr != nil {
-		executionResult.Err = returnErr
+		return nil, returnErr
 	}
 
 	if returnRes != nil {
-		returnData, err := nvm.PackOutputArgs(contractAddr, methodName, returnRes...)
-		if err != nil {
-			nvm.logger.Errorf("Pack return data error: %s", err)
-			return executionResult, err
-		}
-		executionResult.ReturnData = returnData
+		return nvm.PackOutputArgs(contractAddr, methodName, returnRes...)
 	}
-
-	return executionResult, nil
+	return nil, nil
 }
 
-func (nvm *NativeVM) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
-	if callArgs == nil || callArgs.To == nil {
-		return 0, ErrNotExistSystemContract
-	}
-
-	contractAddr := callArgs.To.Hex()
-	methodName, err := nvm.getMethodName(contractAddr, *callArgs.Data)
-	if err != nil {
-		return 0, err
-	}
-
-	_, err = nvm.parseArgs(contractAddr, *callArgs.Data, methodName)
-	if err != nil {
-		return 0, err
-	}
-	return common.CalculateDynamicGas(*callArgs.Data), nil
+// RequiredGas used in Inter-contract calls for EVM
+func (nvm *NativeVM) RequiredGas(input []byte) uint64 {
+	return common.CalculateDynamicGas(input)
 }
 
 // getMethodName quickly returns the name of a method of specified contract.
@@ -355,6 +340,30 @@ func (nvm *NativeVM) IsSystemContract(addr *types.Address) bool {
 		return true
 	}
 	return false
+}
+
+func (nvm *NativeVM) setEVMPrecompiled(addr string) {
+	// set system contracts into vm.precompiled
+	vm.PrecompiledAddressesByzantium = append(vm.PrecompiledAddressesByzantium, ethcommon.HexToAddress(addr))
+	vm.PrecompiledAddressesBerlin = append(vm.PrecompiledAddressesBerlin, ethcommon.HexToAddress(addr))
+	vm.PrecompiledAddressesHomestead = append(vm.PrecompiledAddressesHomestead, ethcommon.HexToAddress(addr))
+	vm.PrecompiledAddressesIstanbul = append(vm.PrecompiledAddressesIstanbul, ethcommon.HexToAddress(addr))
+
+	vm.PrecompiledContractsBerlin[ethcommon.HexToAddress(addr)] = nvm
+	vm.PrecompiledContractsByzantium[ethcommon.HexToAddress(addr)] = nvm
+	vm.PrecompiledContractsHomestead[ethcommon.HexToAddress(addr)] = nvm
+	vm.PrecompiledContractsIstanbul[ethcommon.HexToAddress(addr)] = nvm
+}
+
+func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte, from ethcommon.Address, to *ethcommon.Address) *vm.ExecutionResult {
+	nvm.Reset(height, ledger, from, to)
+	usedGas := nvm.RequiredGas(data)
+	returnData, err := nvm.Run(data)
+	return &vm.ExecutionResult{
+		UsedGas:    usedGas,
+		Err:        err,
+		ReturnData: returnData,
+	}
 }
 
 func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
