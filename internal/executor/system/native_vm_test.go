@@ -112,65 +112,6 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestContractEstimateGas(t *testing.T) {
-	nvm := New()
-
-	from := types.NewAddressByStr(admin1).ETHAddress()
-	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
-	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
-
-	testcases := []struct {
-		Args          *types.CallArgs
-		IsExpectedErr bool
-	}{
-		{
-			Args: &types.CallArgs{
-				From: &from,
-				To:   &to,
-				Data: &data,
-			},
-			IsExpectedErr: false,
-		},
-		{
-			Args: &types.CallArgs{
-				From: &from,
-				To:   &to,
-				Data: new(hexutil.Bytes),
-			},
-			IsExpectedErr: true,
-		},
-		{
-			Args: &types.CallArgs{
-				From: &from,
-				To:   &from,
-				Data: &data,
-			},
-			IsExpectedErr: true,
-		},
-		{
-			Args: &types.CallArgs{
-				From: nil,
-				To:   nil,
-				Data: &data,
-			},
-			IsExpectedErr: true,
-		},
-		{
-			Args:          nil,
-			IsExpectedErr: true,
-		},
-	}
-
-	for _, testcase := range testcases {
-		_, err := nvm.EstimateGas(testcase.Args)
-		if testcase.IsExpectedErr {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-		}
-	}
-}
-
 func TestContractRun(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)

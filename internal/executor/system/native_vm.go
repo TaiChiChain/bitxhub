@@ -131,7 +131,6 @@ func (nvm *NativeVM) Reset(currentHeight uint64, stateLedger ledger.StateLedger,
 }
 
 func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
-	//*vm.Message{}
 	defer nvm.saveLogs()
 	defer func() {
 		if err := recover(); err != nil {
@@ -204,12 +203,6 @@ func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 		returnRes = append(returnRes, result.Interface())
 	}
 
-	// calculate gas
-	// wrap the result and return
-	//executionResult = &vm.ExecutionResult{
-	//	UsedGas: common.CalculateDynamicGas(msg.Data),
-	//}
-
 	nvm.logger.Debugf("Contract addr: %s, method name: %s, return result: %+v, return error: %s", contractAddr, methodName, returnRes, returnErr)
 
 	if returnErr != nil {
@@ -225,24 +218,6 @@ func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 // RequiredGas used in Inter-contract calls for EVM
 func (nvm *NativeVM) RequiredGas(input []byte) uint64 {
 	return common.CalculateDynamicGas(input)
-}
-
-func (nvm *NativeVM) EstimateGas(callArgs *types.CallArgs) (uint64, error) {
-	if callArgs == nil || callArgs.To == nil {
-		return 0, ErrNotExistSystemContract
-	}
-
-	contractAddr := callArgs.To.Hex()
-	methodName, err := nvm.getMethodName(contractAddr, *callArgs.Data)
-	if err != nil {
-		return 0, err
-	}
-
-	_, err = nvm.parseArgs(contractAddr, *callArgs.Data, methodName)
-	if err != nil {
-		return 0, err
-	}
-	return common.CalculateDynamicGas(*callArgs.Data), nil
 }
 
 // getMethodName quickly returns the name of a method of specified contract.

@@ -337,7 +337,7 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	// Judge whether this is system contract
 	nvm := api.api.Broker().GetNativeVm()
 	if args.To != nil && nvm.IsSystemContract(types.NewAddress(args.To.Bytes())) {
-		gas, err := nvm.EstimateGas(&args)
+		gas := nvm.RequiredGas(*args.Data)
 		return ethhexutil.Uint64(gas), err
 	}
 

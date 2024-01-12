@@ -1,8 +1,6 @@
 package common
 
 import (
-	"errors"
-
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtype "github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
@@ -39,32 +37,18 @@ const (
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
 )
 
-var (
-	ErrCallingSystemFunction = errors.New("calling system functions is not allowed")
-)
-
 type SystemContractConfig struct {
 	Logger logrus.FieldLogger
 }
 
 type VirtualMachine interface {
+	vm.PrecompiledContract
+
 	// IsSystemContract judge if is system contract
 	IsSystemContract(addr *types.Address) bool
 
 	// Reset the state of the system contract
-	Reset(uint64, ledger.StateLedger, ethcommon.Address, *ethcommon.Address)
-
-	// Run the system contract
-	//Run(*vm.Message) (*vm.ExecutionResult, error)
-
-	// RequiredGas used in Inter-contract calls for EVM
-	RequiredGas([]byte) uint64
-
-	// Run used in Inter-contract calls for EVM
-	Run([]byte) ([]byte, error)
-
-	// EstimateGas estimate the gas cost of the system contract
-	EstimateGas(*types.CallArgs) (uint64, error)
+	Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address)
 
 	// View return a view system contract
 	View() VirtualMachine
