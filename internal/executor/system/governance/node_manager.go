@@ -95,6 +95,11 @@ func (nm *NodeManager) Execute(proposal *Proposal) error {
 }
 
 func (nm *NodeManager) Propose(pType uint8, title, desc string, blockNumber uint64, extra []byte) error {
+	// check and update state
+	if err := nm.gov.checkAndUpdateState(ProposeMethod); err != nil {
+		return err
+	}
+
 	proposalType := ProposalType(pType)
 	if proposalType == NodeAdd || proposalType == NodeRemove {
 		return nm.proposeNodeAddRemove(proposalType, title, desc, blockNumber, extra)
@@ -215,6 +220,11 @@ func (nm *NodeManager) proposeUpgrade(proposalType ProposalType, title, desc str
 
 // Vote a proposal, return vote status
 func (nm *NodeManager) Vote(proposalID uint64, voteRes uint8) error {
+	// check and update state
+	if err := nm.gov.checkAndUpdateState(VoteMethod); err != nil {
+		return err
+	}
+
 	voteResult := VoteResult(voteRes)
 	proposal, err := nm.gov.LoadProposal(proposalID)
 	if err != nil {
@@ -336,11 +346,6 @@ func (nm *NodeManager) voteNodeAddRemove(user *ethcommon.Address, proposal *Prop
 	// record log
 	nm.gov.RecordLog(VoteMethod, proposal)
 
-	// check and update state
-	if err := nm.gov.checkAndUpdateState(VoteMethod); err != nil {
-		return err
-	}
-
 	// vote not return value
 	return nil
 }
@@ -387,11 +392,6 @@ func (nm *NodeManager) voteUpgrade(user *ethcommon.Address, proposal *Proposal, 
 	// record log
 	// if approved, guardian sync log, then update node and restart
 	nm.gov.RecordLog(VoteMethod, proposal)
-
-	// check and update state
-	if err := nm.gov.checkAndUpdateState(VoteMethod); err != nil {
-		return err
-	}
 
 	// vote not return value
 	return nil

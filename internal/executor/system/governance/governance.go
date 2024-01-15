@@ -272,6 +272,11 @@ func (g *Governance) Propose(pType uint8, title, desc string, blockNumber uint64
 		return gov.Propose(pType, title, desc, blockNumber, extra)
 	}
 
+	// check and update state
+	if err := g.checkAndUpdateState(ProposeMethod); err != nil {
+		return err
+	}
+
 	if err := g.CheckProposeArgs(g.currentUser, proposalType, title, desc, blockNumber, g.currentHeight); err != nil {
 		return err
 	}
@@ -335,11 +340,6 @@ func (g *Governance) CreateProposal(council *Council, proposalType ProposalType,
 	// record log
 	g.RecordLog(ProposeMethod, proposal)
 
-	// check and update state
-	if err := g.checkAndUpdateState(ProposeMethod); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -383,6 +383,11 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 	if ok {
 		// call overide function
 		return gov.Vote(proposalID, voteRes)
+	}
+
+	// check and update state
+	if err := g.checkAndUpdateState(VoteMethod); err != nil {
+		return err
 	}
 
 	if _, err := g.CheckBeforeVote(g.currentUser, proposal, voteResult); err != nil {
@@ -435,11 +440,6 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 	}
 
 	g.RecordLog(VoteMethod, proposal)
-
-	// check and update state
-	if err := g.checkAndUpdateState(VoteMethod); err != nil {
-		return err
-	}
 
 	return nil
 }
