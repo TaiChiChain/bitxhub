@@ -71,7 +71,7 @@ func PrepareWhiteListProviderManager(t *testing.T) (*Governance, *mock_ledger.Mo
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	return gov, stateLedger

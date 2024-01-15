@@ -123,7 +123,7 @@ func (cm *CouncilManager) Execute(proposal *Proposal) error {
 	return nil
 }
 
-func InitCouncilMembers(lg ledger.StateLedger, admins []*repo.Admin, initBalance string) error {
+func InitCouncilMembers(lg ledger.StateLedger, admins []*repo.Admin) error {
 	addr2NameSystem := NewAddr2NameSystem(lg)
 
 	council := &Council{}

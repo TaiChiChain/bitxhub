@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-kit/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -12,12 +13,16 @@ import (
 )
 
 type Config struct {
-	Name        string
-	Symbol      string
-	Decimals    uint8
-	TotalSupply *big.Int
-	Balance     *big.Int
-	Admins      []string
+	Name            string
+	Symbol          string
+	Decimals        uint8
+	TotalSupply     *big.Int
+	InitialAccounts []*InitialAccount
+}
+
+type InitialAccount struct {
+	Address *types.Address
+	Balance *big.Int
 }
 
 var (
@@ -36,47 +41,6 @@ const (
 	NameKey       = "nameKey"
 	AllowancesKey = "allowancesKey"
 )
-
-type totalSupplyArgs struct{}
-
-type balanceOfArgs struct {
-	Address ethcommon.Address
-}
-
-type transferArgs struct {
-	To    ethcommon.Address
-	Value *big.Int
-}
-
-type allowanceArgs struct {
-	Owner   ethcommon.Address
-	Spender ethcommon.Address
-}
-
-type approveArgs struct {
-	Spender ethcommon.Address
-	Value   *big.Int
-}
-
-type transferFromArgs struct {
-	From  ethcommon.Address
-	To    ethcommon.Address
-	Value *big.Int
-}
-
-type nameArgs struct{}
-
-type symbolArgs struct{}
-
-type decimalsArgs struct{}
-
-type mintArgs struct {
-	Amount *big.Int
-}
-
-type burnArgs struct {
-	Amount *big.Int
-}
 
 func (am *AxmManager) checkBeforeMint(account ethcommon.Address, value *big.Int) error {
 	// todo: implement it
@@ -100,28 +64,40 @@ func getAllowancesKey(owner, spender ethcommon.Address) string {
 }
 
 func GenerateGenesisTokenConfig(genesis *repo.GenesisConfig) (Config, error) {
-	balance, _ := new(big.Int).SetString(genesis.Balance, 10)
+	var err error
+	initialAccounts := make([]*InitialAccount, len(genesis.Accounts))
+	// calculate the total consume balance for accounts
+	accBalance := lo.Map(genesis.Accounts, func(ac *repo.Account, index int) *big.Int {
+		balance, ok := new(big.Int).SetString(ac.Balance, 10)
+		if !ok || balance.Sign() < 0 {
+			err = fmt.Errorf("invalid balance: %s", ac.Balance)
+		}
+		initialAccounts[index] = &InitialAccount{
+			Address: types.NewAddressByStr(ac.Address),
+			Balance: balance,
+		}
+		return balance
+	})
+	if err != nil {
+		return Config{}, err
+	}
+	consumeBalance := big.NewInt(0)
+	lo.ForEach(accBalance, func(balance *big.Int, _ int) {
+		consumeBalance.Add(consumeBalance, balance)
+	})
+
 	totalSupply, _ := new(big.Int).SetString(genesis.Token.TotalSupply, 10)
-	// calculate totalSupply - (balance * len(admins))
+	// calculate totalSupply - (sum<each account balance>)
 	contractBalance := new(big.Int).Set(totalSupply)
-	transf := new(big.Int).Mul(balance, big.NewInt(int64(len(genesis.Admins))))
-	if contractBalance.Cmp(transf) < 0 {
+	if contractBalance.Cmp(consumeBalance) < 0 {
 		return Config{}, ErrTotalSupply
 	}
-	adminAddrs := make([]string, 0)
-	lo.ForEach(genesis.Admins, func(admin *repo.Admin, index int) {
-		adminAddrs = append(adminAddrs, admin.Address)
-	})
-	lo.ForEach(genesis.Accounts, func(addr string, index int) {
-		adminAddrs = append(adminAddrs, addr)
-	})
 	tokenConfig := Config{
-		Name:        genesis.Token.Name,
-		Symbol:      genesis.Token.Symbol,
-		Decimals:    genesis.Token.Decimals,
-		Admins:      adminAddrs,
-		TotalSupply: contractBalance,
-		Balance:     balance,
+		Name:            genesis.Token.Name,
+		Symbol:          genesis.Token.Symbol,
+		Decimals:        genesis.Token.Decimals,
+		InitialAccounts: initialAccounts,
+		TotalSupply:     contractBalance,
 	}
 	return tokenConfig, nil
 }

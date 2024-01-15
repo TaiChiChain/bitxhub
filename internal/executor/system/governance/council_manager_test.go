@@ -58,7 +58,7 @@ func TestRunForPropose(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	testcases := []struct {
@@ -299,7 +299,7 @@ func TestVoteExecute(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	addr := types.NewAddressByStr(admin1).ETHAddress()

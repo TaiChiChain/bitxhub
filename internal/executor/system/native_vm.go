@@ -370,7 +370,7 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	if err := base.InitEpochInfo(lg, genesis.EpochInfo.Clone()); err != nil {
 		return err
 	}
-	if err := governance.InitCouncilMembers(lg, genesis.Admins, genesis.Balance); err != nil {
+	if err := governance.InitCouncilMembers(lg, genesis.Admins); err != nil {
 		return err
 	}
 	if err := governance.InitNodeMembers(lg, genesis.NodeNames, genesis.EpochInfo); err != nil {
@@ -395,7 +395,10 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	combined := make([]string, 0, totalLength)
 	combined = append(combined, admins...)
 	combined = append(combined, genesis.InitWhiteListProviders...)
-	combined = append(combined, genesis.Accounts...)
+	accountAddrs := lo.Map(genesis.Accounts, func(ac *repo.Account, _ int) string {
+		return ac.Address
+	})
+	combined = append(combined, accountAddrs...)
 	if err = access.InitProvidersAndWhiteList(lg, combined, genesis.InitWhiteListProviders); err != nil {
 		return err
 	}

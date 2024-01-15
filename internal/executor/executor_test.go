@@ -494,7 +494,7 @@ func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "1000000")
+	})
 	assert.Nil(t, err)
 	err = governance.InitNodeMembers(stateLedger, []*repo.NodeName{
 		{
@@ -623,7 +623,7 @@ func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "1000000")
+	})
 	assert.Nil(t, err)
 	err = governance.InitNodeMembers(stateLedger, []*repo.NodeName{
 		{

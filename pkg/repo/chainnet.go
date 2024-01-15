@@ -205,7 +205,6 @@ func AriesGenesisConfig() *GenesisConfig {
 	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(adminLen)))
 	return &GenesisConfig{
 		ChainID: 23411,
-		Balance: balance.String(),
 		Admins: []*Admin{
 			{
 				Address: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
@@ -234,7 +233,7 @@ func AriesGenesisConfig() *GenesisConfig {
 			Decimals:    DefaultDecimals,
 			TotalSupply: totalSupply.String(),
 		},
-		Accounts: []string{},
+		Accounts: []*Account{},
 		EpochInfo: &rbft.EpochInfo{
 			Version:     1,
 			Epoch:       1,
@@ -480,7 +479,6 @@ func TaurusConsensusConfig() *ConsensusConfig {
 func TaurusGenesisConfig() *GenesisConfig {
 	return &GenesisConfig{
 		ChainID: 23412,
-		Balance: "1000000000000000000000000000",
 		Admins: []*Admin{
 			{
 				Address: "0x83Db4fA2CbB682753C94ca8A809a4a321aA36e1b",
@@ -504,7 +502,7 @@ func TaurusGenesisConfig() *GenesisConfig {
 			},
 		},
 		InitWhiteListProviders: []string{},
-		Accounts:               []string{},
+		Accounts:               []*Account{},
 		EpochInfo: &rbft.EpochInfo{
 			Version:                   1,
 			Epoch:                     1,

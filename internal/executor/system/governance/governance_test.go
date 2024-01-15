@@ -52,7 +52,7 @@ func TestGovernance_Propose(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	testcases := []struct {
@@ -232,7 +232,7 @@ func TestGovernance_Vote(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
@@ -369,7 +369,7 @@ func TestGovernance_GetLatestProposalID(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
@@ -435,7 +435,7 @@ func TestGovernance_Proposal(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()

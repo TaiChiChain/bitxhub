@@ -53,7 +53,7 @@ func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 
 	g := repo.GenesisEpochInfo(true)
@@ -396,7 +396,7 @@ func TestNodeManager_GetNodeMembers(t *testing.T) {
 			Weight:  1,
 			Name:    "444",
 		},
-	}, "10")
+	})
 	assert.Nil(t, err)
 	err = InitNodeMembers(stateLedger, []*repo.NodeName{
 		{

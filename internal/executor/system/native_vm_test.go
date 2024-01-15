@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -62,29 +63,98 @@ func TestContract_IsSystemContract(t *testing.T) {
 }
 
 func TestContractInitGenesisData(t *testing.T) {
-	mockCtl := gomock.NewController(t)
-	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	mockLedger := &ledger.Ledger{
-		ChainLedger: chainLedger,
-		StateLedger: stateLedger,
-	}
-
-	genesis := repo.DefaultGenesisConfig(false)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-	tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.TokenManagerContractAddr {
-			return tokenAccount
+	t.Parallel()
+	t.Run("init genesis data success", func(t *testing.T) {
+		mockCtl := gomock.NewController(t)
+		chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+		stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+		mockLedger := &ledger.Ledger{
+			ChainLedger: chainLedger,
+			StateLedger: stateLedger,
 		}
-		return account
-	}).AnyTimes()
 
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+		genesis := repo.DefaultGenesisConfig(false)
 
-	err := InitGenesisData(genesis, mockLedger.StateLedger)
-	assert.Nil(t, err)
+		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+		tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+			if address.String() == common.TokenManagerContractAddr {
+				return tokenAccount
+			}
+			return account
+		}).AnyTimes()
+
+		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+		err := InitGenesisData(genesis, mockLedger.StateLedger)
+		assert.Nil(t, err)
+	})
+
+	t.Run("init epoch contract failed", func(t *testing.T) {
+		mockCtl := gomock.NewController(t)
+		chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+		stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+		mockLedger := &ledger.Ledger{
+			ChainLedger: chainLedger,
+			StateLedger: stateLedger,
+		}
+
+		genesis := repo.DefaultGenesisConfig(false)
+		// set wrong address for validatorSet
+		genesis.EpochInfo.ValidatorSet[0].AccountAddress = "wrong address"
+
+		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+		tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+			if address.String() == common.TokenManagerContractAddr {
+				return tokenAccount
+			}
+			return account
+		}).AnyTimes()
+
+		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+		err := InitGenesisData(genesis, mockLedger.StateLedger)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "invalid account address")
+	})
+
+	t.Run("init token contract failed", func(t *testing.T) {
+		mockCtl := gomock.NewController(t)
+		chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
+		stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+		mockLedger := &ledger.Ledger{
+			ChainLedger: chainLedger,
+			StateLedger: stateLedger,
+		}
+
+		genesis := repo.DefaultGenesisConfig(false)
+		// set wrong balance for token manager
+		genesis.Accounts[0].Balance = "wrong balance"
+
+		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+		tokenAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.TokenManagerContractAddr))
+		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
+			if address.String() == common.TokenManagerContractAddr {
+				return tokenAccount
+			}
+			return account
+		}).AnyTimes()
+
+		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+
+		err := InitGenesisData(genesis, mockLedger.StateLedger)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "invalid balance")
+
+		genesis = repo.DefaultGenesisConfig(false)
+		// decrease total supply
+		genesis.Token.TotalSupply = "10"
+		err = InitGenesisData(genesis, mockLedger.StateLedger)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), token.ErrTotalSupply.Error())
+	})
+
 }
 
 func TestWhiteListContractInitGenesisData(t *testing.T) {
