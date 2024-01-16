@@ -2,6 +2,7 @@ package solo
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -41,8 +42,9 @@ func TestNode_Start(t *testing.T) {
 		common.WithGetAccountNonceFunc(func(address *types.Address) uint64 {
 			return 0
 		}),
-		common.WithGetAccountBalanceFunc(func(address *types.Address) *big.Int {
-			return big.NewInt(adminBalance)
+		common.WithGetAccountBalanceFunc(func(address string) *big.Int {
+			maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
+			return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
 		}),
 		common.WithGetChainMetaFunc(func() *types.ChainMeta {
 			return &types.ChainMeta{

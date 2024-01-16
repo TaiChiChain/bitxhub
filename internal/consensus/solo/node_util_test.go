@@ -2,6 +2,8 @@ package solo
 
 import (
 	"context"
+	"math"
+	"math/big"
 	"testing"
 	"time"
 
@@ -46,6 +48,11 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 		GetAccountNonce: func(address string) uint64 {
 			return 0
 		},
+		GetAccountBalance: func(address string) *big.Int {
+			maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
+			return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
+		},
+		ChainInfo: &txpool.ChainInfo{Height: 1, GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9))},
 	}
 
 	txpoolInst, err := txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
@@ -75,6 +82,11 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		GetAccountNonce: func(address string) uint64 {
 			return 0
 		},
+		GetAccountBalance: func(address string) *big.Int {
+			maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
+			return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
+		},
+		ChainInfo: &txpool.ChainInfo{Height: 1, GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9))},
 	}
 	var noTxBatchTimeout time.Duration
 	if enableTimed {

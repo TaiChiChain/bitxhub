@@ -1,6 +1,7 @@
 package txpool
 
 import (
+	"math"
 	"math/big"
 	"path"
 	"testing"
@@ -16,6 +17,8 @@ import (
 // nolint
 const (
 	DefaultTestBatchSize = uint64(4)
+	defaultGasPrice      = 1000
+	defaultGasLimit      = 21000
 )
 
 // nolint
@@ -50,10 +53,18 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 		GetAccountNonce: func(address string) uint64 {
 			return 0
 		},
+		GetAccountBalance: func(address string) *big.Int {
+			return big.NewInt(math.MaxInt64)
+		},
 		IsTimed:                false,
 		RotateTxLocalsInterval: DefaultRotateTxLocalsInterval,
 		EnableLocalsPersist:    true,
 		TxRecordsFile:          path.Join(dir, "txpool/tx_records.pb"),
+
+		ChainInfo: &txpool.ChainInfo{
+			Height:   1,
+			GasPrice: big.NewInt(defaultGasPrice),
+		},
 	}
 	return poolConfig
 }

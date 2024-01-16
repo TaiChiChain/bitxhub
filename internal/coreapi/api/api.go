@@ -65,4 +65,5 @@ type TxPoolAPI interface {
 	GetTransaction(hash *types.Hash) *types.Transaction
 	GetAccountMeta(account string, full bool) any
 	GetMeta(full bool) any
+	GetChainInfo() any
 }

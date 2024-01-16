@@ -1,6 +1,9 @@
 package app
 
 import (
+	"math/big"
+
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -38,6 +41,9 @@ func (axm *AxiomLedger) listenWaitReportBlock() {
 
 func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool) {
 	axm.Consensus.ReportState(ev.Block.BlockHeader.Number, ev.Block.BlockHash, ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs)
+
+	// update txpool chain info
+	axm.TxPool.UpdateChainInfo(&txpool.ChainInfo{Height: ev.Block.Height(), GasPrice: new(big.Int).SetInt64(ev.Block.BlockHeader.GasPrice)})
 }
 
 func (axm *AxiomLedger) listenWaitExecuteBlock() {

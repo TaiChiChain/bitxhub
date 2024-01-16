@@ -46,3 +46,7 @@ func (api *TxPoolAPI) Meta(full *bool) any {
 	}
 	return api.api.TxPool().GetMeta(f)
 }
+
+func (api *TxPoolAPI) GetChainInfo() any {
+	return api.api.TxPool().GetChainInfo()
+}
