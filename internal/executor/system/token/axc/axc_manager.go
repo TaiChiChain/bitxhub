@@ -16,10 +16,6 @@ import (
 
 var _ token.ICredit = (*Manager)(nil)
 
-var (
-	communityAddr ethcommon.Address
-)
-
 type byter interface {
 	Bytes() []byte
 }
@@ -42,16 +38,12 @@ func Init(lg ledger.StateLedger, config Config) error {
 
 	lo.ForEach(config.Receivers, func(entity *Distribution, _ int) {
 		addr := types.NewAddressByStr(entity.Addr)
-		contractAccount.SetState([]byte(getLockedBalanceKey(addr.ETHAddress())), entity.InitEmission.Bytes())
-		if entity.Name == "Community" {
+		if !entity.Locked {
 			contractAccount.SetState([]byte(getBalancesKey(addr.ETHAddress())), entity.TotalValue.Bytes())
-			communityAddr = addr.ETHAddress()
+		} else {
+			contractAccount.SetState([]byte(getLockedBalanceKey(addr.ETHAddress())), entity.TotalValue.Bytes())
 		}
 	})
-
-	if communityAddr == (ethcommon.Address{}) {
-		return ErrNoCommunityAccount
-	}
 
 	return nil
 }
@@ -90,6 +82,13 @@ func (ac *Manager) TotalSupply() *big.Int {
 
 func (ac *Manager) BalanceOf(account ethcommon.Address) *big.Int {
 	if ok, balanceBytes := ac.account.GetState([]byte(getBalancesKey(account))); ok {
+		return new(big.Int).SetBytes(balanceBytes)
+	}
+	return big.NewInt(0)
+}
+
+func (ac *Manager) BalanceOfLocked(account ethcommon.Address) *big.Int {
+	if ok, balanceBytes := ac.account.GetState([]byte(getLockedBalanceKey(account))); ok {
 		return new(big.Int).SetBytes(balanceBytes)
 	}
 	return big.NewInt(0)
@@ -174,7 +173,7 @@ func (ac *Manager) transfer(sender, recipient ethcommon.Address, value *big.Int,
 
 func (ac *Manager) Unlock(_ ethcommon.Address, _ *big.Int) error {
 	// todo: implement it
-	return nil
+	return ErrNotImplemented
 }
 
 // recordLog record execution log for governance

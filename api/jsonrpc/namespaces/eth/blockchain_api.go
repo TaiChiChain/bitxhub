@@ -510,7 +510,7 @@ type accessListResult struct {
 	GasUsed    ethhexutil.Uint64    `json:"gasUsed"`
 }
 
-func (s *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash) (*accessListResult, error) {
+func (api *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash) (*accessListResult, error) {
 	return nil, ErrNotSupportApiError
 }
 

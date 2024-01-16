@@ -18,7 +18,7 @@ import (
 const (
 	admin1             = "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"
 	admin2             = "0x79a1215469FaB6f9c63c1816b45183AD3624bE34"
-	defaultTotalSupply = "24000000000000000000000000000000000000000000000"
+	defaultTotalSupply = "24000000000000000000000000000"
 )
 
 type mockLedger struct {

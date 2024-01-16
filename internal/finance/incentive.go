@@ -14,9 +14,10 @@ import (
 )
 
 type Incentive struct {
-	repo          *repo.GenesisConfig
-	logger        logrus.FieldLogger
-	communityAddr string
+	repo                *repo.GenesisConfig
+	logger              logrus.FieldLogger
+	miningAddr          ethcommon.Address
+	userAcquisitionAddr ethcommon.Address
 
 	totalAmount *big.Int
 	// todo: change the remaining in memory to the receiver address in the future, in case restart vanish the data
@@ -36,14 +37,17 @@ func NewIncentive(config *repo.GenesisConfig, nvm common.VirtualMachine) (*Incen
 		return nil, ErrAXCContractType
 	}
 
-	var communityAddr string
+	var miningAddr, userAcquisitionAddr ethcommon.Address
 	for _, entity := range config.Incentive.Distributions {
-		if entity.Name == "Community" {
-			communityAddr = entity.Addr
+		if entity.Name == "Mining" {
+			miningAddr = types.NewAddressByStr(entity.Addr).ETHAddress()
+		}
+		if entity.Name == "UserAcquisition" {
+			userAcquisitionAddr = types.NewAddressByStr(entity.Addr).ETHAddress()
 		}
 	}
-	if communityAddr == "" {
-		return nil, ErrNoCommunityFound
+	if miningAddr.String() == common.ZeroAddress || userAcquisitionAddr.String() == common.ZeroAddress {
+		return nil, ErrNoIncentiveAddrFound
 	}
 	totalAmount, _ := new(big.Int).SetString(config.Incentive.Mining.TotalAmount, 10)
 	years := config.Incentive.Mining.BlockNumToNone / config.Incentive.Mining.BlockNumToHalf
@@ -65,9 +69,10 @@ func NewIncentive(config *repo.GenesisConfig, nvm common.VirtualMachine) (*Incen
 	}
 
 	return &Incentive{
-		repo:          config,
-		logger:        logger,
-		communityAddr: communityAddr,
+		repo:                config,
+		logger:              logger,
+		miningAddr:          miningAddr,
+		userAcquisitionAddr: userAcquisitionAddr,
 
 		totalAmount:  totalAmount,
 		remaining:    totalAmount,
@@ -77,8 +82,8 @@ func NewIncentive(config *repo.GenesisConfig, nvm common.VirtualMachine) (*Incen
 	}, nil
 }
 
-func (in *Incentive) CalculateMiningRewards(receiver ethcommon.Address, ledger ledger.StateLedger, blockHeight uint64) error {
-	msgFrom := types.NewAddressByStr(in.communityAddr).ETHAddress()
+func (in *Incentive) SetMiningRewards(receiver ethcommon.Address, ledger ledger.StateLedger, blockHeight uint64) error {
+	msgFrom := in.miningAddr
 	logs := make([]common.Log, 0)
 	in.axc.SetContext(&common.VMContext{
 		CurrentLogs:   &logs,
@@ -87,13 +92,6 @@ func (in *Incentive) CalculateMiningRewards(receiver ethcommon.Address, ledger l
 		CurrentUser:   &msgFrom,
 	})
 	value := in.calculateMiningRewards(blockHeight)
-	if value.Int64() != 0 && in.remaining.Uint64() == 0 {
-		return ErrMiningRewardExceeds
-	}
-	if value.Int64() != 0 && in.remaining.Cmp(value) == -1 {
-		value = in.remaining
-	}
-	in.remaining = new(big.Int).Sub(in.remaining, value)
 	return in.axc.Transfer(receiver, value)
 }
 
@@ -102,11 +100,48 @@ func (in *Incentive) calculateMiningRewards(currentBlock uint64) *big.Int {
 	if index >= uint64(len(in.rules)) {
 		return big.NewInt(0)
 	}
-	percentage := big.NewInt(int64(10000 * in.rules[index].percentage))
-	rewardsTotal := new(big.Int).Div(new(big.Int).Mul(in.totalAmount, percentage), big.NewInt(10000))
+	percentage := big.NewInt(int64(axc.Decimals * in.rules[index].percentage))
+	rewardsTotal := new(big.Int).Div(new(big.Int).Mul(in.totalAmount, percentage), big.NewInt(axc.Decimals))
 	return new(big.Int).Div(rewardsTotal, new(big.Int).SetUint64(in.blockNumHalf))
 }
 
 func (in *Incentive) Unlock(_ ethcommon.Address, _ *big.Int) {
 	// todo: implement it
+}
+
+func (in *Incentive) SetUserAcquisitionReward(ledger ledger.StateLedger, blockHeight uint64, block *types.Block) error {
+	if blockHeight > in.repo.Incentive.UserAcquisition.BlockToNone {
+		return nil
+	}
+	msgFrom := in.userAcquisitionAddr
+	logs := make([]common.Log, 0)
+	in.axc.SetContext(&common.VMContext{
+		CurrentLogs:   &logs,
+		StateLedger:   ledger,
+		CurrentHeight: blockHeight,
+		CurrentUser:   &msgFrom,
+	})
+	return in.setUserAcquisitionReward(block)
+}
+
+func (in *Incentive) setUserAcquisitionReward(block *types.Block) error {
+	records := make(map[ethcommon.Address]int)
+	for _, transaction := range block.Transactions {
+		if transaction.GetType() == types.IncentiveTxType {
+			source := transaction.GetInner().GetIncentiveAddress()
+			if _, ok := records[*source]; !ok {
+				records[*source] = 0
+			}
+			records[*source]++
+		}
+	}
+	totalReward, _ := new(big.Int).SetString(in.repo.Incentive.UserAcquisition.AvgBlockReward, 10)
+	for address, cnt := range records {
+		percentage := float64(cnt) / float64(len(block.Transactions))
+		value := new(big.Int).Div(new(big.Int).Mul(totalReward, big.NewInt(int64(percentage*axc.Decimals))), big.NewInt(axc.Decimals))
+		if err := in.axc.Transfer(address, value); err != nil {
+			return err
+		}
+	}
+	return nil
 }

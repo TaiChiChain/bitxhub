@@ -15,8 +15,7 @@ import (
 var adminBalance *big.Int
 
 func init() {
-	axmBalance, _ := new(big.Int).SetString(repo.DefaultAXMBalance, 10)
-	adminBalance = new(big.Int).Mul(axmBalance, big.NewInt(10).Exp(big.NewInt(10), big.NewInt(int64(repo.DefaultDecimals)), nil))
+	adminBalance, _ = new(big.Int).SetString(repo.DefaultAXMBalance, 10)
 }
 
 func TestInitAxmTokenManager(t *testing.T) {

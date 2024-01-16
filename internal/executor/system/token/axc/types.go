@@ -24,15 +24,16 @@ type Distribution struct {
 	Addr         string
 	TotalValue   *big.Int
 	InitEmission *big.Int
+	Locked       bool
 }
 
 var (
 	ErrTotalSupply         = errors.New("total supply below zero")
 	ErrValue               = errors.New("input Value below zero")
-	ErrInsufficientBalance = errors.New("Value exceeds balance")
+	ErrInsufficientBalance = errors.New("value exceeds balance")
 	ErrEmptyAccount        = errors.New("account is empty")
-	ErrNoCommunityAccount  = errors.New("entity[Community] is required in incentive")
 	ErrNotEnoughAllowance  = errors.New("not enough allowance")
+	ErrNotImplemented      = errors.New("method not implemented")
 )
 
 const (
@@ -58,6 +59,8 @@ const (
 	allowanceMethod    = "allowance"
 	transferFromMethod = "transferFrom"
 	unlockMethod       = "unlock"
+
+	Decimals = 10000
 )
 
 var Method2Sig = map[string]string{
@@ -104,15 +107,16 @@ func GenerateConfig(genesis *repo.GenesisConfig) (Config, error) {
 	}
 	receivers := make([]*Distribution, 0)
 	lo.ForEach(genesis.Incentive.Distributions, func(entity *repo.Distribution, index int) {
-		percentage := big.NewInt(int64(entity.Percentage * 100))
-		totalValue := new(big.Int).Div(new(big.Int).Mul(percentage, totalSupply), big.NewInt(100))
-		emission := big.NewInt(int64(entity.InitEmission * 100))
-		emissionValue := new(big.Int).Div(new(big.Int).Mul(emission, totalValue), big.NewInt(100))
+		percentage := big.NewInt(int64(entity.Percentage * Decimals))
+		totalValue := new(big.Int).Div(new(big.Int).Mul(percentage, totalSupply), big.NewInt(Decimals))
+		emission := big.NewInt(int64(entity.InitEmission * Decimals))
+		emissionValue := new(big.Int).Div(new(big.Int).Mul(emission, totalValue), big.NewInt(Decimals))
 		receivers = append(receivers, &Distribution{
 			Name:         entity.Name,
 			Addr:         entity.Addr,
 			TotalValue:   totalValue,
 			InitEmission: emissionValue,
+			Locked:       entity.Locked,
 		})
 	})
 	tokenConfig := Config{

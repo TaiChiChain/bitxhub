@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/axiomesh/axiom-kit/log"
@@ -12,10 +13,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-const testCommunityAddr = "0xf16F8B02df2Dd7c4043C41F3f1EBB17f15358888"
-
 func TestInitAxmTokenManager(t *testing.T) {
-	mockLg := NewMockMinLedger(t)
+	mockLg := newMockMinLedger(t)
 	genesisConf := repo.DefaultGenesisConfig(false)
 	conf, err := GenerateConfig(genesisConf)
 	require.Nil(t, err)
@@ -44,18 +43,17 @@ func TestAxmManager_BalanceOf(t *testing.T) {
 	genesisConf := repo.DefaultGenesisConfig(false)
 	totalSupply, _ := new(big.Int).SetString(genesisConf.Axc.TotalSupply, 10)
 	for _, distribution := range genesisConf.Incentive.Distributions {
-		percentage := big.NewInt(int64(distribution.Percentage * 100))
-		emission := big.NewInt(int64(distribution.InitEmission * 100))
-		expectedBalanceUnlock := new(big.Int).Div(new(big.Int).Mul(totalSupply, percentage), big.NewInt(100))
-		expectedBalanceLock := new(big.Int).Div(new(big.Int).Mul(expectedBalanceUnlock, emission), big.NewInt(100))
+		percentage := big.NewInt(int64(distribution.Percentage * Decimals))
+		expectedBalance := new(big.Int).Div(new(big.Int).Mul(totalSupply, percentage), big.NewInt(Decimals))
 		_, actualBalanceBytes := am.account.GetState([]byte(getBalancesKey(types.NewAddressByStr(distribution.Addr).ETHAddress())))
 		actualBalanceUnlock := new(big.Int).SetBytes(actualBalanceBytes)
 		_, actualBalanceLockBytes := am.account.GetState([]byte(getLockedBalanceKey(types.NewAddressByStr(distribution.Addr).ETHAddress())))
 		actualBalanceLock := new(big.Int).SetBytes(actualBalanceLockBytes)
-		if distribution.Name == "Community" {
-			require.Equal(t, expectedBalanceUnlock, actualBalanceUnlock)
+		if !distribution.Locked {
+			require.Equal(t, expectedBalance, actualBalanceUnlock)
+		} else {
+			require.Equal(t, expectedBalance, actualBalanceLock)
 		}
-		require.Equal(t, expectedBalanceLock, actualBalanceLock)
 	}
 }
 
@@ -63,7 +61,7 @@ func TestAxmManager_Allowance(t *testing.T) {
 	am := mockAxcManager(t)
 	account1 := types.NewAddressByStr(admin1).ETHAddress()
 
-	owner := types.NewAddressByStr(testCommunityAddr).ETHAddress()
+	owner := types.NewAddressByStr(testMiningAddr).ETHAddress()
 	spender := account1
 	require.Equal(t, big.NewInt(0).String(), am.Allowance(owner, spender).String())
 	allowanceKey := getAllowancesKey(owner, spender)
@@ -75,7 +73,7 @@ func TestAxmManager_Allowance(t *testing.T) {
 func TestAxmManager_Approve(t *testing.T) {
 	t.Parallel()
 	am := mockAxcManager(t)
-	owner := types.NewAddressByStr(testCommunityAddr).ETHAddress()
+	owner := types.NewAddressByStr(testMiningAddr).ETHAddress()
 
 	t.Run("test approve value is negative", func(t *testing.T) {
 		am.msgFrom = owner
@@ -108,10 +106,11 @@ func TestAxmManager_Approve(t *testing.T) {
 func TestAxmManager_Transfer(t *testing.T) {
 	t.Parallel()
 	am := mockAxcManager(t)
-	owner := types.NewAddressByStr(testCommunityAddr).ETHAddress()
+	owner := types.NewAddressByStr(testMiningAddr).ETHAddress()
 
 	t.Run("sender is nil", func(t *testing.T) {
 		account1 := types.NewAddressByStr(admin1).ETHAddress()
+		am.msgFrom = ethcommon.Address{}
 		err := am.Transfer(account1, big.NewInt(1))
 		require.EqualError(t, err, ErrEmptyAccount.Error())
 	})
@@ -142,7 +141,7 @@ func TestAxmManager_Transfer(t *testing.T) {
 func TestAxmManager_TransferFrom(t *testing.T) {
 	t.Parallel()
 	am := mockAxcManager(t)
-	owner := types.NewAddressByStr(testCommunityAddr).ETHAddress()
+	owner := types.NewAddressByStr(testMiningAddr).ETHAddress()
 
 	t.Run("transfer from success", func(t *testing.T) {
 		account1 := types.NewAddressByStr(admin1).ETHAddress()
@@ -179,9 +178,56 @@ func TestAxmManager_TransferFrom(t *testing.T) {
 	})
 }
 
-func TestLogs(t *testing.T) {
+func TestAxmManager_TransferLocked(t *testing.T) {
+	t.Parallel()
 	am := mockAxcManager(t)
 	owner := types.NewAddressByStr(testCommunityAddr).ETHAddress()
+
+	t.Run("sender is nil", func(t *testing.T) {
+		account1 := types.NewAddressByStr(admin1).ETHAddress()
+		am.msgFrom = ethcommon.Address{}
+		err := am.TransferLocked(account1, big.NewInt(1))
+		require.EqualError(t, err, ErrEmptyAccount.Error())
+	})
+
+	t.Run("sender has insufficient balance", func(t *testing.T) {
+		am.msgFrom = types.NewAddressByStr(admin1).ETHAddress()
+
+		err := am.TransferLocked(owner, big.NewInt(1))
+		require.EqualError(t, err, ErrInsufficientBalance.Error())
+	})
+
+	t.Run("transferLocked success", func(t *testing.T) {
+		am.msgFrom = owner
+		account1 := types.NewAddressByStr(admin1).ETHAddress()
+
+		fromBeforeBalance := am.BalanceOfLocked(owner)
+		require.True(t, fromBeforeBalance.Cmp(big.NewInt(0)) == 1)
+		toBeforeBalance := am.BalanceOfLocked(account1)
+		require.True(t, toBeforeBalance.Cmp(big.NewInt(0)) == 0)
+		transferValue := big.NewInt(1)
+
+		err := am.TransferLocked(account1, transferValue)
+		require.Nil(t, err)
+
+		fromAfterBalance := am.BalanceOfLocked(owner)
+		toAfterBalance := am.BalanceOfLocked(account1)
+		require.Equal(t, transferValue, new(big.Int).Sub(fromBeforeBalance, fromAfterBalance))
+		require.Equal(t, transferValue, new(big.Int).Sub(toAfterBalance, toBeforeBalance))
+	})
+}
+
+func TestManager_Unlock(t *testing.T) {
+	t.Parallel()
+	am := mockAxcManager(t)
+	owner := types.NewAddressByStr(testCommunityAddr).ETHAddress()
+	err := am.Unlock(owner, nil)
+	require.EqualError(t, ErrNotImplemented, err.Error())
+}
+
+func TestLogs(t *testing.T) {
+	am := mockAxcManager(t)
+	owner := types.NewAddressByStr(testMiningAddr).ETHAddress()
 	am.msgFrom = owner
 	am.logs = make([]common.Log, 0)
 	account1 := types.NewAddressByStr(admin1).ETHAddress()
