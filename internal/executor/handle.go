@@ -11,6 +11,7 @@ import (
 	"github.com/cbergoon/merkletree"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/samber/lo"
@@ -330,14 +331,33 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 
 	contract, ok := system.GetSystemContract(tx.GetTo())
 	if ok {
-		// execute built contract
-		contract.Reset(exec.currentHeight, statedb)
-		// TODO: Move the error section to result
-		result, err = contract.Run(msg)
-		if result != nil && result.UsedGas != 0 {
-			fee := new(big.Int).SetUint64(result.UsedGas)
+		argData := hexutil.Bytes(msg.Data)
+		var usedGas uint64
+		usedGas, err = contract.EstimateGas(&types.CallArgs{
+			Data: &argData,
+		})
+
+		if usedGas != 0 {
+			fee := new(big.Int).SetUint64(usedGas)
 			fee.Mul(fee, msg.GasPrice)
-			ethvm.Transfer(statedb, msg.From, exec.evm.Context.Coinbase, fee)
+			if !ethvm.CanTransfer(statedb, msg.From, fee) {
+				err = fmt.Errorf("address: %s has not enough gas to call system contract", msg.From.Hex())
+				exec.logger.Warn(err)
+			}
+
+			if err == nil {
+				// execute built contract
+				contract.Reset(exec.currentHeight, statedb)
+				result, err = contract.Run(msg)
+				if result != nil && result.UsedGas != 0 {
+					ethvm.Transfer(statedb, msg.From, exec.evm.Context.Coinbase, fee)
+				}
+
+				if result != nil && result.Err != nil {
+					// error should be revert
+					err = result.Err
+				}
+			}
 		}
 	} else {
 		// execute evm

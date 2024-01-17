@@ -314,12 +314,13 @@ func (wlpm *WhiteListProviderManager) proposeProvidersAddRemove(addr *ethcommon.
 }
 
 func (wlpm *WhiteListProviderManager) checkFinishedProposal() (bool, error) {
-	notFinishedProposals, err := GetNotFinishedProposals(wlpm.stateLedger)
+	keys, notFinishedProposals, err := GetNotFinishedProposals(wlpm.stateLedger)
 	if err != nil {
 		return false, err
 	}
 
-	for _, notFinishedProposal := range notFinishedProposals {
+	for _, key := range keys {
+		notFinishedProposal := notFinishedProposals[key]
 		if notFinishedProposal.ContractAddr == common.CouncilManagerContractAddr || notFinishedProposal.ContractAddr == common.WhiteListProviderManagerContractAddr {
 			return false, ErrExistVotingProposal
 		}
