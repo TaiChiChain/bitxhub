@@ -362,13 +362,13 @@ func InitCouncilMembers(lg ledger.StateLedger, admins []*repo.Admin, initBlance 
 }
 
 func (cm *CouncilManager) checkFinishedAllProposal() bool {
-	notFinishedProposals, err := GetNotFinishedProposals(cm.stateLedger)
+	keys, _, err := GetNotFinishedProposals(cm.stateLedger)
 	if err != nil {
 		cm.gov.logger.Errorf("get not finished proposals error: %s", err)
 		return false
 	}
 
-	return len(notFinishedProposals) == 0
+	return len(keys) == 0
 }
 
 func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {

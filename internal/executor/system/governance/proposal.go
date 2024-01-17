@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 
@@ -176,7 +177,7 @@ func NewNotFinishedProposalMgr(stateLedger ledger.StateLedger) *NotFinishedPropo
 }
 
 func (nfpm *NotFinishedProposalMgr) SetProposal(proposal *NotFinishedProposal) error {
-	proposals, err := nfpm.GetProposals()
+	_, proposals, err := nfpm.GetProposals()
 	if err != nil {
 		return err
 	}
@@ -192,7 +193,7 @@ func (nfpm *NotFinishedProposalMgr) SetProposal(proposal *NotFinishedProposal) e
 }
 
 func (nfpm *NotFinishedProposalMgr) RemoveProposal(id uint64) error {
-	proposals, err := nfpm.GetProposals()
+	_, proposals, err := nfpm.GetProposals()
 	if err != nil {
 		return err
 	}
@@ -207,15 +208,23 @@ func (nfpm *NotFinishedProposalMgr) RemoveProposal(id uint64) error {
 	return nil
 }
 
-func (nfpm *NotFinishedProposalMgr) GetProposals() (map[uint64]NotFinishedProposal, error) {
+func (nfpm *NotFinishedProposalMgr) GetProposals() ([]uint64, map[uint64]NotFinishedProposal, error) {
 	isExist, data := nfpm.account.GetState(notFinishedProposalsKey())
 	proposals := make(map[uint64]NotFinishedProposal, 0)
 	if isExist {
 		if err := json.Unmarshal(data, &proposals); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return proposals, nil
+
+	// sort map key
+	keys := make([]uint64, 0, len(proposals))
+	for _, proposal := range proposals {
+		keys = append(keys, proposal.ID)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+
+	return keys, proposals, nil
 }
 
 func notFinishedProposalsKey() []byte {
@@ -231,7 +240,7 @@ func loadProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal) (Pro
 	case common.WhiteListProviderManagerContractAddr:
 		return loadProviderProposal(stateLedger, nfp.ID)
 	case common.GasManagerContractAddr:
-		return loadProviderProposal(stateLedger, nfp.ID)
+		return loadGasProposal(stateLedger, nfp.ID)
 	default:
 		return nil, errors.New("no this contract")
 	}
@@ -249,7 +258,7 @@ func saveProposal(stateLedger ledger.StateLedger, nfp *NotFinishedProposal, prop
 		_, err := saveProviderProposal(stateLedger, proposal)
 		return err
 	case common.GasManagerContractAddr:
-		_, err := saveProviderProposal(stateLedger, proposal)
+		_, err := saveGasProposal(stateLedger, proposal)
 		return err
 	default:
 		return errors.New("no this contract")
@@ -265,12 +274,13 @@ type ProposalObject interface {
 
 func CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) error {
 	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
-	notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
+	keys, notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
 	if err != nil {
 		return err
 	}
 
-	for _, notFinishedProposal := range notFinishedProposals {
+	for _, key := range keys {
+		notFinishedProposal := notFinishedProposals[key]
 		if notFinishedProposal.DeadlineBlockNumber <= lastHeight {
 			// update original proposal status
 			proposal, err := loadProposal(stateLedger, &notFinishedProposal)
@@ -301,12 +311,12 @@ func CheckAndUpdateState(lastHeight uint64, stateLedger ledger.StateLedger) erro
 	return nil
 }
 
-func GetNotFinishedProposals(stateLedger ledger.StateLedger) (map[uint64]NotFinishedProposal, error) {
+func GetNotFinishedProposals(stateLedger ledger.StateLedger) ([]uint64, map[uint64]NotFinishedProposal, error) {
 	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
-	notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
+	keys, notFinishedProposals, err := notFinishedProposalMgr.GetProposals()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return notFinishedProposals, nil
+	return keys, notFinishedProposals, nil
 }

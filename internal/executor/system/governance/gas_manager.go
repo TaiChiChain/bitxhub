@@ -274,13 +274,14 @@ func (gm *GasManager) getProposal(proposalID uint64) (*vm.ExecutionResult, error
 }
 
 func (gm *GasManager) checkNotFinishedProposal() (bool, error) {
-	notFinishedProposals, err := GetNotFinishedProposals(gm.stateLedger)
+	keys, notFinishedProposals, err := GetNotFinishedProposals(gm.stateLedger)
 
 	if err != nil {
 		return false, err
 	}
 
-	for _, notFinishedProposal := range notFinishedProposals {
+	for _, key := range keys {
+		notFinishedProposal := notFinishedProposals[key]
 		if notFinishedProposal.ContractAddr == common.CouncilManagerContractAddr {
 			return false, ErrExistNotFinishedCouncilProposal
 		}
