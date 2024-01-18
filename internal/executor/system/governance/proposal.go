@@ -10,6 +10,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/samber/lo"
 )
 
 type ProposalStatus uint8
@@ -188,7 +189,7 @@ func (nfpm *NotFinishedProposalMgr) SetProposal(proposal *NotFinishedProposal) e
 		return err
 	}
 
-	proposals[proposal.ID] = *proposal
+	proposals = append(proposals, *proposal)
 	data, err := json.Marshal(proposals)
 	if err != nil {
 		return err
@@ -204,8 +205,15 @@ func (nfpm *NotFinishedProposalMgr) RemoveProposal(id uint64) error {
 		return err
 	}
 
-	delete(proposals, id)
-	data, err := json.Marshal(proposals)
+	newProposals := lo.Filter[NotFinishedProposal](proposals, func(item NotFinishedProposal, index int) bool {
+		return item.ID != id
+	})
+
+	if len(newProposals) == len(proposals) {
+		return ErrNotFoundProposal
+	}
+
+	data, err := json.Marshal(newProposals)
 	if err != nil {
 		return err
 	}
@@ -214,9 +222,9 @@ func (nfpm *NotFinishedProposalMgr) RemoveProposal(id uint64) error {
 	return nil
 }
 
-func (nfpm *NotFinishedProposalMgr) GetProposals() (map[uint64]NotFinishedProposal, error) {
+func (nfpm *NotFinishedProposalMgr) GetProposals() ([]NotFinishedProposal, error) {
 	isExist, data := nfpm.account.GetState(notFinishedProposalsKey())
-	proposals := make(map[uint64]NotFinishedProposal, 0)
+	proposals := make([]NotFinishedProposal, 0)
 	if isExist {
 		if err := json.Unmarshal(data, &proposals); err != nil {
 			return nil, err

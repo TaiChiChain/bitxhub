@@ -298,11 +298,27 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	snapshot := statedb.Snapshot()
 
 	if exec.nvm.IsSystemContract(tx.GetTo()) {
-		result = system.RunAxiomNativeVM(exec.nvm, height, statedb, msg.Data, msg.From, msg.To)
-		if result != nil && result.UsedGas != 0 {
-			fee := new(big.Int).SetUint64(result.UsedGas)
+		usedGas := exec.nvm.RequiredGas(msg.Data)
+		if usedGas != 0 {
+			fee := new(big.Int).SetUint64(usedGas)
 			fee.Mul(fee, msg.GasPrice)
-			core.Transfer(evmStateDB, msg.From, exec.evm.Context.Coinbase, fee)
+
+			if !ethvm.CanTransfer(statedb, msg.From, fee) {
+				err = fmt.Errorf("address: %s has not enough gas to call system contract", msg.From.Hex())
+				exec.logger.Warn(err)
+			}
+
+			if err == nil {
+				result = system.RunAxiomNativeVM(exec.nvm, height, statedb, msg.Data, msg.From, msg.To)
+				if result != nil && result.UsedGas != 0 {
+					ethvm.Transfer(statedb, msg.From, exec.evm.Context.Coinbase, fee)
+				}
+
+				if result != nil && result.Err != nil {
+					// err should be revert
+					err = result.Err
+				}
+			}
 		}
 	} else {
 		// execute evm
