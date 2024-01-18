@@ -124,7 +124,7 @@ func (o *SimpleAccount) initStorageTrie() {
 		nk := rootNodeKey.Encode()
 		o.ldb.Put(nk, nil)
 		o.ldb.Put(rootHash[:], nk)
-		trie, err := jmt.New(rootHash, o.ldb)
+		trie, err := jmt.New(rootHash, o.ldb, o.logger)
 		if err != nil {
 			panic(err)
 		}
@@ -133,7 +133,7 @@ func (o *SimpleAccount) initStorageTrie() {
 		return
 	}
 
-	trie, err := jmt.New(o.originAccount.StorageRoot, o.ldb)
+	trie, err := jmt.New(o.originAccount.StorageRoot, o.ldb, o.logger)
 	if err != nil {
 		panic(err)
 	}
@@ -173,7 +173,7 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 
 	o.initStorageTrie()
 	start := time.Now()
-	val, err := o.storageTrie.Get(compositeStorageKey(o.Addr, key))
+	val, err := o.storageTrie.Get(CompositeStorageKey(o.Addr, key))
 	if err != nil {
 		panic(err)
 	}
@@ -220,7 +220,7 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 
 	o.initStorageTrie()
 	start := time.Now()
-	val, err := o.storageTrie.Get(compositeStorageKey(o.Addr, key))
+	val, err := o.storageTrie.Get(CompositeStorageKey(o.Addr, key))
 	if err != nil {
 		panic(err)
 	}
@@ -422,7 +422,7 @@ func (o *SimpleAccount) Finalise() [][]byte {
 		o.pendingState[key] = value
 
 		// collect all stoage key of the account
-		keys2Preload = append(keys2Preload, compositeStorageKey(o.Addr, []byte(key)))
+		keys2Preload = append(keys2Preload, CompositeStorageKey(o.Addr, []byte(key)))
 	}
 	o.dirtyState = make(map[string][]byte)
 	return keys2Preload
@@ -476,6 +476,13 @@ func (o *SimpleAccount) Suicided() bool {
 func (o *SimpleAccount) GetStorageRootHash() common.Hash {
 	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
 		return o.Addr.ETHAddress().Hash()
+	}
+	return o.originAccount.StorageRoot
+}
+
+func (o *SimpleAccount) GetStorageRoot() common.Hash {
+	if o.originAccount == nil {
+		return common.Hash{}
 	}
 	return o.originAccount.StorageRoot
 }

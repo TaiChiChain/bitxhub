@@ -176,7 +176,7 @@ func (sp *subPreloader) loop() {
 	defer close(sp.term)
 
 	if sp.trie == nil {
-		trie, err := jmt.New(sp.rootHash, sp.db)
+		trie, err := jmt.New(sp.rootHash, sp.db, sp.logger)
 		if err != nil {
 			sp.logger.Errorf("Trie preloader failed to new jmt trie, root hash: %s", sp.rootHash)
 			return

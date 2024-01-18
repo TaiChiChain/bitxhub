@@ -13,6 +13,7 @@ import (
 	big "math/big"
 	reflect "reflect"
 
+	jmt "github.com/axiomesh/axiom-kit/jmt"
 	storage "github.com/axiomesh/axiom-kit/storage"
 	types "github.com/axiomesh/axiom-kit/types"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
@@ -2134,6 +2135,45 @@ func (c *StateLedgerPrepareEVMCall) DoAndReturn(f func(params.Rules, common.Addr
 	return c
 }
 
+// Prove mocks base method.
+func (m *MockStateLedger) Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Prove", rootHash, key)
+	ret0, _ := ret[0].(*jmt.ProofResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Prove indicates an expected call of Prove.
+func (mr *MockStateLedgerMockRecorder) Prove(rootHash, key any) *StateLedgerProveCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prove", reflect.TypeOf((*MockStateLedger)(nil).Prove), rootHash, key)
+	return &StateLedgerProveCall{Call: call}
+}
+
+// StateLedgerProveCall wrap *gomock.Call
+type StateLedgerProveCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerProveCall) Return(arg0 *jmt.ProofResult, arg1 error) *StateLedgerProveCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerProveCall) Do(f func(common.Hash, []byte) (*jmt.ProofResult, error)) *StateLedgerProveCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerProveCall) DoAndReturn(f func(common.Hash, []byte) (*jmt.ProofResult, error)) *StateLedgerProveCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // RevertToSnapshot mocks base method.
 func (m *MockStateLedger) RevertToSnapshot(arg0 int) {
 	m.ctrl.T.Helper()
@@ -2715,6 +2755,45 @@ func (c *StateLedgerSuicideEVMCall) Do(f func(common.Address) bool) *StateLedger
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateLedgerSuicideEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerSuicideEVMCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// VerifyTrie mocks base method.
+func (m *MockStateLedger) VerifyTrie(block *types.Block) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VerifyTrie", block)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// VerifyTrie indicates an expected call of VerifyTrie.
+func (mr *MockStateLedgerMockRecorder) VerifyTrie(block any) *StateLedgerVerifyTrieCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyTrie", reflect.TypeOf((*MockStateLedger)(nil).VerifyTrie), block)
+	return &StateLedgerVerifyTrieCall{Call: call}
+}
+
+// StateLedgerVerifyTrieCall wrap *gomock.Call
+type StateLedgerVerifyTrieCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerVerifyTrieCall) Return(arg0 bool, arg1 error) *StateLedgerVerifyTrieCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerVerifyTrieCall) Do(f func(*types.Block) (bool, error)) *StateLedgerVerifyTrieCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerVerifyTrieCall) DoAndReturn(f func(*types.Block) (bool, error)) *StateLedgerVerifyTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3624,6 +3703,44 @@ func (c *IAccountGetStateCall) Do(f func([]byte) (bool, []byte)) *IAccountGetSta
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *IAccountGetStateCall) DoAndReturn(f func([]byte) (bool, []byte)) *IAccountGetStateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetStorageRoot mocks base method.
+func (m *MockIAccount) GetStorageRoot() common.Hash {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStorageRoot")
+	ret0, _ := ret[0].(common.Hash)
+	return ret0
+}
+
+// GetStorageRoot indicates an expected call of GetStorageRoot.
+func (mr *MockIAccountMockRecorder) GetStorageRoot() *IAccountGetStorageRootCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageRoot", reflect.TypeOf((*MockIAccount)(nil).GetStorageRoot))
+	return &IAccountGetStorageRootCall{Call: call}
+}
+
+// IAccountGetStorageRootCall wrap *gomock.Call
+type IAccountGetStorageRootCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *IAccountGetStorageRootCall) Return(arg0 common.Hash) *IAccountGetStorageRootCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *IAccountGetStorageRootCall) Do(f func() common.Hash) *IAccountGetStorageRootCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *IAccountGetStorageRootCall) DoAndReturn(f func() common.Hash) *IAccountGetStorageRootCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
