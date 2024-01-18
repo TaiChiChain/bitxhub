@@ -1,183 +1,88 @@
 package governance
 
-// import (
-// 	"testing"
+import (
+	"testing"
 
-// 	"github.com/stretchr/testify/assert"
-// 	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-// 	"github.com/axiomesh/axiom-kit/types"
-// 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-// 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-// 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-// )
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+)
 
-// func TestProposal_CheckAndUpdateState(t *testing.T) {
-// 	mockCtl := gomock.NewController(t)
-// 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+func TestProposal_ProposalID(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-// 	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.ProposalIDContractAddr))
 
-// 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-// 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-// 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 
-// 	testcases := []struct {
-// 		BlockNumber         uint64
-// 		Status              ProposalStatus
-// 		DeadlineBlockNumber uint64
-// 		ExpectedResult      ProposalStatus
-// 		ExpectedErr         error
-// 	}{
-// 		{
-// 			BlockNumber:         0,
-// 			Status:              Voting,
-// 			DeadlineBlockNumber: 1,
-// 			ExpectedResult:      Rejected,
-// 			ExpectedErr:         nil,
-// 		},
-// 		{
-// 			BlockNumber:         2,
-// 			Status:              Voting,
-// 			DeadlineBlockNumber: 1,
-// 			ExpectedResult:      Voting,
-// 			ExpectedErr:         nil,
-// 		},
-// 		{
-// 			BlockNumber:         1,
-// 			Status:              Voting,
-// 			DeadlineBlockNumber: 1,
-// 			ExpectedResult:      Rejected,
-// 			ExpectedErr:         nil,
-// 		},
-// 		{
-// 			BlockNumber:         1,
-// 			Status:              Approved,
-// 			DeadlineBlockNumber: 1,
-// 			ExpectedResult:      Approved,
-// 			ExpectedErr:         nil,
-// 		},
-// 		{
-// 			BlockNumber:         1,
-// 			Status:              Rejected,
-// 			DeadlineBlockNumber: 1,
-// 			ExpectedResult:      Rejected,
-// 			ExpectedErr:         nil,
-// 		},
-// 	}
+	proposalID := NewProposalID(stateLedger)
+	assert.EqualValues(t, 1, proposalID.GetID())
+	id, err := proposalID.GetAndAddID()
+	assert.Nil(t, err)
+	assert.EqualValues(t, 1, id)
+	assert.EqualValues(t, 2, proposalID.GetID())
+}
 
-// 	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
+func TestProposal_Addr2NameSystem(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-// 	for _, testcase := range testcases {
-// 		baseProposal := &Proposal{ID: 1, BlockNumber: testcase.BlockNumber, Status: testcase.Status}
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.Addr2NameContractAddr))
 
-// 		_, err := saveCouncilProposal(stateLedger, baseProposal)
-// 		assert.Nil(t, err)
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 
-// 		err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-// 			ID:                  baseProposal.ID,
-// 			DeadlineBlockNumber: baseProposal.BlockNumber,
-// 			ContractAddr:        common.CouncilManagerContractAddr,
-// 		})
-// 		assert.Nil(t, err)
+	addr2NameSystem := NewAddr2NameSystem(stateLedger)
+	isExist, _ := addr2NameSystem.GetName("test")
+	assert.False(t, isExist)
+	addr2NameSystem.SetName("test", "name")
+	isExist, name := addr2NameSystem.GetName("test")
+	assert.True(t, isExist)
+	assert.Equal(t, "name", name)
 
-// 		err = CheckAndUpdateState(testcase.DeadlineBlockNumber, stateLedger)
-// 		assert.Equal(t, testcase.ExpectedErr, err)
+	isExist, addr := addr2NameSystem.GetAddr("name")
+	assert.True(t, isExist)
+	assert.Equal(t, "test", addr)
+}
 
-// 		proposal, err := loadCouncilProposal(stateLedger, 1)
-// 		assert.Nil(t, err)
-// 		assert.Equal(t, testcase.ExpectedResult, proposal.Status)
+func TestProposal_NotFinishedProposalMgr(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-// 		// clear
-// 		account.SetState(notFinishedProposalsKey(), nil)
-// 	}
-// }
+	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NotFinishedProposalContractAddr))
 
-// func TestProposal_CheckAndUpdateState_AllProposals(t *testing.T) {
-// 	mockCtl := gomock.NewController(t)
-// 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
+	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 
-// 	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.NodeManagerContractAddr))
+	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
+	err := notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  10,
+		DeadlineBlockNumber: 100,
+	})
+	assert.Nil(t, err)
 
-// 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-// 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-// 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	proposals, err := notFinishedProposalMgr.GetProposals()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(proposals))
 
-// 	notFinishedProposalMgr := NewNotFinishedProposalMgr(stateLedger)
+	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+		ID:                  30,
+		DeadlineBlockNumber: 100,
+	})
+	assert.Nil(t, err)
+	proposals, err = notFinishedProposalMgr.GetProposals()
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(proposals))
 
-// 	// test council
-// 	baseProposal := &Proposal{ID: 1, BlockNumber: 10, Status: Voting}
-// 	_, err := saveCouncilProposal(stateLedger, baseProposal)
-// 	assert.Nil(t, err)
+	err = notFinishedProposalMgr.RemoveProposal(10)
+	assert.Nil(t, err)
+	proposals, err = notFinishedProposalMgr.GetProposals()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(proposals))
 
-// 	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-// 		ID:                  baseProposal.ID,
-// 		DeadlineBlockNumber: baseProposal.BlockNumber,
-// 		ContractAddr:        common.CouncilManagerContractAddr,
-// 	})
-// 	assert.Nil(t, err)
-
-// 	err = CheckAndUpdateState(20, stateLedger)
-// 	assert.Nil(t, err)
-
-// 	proposal, err := loadCouncilProposal(stateLedger, baseProposal.ID)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, Rejected, proposal.Status)
-
-// 	// test node
-// 	baseProposal = &Proposal{ID: 2, BlockNumber: 10, Status: Voting}
-// 	_, err = saveNodeProposal(stateLedger, baseProposal)
-// 	assert.Nil(t, err)
-
-// 	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-// 		ID:                  baseProposal.ID,
-// 		DeadlineBlockNumber: baseProposal.BlockNumber,
-// 		ContractAddr:        common.NodeManagerContractAddr,
-// 	})
-// 	assert.Nil(t, err)
-
-// 	err = CheckAndUpdateState(20, stateLedger)
-// 	assert.Nil(t, err)
-
-// 	nodeProposal, err := loadNodeProposal(stateLedger, baseProposal.ID)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, Rejected, nodeProposal.Status)
-
-// 	// test white list provider
-// 	baseProposal = &Proposal{ID: 3, BlockNumber: 10, Status: Voting}
-// 	_, err = saveProviderProposal(stateLedger, baseProposal)
-// 	assert.Nil(t, err)
-
-// 	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-// 		ID:                  baseProposal.ID,
-// 		DeadlineBlockNumber: baseProposal.BlockNumber,
-// 		ContractAddr:        common.WhiteListProviderManagerContractAddr,
-// 	})
-// 	assert.Nil(t, err)
-
-// 	err = CheckAndUpdateState(20, stateLedger)
-// 	assert.Nil(t, err)
-
-// 	providerProposal, err := loadProviderProposal(stateLedger, baseProposal.ID)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, Rejected, providerProposal.Status)
-
-// 	// test gas
-// 	baseProposal = &Proposal{ID: 4, BlockNumber: 10, Status: Voting}
-// 	_, err = saveProviderProposal(stateLedger, baseProposal)
-// 	assert.Nil(t, err)
-
-// 	err = notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
-// 		ID:                  baseProposal.ID,
-// 		DeadlineBlockNumber: baseProposal.BlockNumber,
-// 		ContractAddr:        common.GasManagerContractAddr,
-// 	})
-// 	assert.Nil(t, err)
-
-// 	err = CheckAndUpdateState(20, stateLedger)
-// 	assert.Nil(t, err)
-
-// 	gasProposal, err := loadProviderProposal(stateLedger, baseProposal.ID)
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, Rejected, gasProposal.Status)
-// }
+	err = notFinishedProposalMgr.RemoveProposal(50)
+	assert.Equal(t, ErrNotFoundProposal, err)
+}
