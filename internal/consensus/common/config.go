@@ -36,7 +36,7 @@ type Config struct {
 	GetEpochInfoFromEpochMgrContractFunc        func(epoch uint64) (*rbft.EpochInfo, error)
 	GetChainMetaFunc                            func() *types.ChainMeta
 	GetBlockFunc                                func(height uint64) (*types.Block, error)
-	GetAccountBalance                           func(address *types.Address) *big.Int
+	GetAccountBalance                           func(address string) *big.Int
 	GetAccountNonce                             func(address *types.Address) uint64
 	EpochStore                                  storage.Storage
 }
@@ -128,7 +128,7 @@ func WithGetBlockFunc(f func(height uint64) (*types.Block, error)) Option {
 	}
 }
 
-func WithGetAccountBalanceFunc(f func(address *types.Address) *big.Int) Option {
+func WithGetAccountBalanceFunc(f func(address string) *big.Int) Option {
 	return func(config *Config) {
 		config.GetAccountBalance = f
 	}

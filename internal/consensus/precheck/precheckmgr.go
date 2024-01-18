@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/components"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gammazero/workerpool"
@@ -19,7 +20,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
 )
 
 var _ PreCheck = (*TxPreCheckMgr)(nil)
@@ -60,7 +60,7 @@ type TxPreCheckMgr struct {
 	txpool txpool.TxPool[types.Transaction, *types.Transaction]
 
 	BaseFee        *big.Int // current is 0
-	getBalanceFn   func(address *types.Address) *big.Int
+	getBalanceFn   func(address string) *big.Int
 	getChainMetaFn func() *types.ChainMeta
 
 	ctx       context.Context
@@ -262,7 +262,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					localCheckRespCh = txWithResp.CheckCh
 					localPoolRespCh = txWithResp.PoolCh
 					// check balance
-					if err := tp.verifyInsufficientBalance(txWithResp.Tx); err != nil {
+					if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](txWithResp.Tx, tp.getChainMetaFn().GasPrice, tp.getBalanceFn); err != nil {
 						respLocalTx(txWithResp.CheckCh, fmt.Errorf("%s:%w", PrecheckError, err))
 						return
 					}
@@ -276,7 +276,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 						return
 					}
 					for _, tx := range txSet {
-						if err := tp.verifyInsufficientBalance(tx); err != nil {
+						if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.getChainMetaFn().GasPrice, tp.getBalanceFn); err != nil {
 							tp.logger.Warningf("verify remote tx balance failed: %v", err)
 							continue
 						}
@@ -299,50 +299,6 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 			})
 		}
 	}
-}
-
-func (tp *TxPreCheckMgr) verifyInsufficientBalance(tx *types.Transaction) error {
-	// 1. account has enough balance to cover transaction fee(gaslimit * gasprice), gasprice is the chain's latest gas price
-	mgval := new(big.Int).SetUint64(tx.GetGas())
-	chainGasPrice := tp.getChainMetaFn().GasPrice
-	mgval = mgval.Mul(mgval, chainGasPrice)
-	balanceCheck := mgval
-	// if tx.GasFeeCap is set and bigger than chainGasPrice, use it to replace chainGasPrice to calculate balance
-	if tx.GetGasFeeCap() != nil && tx.GetGasFeeCap().Cmp(chainGasPrice) > 0 {
-		balanceCheck = new(big.Int).SetUint64(tx.GetGas())
-		balanceCheck = balanceCheck.Mul(balanceCheck, tx.GetGasFeeCap())
-		balanceCheck.Add(balanceCheck, tx.GetValue())
-	}
-	balanceRemaining := new(big.Int).Set(tp.getBalanceFn(tx.GetFrom()))
-	if have, want := balanceRemaining, balanceCheck; have.Cmp(want) < 0 {
-		return fmt.Errorf("%w: address %v have %v want %v", core.ErrInsufficientFunds, tx.GetFrom(), have, want)
-	}
-
-	// sub gas fee temporarily
-	balanceRemaining.Sub(balanceRemaining, mgval)
-
-	gasRemaining := tx.GetGas()
-
-	var isContractCreation bool
-	if tx.GetTo() == nil {
-		isContractCreation = true
-	}
-
-	// 2.1 the purchased gas is enough to cover intrinsic usage
-	// 2.2 there is no overflow when calculating intrinsic gas
-	gas, err := vm.IntrinsicGas(tx.GetPayload(), tx.GetInner().GetAccessList(), isContractCreation, true, true, true)
-	if err != nil {
-		return err
-	}
-	if gasRemaining < gas {
-		return fmt.Errorf("%w: have %d, want %d", core.ErrIntrinsicGas, gasRemaining, gas)
-	}
-
-	// 3. account has enough balance to cover asset transfer for **topmost** call
-	if tx.GetValue().Sign() > 0 && balanceRemaining.Cmp(tx.GetValue()) < 0 {
-		return fmt.Errorf("%w: address %v", core.ErrInsufficientFundsForTransfer, tx.GetFrom())
-	}
-	return nil
 }
 
 func (tp *TxPreCheckMgr) verifySignature(tx *types.Transaction) error {

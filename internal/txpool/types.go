@@ -1,9 +1,10 @@
 package txpool
 
 import (
+	"math/big"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/txpool"
+	common_pool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
@@ -21,6 +22,8 @@ const (
 )
 
 type GetAccountNonceFunc func(address string) uint64
+
+type GetAccountBalanceFunc func(address string) *big.Int
 
 type txPointer struct {
 	account string
@@ -80,6 +83,7 @@ const (
 	highNonceTxsEvent
 	committedTxsEvent
 	batchedTxsEvent
+	invalidTxsEvent
 )
 
 var removeTxsEventToStr = map[int]string{
@@ -87,6 +91,7 @@ var removeTxsEventToStr = map[int]string{
 	highNonceTxsEvent: "highNonceTxsEvent",
 	committedTxsEvent: "committedTxsEvent",
 	batchedTxsEvent:   "batchedTxsEvent",
+	invalidTxsEvent:   "invalidTxsEvent",
 }
 
 type removeTxsEvent struct {
@@ -100,23 +105,27 @@ type reqHighNonceTxs struct {
 }
 
 type reqRemoveCommittedTxs struct {
-	txPointerList []*txpool.WrapperTxPointer
+	txPointerList []*common_pool.WrapperTxPointer
 }
 
 type reqRemoveBatchedTxs struct {
 	batchHashList []string
 }
 
+type reqRemoveInvalidTxs[T any, Constraint types.TXConstraint[T]] struct {
+	removeTxs map[string][]*internalTransaction[T, Constraint]
+}
+
 // ========================================================================
 
 // ========================batchEvent===================================
 var batchEventToStr = map[int]string{
-	txpool.GenBatchTimeoutEvent:     "GenBatchTimeoutEvent",
-	txpool.GenBatchNoTxTimeoutEvent: "GenBatchNoTxTimeoutEvent",
-	txpool.GenBatchFirstEvent:       "GenBatchFirstEvent",
-	txpool.GenBatchSizeEvent:        "GenBatchSizeEvent",
-	txpool.ReConstructBatchEvent:    "ReConstructBatchEvent",
-	txpool.GetTxsForGenBatchEvent:   "GetTxsForGenBatchEvent",
+	common_pool.GenBatchTimeoutEvent:     "GenBatchTimeoutEvent",
+	common_pool.GenBatchNoTxTimeoutEvent: "GenBatchNoTxTimeoutEvent",
+	common_pool.GenBatchFirstEvent:       "GenBatchFirstEvent",
+	common_pool.GenBatchSizeEvent:        "GenBatchSizeEvent",
+	common_pool.ReConstructBatchEvent:    "ReConstructBatchEvent",
+	common_pool.GetTxsForGenBatchEvent:   "GetTxsForGenBatchEvent",
 }
 
 type batchEvent struct {
@@ -129,12 +138,12 @@ type reqGenBatch[T any, Constraint types.TXConstraint[T]] struct {
 }
 
 type respGenBatch[T any, Constraint types.TXConstraint[T]] struct {
-	resp *txpool.RequestHashBatch[T, Constraint]
+	resp *common_pool.RequestHashBatch[T, Constraint]
 	err  error
 }
 
 type reqReConstructBatch[T any, Constraint types.TXConstraint[T]] struct {
-	oldBatch *txpool.RequestHashBatch[T, Constraint]
+	oldBatch *common_pool.RequestHashBatch[T, Constraint]
 	respCh   chan *respReConstructBatch
 }
 
@@ -210,6 +219,8 @@ const (
 	reqPendingTxCountEvent
 	reqPoolMetaEvent
 	reqAccountMetaEvent
+	reqChainInfoEvent
+	updateChainInfoEvent
 )
 
 var poolInfoEventToStr = map[int]string{
@@ -218,6 +229,8 @@ var poolInfoEventToStr = map[int]string{
 	reqPendingTxCountEvent: "reqPendingTxCountEvent",
 	reqPoolMetaEvent:       "reqPoolMetaEvent",
 	reqAccountMetaEvent:    "reqAccountMetaEvent",
+	reqChainInfoEvent:      "reqChainInfoEvent",
+	updateChainInfoEvent:   "updateChainInfoEvent",
 }
 
 // poolInfoEvent represents poolInfo event sent by local api modules
@@ -243,12 +256,20 @@ type reqPendingTxCountMsg struct {
 type reqAccountPoolMetaMsg[T any, Constraint types.TXConstraint[T]] struct {
 	account string
 	full    bool
-	ch      chan *txpool.AccountMeta[T, Constraint]
+	ch      chan *common_pool.AccountMeta[T, Constraint]
 }
 
 type reqPoolMetaMsg[T any, Constraint types.TXConstraint[T]] struct {
 	full bool
-	ch   chan *txpool.Meta[T, Constraint]
+	ch   chan *common_pool.Meta[T, Constraint]
+}
+
+type reqChainInfoMsg struct {
+	ch chan *common_pool.ChainInfo
+}
+
+type updateChainInfoMsg struct {
+	chainInfo *common_pool.ChainInfo
 }
 
 // =========================localEvent===============================

@@ -73,7 +73,16 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		fn := func(addr string) uint64 {
 			return getNonceFn(types.NewAddressByStr(addr))
 		}
+		getBalanceFn := func(addr string) *big.Int {
+			return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(addr))
+		}
 		txRecordsFile := path.Join(repo.GetStoragePath(rep.RepoRoot, storagemgr.TxPool), poolConf.TxRecordsFile)
+
+		chainInfo := &txpool.ChainInfo{
+			Height:   chainMeta.Height,
+			GasPrice: chainMeta.GasPrice,
+		}
+
 		txpoolConf := txpool2.Config{
 			Logger:                 loggers.Logger(loggers.TxPool),
 			BatchSize:              rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
@@ -83,10 +92,12 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			ToleranceNonceGap:      poolConf.ToleranceNonceGap,
 			CleanEmptyAccountTime:  poolConf.CleanEmptyAccountTime.ToDuration(),
 			GetAccountNonce:        fn,
+			GetAccountBalance:      getBalanceFn,
 			IsTimed:                rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 			EnableLocalsPersist:    poolConf.EnableLocalsPersist,
 			TxRecordsFile:          txRecordsFile,
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
+			ChainInfo:              chainInfo,
 		}
 		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
 		if err != nil {
@@ -108,8 +119,8 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			common.WithGenesisDigest(axm.ViewLedger.ChainLedger.GetBlockHash(1).String()),
 			common.WithGetChainMetaFunc(axm.ViewLedger.ChainLedger.GetChainMeta),
 			common.WithGetBlockFunc(axm.ViewLedger.ChainLedger.GetBlock),
-			common.WithGetAccountBalanceFunc(func(address *types.Address) *big.Int {
-				return axm.ViewLedger.NewView().StateLedger.GetBalance(address)
+			common.WithGetAccountBalanceFunc(func(address string) *big.Int {
+				return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(address))
 			}),
 			common.WithGetAccountNonceFunc(func(address *types.Address) uint64 {
 				return axm.ViewLedger.NewView().StateLedger.GetNonce(address)

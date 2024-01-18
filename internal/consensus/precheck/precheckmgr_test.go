@@ -77,8 +77,8 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		ledger := &mockDb{
 			db: make(map[string]*big.Int),
 		}
-		getAccountBalance := func(address *types.Address) *big.Int {
-			val, ok := ledger.db[address.String()]
+		getAccountBalance := func(address string) *big.Int {
+			val, ok := ledger.db[address]
 			if !ok {
 				return big.NewInt(0)
 			}

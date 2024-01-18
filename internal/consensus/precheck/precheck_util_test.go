@@ -31,8 +31,8 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := log.NewWithModule("precheck")
 
-	getAccountBalance := func(address *types.Address) *big.Int {
-		val, ok := ledger.db[address.String()]
+	getAccountBalance := func(address string) *big.Int {
+		val, ok := ledger.db[address]
 		if !ok {
 			return big.NewInt(0)
 		}
