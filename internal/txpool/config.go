@@ -9,6 +9,7 @@ import (
 
 // Config defines the txpool config items.
 type Config struct {
+	RepoRoot               string
 	Logger                 logrus.FieldLogger
 	ChainInfo              *commonpool.ChainInfo
 	BatchSize              uint64
@@ -24,5 +25,4 @@ type Config struct {
 	GetAccountNonce        GetAccountNonceFunc
 	GetAccountBalance      GetAccountBalanceFunc
 	EnableLocalsPersist    bool
-	TxRecordsFile          string
 }

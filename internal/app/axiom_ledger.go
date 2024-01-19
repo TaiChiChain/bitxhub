@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"path"
 	"syscall"
 	"time"
 
@@ -76,7 +75,6 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		getBalanceFn := func(addr string) *big.Int {
 			return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(addr))
 		}
-		txRecordsFile := path.Join(repo.GetStoragePath(rep.RepoRoot, storagemgr.TxPool), poolConf.TxRecordsFile)
 
 		chainInfo := &txpool.ChainInfo{
 			Height:   chainMeta.Height,
@@ -95,7 +93,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			GetAccountBalance:      getBalanceFn,
 			IsTimed:                rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 			EnableLocalsPersist:    poolConf.EnableLocalsPersist,
-			TxRecordsFile:          txRecordsFile,
+			RepoRoot:               rep.RepoRoot,
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
 			ChainInfo:              chainInfo,
 		}

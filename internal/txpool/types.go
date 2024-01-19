@@ -45,6 +45,7 @@ const (
 	remoteTxsEvent
 	reBroadcastTxsEvent
 	missingTxsEvent
+	localRecordTxEvent
 )
 
 var addTxsEventToStr = map[int]string{
@@ -52,6 +53,7 @@ var addTxsEventToStr = map[int]string{
 	remoteTxsEvent:      "remoteTxsEvent",
 	reBroadcastTxsEvent: "reBroadcastTxsEvent",
 	missingTxsEvent:     "missingTxsEvent",
+	localRecordTxEvent:  "localRecordTxEvent",
 }
 
 // LocalEvent represents event sent by local modules
@@ -63,6 +65,11 @@ type addTxsEvent struct {
 type reqLocalTx[T any, Constraint types.TXConstraint[T]] struct {
 	tx    *T
 	errCh chan error
+}
+
+type reqLocalRecordTx[T any, Constraint types.TXConstraint[T]] struct {
+	txs []*T
+	ch  chan int
 }
 
 type reqRemoteTxs[T any, Constraint types.TXConstraint[T]] struct {

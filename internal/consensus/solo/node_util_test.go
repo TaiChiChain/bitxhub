@@ -40,6 +40,8 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
 	require.Nil(t, err)
 	txpoolConf := txpool2.Config{
+		RepoRoot:            repoRoot,
+		EnableLocalsPersist: false,
 		IsTimed:             false,
 		Logger:              &common.Logger{FieldLogger: logger},
 		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,

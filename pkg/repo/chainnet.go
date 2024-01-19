@@ -167,7 +167,6 @@ func AriesConsensusConfig() *ConsensusConfig {
 			RotateTxLocalsInterval: Duration(1 * time.Hour),
 			ToleranceNonceGap:      1000,
 			EnableLocalsPersist:    true,
-			TxRecordsFile:          "tx_records.pb",
 		},
 		TxCache: TxCache{
 			SetSize:    50,
