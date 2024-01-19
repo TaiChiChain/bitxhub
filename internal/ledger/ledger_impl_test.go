@@ -14,6 +14,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
@@ -668,6 +669,23 @@ func TestChainLedger_GetCode(t *testing.T) {
 
 			vals := ledger.StateLedger.GetCode(addr)
 			assert.Equal(t, code, vals)
+
+			cache, _ := NewAccountCache(1, true)
+			acc := &SimpleAccount{
+				logger:                loggers.Logger(loggers.Storage),
+				Addr:                  addr,
+				ldb:                   stateLedger.cachedDB,
+				cache:                 cache,
+				enableExpensiveMetric: true,
+			}
+			assert.Equal(t, common.Hash{}, acc.GetStorageRoot())
+
+			acc.originCode = code
+			assert.Equal(t, code, acc.Code())
+			acc.originCode = nil
+
+			acc.dirtyAccount = &types.InnerAccount{CodeHash: crypto1.Keccak256Hash(code).Bytes()}
+			assert.Equal(t, code, acc.Code())
 		})
 	}
 }
@@ -2274,6 +2292,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 	// account3: k1=v1
 	sl.blockHeight = 1
 	sl.SetState(account1, []byte("k1"), []byte("v1"))
+	sl.SetCode(account1, []byte("code1"))
 	sl.SetState(account2, []byte("k1"), []byte("v1"))
 	sl.SetState(account3, []byte("k1"), []byte("v1"))
 	sl.Finalise()
@@ -2330,6 +2349,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 	sl.SetState(account1, []byte("k2"), []byte("v22"))
 	sl.SetState(account2, []byte("k1"), []byte("v11"))
 	sl.SetState(account3, []byte("k1"), []byte("v11"))
+	sl.SetCode(account1, []byte("code2"))
 	sl.Finalise()
 	stateRoot5, err := sl.Commit()
 	assert.Nil(t, err)
@@ -2362,6 +2382,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		exist, val := sl1.GetState(account1, []byte("k1"))
 		assert.True(t, exist)
 		assert.Equal(t, []byte("v1"), val)
+		val = sl1.GetCode(account1)
+		assert.True(t, exist)
+		assert.Equal(t, []byte("code1"), val)
 		exist, val = sl1.GetState(account2, []byte("k1"))
 		assert.True(t, exist)
 		assert.Equal(t, []byte("v1"), val)
@@ -2546,6 +2569,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		exist, val = sl5.GetState(account3, []byte("k2"))
 		assert.True(t, exist)
 		assert.Equal(t, []byte("v22"), val)
+		val = sl5.GetCode(account1)
+		assert.True(t, exist)
+		assert.Equal(t, []byte("code2"), val)
 		meta, err := sl5.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
 		assert.Equal(t, block5.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
@@ -2615,7 +2641,7 @@ func TestStateLedger_TrieProof(t *testing.T) {
 	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
 	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
 
-	// set EOA account data in block 1
+	// set account data in block 1
 	// account1: balance=101, nonce=0
 	// account2: balance=201, nonce=0
 	// account3: key1=val1, code=code1
@@ -2630,7 +2656,7 @@ func TestStateLedger_TrieProof(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, uint64(1), sl.Version())
 
-	// set EOA account data in block 2
+	// set account data in block 2
 	// account1: balance=102, nonce=12
 	// account2: balance=201, nonce=22
 	// account3: key1=val2, code=code1
@@ -2656,6 +2682,7 @@ func TestStateLedger_TrieProof(t *testing.T) {
 		lg1 := sl.NewViewWithoutCache(block1, false)
 		acc3 := lg1.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
+		assert.NotEqual(t, "", acc3.String())
 		// prove account1 in block1
 		account1Proof, err := lg1.Prove(stateRoot1.ETHHash(), CompositeAccountKey(account1))
 		assert.Nil(t, err)

@@ -106,7 +106,7 @@ func (o *SimpleAccount) SetEnableExpensiveMetric(enable bool) {
 }
 
 func (o *SimpleAccount) String() string {
-	return fmt.Sprintf("{origin: %v, dirty: %v}", o.originAccount, o.dirtyAccount)
+	return fmt.Sprintf("{origin: %v, dirty: %v, code length: %v}", o.originAccount, o.dirtyAccount, len(o.Code()))
 }
 
 func (o *SimpleAccount) initStorageTrie() {
@@ -283,10 +283,12 @@ func (o *SimpleAccount) setCodeAndHash(code []byte) {
 // Code return the contract code
 func (o *SimpleAccount) Code() []byte {
 	if o.dirtyCode != nil {
+		o.logger.Debugf("[Code] get from dirty, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.dirtyCode})
 		return o.dirtyCode
 	}
 
 	if o.originCode != nil {
+		o.logger.Debugf("[Code] get from origin, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode})
 		return o.originCode
 	}
 
@@ -297,10 +299,11 @@ func (o *SimpleAccount) Code() []byte {
 	code, ok := o.cache.getCode(o.Addr)
 	if !ok {
 		start := time.Now()
-		code = o.ldb.Get(compositeKey(codeKey, o.Addr))
+		code = o.ldb.Get(compositeCodeKey(o.Addr, o.CodeHash()))
 		if o.enableExpensiveMetric {
 			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
+		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode})
 	}
 
 	o.originCode = code

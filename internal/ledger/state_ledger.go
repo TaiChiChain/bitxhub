@@ -161,13 +161,17 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 				}
 			}
 			batch.Put(node.RawKey, node.RawValue)
-			if trieRoot == stateRoot && len(node.LeafContent) > 0 {
+			if trieRoot == stateRoot && len(node.LeafValue) > 0 {
 				// resolve potential contract account
 				acc := &types.InnerAccount{Balance: big.NewInt(0)}
-				if err := acc.Unmarshal(node.LeafContent); err != nil {
+				if err := acc.Unmarshal(node.LeafValue); err != nil {
 					panic(err)
 				}
 				if acc.StorageRoot != (common.Hash{}) {
+					// set contract code
+					codeKey := compositeCodeKey(types.NewAddress(node.LeafKey), acc.CodeHash)
+					batch.Put(codeKey, l.cachedDB.Get(codeKey))
+					// prepare storage trie root
 					queue = append(queue, acc.StorageRoot)
 				}
 			}
