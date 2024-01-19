@@ -214,7 +214,7 @@ func (am *AxmManager) approve(owner, spender ethcommon.Address, value *big.Int) 
 
 func (am *AxmManager) Transfer(recipient ethcommon.Address, value *big.Int) error {
 	fromAcc := am.stateLedger.GetAccount(types.NewAddressByStr(am.msgFrom.String()))
-	toAcc := am.stateLedger.GetAccount(types.NewAddressByStr(recipient.String()))
+	toAcc := am.stateLedger.GetOrCreateAccount(types.NewAddressByStr(recipient.String()))
 	return transfer(fromAcc, toAcc, value)
 }
 
