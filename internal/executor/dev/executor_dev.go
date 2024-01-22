@@ -14,7 +14,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor"
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 var _ executor.Executor = (*ExecutorDev)(nil)

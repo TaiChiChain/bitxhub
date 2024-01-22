@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system"
-
 	"github.com/cbergoon/merkletree"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,12 +18,12 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/axiomesh/eth-kit/adaptor"
-	ethvm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 type InvalidReason string
@@ -108,8 +106,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 
 	exec.cumulativeGasUsed = 0
-	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp),
-		exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
+	exec.evm = newEvm(block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
 	// get last block's stateRoot to init the latest world state trie
 	parentBlock, err := exec.ledger.ChainLedger.GetBlock(block.Height() - 1)
 	if err != nil {
@@ -288,14 +285,15 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		TxHash: tx.GetHash(),
 	}
 
-	var result *ethvm.ExecutionResult
+	var result *core.ExecutionResult
 	var err error
 
-	msg := adaptor.TransactionToMessage(tx)
+	msg := TransactionToMessage(tx)
 	curGasPrice := exec.getCurrentGasPrice(height)
 	msg.GasPrice = curGasPrice
 
 	statedb := exec.ledger.StateLedger
+	evmStateDB := &ledger.EvmStateDBAdaptor{StateLedger: statedb}
 	// TODO: Move to system contract
 	snapshot := statedb.Snapshot()
 
@@ -304,14 +302,14 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		if result != nil && result.UsedGas != 0 {
 			fee := new(big.Int).SetUint64(result.UsedGas)
 			fee.Mul(fee, msg.GasPrice)
-			ethvm.Transfer(statedb, msg.From, exec.evm.Context.Coinbase, fee)
+			core.Transfer(evmStateDB, msg.From, exec.evm.Context.Coinbase, fee)
 		}
 	} else {
 		// execute evm
-		gp := new(ethvm.GasPool).AddGas(exec.gasLimit)
-		txContext := ethvm.NewEVMTxContext(msg)
-		exec.evm.Reset(txContext, exec.ledger.StateLedger)
-		result, err = ethvm.ApplyMessage(exec.evm, msg, gp)
+		gp := new(core.GasPool).AddGas(exec.gasLimit)
+		txContext := core.NewEVMTxContext(msg)
+		exec.evm.Reset(txContext, evmStateDB)
+		result, err = core.ApplyMessage(exec.evm, msg, gp)
 	}
 
 	if err != nil {
@@ -335,7 +333,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 
 		receipt.Status = types.ReceiptFAILED
 		receipt.Ret = []byte(result.Err.Error())
-		if strings.HasPrefix(result.Err.Error(), ethvm.ErrExecutionReverted.Error()) {
+		if strings.HasPrefix(result.Err.Error(), vm.ErrExecutionReverted.Error()) {
 			receipt.Ret = append(receipt.Ret, common.CopyBytes(result.ReturnData)...)
 		}
 	} else {
@@ -393,7 +391,7 @@ func calcMerkleRoot(contents []merkletree.Content) (*types.Hash, error) {
 	return types.NewHash(tree.MerkleRoot()), nil
 }
 
-func getBlockHashFunc(chainLedger ledger.ChainLedger) ethvm.GetHashFunc {
+func getBlockHashFunc(chainLedger ledger.ChainLedger) vm.GetHashFunc {
 	return func(n uint64) common.Hash {
 		hash := chainLedger.GetBlockHash(n)
 		if hash == nil {
@@ -403,21 +401,20 @@ func getBlockHashFunc(chainLedger ledger.ChainLedger) ethvm.GetHashFunc {
 	}
 }
 
-func newEvm(evmCfg repo.EVM, number uint64, timestamp uint64, chainCfg *params.ChainConfig, db ledger.StateLedger,
-	chainLedger ledger.ChainLedger, coinbase string) *ethvm.EVM {
+func newEvm(number uint64, timestamp uint64, chainCfg *params.ChainConfig, db ledger.StateLedger, chainLedger ledger.ChainLedger, coinbase string) *vm.EVM {
 	if coinbase == "" {
 		coinbase = sys_common.ZeroAddress
 	}
 
-	blkCtx := ethvm.NewEVMBlockContext(number, timestamp, coinbase, getBlockHashFunc(chainLedger))
+	blkCtx := NewEVMBlockContextAdaptor(number, timestamp, coinbase, getBlockHashFunc(chainLedger))
 
-	return ethvm.NewEVM(blkCtx, ethvm.TxContext{}, db, chainCfg, ethvm.Config{
-		DisableMaxCodeSizeLimit: evmCfg.DisableMaxCodeSizeLimit,
-	})
+	return vm.NewEVM(blkCtx, vm.TxContext{}, &ledger.EvmStateDBAdaptor{
+		StateLedger: db,
+	}, chainCfg, vm.Config{})
 }
 
-func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx ethvm.TxContext, vmConfig ethvm.Config) (*ethvm.EVM, error) {
-	var blkCtx ethvm.BlockContext
+func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error) {
+	var blkCtx vm.BlockContext
 	meta := exec.ledger.ChainLedger.GetChainMeta()
 	block, err := exec.ledger.ChainLedger.GetBlock(meta.Height)
 	if err != nil {
@@ -425,9 +422,11 @@ func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx ethvm.TxContext, vmConfig 
 		return nil, err
 	}
 
-	lg := exec.ledger.NewView()
-	blkCtx = ethvm.NewEVMBlockContext(meta.Height, uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
-	return ethvm.NewEVM(blkCtx, txCtx, lg.StateLedger, exec.evmChainCfg, vmConfig), nil
+	evmLg := &ledger.EvmStateDBAdaptor{
+		StateLedger: exec.ledger.NewView().StateLedger,
+	}
+	blkCtx = NewEVMBlockContextAdaptor(meta.Height, uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
+	return vm.NewEVM(blkCtx, txCtx, evmLg, exec.evmChainCfg, vmConfig), nil
 }
 
 func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {

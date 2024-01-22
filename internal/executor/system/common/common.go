@@ -2,12 +2,13 @@ package common
 
 import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	ethtype "github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -99,6 +100,6 @@ type Log struct {
 }
 
 func CalculateDynamicGas(bytes []byte) uint64 {
-	gas, _ := vm.IntrinsicGas(bytes, []ethtype.AccessTuple{}, false, true, true, true)
+	gas, _ := core.IntrinsicGas(bytes, []ethtype.AccessTuple{}, false, true, true, true)
 	return gas
 }

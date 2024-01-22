@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 //go:generate mockgen -destination mock_api/mock_api.go -package mock_api -source api.go -typed
@@ -28,13 +29,13 @@ type BrokerAPI interface {
 	GetBlock(mode string, key string) (*types.Block, error)
 	GetBlocks(start uint64, end uint64) ([]*types.Block, error)
 	GetViewStateLedger() ledger.StateLedger
-	GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error)
+	GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, error)
 	GetNativeVm() common.VirtualMachine
 	ConsensusReady() error
 	GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
 
 	ChainConfig() *params.ChainConfig
-	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error)
+	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error)
 }
 
 type NetworkAPI interface {

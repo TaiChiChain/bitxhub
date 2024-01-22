@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 
-	vm "github.com/axiomesh/eth-kit/evm"
+	vm "github.com/ethereum/go-ethereum/core/vm"
 )
 
 type JSONLogger struct {
@@ -64,7 +64,7 @@ func (l *JSONLogger) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, sco
 		GasCost:       cost,
 		MemorySize:    memory.Len(),
 		Depth:         depth,
-		RefundCounter: l.env.StateDB.GetEVMRefund(),
+		RefundCounter: l.env.StateDB.GetRefund(),
 		Err:           err,
 	}
 	if l.cfg.EnableMemory {

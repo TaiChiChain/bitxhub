@@ -18,8 +18,6 @@ import (
 	types "github.com/axiomesh/axiom-kit/types"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/ethereum/go-ethereum/common"
-	types0 "github.com/ethereum/go-ethereum/core/types"
-	params "github.com/ethereum/go-ethereum/params"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -680,182 +678,74 @@ func (m *MockStateLedger) EXPECT() *MockStateLedgerMockRecorder {
 	return m.recorder
 }
 
-// AddAddressToEVMAccessList mocks base method.
-func (m *MockStateLedger) AddAddressToEVMAccessList(addr common.Address) {
+// AddAddressToAccessList mocks base method.
+func (m *MockStateLedger) AddAddressToAccessList(arg0 types.Address) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddAddressToEVMAccessList", addr)
+	m.ctrl.Call(m, "AddAddressToAccessList", arg0)
 }
 
-// AddAddressToEVMAccessList indicates an expected call of AddAddressToEVMAccessList.
-func (mr *MockStateLedgerMockRecorder) AddAddressToEVMAccessList(addr any) *StateLedgerAddAddressToEVMAccessListCall {
+// AddAddressToAccessList indicates an expected call of AddAddressToAccessList.
+func (mr *MockStateLedgerMockRecorder) AddAddressToAccessList(arg0 any) *StateLedgerAddAddressToAccessListCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAddressToEVMAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddAddressToEVMAccessList), addr)
-	return &StateLedgerAddAddressToEVMAccessListCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAddressToAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddAddressToAccessList), arg0)
+	return &StateLedgerAddAddressToAccessListCall{Call: call}
 }
 
-// StateLedgerAddAddressToEVMAccessListCall wrap *gomock.Call
-type StateLedgerAddAddressToEVMAccessListCall struct {
+// StateLedgerAddAddressToAccessListCall wrap *gomock.Call
+type StateLedgerAddAddressToAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddAddressToEVMAccessListCall) Return() *StateLedgerAddAddressToEVMAccessListCall {
+func (c *StateLedgerAddAddressToAccessListCall) Return() *StateLedgerAddAddressToAccessListCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddAddressToEVMAccessListCall) Do(f func(common.Address)) *StateLedgerAddAddressToEVMAccessListCall {
+func (c *StateLedgerAddAddressToAccessListCall) Do(f func(types.Address)) *StateLedgerAddAddressToAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddAddressToEVMAccessListCall) DoAndReturn(f func(common.Address)) *StateLedgerAddAddressToEVMAccessListCall {
+func (c *StateLedgerAddAddressToAccessListCall) DoAndReturn(f func(types.Address)) *StateLedgerAddAddressToAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// AddEVMBalance mocks base method.
-func (m *MockStateLedger) AddEVMBalance(arg0 common.Address, arg1 *big.Int) {
+// AddBalance mocks base method.
+func (m *MockStateLedger) AddBalance(arg0 *types.Address, arg1 *big.Int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddEVMBalance", arg0, arg1)
+	m.ctrl.Call(m, "AddBalance", arg0, arg1)
 }
 
-// AddEVMBalance indicates an expected call of AddEVMBalance.
-func (mr *MockStateLedgerMockRecorder) AddEVMBalance(arg0, arg1 any) *StateLedgerAddEVMBalanceCall {
+// AddBalance indicates an expected call of AddBalance.
+func (mr *MockStateLedgerMockRecorder) AddBalance(arg0, arg1 any) *StateLedgerAddBalanceCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEVMBalance", reflect.TypeOf((*MockStateLedger)(nil).AddEVMBalance), arg0, arg1)
-	return &StateLedgerAddEVMBalanceCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBalance", reflect.TypeOf((*MockStateLedger)(nil).AddBalance), arg0, arg1)
+	return &StateLedgerAddBalanceCall{Call: call}
 }
 
-// StateLedgerAddEVMBalanceCall wrap *gomock.Call
-type StateLedgerAddEVMBalanceCall struct {
+// StateLedgerAddBalanceCall wrap *gomock.Call
+type StateLedgerAddBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddEVMBalanceCall) Return() *StateLedgerAddEVMBalanceCall {
+func (c *StateLedgerAddBalanceCall) Return() *StateLedgerAddBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddEVMBalanceCall) Do(f func(common.Address, *big.Int)) *StateLedgerAddEVMBalanceCall {
+func (c *StateLedgerAddBalanceCall) Do(f func(*types.Address, *big.Int)) *StateLedgerAddBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddEVMBalanceCall) DoAndReturn(f func(common.Address, *big.Int)) *StateLedgerAddEVMBalanceCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// AddEVMLog mocks base method.
-func (m *MockStateLedger) AddEVMLog(log *types0.Log) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddEVMLog", log)
-}
-
-// AddEVMLog indicates an expected call of AddEVMLog.
-func (mr *MockStateLedgerMockRecorder) AddEVMLog(log any) *StateLedgerAddEVMLogCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEVMLog", reflect.TypeOf((*MockStateLedger)(nil).AddEVMLog), log)
-	return &StateLedgerAddEVMLogCall{Call: call}
-}
-
-// StateLedgerAddEVMLogCall wrap *gomock.Call
-type StateLedgerAddEVMLogCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddEVMLogCall) Return() *StateLedgerAddEVMLogCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddEVMLogCall) Do(f func(*types0.Log)) *StateLedgerAddEVMLogCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddEVMLogCall) DoAndReturn(f func(*types0.Log)) *StateLedgerAddEVMLogCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// AddEVMPreimage mocks base method.
-func (m *MockStateLedger) AddEVMPreimage(arg0 common.Hash, arg1 []byte) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddEVMPreimage", arg0, arg1)
-}
-
-// AddEVMPreimage indicates an expected call of AddEVMPreimage.
-func (mr *MockStateLedgerMockRecorder) AddEVMPreimage(arg0, arg1 any) *StateLedgerAddEVMPreimageCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEVMPreimage", reflect.TypeOf((*MockStateLedger)(nil).AddEVMPreimage), arg0, arg1)
-	return &StateLedgerAddEVMPreimageCall{Call: call}
-}
-
-// StateLedgerAddEVMPreimageCall wrap *gomock.Call
-type StateLedgerAddEVMPreimageCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddEVMPreimageCall) Return() *StateLedgerAddEVMPreimageCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddEVMPreimageCall) Do(f func(common.Hash, []byte)) *StateLedgerAddEVMPreimageCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddEVMPreimageCall) DoAndReturn(f func(common.Hash, []byte)) *StateLedgerAddEVMPreimageCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// AddEVMRefund mocks base method.
-func (m *MockStateLedger) AddEVMRefund(arg0 uint64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddEVMRefund", arg0)
-}
-
-// AddEVMRefund indicates an expected call of AddEVMRefund.
-func (mr *MockStateLedgerMockRecorder) AddEVMRefund(arg0 any) *StateLedgerAddEVMRefundCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddEVMRefund", reflect.TypeOf((*MockStateLedger)(nil).AddEVMRefund), arg0)
-	return &StateLedgerAddEVMRefundCall{Call: call}
-}
-
-// StateLedgerAddEVMRefundCall wrap *gomock.Call
-type StateLedgerAddEVMRefundCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddEVMRefundCall) Return() *StateLedgerAddEVMRefundCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddEVMRefundCall) Do(f func(uint64)) *StateLedgerAddEVMRefundCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddEVMRefundCall) DoAndReturn(f func(uint64)) *StateLedgerAddEVMRefundCall {
+func (c *StateLedgerAddBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateLedgerAddBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -896,76 +786,148 @@ func (c *StateLedgerAddLogCall) DoAndReturn(f func(*types.EvmLog)) *StateLedgerA
 	return c
 }
 
-// AddSlotToEVMAccessList mocks base method.
-func (m *MockStateLedger) AddSlotToEVMAccessList(addr common.Address, slot common.Hash) {
+// AddPreimage mocks base method.
+func (m *MockStateLedger) AddPreimage(arg0 types.Hash, arg1 []byte) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddSlotToEVMAccessList", addr, slot)
+	m.ctrl.Call(m, "AddPreimage", arg0, arg1)
 }
 
-// AddSlotToEVMAccessList indicates an expected call of AddSlotToEVMAccessList.
-func (mr *MockStateLedgerMockRecorder) AddSlotToEVMAccessList(addr, slot any) *StateLedgerAddSlotToEVMAccessListCall {
+// AddPreimage indicates an expected call of AddPreimage.
+func (mr *MockStateLedgerMockRecorder) AddPreimage(arg0, arg1 any) *StateLedgerAddPreimageCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSlotToEVMAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddSlotToEVMAccessList), addr, slot)
-	return &StateLedgerAddSlotToEVMAccessListCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPreimage", reflect.TypeOf((*MockStateLedger)(nil).AddPreimage), arg0, arg1)
+	return &StateLedgerAddPreimageCall{Call: call}
 }
 
-// StateLedgerAddSlotToEVMAccessListCall wrap *gomock.Call
-type StateLedgerAddSlotToEVMAccessListCall struct {
+// StateLedgerAddPreimageCall wrap *gomock.Call
+type StateLedgerAddPreimageCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddSlotToEVMAccessListCall) Return() *StateLedgerAddSlotToEVMAccessListCall {
+func (c *StateLedgerAddPreimageCall) Return() *StateLedgerAddPreimageCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddSlotToEVMAccessListCall) Do(f func(common.Address, common.Hash)) *StateLedgerAddSlotToEVMAccessListCall {
+func (c *StateLedgerAddPreimageCall) Do(f func(types.Hash, []byte)) *StateLedgerAddPreimageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddSlotToEVMAccessListCall) DoAndReturn(f func(common.Address, common.Hash)) *StateLedgerAddSlotToEVMAccessListCall {
+func (c *StateLedgerAddPreimageCall) DoAndReturn(f func(types.Hash, []byte)) *StateLedgerAddPreimageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// AddressInEVMAccessList mocks base method.
-func (m *MockStateLedger) AddressInEVMAccessList(addr common.Address) bool {
+// AddRefund mocks base method.
+func (m *MockStateLedger) AddRefund(arg0 uint64) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddressInEVMAccessList", addr)
-	ret0, _ := ret[0].(bool)
-	return ret0
+	m.ctrl.Call(m, "AddRefund", arg0)
 }
 
-// AddressInEVMAccessList indicates an expected call of AddressInEVMAccessList.
-func (mr *MockStateLedgerMockRecorder) AddressInEVMAccessList(addr any) *StateLedgerAddressInEVMAccessListCall {
+// AddRefund indicates an expected call of AddRefund.
+func (mr *MockStateLedgerMockRecorder) AddRefund(arg0 any) *StateLedgerAddRefundCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressInEVMAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddressInEVMAccessList), addr)
-	return &StateLedgerAddressInEVMAccessListCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRefund", reflect.TypeOf((*MockStateLedger)(nil).AddRefund), arg0)
+	return &StateLedgerAddRefundCall{Call: call}
 }
 
-// StateLedgerAddressInEVMAccessListCall wrap *gomock.Call
-type StateLedgerAddressInEVMAccessListCall struct {
+// StateLedgerAddRefundCall wrap *gomock.Call
+type StateLedgerAddRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddressInEVMAccessListCall) Return(arg0 bool) *StateLedgerAddressInEVMAccessListCall {
+func (c *StateLedgerAddRefundCall) Return() *StateLedgerAddRefundCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerAddRefundCall) Do(f func(uint64)) *StateLedgerAddRefundCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerAddRefundCall) DoAndReturn(f func(uint64)) *StateLedgerAddRefundCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddSlotToAccessList mocks base method.
+func (m *MockStateLedger) AddSlotToAccessList(arg0 types.Address, arg1 types.Hash) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddSlotToAccessList", arg0, arg1)
+}
+
+// AddSlotToAccessList indicates an expected call of AddSlotToAccessList.
+func (mr *MockStateLedgerMockRecorder) AddSlotToAccessList(arg0, arg1 any) *StateLedgerAddSlotToAccessListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSlotToAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddSlotToAccessList), arg0, arg1)
+	return &StateLedgerAddSlotToAccessListCall{Call: call}
+}
+
+// StateLedgerAddSlotToAccessListCall wrap *gomock.Call
+type StateLedgerAddSlotToAccessListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerAddSlotToAccessListCall) Return() *StateLedgerAddSlotToAccessListCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerAddSlotToAccessListCall) Do(f func(types.Address, types.Hash)) *StateLedgerAddSlotToAccessListCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerAddSlotToAccessListCall) DoAndReturn(f func(types.Address, types.Hash)) *StateLedgerAddSlotToAccessListCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddressInAccessList mocks base method.
+func (m *MockStateLedger) AddressInAccessList(arg0 types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddressInAccessList", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// AddressInAccessList indicates an expected call of AddressInAccessList.
+func (mr *MockStateLedgerMockRecorder) AddressInAccessList(arg0 any) *StateLedgerAddressInAccessListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressInAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddressInAccessList), arg0)
+	return &StateLedgerAddressInAccessListCall{Call: call}
+}
+
+// StateLedgerAddressInAccessListCall wrap *gomock.Call
+type StateLedgerAddressInAccessListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerAddressInAccessListCall) Return(arg0 bool) *StateLedgerAddressInAccessListCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddressInEVMAccessListCall) Do(f func(common.Address) bool) *StateLedgerAddressInEVMAccessListCall {
+func (c *StateLedgerAddressInAccessListCall) Do(f func(types.Address) bool) *StateLedgerAddressInAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddressInEVMAccessListCall) DoAndReturn(f func(common.Address) bool) *StateLedgerAddressInEVMAccessListCall {
+func (c *StateLedgerAddressInAccessListCall) DoAndReturn(f func(types.Address) bool) *StateLedgerAddressInAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1117,114 +1079,78 @@ func (c *StateLedgerCommitCall) DoAndReturn(f func() (*types.Hash, error)) *Stat
 	return c
 }
 
-// CreateEVMAccount mocks base method.
-func (m *MockStateLedger) CreateEVMAccount(arg0 common.Address) {
+// Empty mocks base method.
+func (m *MockStateLedger) Empty(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreateEVMAccount", arg0)
-}
-
-// CreateEVMAccount indicates an expected call of CreateEVMAccount.
-func (mr *MockStateLedgerMockRecorder) CreateEVMAccount(arg0 any) *StateLedgerCreateEVMAccountCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateEVMAccount", reflect.TypeOf((*MockStateLedger)(nil).CreateEVMAccount), arg0)
-	return &StateLedgerCreateEVMAccountCall{Call: call}
-}
-
-// StateLedgerCreateEVMAccountCall wrap *gomock.Call
-type StateLedgerCreateEVMAccountCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerCreateEVMAccountCall) Return() *StateLedgerCreateEVMAccountCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerCreateEVMAccountCall) Do(f func(common.Address)) *StateLedgerCreateEVMAccountCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerCreateEVMAccountCall) DoAndReturn(f func(common.Address)) *StateLedgerCreateEVMAccountCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// EmptyEVM mocks base method.
-func (m *MockStateLedger) EmptyEVM(arg0 common.Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EmptyEVM", arg0)
+	ret := m.ctrl.Call(m, "Empty", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// EmptyEVM indicates an expected call of EmptyEVM.
-func (mr *MockStateLedgerMockRecorder) EmptyEVM(arg0 any) *StateLedgerEmptyEVMCall {
+// Empty indicates an expected call of Empty.
+func (mr *MockStateLedgerMockRecorder) Empty(arg0 any) *StateLedgerEmptyCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmptyEVM", reflect.TypeOf((*MockStateLedger)(nil).EmptyEVM), arg0)
-	return &StateLedgerEmptyEVMCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockStateLedger)(nil).Empty), arg0)
+	return &StateLedgerEmptyCall{Call: call}
 }
 
-// StateLedgerEmptyEVMCall wrap *gomock.Call
-type StateLedgerEmptyEVMCall struct {
+// StateLedgerEmptyCall wrap *gomock.Call
+type StateLedgerEmptyCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerEmptyEVMCall) Return(arg0 bool) *StateLedgerEmptyEVMCall {
+func (c *StateLedgerEmptyCall) Return(arg0 bool) *StateLedgerEmptyCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerEmptyEVMCall) Do(f func(common.Address) bool) *StateLedgerEmptyEVMCall {
+func (c *StateLedgerEmptyCall) Do(f func(*types.Address) bool) *StateLedgerEmptyCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerEmptyEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerEmptyEVMCall {
+func (c *StateLedgerEmptyCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerEmptyCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// ExistEVM mocks base method.
-func (m *MockStateLedger) ExistEVM(arg0 common.Address) bool {
+// Exist mocks base method.
+func (m *MockStateLedger) Exist(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ExistEVM", arg0)
+	ret := m.ctrl.Call(m, "Exist", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// ExistEVM indicates an expected call of ExistEVM.
-func (mr *MockStateLedgerMockRecorder) ExistEVM(arg0 any) *StateLedgerExistEVMCall {
+// Exist indicates an expected call of Exist.
+func (mr *MockStateLedgerMockRecorder) Exist(arg0 any) *StateLedgerExistCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistEVM", reflect.TypeOf((*MockStateLedger)(nil).ExistEVM), arg0)
-	return &StateLedgerExistEVMCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exist", reflect.TypeOf((*MockStateLedger)(nil).Exist), arg0)
+	return &StateLedgerExistCall{Call: call}
 }
 
-// StateLedgerExistEVMCall wrap *gomock.Call
-type StateLedgerExistEVMCall struct {
+// StateLedgerExistCall wrap *gomock.Call
+type StateLedgerExistCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerExistEVMCall) Return(arg0 bool) *StateLedgerExistEVMCall {
+func (c *StateLedgerExistCall) Return(arg0 bool) *StateLedgerExistCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerExistEVMCall) Do(f func(common.Address) bool) *StateLedgerExistEVMCall {
+func (c *StateLedgerExistCall) Do(f func(*types.Address) bool) *StateLedgerExistCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerExistEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerExistEVMCall {
+func (c *StateLedgerExistCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerExistCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1379,344 +1305,116 @@ func (c *StateLedgerGetCodeCall) DoAndReturn(f func(*types.Address) []byte) *Sta
 	return c
 }
 
-// GetEVMBalance mocks base method.
-func (m *MockStateLedger) GetEVMBalance(arg0 common.Address) *big.Int {
+// GetCodeHash mocks base method.
+func (m *MockStateLedger) GetCodeHash(arg0 *types.Address) *types.Hash {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMBalance", arg0)
-	ret0, _ := ret[0].(*big.Int)
+	ret := m.ctrl.Call(m, "GetCodeHash", arg0)
+	ret0, _ := ret[0].(*types.Hash)
 	return ret0
 }
 
-// GetEVMBalance indicates an expected call of GetEVMBalance.
-func (mr *MockStateLedgerMockRecorder) GetEVMBalance(arg0 any) *StateLedgerGetEVMBalanceCall {
+// GetCodeHash indicates an expected call of GetCodeHash.
+func (mr *MockStateLedgerMockRecorder) GetCodeHash(arg0 any) *StateLedgerGetCodeHashCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMBalance", reflect.TypeOf((*MockStateLedger)(nil).GetEVMBalance), arg0)
-	return &StateLedgerGetEVMBalanceCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeHash", reflect.TypeOf((*MockStateLedger)(nil).GetCodeHash), arg0)
+	return &StateLedgerGetCodeHashCall{Call: call}
 }
 
-// StateLedgerGetEVMBalanceCall wrap *gomock.Call
-type StateLedgerGetEVMBalanceCall struct {
+// StateLedgerGetCodeHashCall wrap *gomock.Call
+type StateLedgerGetCodeHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMBalanceCall) Return(arg0 *big.Int) *StateLedgerGetEVMBalanceCall {
+func (c *StateLedgerGetCodeHashCall) Return(arg0 *types.Hash) *StateLedgerGetCodeHashCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMBalanceCall) Do(f func(common.Address) *big.Int) *StateLedgerGetEVMBalanceCall {
+func (c *StateLedgerGetCodeHashCall) Do(f func(*types.Address) *types.Hash) *StateLedgerGetCodeHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMBalanceCall) DoAndReturn(f func(common.Address) *big.Int) *StateLedgerGetEVMBalanceCall {
+func (c *StateLedgerGetCodeHashCall) DoAndReturn(f func(*types.Address) *types.Hash) *StateLedgerGetCodeHashCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetEVMCode mocks base method.
-func (m *MockStateLedger) GetEVMCode(arg0 common.Address) []byte {
+// GetCodeSize mocks base method.
+func (m *MockStateLedger) GetCodeSize(arg0 *types.Address) int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMCode", arg0)
-	ret0, _ := ret[0].([]byte)
-	return ret0
-}
-
-// GetEVMCode indicates an expected call of GetEVMCode.
-func (mr *MockStateLedgerMockRecorder) GetEVMCode(arg0 any) *StateLedgerGetEVMCodeCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMCode", reflect.TypeOf((*MockStateLedger)(nil).GetEVMCode), arg0)
-	return &StateLedgerGetEVMCodeCall{Call: call}
-}
-
-// StateLedgerGetEVMCodeCall wrap *gomock.Call
-type StateLedgerGetEVMCodeCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMCodeCall) Return(arg0 []byte) *StateLedgerGetEVMCodeCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMCodeCall) Do(f func(common.Address) []byte) *StateLedgerGetEVMCodeCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMCodeCall) DoAndReturn(f func(common.Address) []byte) *StateLedgerGetEVMCodeCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetEVMCodeHash mocks base method.
-func (m *MockStateLedger) GetEVMCodeHash(arg0 common.Address) common.Hash {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMCodeHash", arg0)
-	ret0, _ := ret[0].(common.Hash)
-	return ret0
-}
-
-// GetEVMCodeHash indicates an expected call of GetEVMCodeHash.
-func (mr *MockStateLedgerMockRecorder) GetEVMCodeHash(arg0 any) *StateLedgerGetEVMCodeHashCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMCodeHash", reflect.TypeOf((*MockStateLedger)(nil).GetEVMCodeHash), arg0)
-	return &StateLedgerGetEVMCodeHashCall{Call: call}
-}
-
-// StateLedgerGetEVMCodeHashCall wrap *gomock.Call
-type StateLedgerGetEVMCodeHashCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMCodeHashCall) Return(arg0 common.Hash) *StateLedgerGetEVMCodeHashCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMCodeHashCall) Do(f func(common.Address) common.Hash) *StateLedgerGetEVMCodeHashCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMCodeHashCall) DoAndReturn(f func(common.Address) common.Hash) *StateLedgerGetEVMCodeHashCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetEVMCodeSize mocks base method.
-func (m *MockStateLedger) GetEVMCodeSize(arg0 common.Address) int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMCodeSize", arg0)
+	ret := m.ctrl.Call(m, "GetCodeSize", arg0)
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetEVMCodeSize indicates an expected call of GetEVMCodeSize.
-func (mr *MockStateLedgerMockRecorder) GetEVMCodeSize(arg0 any) *StateLedgerGetEVMCodeSizeCall {
+// GetCodeSize indicates an expected call of GetCodeSize.
+func (mr *MockStateLedgerMockRecorder) GetCodeSize(arg0 any) *StateLedgerGetCodeSizeCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMCodeSize", reflect.TypeOf((*MockStateLedger)(nil).GetEVMCodeSize), arg0)
-	return &StateLedgerGetEVMCodeSizeCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeSize", reflect.TypeOf((*MockStateLedger)(nil).GetCodeSize), arg0)
+	return &StateLedgerGetCodeSizeCall{Call: call}
 }
 
-// StateLedgerGetEVMCodeSizeCall wrap *gomock.Call
-type StateLedgerGetEVMCodeSizeCall struct {
+// StateLedgerGetCodeSizeCall wrap *gomock.Call
+type StateLedgerGetCodeSizeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMCodeSizeCall) Return(arg0 int) *StateLedgerGetEVMCodeSizeCall {
+func (c *StateLedgerGetCodeSizeCall) Return(arg0 int) *StateLedgerGetCodeSizeCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMCodeSizeCall) Do(f func(common.Address) int) *StateLedgerGetEVMCodeSizeCall {
+func (c *StateLedgerGetCodeSizeCall) Do(f func(*types.Address) int) *StateLedgerGetCodeSizeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMCodeSizeCall) DoAndReturn(f func(common.Address) int) *StateLedgerGetEVMCodeSizeCall {
+func (c *StateLedgerGetCodeSizeCall) DoAndReturn(f func(*types.Address) int) *StateLedgerGetCodeSizeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetEVMCommittedState mocks base method.
-func (m *MockStateLedger) GetEVMCommittedState(arg0 common.Address, arg1 common.Hash) common.Hash {
+// GetCommittedState mocks base method.
+func (m *MockStateLedger) GetCommittedState(arg0 *types.Address, arg1 []byte) []byte {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMCommittedState", arg0, arg1)
-	ret0, _ := ret[0].(common.Hash)
+	ret := m.ctrl.Call(m, "GetCommittedState", arg0, arg1)
+	ret0, _ := ret[0].([]byte)
 	return ret0
 }
 
-// GetEVMCommittedState indicates an expected call of GetEVMCommittedState.
-func (mr *MockStateLedgerMockRecorder) GetEVMCommittedState(arg0, arg1 any) *StateLedgerGetEVMCommittedStateCall {
+// GetCommittedState indicates an expected call of GetCommittedState.
+func (mr *MockStateLedgerMockRecorder) GetCommittedState(arg0, arg1 any) *StateLedgerGetCommittedStateCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMCommittedState", reflect.TypeOf((*MockStateLedger)(nil).GetEVMCommittedState), arg0, arg1)
-	return &StateLedgerGetEVMCommittedStateCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedState", reflect.TypeOf((*MockStateLedger)(nil).GetCommittedState), arg0, arg1)
+	return &StateLedgerGetCommittedStateCall{Call: call}
 }
 
-// StateLedgerGetEVMCommittedStateCall wrap *gomock.Call
-type StateLedgerGetEVMCommittedStateCall struct {
+// StateLedgerGetCommittedStateCall wrap *gomock.Call
+type StateLedgerGetCommittedStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMCommittedStateCall) Return(arg0 common.Hash) *StateLedgerGetEVMCommittedStateCall {
+func (c *StateLedgerGetCommittedStateCall) Return(arg0 []byte) *StateLedgerGetCommittedStateCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMCommittedStateCall) Do(f func(common.Address, common.Hash) common.Hash) *StateLedgerGetEVMCommittedStateCall {
+func (c *StateLedgerGetCommittedStateCall) Do(f func(*types.Address, []byte) []byte) *StateLedgerGetCommittedStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMCommittedStateCall) DoAndReturn(f func(common.Address, common.Hash) common.Hash) *StateLedgerGetEVMCommittedStateCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetEVMNonce mocks base method.
-func (m *MockStateLedger) GetEVMNonce(arg0 common.Address) uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMNonce", arg0)
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetEVMNonce indicates an expected call of GetEVMNonce.
-func (mr *MockStateLedgerMockRecorder) GetEVMNonce(arg0 any) *StateLedgerGetEVMNonceCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMNonce", reflect.TypeOf((*MockStateLedger)(nil).GetEVMNonce), arg0)
-	return &StateLedgerGetEVMNonceCall{Call: call}
-}
-
-// StateLedgerGetEVMNonceCall wrap *gomock.Call
-type StateLedgerGetEVMNonceCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMNonceCall) Return(arg0 uint64) *StateLedgerGetEVMNonceCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMNonceCall) Do(f func(common.Address) uint64) *StateLedgerGetEVMNonceCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMNonceCall) DoAndReturn(f func(common.Address) uint64) *StateLedgerGetEVMNonceCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetEVMRefund mocks base method.
-func (m *MockStateLedger) GetEVMRefund() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMRefund")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// GetEVMRefund indicates an expected call of GetEVMRefund.
-func (mr *MockStateLedgerMockRecorder) GetEVMRefund() *StateLedgerGetEVMRefundCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMRefund", reflect.TypeOf((*MockStateLedger)(nil).GetEVMRefund))
-	return &StateLedgerGetEVMRefundCall{Call: call}
-}
-
-// StateLedgerGetEVMRefundCall wrap *gomock.Call
-type StateLedgerGetEVMRefundCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMRefundCall) Return(arg0 uint64) *StateLedgerGetEVMRefundCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMRefundCall) Do(f func() uint64) *StateLedgerGetEVMRefundCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMRefundCall) DoAndReturn(f func() uint64) *StateLedgerGetEVMRefundCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetEVMState mocks base method.
-func (m *MockStateLedger) GetEVMState(arg0 common.Address, arg1 common.Hash) common.Hash {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMState", arg0, arg1)
-	ret0, _ := ret[0].(common.Hash)
-	return ret0
-}
-
-// GetEVMState indicates an expected call of GetEVMState.
-func (mr *MockStateLedgerMockRecorder) GetEVMState(arg0, arg1 any) *StateLedgerGetEVMStateCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMState", reflect.TypeOf((*MockStateLedger)(nil).GetEVMState), arg0, arg1)
-	return &StateLedgerGetEVMStateCall{Call: call}
-}
-
-// StateLedgerGetEVMStateCall wrap *gomock.Call
-type StateLedgerGetEVMStateCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMStateCall) Return(arg0 common.Hash) *StateLedgerGetEVMStateCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMStateCall) Do(f func(common.Address, common.Hash) common.Hash) *StateLedgerGetEVMStateCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMStateCall) DoAndReturn(f func(common.Address, common.Hash) common.Hash) *StateLedgerGetEVMStateCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetEVMTransientState mocks base method.
-func (m *MockStateLedger) GetEVMTransientState(addr common.Address, key common.Hash) common.Hash {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEVMTransientState", addr, key)
-	ret0, _ := ret[0].(common.Hash)
-	return ret0
-}
-
-// GetEVMTransientState indicates an expected call of GetEVMTransientState.
-func (mr *MockStateLedgerMockRecorder) GetEVMTransientState(addr, key any) *StateLedgerGetEVMTransientStateCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEVMTransientState", reflect.TypeOf((*MockStateLedger)(nil).GetEVMTransientState), addr, key)
-	return &StateLedgerGetEVMTransientStateCall{Call: call}
-}
-
-// StateLedgerGetEVMTransientStateCall wrap *gomock.Call
-type StateLedgerGetEVMTransientStateCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetEVMTransientStateCall) Return(arg0 common.Hash) *StateLedgerGetEVMTransientStateCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetEVMTransientStateCall) Do(f func(common.Address, common.Hash) common.Hash) *StateLedgerGetEVMTransientStateCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetEVMTransientStateCall) DoAndReturn(f func(common.Address, common.Hash) common.Hash) *StateLedgerGetEVMTransientStateCall {
+func (c *StateLedgerGetCommittedStateCall) DoAndReturn(f func(*types.Address, []byte) []byte) *StateLedgerGetCommittedStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1835,6 +1533,44 @@ func (c *StateLedgerGetOrCreateAccountCall) DoAndReturn(f func(*types.Address) l
 	return c
 }
 
+// GetRefund mocks base method.
+func (m *MockStateLedger) GetRefund() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRefund")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetRefund indicates an expected call of GetRefund.
+func (mr *MockStateLedgerMockRecorder) GetRefund() *StateLedgerGetRefundCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRefund", reflect.TypeOf((*MockStateLedger)(nil).GetRefund))
+	return &StateLedgerGetRefundCall{Call: call}
+}
+
+// StateLedgerGetRefundCall wrap *gomock.Call
+type StateLedgerGetRefundCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerGetRefundCall) Return(arg0 uint64) *StateLedgerGetRefundCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerGetRefundCall) Do(f func() uint64) *StateLedgerGetRefundCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerGetRefundCall) DoAndReturn(f func() uint64) *StateLedgerGetRefundCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetState mocks base method.
 func (m *MockStateLedger) GetState(arg0 *types.Address, arg1 []byte) (bool, []byte) {
 	m.ctrl.T.Helper()
@@ -1913,40 +1649,40 @@ func (c *StateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func() (*ledger.Snaps
 	return c
 }
 
-// HasSuicideEVM mocks base method.
-func (m *MockStateLedger) HasSuicideEVM(arg0 common.Address) bool {
+// HasSuicide mocks base method.
+func (m *MockStateLedger) HasSuicide(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSuicideEVM", arg0)
+	ret := m.ctrl.Call(m, "HasSuicide", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// HasSuicideEVM indicates an expected call of HasSuicideEVM.
-func (mr *MockStateLedgerMockRecorder) HasSuicideEVM(arg0 any) *StateLedgerHasSuicideEVMCall {
+// HasSuicide indicates an expected call of HasSuicide.
+func (mr *MockStateLedgerMockRecorder) HasSuicide(arg0 any) *StateLedgerHasSuicideCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicideEVM", reflect.TypeOf((*MockStateLedger)(nil).HasSuicideEVM), arg0)
-	return &StateLedgerHasSuicideEVMCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicide", reflect.TypeOf((*MockStateLedger)(nil).HasSuicide), arg0)
+	return &StateLedgerHasSuicideCall{Call: call}
 }
 
-// StateLedgerHasSuicideEVMCall wrap *gomock.Call
-type StateLedgerHasSuicideEVMCall struct {
+// StateLedgerHasSuicideCall wrap *gomock.Call
+type StateLedgerHasSuicideCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerHasSuicideEVMCall) Return(arg0 bool) *StateLedgerHasSuicideEVMCall {
+func (c *StateLedgerHasSuicideCall) Return(arg0 bool) *StateLedgerHasSuicideCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerHasSuicideEVMCall) Do(f func(common.Address) bool) *StateLedgerHasSuicideEVMCall {
+func (c *StateLedgerHasSuicideCall) Do(f func(*types.Address) bool) *StateLedgerHasSuicideCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerHasSuicideEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerHasSuicideEVMCall {
+func (c *StateLedgerHasSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerHasSuicideCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2095,42 +1831,6 @@ func (c *StateLedgerPrepareBlockCall) Do(f func(*types.Hash, *types.Hash, uint64
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateLedgerPrepareBlockCall) DoAndReturn(f func(*types.Hash, *types.Hash, uint64)) *StateLedgerPrepareBlockCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// PrepareEVM mocks base method.
-func (m *MockStateLedger) PrepareEVM(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types0.AccessList) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PrepareEVM", rules, sender, coinbase, dest, precompiles, txAccesses)
-}
-
-// PrepareEVM indicates an expected call of PrepareEVM.
-func (mr *MockStateLedgerMockRecorder) PrepareEVM(rules, sender, coinbase, dest, precompiles, txAccesses any) *StateLedgerPrepareEVMCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareEVM", reflect.TypeOf((*MockStateLedger)(nil).PrepareEVM), rules, sender, coinbase, dest, precompiles, txAccesses)
-	return &StateLedgerPrepareEVMCall{Call: call}
-}
-
-// StateLedgerPrepareEVMCall wrap *gomock.Call
-type StateLedgerPrepareEVMCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerPrepareEVMCall) Return() *StateLedgerPrepareEVMCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerPrepareEVMCall) Do(f func(params.Rules, common.Address, common.Address, *common.Address, []common.Address, types0.AccessList)) *StateLedgerPrepareEVMCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerPrepareEVMCall) DoAndReturn(f func(params.Rules, common.Address, common.Address, *common.Address, []common.Address, types0.AccessList)) *StateLedgerPrepareEVMCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2320,150 +2020,6 @@ func (c *StateLedgerSetCodeCall) DoAndReturn(f func(*types.Address, []byte)) *St
 	return c
 }
 
-// SetEVMCode mocks base method.
-func (m *MockStateLedger) SetEVMCode(arg0 common.Address, arg1 []byte) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetEVMCode", arg0, arg1)
-}
-
-// SetEVMCode indicates an expected call of SetEVMCode.
-func (mr *MockStateLedgerMockRecorder) SetEVMCode(arg0, arg1 any) *StateLedgerSetEVMCodeCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEVMCode", reflect.TypeOf((*MockStateLedger)(nil).SetEVMCode), arg0, arg1)
-	return &StateLedgerSetEVMCodeCall{Call: call}
-}
-
-// StateLedgerSetEVMCodeCall wrap *gomock.Call
-type StateLedgerSetEVMCodeCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetEVMCodeCall) Return() *StateLedgerSetEVMCodeCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetEVMCodeCall) Do(f func(common.Address, []byte)) *StateLedgerSetEVMCodeCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetEVMCodeCall) DoAndReturn(f func(common.Address, []byte)) *StateLedgerSetEVMCodeCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SetEVMNonce mocks base method.
-func (m *MockStateLedger) SetEVMNonce(arg0 common.Address, arg1 uint64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetEVMNonce", arg0, arg1)
-}
-
-// SetEVMNonce indicates an expected call of SetEVMNonce.
-func (mr *MockStateLedgerMockRecorder) SetEVMNonce(arg0, arg1 any) *StateLedgerSetEVMNonceCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEVMNonce", reflect.TypeOf((*MockStateLedger)(nil).SetEVMNonce), arg0, arg1)
-	return &StateLedgerSetEVMNonceCall{Call: call}
-}
-
-// StateLedgerSetEVMNonceCall wrap *gomock.Call
-type StateLedgerSetEVMNonceCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetEVMNonceCall) Return() *StateLedgerSetEVMNonceCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetEVMNonceCall) Do(f func(common.Address, uint64)) *StateLedgerSetEVMNonceCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetEVMNonceCall) DoAndReturn(f func(common.Address, uint64)) *StateLedgerSetEVMNonceCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SetEVMState mocks base method.
-func (m *MockStateLedger) SetEVMState(arg0 common.Address, arg1, arg2 common.Hash) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetEVMState", arg0, arg1, arg2)
-}
-
-// SetEVMState indicates an expected call of SetEVMState.
-func (mr *MockStateLedgerMockRecorder) SetEVMState(arg0, arg1, arg2 any) *StateLedgerSetEVMStateCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEVMState", reflect.TypeOf((*MockStateLedger)(nil).SetEVMState), arg0, arg1, arg2)
-	return &StateLedgerSetEVMStateCall{Call: call}
-}
-
-// StateLedgerSetEVMStateCall wrap *gomock.Call
-type StateLedgerSetEVMStateCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetEVMStateCall) Return() *StateLedgerSetEVMStateCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetEVMStateCall) Do(f func(common.Address, common.Hash, common.Hash)) *StateLedgerSetEVMStateCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetEVMStateCall) DoAndReturn(f func(common.Address, common.Hash, common.Hash)) *StateLedgerSetEVMStateCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SetEVMTransientState mocks base method.
-func (m *MockStateLedger) SetEVMTransientState(addr common.Address, key, value common.Hash) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetEVMTransientState", addr, key, value)
-}
-
-// SetEVMTransientState indicates an expected call of SetEVMTransientState.
-func (mr *MockStateLedgerMockRecorder) SetEVMTransientState(addr, key, value any) *StateLedgerSetEVMTransientStateCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEVMTransientState", reflect.TypeOf((*MockStateLedger)(nil).SetEVMTransientState), addr, key, value)
-	return &StateLedgerSetEVMTransientStateCall{Call: call}
-}
-
-// StateLedgerSetEVMTransientStateCall wrap *gomock.Call
-type StateLedgerSetEVMTransientStateCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetEVMTransientStateCall) Return() *StateLedgerSetEVMTransientStateCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetEVMTransientStateCall) Do(f func(common.Address, common.Hash, common.Hash)) *StateLedgerSetEVMTransientStateCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetEVMTransientStateCall) DoAndReturn(f func(common.Address, common.Hash, common.Hash)) *StateLedgerSetEVMTransientStateCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // SetNonce mocks base method.
 func (m *MockStateLedger) SetNonce(arg0 *types.Address, arg1 uint64) {
 	m.ctrl.T.Helper()
@@ -2572,41 +2128,41 @@ func (c *StateLedgerSetTxContextCall) DoAndReturn(f func(*types.Hash, int)) *Sta
 	return c
 }
 
-// SlotInEVMAceessList mocks base method.
-func (m *MockStateLedger) SlotInEVMAceessList(addr common.Address, slot common.Hash) (bool, bool) {
+// SlotInAccessList mocks base method.
+func (m *MockStateLedger) SlotInAccessList(arg0 types.Address, arg1 types.Hash) (bool, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SlotInEVMAceessList", addr, slot)
+	ret := m.ctrl.Call(m, "SlotInAccessList", arg0, arg1)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-// SlotInEVMAceessList indicates an expected call of SlotInEVMAceessList.
-func (mr *MockStateLedgerMockRecorder) SlotInEVMAceessList(addr, slot any) *StateLedgerSlotInEVMAceessListCall {
+// SlotInAccessList indicates an expected call of SlotInAccessList.
+func (mr *MockStateLedgerMockRecorder) SlotInAccessList(arg0, arg1 any) *StateLedgerSlotInAccessListCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SlotInEVMAceessList", reflect.TypeOf((*MockStateLedger)(nil).SlotInEVMAceessList), addr, slot)
-	return &StateLedgerSlotInEVMAceessListCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SlotInAccessList", reflect.TypeOf((*MockStateLedger)(nil).SlotInAccessList), arg0, arg1)
+	return &StateLedgerSlotInAccessListCall{Call: call}
 }
 
-// StateLedgerSlotInEVMAceessListCall wrap *gomock.Call
-type StateLedgerSlotInEVMAceessListCall struct {
+// StateLedgerSlotInAccessListCall wrap *gomock.Call
+type StateLedgerSlotInAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSlotInEVMAceessListCall) Return(addressOk, slotOk bool) *StateLedgerSlotInEVMAceessListCall {
-	c.Call = c.Call.Return(addressOk, slotOk)
+func (c *StateLedgerSlotInAccessListCall) Return(arg0, arg1 bool) *StateLedgerSlotInAccessListCall {
+	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSlotInEVMAceessListCall) Do(f func(common.Address, common.Hash) (bool, bool)) *StateLedgerSlotInEVMAceessListCall {
+func (c *StateLedgerSlotInAccessListCall) Do(f func(types.Address, types.Hash) (bool, bool)) *StateLedgerSlotInAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSlotInEVMAceessListCall) DoAndReturn(f func(common.Address, common.Hash) (bool, bool)) *StateLedgerSlotInEVMAceessListCall {
+func (c *StateLedgerSlotInAccessListCall) DoAndReturn(f func(types.Address, types.Hash) (bool, bool)) *StateLedgerSlotInAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2649,112 +2205,112 @@ func (c *StateLedgerSnapshotCall) DoAndReturn(f func() int) *StateLedgerSnapshot
 	return c
 }
 
-// SubEVMBalance mocks base method.
-func (m *MockStateLedger) SubEVMBalance(arg0 common.Address, arg1 *big.Int) {
+// SubBalance mocks base method.
+func (m *MockStateLedger) SubBalance(arg0 *types.Address, arg1 *big.Int) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SubEVMBalance", arg0, arg1)
+	m.ctrl.Call(m, "SubBalance", arg0, arg1)
 }
 
-// SubEVMBalance indicates an expected call of SubEVMBalance.
-func (mr *MockStateLedgerMockRecorder) SubEVMBalance(arg0, arg1 any) *StateLedgerSubEVMBalanceCall {
+// SubBalance indicates an expected call of SubBalance.
+func (mr *MockStateLedgerMockRecorder) SubBalance(arg0, arg1 any) *StateLedgerSubBalanceCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubEVMBalance", reflect.TypeOf((*MockStateLedger)(nil).SubEVMBalance), arg0, arg1)
-	return &StateLedgerSubEVMBalanceCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubBalance", reflect.TypeOf((*MockStateLedger)(nil).SubBalance), arg0, arg1)
+	return &StateLedgerSubBalanceCall{Call: call}
 }
 
-// StateLedgerSubEVMBalanceCall wrap *gomock.Call
-type StateLedgerSubEVMBalanceCall struct {
+// StateLedgerSubBalanceCall wrap *gomock.Call
+type StateLedgerSubBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSubEVMBalanceCall) Return() *StateLedgerSubEVMBalanceCall {
+func (c *StateLedgerSubBalanceCall) Return() *StateLedgerSubBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSubEVMBalanceCall) Do(f func(common.Address, *big.Int)) *StateLedgerSubEVMBalanceCall {
+func (c *StateLedgerSubBalanceCall) Do(f func(*types.Address, *big.Int)) *StateLedgerSubBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSubEVMBalanceCall) DoAndReturn(f func(common.Address, *big.Int)) *StateLedgerSubEVMBalanceCall {
+func (c *StateLedgerSubBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateLedgerSubBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// SubEVMRefund mocks base method.
-func (m *MockStateLedger) SubEVMRefund(arg0 uint64) {
+// SubRefund mocks base method.
+func (m *MockStateLedger) SubRefund(arg0 uint64) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SubEVMRefund", arg0)
+	m.ctrl.Call(m, "SubRefund", arg0)
 }
 
-// SubEVMRefund indicates an expected call of SubEVMRefund.
-func (mr *MockStateLedgerMockRecorder) SubEVMRefund(arg0 any) *StateLedgerSubEVMRefundCall {
+// SubRefund indicates an expected call of SubRefund.
+func (mr *MockStateLedgerMockRecorder) SubRefund(arg0 any) *StateLedgerSubRefundCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubEVMRefund", reflect.TypeOf((*MockStateLedger)(nil).SubEVMRefund), arg0)
-	return &StateLedgerSubEVMRefundCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubRefund", reflect.TypeOf((*MockStateLedger)(nil).SubRefund), arg0)
+	return &StateLedgerSubRefundCall{Call: call}
 }
 
-// StateLedgerSubEVMRefundCall wrap *gomock.Call
-type StateLedgerSubEVMRefundCall struct {
+// StateLedgerSubRefundCall wrap *gomock.Call
+type StateLedgerSubRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSubEVMRefundCall) Return() *StateLedgerSubEVMRefundCall {
+func (c *StateLedgerSubRefundCall) Return() *StateLedgerSubRefundCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSubEVMRefundCall) Do(f func(uint64)) *StateLedgerSubEVMRefundCall {
+func (c *StateLedgerSubRefundCall) Do(f func(uint64)) *StateLedgerSubRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSubEVMRefundCall) DoAndReturn(f func(uint64)) *StateLedgerSubEVMRefundCall {
+func (c *StateLedgerSubRefundCall) DoAndReturn(f func(uint64)) *StateLedgerSubRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// SuicideEVM mocks base method.
-func (m *MockStateLedger) SuicideEVM(arg0 common.Address) bool {
+// Suicide mocks base method.
+func (m *MockStateLedger) Suicide(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SuicideEVM", arg0)
+	ret := m.ctrl.Call(m, "Suicide", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// SuicideEVM indicates an expected call of SuicideEVM.
-func (mr *MockStateLedgerMockRecorder) SuicideEVM(arg0 any) *StateLedgerSuicideEVMCall {
+// Suicide indicates an expected call of Suicide.
+func (mr *MockStateLedgerMockRecorder) Suicide(arg0 any) *StateLedgerSuicideCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SuicideEVM", reflect.TypeOf((*MockStateLedger)(nil).SuicideEVM), arg0)
-	return &StateLedgerSuicideEVMCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicide", reflect.TypeOf((*MockStateLedger)(nil).Suicide), arg0)
+	return &StateLedgerSuicideCall{Call: call}
 }
 
-// StateLedgerSuicideEVMCall wrap *gomock.Call
-type StateLedgerSuicideEVMCall struct {
+// StateLedgerSuicideCall wrap *gomock.Call
+type StateLedgerSuicideCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSuicideEVMCall) Return(arg0 bool) *StateLedgerSuicideEVMCall {
+func (c *StateLedgerSuicideCall) Return(arg0 bool) *StateLedgerSuicideCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSuicideEVMCall) Do(f func(common.Address) bool) *StateLedgerSuicideEVMCall {
+func (c *StateLedgerSuicideCall) Do(f func(*types.Address) bool) *StateLedgerSuicideCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSuicideEVMCall) DoAndReturn(f func(common.Address) bool) *StateLedgerSuicideEVMCall {
+func (c *StateLedgerSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerSuicideCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2859,6 +2415,224 @@ func (m *MockStateAccessor) EXPECT() *MockStateAccessorMockRecorder {
 	return m.recorder
 }
 
+// AddAddressToAccessList mocks base method.
+func (m *MockStateAccessor) AddAddressToAccessList(arg0 types.Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddAddressToAccessList", arg0)
+}
+
+// AddAddressToAccessList indicates an expected call of AddAddressToAccessList.
+func (mr *MockStateAccessorMockRecorder) AddAddressToAccessList(arg0 any) *StateAccessorAddAddressToAccessListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAddressToAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddAddressToAccessList), arg0)
+	return &StateAccessorAddAddressToAccessListCall{Call: call}
+}
+
+// StateAccessorAddAddressToAccessListCall wrap *gomock.Call
+type StateAccessorAddAddressToAccessListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorAddAddressToAccessListCall) Return() *StateAccessorAddAddressToAccessListCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorAddAddressToAccessListCall) Do(f func(types.Address)) *StateAccessorAddAddressToAccessListCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorAddAddressToAccessListCall) DoAndReturn(f func(types.Address)) *StateAccessorAddAddressToAccessListCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddBalance mocks base method.
+func (m *MockStateAccessor) AddBalance(arg0 *types.Address, arg1 *big.Int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddBalance", arg0, arg1)
+}
+
+// AddBalance indicates an expected call of AddBalance.
+func (mr *MockStateAccessorMockRecorder) AddBalance(arg0, arg1 any) *StateAccessorAddBalanceCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBalance", reflect.TypeOf((*MockStateAccessor)(nil).AddBalance), arg0, arg1)
+	return &StateAccessorAddBalanceCall{Call: call}
+}
+
+// StateAccessorAddBalanceCall wrap *gomock.Call
+type StateAccessorAddBalanceCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorAddBalanceCall) Return() *StateAccessorAddBalanceCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorAddBalanceCall) Do(f func(*types.Address, *big.Int)) *StateAccessorAddBalanceCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorAddBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateAccessorAddBalanceCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddPreimage mocks base method.
+func (m *MockStateAccessor) AddPreimage(arg0 types.Hash, arg1 []byte) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddPreimage", arg0, arg1)
+}
+
+// AddPreimage indicates an expected call of AddPreimage.
+func (mr *MockStateAccessorMockRecorder) AddPreimage(arg0, arg1 any) *StateAccessorAddPreimageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPreimage", reflect.TypeOf((*MockStateAccessor)(nil).AddPreimage), arg0, arg1)
+	return &StateAccessorAddPreimageCall{Call: call}
+}
+
+// StateAccessorAddPreimageCall wrap *gomock.Call
+type StateAccessorAddPreimageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorAddPreimageCall) Return() *StateAccessorAddPreimageCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorAddPreimageCall) Do(f func(types.Hash, []byte)) *StateAccessorAddPreimageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorAddPreimageCall) DoAndReturn(f func(types.Hash, []byte)) *StateAccessorAddPreimageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddRefund mocks base method.
+func (m *MockStateAccessor) AddRefund(arg0 uint64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddRefund", arg0)
+}
+
+// AddRefund indicates an expected call of AddRefund.
+func (mr *MockStateAccessorMockRecorder) AddRefund(arg0 any) *StateAccessorAddRefundCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRefund", reflect.TypeOf((*MockStateAccessor)(nil).AddRefund), arg0)
+	return &StateAccessorAddRefundCall{Call: call}
+}
+
+// StateAccessorAddRefundCall wrap *gomock.Call
+type StateAccessorAddRefundCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorAddRefundCall) Return() *StateAccessorAddRefundCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorAddRefundCall) Do(f func(uint64)) *StateAccessorAddRefundCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorAddRefundCall) DoAndReturn(f func(uint64)) *StateAccessorAddRefundCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddSlotToAccessList mocks base method.
+func (m *MockStateAccessor) AddSlotToAccessList(arg0 types.Address, arg1 types.Hash) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddSlotToAccessList", arg0, arg1)
+}
+
+// AddSlotToAccessList indicates an expected call of AddSlotToAccessList.
+func (mr *MockStateAccessorMockRecorder) AddSlotToAccessList(arg0, arg1 any) *StateAccessorAddSlotToAccessListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSlotToAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddSlotToAccessList), arg0, arg1)
+	return &StateAccessorAddSlotToAccessListCall{Call: call}
+}
+
+// StateAccessorAddSlotToAccessListCall wrap *gomock.Call
+type StateAccessorAddSlotToAccessListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorAddSlotToAccessListCall) Return() *StateAccessorAddSlotToAccessListCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorAddSlotToAccessListCall) Do(f func(types.Address, types.Hash)) *StateAccessorAddSlotToAccessListCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorAddSlotToAccessListCall) DoAndReturn(f func(types.Address, types.Hash)) *StateAccessorAddSlotToAccessListCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// AddressInAccessList mocks base method.
+func (m *MockStateAccessor) AddressInAccessList(arg0 types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddressInAccessList", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// AddressInAccessList indicates an expected call of AddressInAccessList.
+func (mr *MockStateAccessorMockRecorder) AddressInAccessList(arg0 any) *StateAccessorAddressInAccessListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressInAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddressInAccessList), arg0)
+	return &StateAccessorAddressInAccessListCall{Call: call}
+}
+
+// StateAccessorAddressInAccessListCall wrap *gomock.Call
+type StateAccessorAddressInAccessListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorAddressInAccessListCall) Return(arg0 bool) *StateAccessorAddressInAccessListCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorAddressInAccessListCall) Do(f func(types.Address) bool) *StateAccessorAddressInAccessListCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorAddressInAccessListCall) DoAndReturn(f func(types.Address) bool) *StateAccessorAddressInAccessListCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // Clear mocks base method.
 func (m *MockStateAccessor) Clear() {
 	m.ctrl.T.Helper()
@@ -2930,6 +2704,82 @@ func (c *StateAccessorCommitCall) Do(f func() (*types.Hash, error)) *StateAccess
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateAccessorCommitCall) DoAndReturn(f func() (*types.Hash, error)) *StateAccessorCommitCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Empty mocks base method.
+func (m *MockStateAccessor) Empty(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockStateAccessorMockRecorder) Empty(arg0 any) *StateAccessorEmptyCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockStateAccessor)(nil).Empty), arg0)
+	return &StateAccessorEmptyCall{Call: call}
+}
+
+// StateAccessorEmptyCall wrap *gomock.Call
+type StateAccessorEmptyCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorEmptyCall) Return(arg0 bool) *StateAccessorEmptyCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorEmptyCall) Do(f func(*types.Address) bool) *StateAccessorEmptyCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorEmptyCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorEmptyCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Exist mocks base method.
+func (m *MockStateAccessor) Exist(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Exist", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Exist indicates an expected call of Exist.
+func (mr *MockStateAccessorMockRecorder) Exist(arg0 any) *StateAccessorExistCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exist", reflect.TypeOf((*MockStateAccessor)(nil).Exist), arg0)
+	return &StateAccessorExistCall{Call: call}
+}
+
+// StateAccessorExistCall wrap *gomock.Call
+type StateAccessorExistCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorExistCall) Return(arg0 bool) *StateAccessorExistCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorExistCall) Do(f func(*types.Address) bool) *StateAccessorExistCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorExistCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorExistCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3048,6 +2898,120 @@ func (c *StateAccessorGetCodeCall) DoAndReturn(f func(*types.Address) []byte) *S
 	return c
 }
 
+// GetCodeHash mocks base method.
+func (m *MockStateAccessor) GetCodeHash(arg0 *types.Address) *types.Hash {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCodeHash", arg0)
+	ret0, _ := ret[0].(*types.Hash)
+	return ret0
+}
+
+// GetCodeHash indicates an expected call of GetCodeHash.
+func (mr *MockStateAccessorMockRecorder) GetCodeHash(arg0 any) *StateAccessorGetCodeHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeHash", reflect.TypeOf((*MockStateAccessor)(nil).GetCodeHash), arg0)
+	return &StateAccessorGetCodeHashCall{Call: call}
+}
+
+// StateAccessorGetCodeHashCall wrap *gomock.Call
+type StateAccessorGetCodeHashCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorGetCodeHashCall) Return(arg0 *types.Hash) *StateAccessorGetCodeHashCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorGetCodeHashCall) Do(f func(*types.Address) *types.Hash) *StateAccessorGetCodeHashCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorGetCodeHashCall) DoAndReturn(f func(*types.Address) *types.Hash) *StateAccessorGetCodeHashCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetCodeSize mocks base method.
+func (m *MockStateAccessor) GetCodeSize(arg0 *types.Address) int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCodeSize", arg0)
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetCodeSize indicates an expected call of GetCodeSize.
+func (mr *MockStateAccessorMockRecorder) GetCodeSize(arg0 any) *StateAccessorGetCodeSizeCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeSize", reflect.TypeOf((*MockStateAccessor)(nil).GetCodeSize), arg0)
+	return &StateAccessorGetCodeSizeCall{Call: call}
+}
+
+// StateAccessorGetCodeSizeCall wrap *gomock.Call
+type StateAccessorGetCodeSizeCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorGetCodeSizeCall) Return(arg0 int) *StateAccessorGetCodeSizeCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorGetCodeSizeCall) Do(f func(*types.Address) int) *StateAccessorGetCodeSizeCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorGetCodeSizeCall) DoAndReturn(f func(*types.Address) int) *StateAccessorGetCodeSizeCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetCommittedState mocks base method.
+func (m *MockStateAccessor) GetCommittedState(arg0 *types.Address, arg1 []byte) []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCommittedState", arg0, arg1)
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// GetCommittedState indicates an expected call of GetCommittedState.
+func (mr *MockStateAccessorMockRecorder) GetCommittedState(arg0, arg1 any) *StateAccessorGetCommittedStateCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedState", reflect.TypeOf((*MockStateAccessor)(nil).GetCommittedState), arg0, arg1)
+	return &StateAccessorGetCommittedStateCall{Call: call}
+}
+
+// StateAccessorGetCommittedStateCall wrap *gomock.Call
+type StateAccessorGetCommittedStateCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorGetCommittedStateCall) Return(arg0 []byte) *StateAccessorGetCommittedStateCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorGetCommittedStateCall) Do(f func(*types.Address, []byte) []byte) *StateAccessorGetCommittedStateCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorGetCommittedStateCall) DoAndReturn(f func(*types.Address, []byte) []byte) *StateAccessorGetCommittedStateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetNonce mocks base method.
 func (m *MockStateAccessor) GetNonce(arg0 *types.Address) uint64 {
 	m.ctrl.T.Helper()
@@ -3124,6 +3088,44 @@ func (c *StateAccessorGetOrCreateAccountCall) DoAndReturn(f func(*types.Address)
 	return c
 }
 
+// GetRefund mocks base method.
+func (m *MockStateAccessor) GetRefund() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRefund")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// GetRefund indicates an expected call of GetRefund.
+func (mr *MockStateAccessorMockRecorder) GetRefund() *StateAccessorGetRefundCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRefund", reflect.TypeOf((*MockStateAccessor)(nil).GetRefund))
+	return &StateAccessorGetRefundCall{Call: call}
+}
+
+// StateAccessorGetRefundCall wrap *gomock.Call
+type StateAccessorGetRefundCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorGetRefundCall) Return(arg0 uint64) *StateAccessorGetRefundCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorGetRefundCall) Do(f func() uint64) *StateAccessorGetRefundCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorGetRefundCall) DoAndReturn(f func() uint64) *StateAccessorGetRefundCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetState mocks base method.
 func (m *MockStateAccessor) GetState(arg0 *types.Address, arg1 []byte) (bool, []byte) {
 	m.ctrl.T.Helper()
@@ -3159,6 +3161,80 @@ func (c *StateAccessorGetStateCall) Do(f func(*types.Address, []byte) (bool, []b
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateAccessorGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bool, []byte)) *StateAccessorGetStateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// HasSuicide mocks base method.
+func (m *MockStateAccessor) HasSuicide(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasSuicide", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasSuicide indicates an expected call of HasSuicide.
+func (mr *MockStateAccessorMockRecorder) HasSuicide(arg0 any) *StateAccessorHasSuicideCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicide", reflect.TypeOf((*MockStateAccessor)(nil).HasSuicide), arg0)
+	return &StateAccessorHasSuicideCall{Call: call}
+}
+
+// StateAccessorHasSuicideCall wrap *gomock.Call
+type StateAccessorHasSuicideCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorHasSuicideCall) Return(arg0 bool) *StateAccessorHasSuicideCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorHasSuicideCall) Do(f func(*types.Address) bool) *StateAccessorHasSuicideCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorHasSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorHasSuicideCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// RevertToSnapshot mocks base method.
+func (m *MockStateAccessor) RevertToSnapshot(arg0 int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RevertToSnapshot", arg0)
+}
+
+// RevertToSnapshot indicates an expected call of RevertToSnapshot.
+func (mr *MockStateAccessorMockRecorder) RevertToSnapshot(arg0 any) *StateAccessorRevertToSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevertToSnapshot", reflect.TypeOf((*MockStateAccessor)(nil).RevertToSnapshot), arg0)
+	return &StateAccessorRevertToSnapshotCall{Call: call}
+}
+
+// StateAccessorRevertToSnapshotCall wrap *gomock.Call
+type StateAccessorRevertToSnapshotCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorRevertToSnapshotCall) Return() *StateAccessorRevertToSnapshotCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorRevertToSnapshotCall) Do(f func(int)) *StateAccessorRevertToSnapshotCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorRevertToSnapshotCall) DoAndReturn(f func(int)) *StateAccessorRevertToSnapshotCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3339,6 +3415,193 @@ func (c *StateAccessorSetTxContextCall) Do(f func(*types.Hash, int)) *StateAcces
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *StateAccessorSetTxContextCall) DoAndReturn(f func(*types.Hash, int)) *StateAccessorSetTxContextCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SlotInAccessList mocks base method.
+func (m *MockStateAccessor) SlotInAccessList(arg0 types.Address, arg1 types.Hash) (bool, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SlotInAccessList", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// SlotInAccessList indicates an expected call of SlotInAccessList.
+func (mr *MockStateAccessorMockRecorder) SlotInAccessList(arg0, arg1 any) *StateAccessorSlotInAccessListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SlotInAccessList", reflect.TypeOf((*MockStateAccessor)(nil).SlotInAccessList), arg0, arg1)
+	return &StateAccessorSlotInAccessListCall{Call: call}
+}
+
+// StateAccessorSlotInAccessListCall wrap *gomock.Call
+type StateAccessorSlotInAccessListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorSlotInAccessListCall) Return(arg0, arg1 bool) *StateAccessorSlotInAccessListCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorSlotInAccessListCall) Do(f func(types.Address, types.Hash) (bool, bool)) *StateAccessorSlotInAccessListCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorSlotInAccessListCall) DoAndReturn(f func(types.Address, types.Hash) (bool, bool)) *StateAccessorSlotInAccessListCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Snapshot mocks base method.
+func (m *MockStateAccessor) Snapshot() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Snapshot")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot.
+func (mr *MockStateAccessorMockRecorder) Snapshot() *StateAccessorSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockStateAccessor)(nil).Snapshot))
+	return &StateAccessorSnapshotCall{Call: call}
+}
+
+// StateAccessorSnapshotCall wrap *gomock.Call
+type StateAccessorSnapshotCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorSnapshotCall) Return(arg0 int) *StateAccessorSnapshotCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorSnapshotCall) Do(f func() int) *StateAccessorSnapshotCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorSnapshotCall) DoAndReturn(f func() int) *StateAccessorSnapshotCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SubBalance mocks base method.
+func (m *MockStateAccessor) SubBalance(arg0 *types.Address, arg1 *big.Int) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SubBalance", arg0, arg1)
+}
+
+// SubBalance indicates an expected call of SubBalance.
+func (mr *MockStateAccessorMockRecorder) SubBalance(arg0, arg1 any) *StateAccessorSubBalanceCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubBalance", reflect.TypeOf((*MockStateAccessor)(nil).SubBalance), arg0, arg1)
+	return &StateAccessorSubBalanceCall{Call: call}
+}
+
+// StateAccessorSubBalanceCall wrap *gomock.Call
+type StateAccessorSubBalanceCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorSubBalanceCall) Return() *StateAccessorSubBalanceCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorSubBalanceCall) Do(f func(*types.Address, *big.Int)) *StateAccessorSubBalanceCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorSubBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateAccessorSubBalanceCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SubRefund mocks base method.
+func (m *MockStateAccessor) SubRefund(arg0 uint64) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SubRefund", arg0)
+}
+
+// SubRefund indicates an expected call of SubRefund.
+func (mr *MockStateAccessorMockRecorder) SubRefund(arg0 any) *StateAccessorSubRefundCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubRefund", reflect.TypeOf((*MockStateAccessor)(nil).SubRefund), arg0)
+	return &StateAccessorSubRefundCall{Call: call}
+}
+
+// StateAccessorSubRefundCall wrap *gomock.Call
+type StateAccessorSubRefundCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorSubRefundCall) Return() *StateAccessorSubRefundCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorSubRefundCall) Do(f func(uint64)) *StateAccessorSubRefundCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorSubRefundCall) DoAndReturn(f func(uint64)) *StateAccessorSubRefundCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Suicide mocks base method.
+func (m *MockStateAccessor) Suicide(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Suicide", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Suicide indicates an expected call of Suicide.
+func (mr *MockStateAccessorMockRecorder) Suicide(arg0 any) *StateAccessorSuicideCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicide", reflect.TypeOf((*MockStateAccessor)(nil).Suicide), arg0)
+	return &StateAccessorSuicideCall{Call: call}
+}
+
+// StateAccessorSuicideCall wrap *gomock.Call
+type StateAccessorSuicideCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateAccessorSuicideCall) Return(arg0 bool) *StateAccessorSuicideCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateAccessorSuicideCall) Do(f func(*types.Address) bool) *StateAccessorSuicideCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateAccessorSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorSuicideCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

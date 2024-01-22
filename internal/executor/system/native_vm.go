@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/core"
+
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -25,7 +27,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 var (
@@ -364,11 +366,11 @@ func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContr
 	return nvm.contract2Instance[addr.String()]
 }
 
-func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte, from ethcommon.Address, to *ethcommon.Address) *vm.ExecutionResult {
+func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte, from ethcommon.Address, to *ethcommon.Address) *core.ExecutionResult {
 	nvm.Reset(height, ledger, from, to)
 	usedGas := nvm.RequiredGas(data)
 	returnData, err := nvm.Run(data)
-	return &vm.ExecutionResult{
+	return &core.ExecutionResult{
 		UsedGas:    usedGas,
 		Err:        err,
 		ReturnData: returnData,

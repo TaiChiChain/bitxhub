@@ -48,8 +48,7 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, ctrl)
 
 	cnf := &common2.Config{
-		EVMConfig: repo.EVM{},
-		Logger:    logger,
+		Logger: logger,
 		GenesisEpochInfo: &rbft.EpochInfo{
 			MiscParams: rbft.MiscParams{
 				TxMaxSize: repo.DefaultTxMaxSize,
