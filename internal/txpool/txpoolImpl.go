@@ -1251,8 +1251,8 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveBatches(batchHashList []string) 
 		dirtyAccounts := make(map[string]bool)
 		for _, txHash := range batch.TxHashList {
 			pointer, ok := p.txStore.txHashMap[txHash]
+			// if we are not found the tx in txHashMap, it means the tx has been removed
 			if !ok {
-				p.logger.Warningf("Remove transaction %s failed, Can't find it from txHashMap", txHash)
 				continue
 			}
 			p.updateNonceCache(pointer, updateAccounts)
@@ -1304,7 +1304,9 @@ func (p *txPoolImpl[T, Constraint]) cleanTxsByAccount(account string, list *txSo
 	go func(txs []*internalTransaction[T, Constraint]) {
 		defer wg.Done()
 		lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
-			p.txStore.deletePoolTx(account, poolTx.getNonce())
+			nonce := poolTx.getNonce()
+			delete(p.txStore.batchedTxs, txPointer{account: account, nonce: poolTx.getNonce()})
+			p.txStore.deletePoolTx(account, nonce)
 		})
 	}(removedTxs)
 	go func(txs []*internalTransaction[T, Constraint]) {
