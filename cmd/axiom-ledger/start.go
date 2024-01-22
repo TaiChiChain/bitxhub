@@ -50,76 +50,90 @@ func start(ctx *cli.Context) error {
 	}
 	defer cancel()
 
-	printVersion()
-	r.PrintNodeInfo()
-
-	if err := repo.WritePid(r.RepoRoot); err != nil {
-		return fmt.Errorf("write pid error: %s", err)
-	}
-
-	axm, err := app.NewAxiomLedger(r, appCtx, cancel)
-	if err != nil {
-		return fmt.Errorf("init axiom-ledger failed: %w", err)
-	}
-
-	monitor, err := profile.NewMonitor(r.Config)
-	if err != nil {
-		return err
-	}
-	if err := monitor.Start(); err != nil {
-		return err
-	}
-
-	pprof, err := profile.NewPprof(r)
-	if err != nil {
-		return err
-	}
-	if err := pprof.Start(); err != nil {
-		return err
-	}
-
-	// coreapi
-	api, err := coreapi.New(axm)
-	if err != nil {
-		return err
-	}
-
-	// start json-rpc service
-	cbs, err := jsonrpc.NewChainBrokerService(api, r)
-	if err != nil {
-		return err
-	}
-
-	if err := cbs.Start(); err != nil {
-		return fmt.Errorf("start chain broker service failed: %w", err)
-	}
-
-	axm.Monitor = monitor
-	axm.Pprof = pprof
-	axm.Jsonrpc = cbs
+	log := loggers.Logger(loggers.App)
+	printVersion(func(c string) {
+		log.Info(c)
+	})
+	r.PrintNodeInfo(func(c string) {
+		log.Info(c)
+	})
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	handleShutdown(axm, &wg)
+	err = func() error {
+		if err := repo.WritePid(r.RepoRoot); err != nil {
+			return fmt.Errorf("write pid error: %s", err)
+		}
 
-	if err := axm.Start(); err != nil {
-		return fmt.Errorf("start axiom-ledger failed: %w", err)
+		axm, err := app.NewAxiomLedger(r, appCtx, cancel)
+		if err != nil {
+			return fmt.Errorf("init axiom-ledger failed: %w", err)
+		}
+
+		monitor, err := profile.NewMonitor(r.Config)
+		if err != nil {
+			return err
+		}
+		if err := monitor.Start(); err != nil {
+			return err
+		}
+
+		pprof, err := profile.NewPprof(r)
+		if err != nil {
+			return err
+		}
+		if err := pprof.Start(); err != nil {
+			return err
+		}
+
+		// coreapi
+		api, err := coreapi.New(axm)
+		if err != nil {
+			return err
+		}
+
+		// start json-rpc service
+		cbs, err := jsonrpc.NewChainBrokerService(api, r)
+		if err != nil {
+			return err
+		}
+
+		if err := cbs.Start(); err != nil {
+			return fmt.Errorf("start chain broker service failed: %w", err)
+		}
+
+		axm.Monitor = monitor
+		axm.Pprof = pprof
+		axm.Jsonrpc = cbs
+
+		wg.Add(1)
+		handleShutdown(axm, &wg)
+
+		if err := axm.Start(); err != nil {
+			return fmt.Errorf("start axiom-ledger failed: %w", err)
+		}
+
+		return nil
+	}()
+	if err != nil {
+		log.WithField("err", err).Error("Startup failed")
+		return err
 	}
 
 	wg.Wait()
 
 	if err := repo.RemovePID(r.RepoRoot); err != nil {
-		return fmt.Errorf("remove pid error: %s", err)
+		log.WithField("err", err).Error("Remove pid failed")
+		return fmt.Errorf("remove pid file error: %s", err)
 	}
 
 	return nil
 }
 
-func printVersion() {
-	fmt.Printf("%s version: %s-%s-%s\n", repo.AppName, repo.BuildVersion, repo.BuildBranch, repo.BuildCommit)
-	fmt.Printf("App build date: %s\n", repo.BuildDate)
-	fmt.Printf("System version: %s\n", repo.Platform)
-	fmt.Printf("Golang version: %s\n", repo.GoVersion)
+func printVersion(writer func(c string)) {
+	writer(fmt.Sprintf("%s version: %s-%s-%s", repo.AppName, repo.BuildVersion, repo.BuildBranch, repo.BuildCommit))
+	writer(fmt.Sprintf("App build date: %s", repo.BuildDate))
+	writer(fmt.Sprintf("System version: %s", repo.Platform))
+	writer(fmt.Sprintf("Golang version: %s", repo.GoVersion))
 }
 
 func handleShutdown(node *app.AxiomLedger, wg *sync.WaitGroup) {

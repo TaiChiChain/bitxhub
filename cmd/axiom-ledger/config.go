@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
@@ -126,7 +125,9 @@ func generate(ctx *cli.Context) error {
 		return err
 	}
 
-	r.PrintNodeInfo()
+	r.PrintNodeInfo(func(c string) {
+		fmt.Println(c)
+	})
 	return nil
 }
 
@@ -237,7 +238,9 @@ func nodeInfo(ctx *cli.Context) error {
 		return err
 	}
 
-	r.PrintNodeInfo()
+	r.PrintNodeInfo(func(c string) {
+		fmt.Println(c)
+	})
 	return nil
 }
 

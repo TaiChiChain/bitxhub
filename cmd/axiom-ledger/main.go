@@ -17,7 +17,9 @@ func main() {
 	app.Compiled = time.Now()
 
 	cli.VersionPrinter = func(c *cli.Context) {
-		printVersion()
+		printVersion(func(c string) {
+			fmt.Println(c)
+		})
 	}
 
 	// global flags
@@ -60,7 +62,9 @@ func main() {
 			Aliases: []string{"v"},
 			Usage:   "Show code version",
 			Action: func(ctx *cli.Context) error {
-				printVersion()
+				printVersion(func(c string) {
+					fmt.Println(c)
+				})
 				return nil
 			},
 		},
