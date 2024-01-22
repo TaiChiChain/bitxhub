@@ -181,6 +181,14 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
+		// verify whether trie snapshot is legal
+		verified, err := rwLdg.StateLedger.VerifyTrie(snap.snapBlock)
+		if err != nil {
+			return nil, err
+		}
+		if !verified {
+			return nil, fmt.Errorf("verify snapshot trie failed")
+		}
 
 		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlock: snap.snapBlock.Clone()})
 	} else {

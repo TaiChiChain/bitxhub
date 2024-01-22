@@ -2,19 +2,19 @@ package eth
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 
@@ -22,6 +22,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/axiomesh/eth-kit/adaptor"
@@ -114,7 +115,6 @@ type StorageResult struct {
 	Proof []string        `json:"proof"`
 }
 
-// todo
 // GetProof returns the Merkle-proof for a given account and optionally some storage keys.
 func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string, blockNrOrHash *rpctypes.BlockNumberOrHash) (ret *AccountResult, err error) {
 	defer func(start time.Time) {
@@ -125,7 +125,59 @@ func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string,
 		}
 	}(time.Now())
 
-	return nil, ErrNotSupportApiError
+	stateLedger, err := getStateLedgerAt(api.api, blockNrOrHash)
+	if err != nil {
+		return nil, err
+	}
+	addr := types.NewAddress(address.Bytes())
+
+	// construct account proof
+	acc := stateLedger.GetOrCreateAccount(addr)
+	rawAccountProof, err := stateLedger.Prove(common.Hash{}, ledger.CompositeAccountKey(addr))
+	if err != nil {
+		return nil, err
+	}
+	var accountProof []string
+	for _, proof := range rawAccountProof.Proof {
+		accountProof = append(accountProof, base64.StdEncoding.EncodeToString(proof))
+	}
+	ret = &AccountResult{
+		Address:      address,
+		Nonce:        (ethhexutil.Uint64)(acc.GetNonce()),
+		Balance:      (*ethhexutil.Big)(acc.GetBalance()),
+		CodeHash:     common.BytesToHash(acc.CodeHash()),
+		StorageHash:  acc.GetStorageRoot(),
+		AccountProof: accountProof,
+	}
+
+	// construct storage proof
+	keys := make([]common.Hash, len(storageKeys))
+	for i, hexKey := range storageKeys {
+		var err error
+		keys[i], err = hexutil.DecodeHash(hexKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, key := range keys {
+		hashKey := crypto.Keccak256(key.Bytes())
+		rawStorageProof, err := stateLedger.Prove(acc.GetStorageRoot(), ledger.CompositeStorageKey(addr, hashKey))
+		if err != nil {
+			return nil, err
+		}
+		var storageProof []string
+		for _, proof := range rawStorageProof.Proof {
+			storageProof = append(storageProof, base64.StdEncoding.EncodeToString(proof))
+		}
+		storageResult := StorageResult{
+			Key:   hexutil.Encode(key[:]),
+			Value: (*ethhexutil.Big)(stateLedger.GetEVMState(addr.ETHAddress(), common.BytesToHash(hashKey)).Big()),
+			Proof: storageProof,
+		}
+		ret.StorageProof = append(ret.StorageProof, storageResult)
+	}
+
+	return ret, nil
 }
 
 // GetBlockByNumber returns the block identified by number.
