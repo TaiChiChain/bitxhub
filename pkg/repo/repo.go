@@ -40,11 +40,11 @@ type Repo struct {
 	StartArgs *StartArgs
 }
 
-func (r *Repo) PrintNodeInfo() {
-	fmt.Printf("%s-repo: %s\n", AppName, r.RepoRoot)
-	fmt.Println("node-key-addr:", r.P2PAddress)
-	fmt.Println("p2p-id:", r.P2PID)
-	fmt.Printf("p2p-addr: /ip4/0.0.0.0/tcp/%d/p2p/%s\n", r.Config.Port.P2P, r.P2PID)
+func (r *Repo) PrintNodeInfo(writer func(c string)) {
+	writer(fmt.Sprintf("%s-repo: %s", AppName, r.RepoRoot))
+	writer(fmt.Sprintf("node-key-addr: %s", r.P2PAddress))
+	writer(fmt.Sprintf("p2p-id: %s", r.P2PID))
+	writer(fmt.Sprintf("p2p-addr: /ip4/0.0.0.0/tcp/%d/p2p/%s", r.Config.Port.P2P, r.P2PID))
 }
 
 type signerOpts struct {
@@ -155,7 +155,7 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 		P2PKey:          p2pKey,
 		P2PID:           id,
 		EpochInfo:       genesisCfg.EpochInfo,
-		StartArgs:       &StartArgs{false, false},
+		StartArgs:       &StartArgs{ReadonlyMode: false, SnapshotMode: false},
 	}, nil
 }
 
@@ -212,7 +212,7 @@ func Load(auth string, repoRoot string, needAuth bool) (*Repo, error) {
 		P2PKey:          p2pKey, // maybe nil
 		P2PID:           p2pId,
 		EpochInfo:       genesisCfg.EpochInfo,
-		StartArgs:       &StartArgs{false, false},
+		StartArgs:       &StartArgs{ReadonlyMode: false, SnapshotMode: false},
 	}
 
 	return repo, nil
