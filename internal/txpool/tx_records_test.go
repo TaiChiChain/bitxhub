@@ -45,8 +45,15 @@ func TestTxRecords(t *testing.T) {
 	assert.Equal(t, tx.RbftGetTxHash(), tx2.RbftGetTxHash())
 
 	// test load
-	err = records.load(pool.addTxs)
+	input, err := os.Open(records.filePath)
 	assert.Nil(t, err)
+	defer input.Close()
+	taskDoneCh := make(chan struct{}, 1)
+	batchCh := records.load(input, taskDoneCh)
+	batch := <-batchCh
+	assert.Equal(t, 1, len(batch))
+	assert.Equal(t, tx.RbftGetTxHash(), batch[0].RbftGetTxHash())
+	<-taskDoneCh
 }
 
 func TestDevNull(t *testing.T) {
@@ -63,23 +70,38 @@ func TestTxRecords_load(t *testing.T) {
 	// test not exist file
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 	records := pool.txRecords
-	err := records.load(pool.addTxs)
-	assert.Nil(t, err) // if not exist, no error
+
+	taskDoneCh := make(chan struct{}, 1)
+
+	records.load(nil, taskDoneCh)
+	<-taskDoneCh
 
 	// test wrong read
-	err = pool.Start()
+	err := pool.Start()
 	assert.Nil(t, err)
 	defer pool.Stop()
-	records.writer.Write([]byte{1, 0, 0, 0, 0, 0, 0, 0})
-	err = records.load(pool.addTxs)
-	assert.NotNil(t, err)
+
+	_, err = records.writer.Write([]byte{1, 0, 0, 0, 0, 0, 0, 0})
+	assert.Nil(t, err)
+	input, err := os.Open(records.filePath)
+	assert.Nil(t, err)
+
+	records.load(input, taskDoneCh)
+	<-taskDoneCh
+	err = input.Close()
+	assert.Nil(t, err)
 
 	// test wrong tx
 	err = records.rotate(nil) // reset pb file
 	assert.Nil(t, err)
-	records.writer.Write([]byte{1, 0, 0, 0, 0, 0, 0, 0, 1})
-	err = records.load(pool.addTxs)
-	assert.Nil(t, err) // if not right tx, no error
+	_, err = records.writer.Write([]byte{1, 0, 0, 0, 0, 0, 0, 0, 1})
+	assert.Nil(t, err)
+	input, err = os.Open(records.filePath)
+	assert.Nil(t, err)
+	records.load(input, taskDoneCh)
+	<-taskDoneCh
+	err = input.Close()
+	assert.Nil(t, err)
 
 	// test 1000+ txs load
 	err = records.rotate(nil) // reset pb file
@@ -87,34 +109,44 @@ func TestTxRecords_load(t *testing.T) {
 	s, err := types.GenerateSigner()
 	txs := constructTxs(s, TxRecordsBatchSize+1)
 	for _, tx := range txs {
-		records.insert(tx)
+		err = records.insert(tx)
+		assert.Nil(t, err)
 	}
-	records.load(pool.addTxs)
+	input, err = os.Open(records.filePath)
+	assert.Nil(t, err)
+	batchCh := records.load(input, taskDoneCh)
+	batch := <-batchCh
+	assert.Equal(t, TxRecordsBatchSize, len(batch))
+	batch = <-batchCh
+	assert.Equal(t, 1, len(batch))
+	<-taskDoneCh
+	err = input.Close()
+	assert.Nil(t, err)
 }
 
 func TestTxRecords_LoadMoreThanOneBatch(t *testing.T) {
 	// init pool and txs
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	pool.Start() // used for init txrecord
+	err := pool.Start() // used for init txrecord
+	assert.Nil(t, err)
 	records := pool.txRecords
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
 	txs := constructTxs(s, TxRecordsBatchSize+1)
 	for _, tx := range txs {
-		records.insert(tx)
+		err = records.insert(tx)
+		assert.Nil(t, err)
 	}
-	pool.Start() // used for test txrecord load
-	allTxs := pool.txStore.allTxs
-	var nums = 0
-	for _, txmap := range allTxs {
-		for _, item := range txmap.items {
-			if item.local {
-				nums++
-			}
-		}
-	}
-	assert.Equal(t, TxRecordsBatchSize+1, nums)
-	pool.Stop()
+	err = pool.Start() // used for test txrecord load
+	assert.Nil(t, err)
+
+	defer pool.Stop()
+
+	meta := pool.GetMeta(false)
+	assert.Equal(t, uint64(TxRecordsBatchSize+1), meta.TxCount)
+	assert.Equal(t, TxRecordsBatchSize+1, pool.txStore.localTTLIndex.size(), "all tx should be in localTTLIndex")
+	assert.Equal(t, TxRecordsBatchSize+1, pool.txStore.priorityIndex.size())
+	assert.Equal(t, uint64(TxRecordsBatchSize+1), pool.txStore.priorityNonBatchSize)
 }
 
 func TestTxRecords_Rotate(t *testing.T) {

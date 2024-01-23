@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -18,9 +17,12 @@ import (
 // It's a WriteCloser that effectively ignores anything written to it, just like a data black hole.
 type devNull struct{}
 
-const TxRecordPrefixLength = 8
-
-const TxRecordsBatchSize = 1000
+const (
+	TxRecordPrefixLength = 8
+	TxRecordsBatchSize   = 1000
+	TxRecordsFile        = "tx_records.pb"
+	DecodeTxRecordsFile  = "decode_tx_records.json"
+)
 
 func (*devNull) Write(p []byte) (n int, err error) { return len(p), nil }
 
@@ -39,57 +41,61 @@ func newTxRecords[T any, Constraint types.TXConstraint[T]](filePath string, logg
 	}
 }
 
-func (r *txRecords[T, Constraint]) load(add func(txs []*T, local bool) []error) error {
-	input, err := os.Open(r.filePath)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		r.logger.Errorf("Failed to open tx records file: %v", err)
-		return err
-	}
-	defer input.Close()
+func (r *txRecords[T, Constraint]) load(input *os.File, taskDoneCh chan struct{}) chan []*T {
+	batchCh := make(chan []*T, 1024)
 
 	r.writer = new(devNull)
 	defer func() { r.writer = nil }()
 
 	buf := bufio.NewReader(input)
 	var txNums uint64
-	var batch []*T
+	batch := make([]*T, 0, TxRecordsBatchSize)
 
-	for {
-		lengthBytes, err := buf.Peek(TxRecordPrefixLength)
-		if err != nil {
-			if len(batch) > 0 {
-				_ = add(batch, true)
+	go func(txNums uint64) {
+		for {
+			lengthBytes, err := buf.Peek(TxRecordPrefixLength)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					if len(batch) > 0 {
+						batchCh <- batch
+					}
+
+				} else {
+					r.logger.Errorf("TxRecords load failed to peek transaction length: %v", err)
+				}
+				r.logger.Infof("TxRecords loaded %d transactions from %s", txNums, r.filePath)
+				taskDoneCh <- struct{}{}
+				return
 			}
-			break
-		}
-		length := binary.LittleEndian.Uint64(lengthBytes)
-		_, _ = buf.Discard(TxRecordPrefixLength)
 
-		data := make([]byte, length)
-		if _, err := io.ReadFull(buf, data); err != nil {
-			r.logger.Errorf("TxRecords load failed to error reading transaction data: %v", err)
-			return err
-		}
+			length := binary.LittleEndian.Uint64(lengthBytes)
+			_, _ = buf.Discard(TxRecordPrefixLength)
 
-		tx := new(T)
-		if err = Constraint(tx).RbftUnmarshal(data); err != nil {
-			r.logger.Errorf("TxRecords load failed to unmarshal transaction: %v", err)
-			continue
-		}
+			data := make([]byte, length)
+			if _, err := io.ReadFull(buf, data); err != nil {
+				r.logger.Errorf("TxRecords load failed to error reading transaction data: %v", err)
+				continue
+			}
 
-		batch = append(batch, tx)
-		if len(batch) >= TxRecordsBatchSize {
-			_ = add(batch, true)
-			batch = nil
-		}
-		txNums++
-	}
+			tx := new(T)
+			if err = Constraint(tx).RbftUnmarshal(data); err != nil {
+				r.logger.Errorf("TxRecords load failed to unmarshal transaction: %v", err)
+				continue
+			}
 
-	r.logger.Infof("TxRecords loaded %d transactions from %s", txNums, r.filePath)
-	return nil
+			batch = append(batch, tx)
+			if len(batch) >= TxRecordsBatchSize {
+				getBatch := make([]*T, len(batch))
+				copy(getBatch, batch)
+				batchCh <- getBatch
+				// Get a batch from the pool
+				batch = make([]*T, 0, TxRecordsBatchSize)
+			}
+			txNums++
+		}
+	}(txNums)
+
+	return batchCh
 }
 
 func (r *txRecords[T, Constraint]) insert(tx *T) error {
@@ -122,7 +128,7 @@ func (r *txRecords[T, Constraint]) rotate(all map[string]*txSortedMap[T, Constra
 	}
 	dir := filepath.Dir(r.filePath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err = os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}

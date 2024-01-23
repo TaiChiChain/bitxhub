@@ -3,7 +3,6 @@ package txpool
 import (
 	"math"
 	"math/big"
-	"path"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -45,6 +44,7 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 	log := log2.NewWithModule("txpool")
 	log.Logger.SetLevel(logrus.DebugLevel)
 	poolConfig := Config{
+		RepoRoot:              dir,
 		BatchSize:             DefaultTestBatchSize,
 		PoolSize:              DefaultPoolSize,
 		Logger:                log,
@@ -59,7 +59,6 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 		IsTimed:                false,
 		RotateTxLocalsInterval: DefaultRotateTxLocalsInterval,
 		EnableLocalsPersist:    true,
-		TxRecordsFile:          path.Join(dir, "txpool/tx_records.pb"),
 
 		ChainInfo: &txpool.ChainInfo{
 			Height:   1,
