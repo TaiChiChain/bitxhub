@@ -10,6 +10,8 @@ import (
 	"github.com/cbergoon/merkletree"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/samber/lo"
@@ -22,8 +24,6 @@ import (
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 type InvalidReason string
@@ -303,7 +303,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 			fee := new(big.Int).SetUint64(usedGas)
 			fee.Mul(fee, msg.GasPrice)
 
-			if !ethvm.CanTransfer(statedb, msg.From, fee) {
+			if !core.CanTransfer(evmStateDB, msg.From, fee) {
 				err = fmt.Errorf("address: %s has not enough gas to call system contract", msg.From.Hex())
 				exec.logger.Warn(err)
 			}
@@ -311,7 +311,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 			if err == nil {
 				result = system.RunAxiomNativeVM(exec.nvm, height, statedb, msg.Data, msg.From, msg.To)
 				if result != nil && result.UsedGas != 0 {
-					ethvm.Transfer(statedb, msg.From, exec.evm.Context.Coinbase, fee)
+					core.Transfer(evmStateDB, msg.From, exec.evm.Context.Coinbase, fee)
 				}
 
 				if result != nil && result.Err != nil {

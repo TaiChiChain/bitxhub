@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -47,10 +48,11 @@ func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
 	}, nil
 }
 
-func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) error {
+func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareData, *consensus.SignedCheckpoint, error) {
+	// 1. switch to snapshot mode
 	err := axm.Sync.SwitchMode(common.SyncModeSnapshot)
 	if err != nil {
-		return fmt.Errorf("switch mode err: %w", err)
+		return nil, nil, fmt.Errorf("switch mode err: %w", err)
 	}
 
 	var startEpcNum uint64 = 1
@@ -58,13 +60,12 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) error {
 	if latestHeight != 0 {
 		block, err := axm.ViewLedger.ChainLedger.GetBlock(latestHeight)
 		if err != nil {
-			return fmt.Errorf("get latest block err: %w", err)
+			return nil, nil, fmt.Errorf("get latest block err: %w", err)
 		}
 		blockEpc := block.BlockHeader.Epoch
-		// todo: wait fix snap store (system contract state)
 		info, err := base.GetEpochInfo(axm.ViewLedger.StateLedger, blockEpc)
 		if err != nil {
-			return fmt.Errorf("get epoch info err: %w", err)
+			return nil, nil, fmt.Errorf("get epoch info err: %w", err)
 		}
 		if info.StartBlock+info.EpochPeriod-1 == latestHeight {
 			// if the last block in this epoch had been persisted, start from the next epoch
@@ -74,6 +75,7 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) error {
 		}
 	}
 
+	// 2. fill snap sync config option
 	opts := []common.Option{
 		common.WithPeers(axm.snapMeta.snapPeers),
 		common.WithStartEpochChangeNum(startEpcNum),
@@ -81,12 +83,12 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) error {
 		common.WithSnapCurrentEpoch(axm.snapMeta.snapPersistEpoch),
 	}
 
+	// 3. prepare snap sync info
 	res, err := axm.Sync.Prepare(opts...)
 	if err != nil {
-		return fmt.Errorf("prepare sync err: %w", err)
+		return nil, nil, fmt.Errorf("prepare sync err: %w", err)
 	}
 
-	// start chain data sync
 	snapCheckpoint := &consensus.SignedCheckpoint{
 		Checkpoint: &consensus.Checkpoint{
 			Epoch: axm.snapMeta.snapPersistEpoch,
@@ -97,23 +99,14 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) error {
 		},
 	}
 
-	err = axm.startSnapSync(snapCheckpoint, axm.snapMeta.snapPeers, latestHeight+1, res.Data.([]*consensus.EpochChange))
-	if err != nil {
-		return fmt.Errorf("start snap sync err: %w", err)
-	}
-
-	err = axm.Sync.SwitchMode(common.SyncModeFull)
-	if err != nil {
-		return fmt.Errorf("switch mode err: %w", err)
-	}
-
-	return nil
+	return res, snapCheckpoint, nil
 }
 
-func (axm *AxiomLedger) startSnapSync(ckpt *consensus.SignedCheckpoint, peers []string, startHeight uint64, epochChanges []*consensus.EpochChange) error {
+func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.SignedCheckpoint, peers []string, startHeight uint64, epochChanges []*consensus.EpochChange) error {
 	syncTaskDoneCh := make(chan error, 1)
 	targetHeight := ckpt.Height()
 	params := axm.genSnapSyncParams(peers, startHeight, targetHeight, ckpt, epochChanges)
+	start := time.Now()
 	if err := axm.Sync.StartSync(params, syncTaskDoneCh); err != nil {
 		return err
 	}
@@ -127,6 +120,7 @@ func (axm *AxiomLedger) startSnapSync(ckpt *consensus.SignedCheckpoint, peers []
 				return err
 			}
 		case data := <-axm.Sync.Commit():
+			now := time.Now()
 			snapData, ok := data.(*common.SnapCommitData)
 			if !ok {
 				return fmt.Errorf("invalid commit data type: %T", data)
@@ -136,15 +130,30 @@ func (axm *AxiomLedger) startSnapSync(ckpt *consensus.SignedCheckpoint, peers []
 			if err != nil {
 				return err
 			}
+			currentHeight := snapData.Data[len(snapData.Data)-1].GetHeight()
+			axm.logger.WithFields(logrus.Fields{
+				"Height": currentHeight,
+				"target": targetHeight,
+				"cost":   time.Since(now),
+			}).Info("persist chain data task")
 
-			if snapData.Data[len(snapData.Data)-1].GetHeight() == targetHeight {
+			if currentHeight == targetHeight {
 				axm.logger.WithFields(logrus.Fields{
 					"targetHeight": targetHeight,
+					"cost":         time.Since(start),
 				}).Info("snap sync task done")
+
+				if !axm.waitVerifySnapTrie(verifySnapCh) {
+					return fmt.Errorf("verify snap trie failed")
+				}
 				return nil
 			}
 		}
 	}
+}
+
+func (axm *AxiomLedger) waitVerifySnapTrie(verifySnapCh chan bool) bool {
+	return <-verifySnapCh
 }
 
 func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
@@ -154,7 +163,6 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 			return err
 		}
 	}
-
 	storeEpochStateFn := func(key string, value []byte) error {
 		return common2.StoreEpochState(axm.epochStore, key, value)
 	}

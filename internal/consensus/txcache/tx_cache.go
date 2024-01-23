@@ -87,8 +87,8 @@ func (tc *TxCache) appendTx(tx *types.Transaction) {
 func (tc *TxCache) postTxSet() {
 	dst := make([]*types.Transaction, len(tc.txSet))
 	copy(dst, tc.txSet)
-	tc.TxSetC <- dst
 	tc.txSet = make([]*types.Transaction, 0)
+	tc.TxSetC <- dst
 }
 
 func (tc *TxCache) IsFull() bool {

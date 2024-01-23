@@ -50,31 +50,31 @@ func (m *MockPipe) Broadcast(ctx context.Context, targets []string, data []byte)
 }
 
 // Broadcast indicates an expected call of Broadcast.
-func (mr *MockPipeMockRecorder) Broadcast(ctx, targets, data any) *PipeBroadcastCall {
+func (mr *MockPipeMockRecorder) Broadcast(ctx, targets, data any) *MockPipeBroadcastCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Broadcast", reflect.TypeOf((*MockPipe)(nil).Broadcast), ctx, targets, data)
-	return &PipeBroadcastCall{Call: call}
+	return &MockPipeBroadcastCall{Call: call}
 }
 
-// PipeBroadcastCall wrap *gomock.Call
-type PipeBroadcastCall struct {
+// MockPipeBroadcastCall wrap *gomock.Call
+type MockPipeBroadcastCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PipeBroadcastCall) Return(arg0 error) *PipeBroadcastCall {
+func (c *MockPipeBroadcastCall) Return(arg0 error) *MockPipeBroadcastCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PipeBroadcastCall) Do(f func(context.Context, []string, []byte) error) *PipeBroadcastCall {
+func (c *MockPipeBroadcastCall) Do(f func(context.Context, []string, []byte) error) *MockPipeBroadcastCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PipeBroadcastCall) DoAndReturn(f func(context.Context, []string, []byte) error) *PipeBroadcastCall {
+func (c *MockPipeBroadcastCall) DoAndReturn(f func(context.Context, []string, []byte) error) *MockPipeBroadcastCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -88,31 +88,31 @@ func (m *MockPipe) Receive(ctx context.Context) *network.PipeMsg {
 }
 
 // Receive indicates an expected call of Receive.
-func (mr *MockPipeMockRecorder) Receive(ctx any) *PipeReceiveCall {
+func (mr *MockPipeMockRecorder) Receive(ctx any) *MockPipeReceiveCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Receive", reflect.TypeOf((*MockPipe)(nil).Receive), ctx)
-	return &PipeReceiveCall{Call: call}
+	return &MockPipeReceiveCall{Call: call}
 }
 
-// PipeReceiveCall wrap *gomock.Call
-type PipeReceiveCall struct {
+// MockPipeReceiveCall wrap *gomock.Call
+type MockPipeReceiveCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PipeReceiveCall) Return(arg0 *network.PipeMsg) *PipeReceiveCall {
+func (c *MockPipeReceiveCall) Return(arg0 *network.PipeMsg) *MockPipeReceiveCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PipeReceiveCall) Do(f func(context.Context) *network.PipeMsg) *PipeReceiveCall {
+func (c *MockPipeReceiveCall) Do(f func(context.Context) *network.PipeMsg) *MockPipeReceiveCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PipeReceiveCall) DoAndReturn(f func(context.Context) *network.PipeMsg) *PipeReceiveCall {
+func (c *MockPipeReceiveCall) DoAndReturn(f func(context.Context) *network.PipeMsg) *MockPipeReceiveCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -126,31 +126,31 @@ func (m *MockPipe) Send(ctx context.Context, to string, data []byte) error {
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockPipeMockRecorder) Send(ctx, to, data any) *PipeSendCall {
+func (mr *MockPipeMockRecorder) Send(ctx, to, data any) *MockPipeSendCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockPipe)(nil).Send), ctx, to, data)
-	return &PipeSendCall{Call: call}
+	return &MockPipeSendCall{Call: call}
 }
 
-// PipeSendCall wrap *gomock.Call
-type PipeSendCall struct {
+// MockPipeSendCall wrap *gomock.Call
+type MockPipeSendCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PipeSendCall) Return(arg0 error) *PipeSendCall {
+func (c *MockPipeSendCall) Return(arg0 error) *MockPipeSendCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PipeSendCall) Do(f func(context.Context, string, []byte) error) *PipeSendCall {
+func (c *MockPipeSendCall) Do(f func(context.Context, string, []byte) error) *MockPipeSendCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PipeSendCall) DoAndReturn(f func(context.Context, string, []byte) error) *PipeSendCall {
+func (c *MockPipeSendCall) DoAndReturn(f func(context.Context, string, []byte) error) *MockPipeSendCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -164,31 +164,31 @@ func (m *MockPipe) String() string {
 }
 
 // String indicates an expected call of String.
-func (mr *MockPipeMockRecorder) String() *PipeStringCall {
+func (mr *MockPipeMockRecorder) String() *MockPipeStringCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockPipe)(nil).String))
-	return &PipeStringCall{Call: call}
+	return &MockPipeStringCall{Call: call}
 }
 
-// PipeStringCall wrap *gomock.Call
-type PipeStringCall struct {
+// MockPipeStringCall wrap *gomock.Call
+type MockPipeStringCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PipeStringCall) Return(arg0 string) *PipeStringCall {
+func (c *MockPipeStringCall) Return(arg0 string) *MockPipeStringCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PipeStringCall) Do(f func() string) *PipeStringCall {
+func (c *MockPipeStringCall) Do(f func() string) *MockPipeStringCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PipeStringCall) DoAndReturn(f func() string) *PipeStringCall {
+func (c *MockPipeStringCall) DoAndReturn(f func() string) *MockPipeStringCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -225,31 +225,31 @@ func (m *MockNetwork) CountConnectedValidators() uint64 {
 }
 
 // CountConnectedValidators indicates an expected call of CountConnectedValidators.
-func (mr *MockNetworkMockRecorder) CountConnectedValidators() *NetworkCountConnectedValidatorsCall {
+func (mr *MockNetworkMockRecorder) CountConnectedValidators() *MockNetworkCountConnectedValidatorsCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectedValidators", reflect.TypeOf((*MockNetwork)(nil).CountConnectedValidators))
-	return &NetworkCountConnectedValidatorsCall{Call: call}
+	return &MockNetworkCountConnectedValidatorsCall{Call: call}
 }
 
-// NetworkCountConnectedValidatorsCall wrap *gomock.Call
-type NetworkCountConnectedValidatorsCall struct {
+// MockNetworkCountConnectedValidatorsCall wrap *gomock.Call
+type MockNetworkCountConnectedValidatorsCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkCountConnectedValidatorsCall) Return(arg0 uint64) *NetworkCountConnectedValidatorsCall {
+func (c *MockNetworkCountConnectedValidatorsCall) Return(arg0 uint64) *MockNetworkCountConnectedValidatorsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkCountConnectedValidatorsCall) Do(f func() uint64) *NetworkCountConnectedValidatorsCall {
+func (c *MockNetworkCountConnectedValidatorsCall) Do(f func() uint64) *MockNetworkCountConnectedValidatorsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkCountConnectedValidatorsCall) DoAndReturn(f func() uint64) *NetworkCountConnectedValidatorsCall {
+func (c *MockNetworkCountConnectedValidatorsCall) DoAndReturn(f func() uint64) *MockNetworkCountConnectedValidatorsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -264,31 +264,31 @@ func (m *MockNetwork) CreatePipe(ctx context.Context, pipeID string) (network.Pi
 }
 
 // CreatePipe indicates an expected call of CreatePipe.
-func (mr *MockNetworkMockRecorder) CreatePipe(ctx, pipeID any) *NetworkCreatePipeCall {
+func (mr *MockNetworkMockRecorder) CreatePipe(ctx, pipeID any) *MockNetworkCreatePipeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipe", reflect.TypeOf((*MockNetwork)(nil).CreatePipe), ctx, pipeID)
-	return &NetworkCreatePipeCall{Call: call}
+	return &MockNetworkCreatePipeCall{Call: call}
 }
 
-// NetworkCreatePipeCall wrap *gomock.Call
-type NetworkCreatePipeCall struct {
+// MockNetworkCreatePipeCall wrap *gomock.Call
+type MockNetworkCreatePipeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkCreatePipeCall) Return(arg0 network.Pipe, arg1 error) *NetworkCreatePipeCall {
+func (c *MockNetworkCreatePipeCall) Return(arg0 network.Pipe, arg1 error) *MockNetworkCreatePipeCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkCreatePipeCall) Do(f func(context.Context, string) (network.Pipe, error)) *NetworkCreatePipeCall {
+func (c *MockNetworkCreatePipeCall) Do(f func(context.Context, string) (network.Pipe, error)) *MockNetworkCreatePipeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkCreatePipeCall) DoAndReturn(f func(context.Context, string) (network.Pipe, error)) *NetworkCreatePipeCall {
+func (c *MockNetworkCreatePipeCall) DoAndReturn(f func(context.Context, string) (network.Pipe, error)) *MockNetworkCreatePipeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -302,31 +302,31 @@ func (m *MockNetwork) PeerID() string {
 }
 
 // PeerID indicates an expected call of PeerID.
-func (mr *MockNetworkMockRecorder) PeerID() *NetworkPeerIDCall {
+func (mr *MockNetworkMockRecorder) PeerID() *MockNetworkPeerIDCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PeerID", reflect.TypeOf((*MockNetwork)(nil).PeerID))
-	return &NetworkPeerIDCall{Call: call}
+	return &MockNetworkPeerIDCall{Call: call}
 }
 
-// NetworkPeerIDCall wrap *gomock.Call
-type NetworkPeerIDCall struct {
+// MockNetworkPeerIDCall wrap *gomock.Call
+type MockNetworkPeerIDCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkPeerIDCall) Return(arg0 string) *NetworkPeerIDCall {
+func (c *MockNetworkPeerIDCall) Return(arg0 string) *MockNetworkPeerIDCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkPeerIDCall) Do(f func() string) *NetworkPeerIDCall {
+func (c *MockNetworkPeerIDCall) Do(f func() string) *MockNetworkPeerIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkPeerIDCall) DoAndReturn(f func() string) *NetworkPeerIDCall {
+func (c *MockNetworkPeerIDCall) DoAndReturn(f func() string) *MockNetworkPeerIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -340,31 +340,31 @@ func (m *MockNetwork) RegisterMsgHandler(messageType pb.Message_Type, handler fu
 }
 
 // RegisterMsgHandler indicates an expected call of RegisterMsgHandler.
-func (mr *MockNetworkMockRecorder) RegisterMsgHandler(messageType, handler any) *NetworkRegisterMsgHandlerCall {
+func (mr *MockNetworkMockRecorder) RegisterMsgHandler(messageType, handler any) *MockNetworkRegisterMsgHandlerCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterMsgHandler", reflect.TypeOf((*MockNetwork)(nil).RegisterMsgHandler), messageType, handler)
-	return &NetworkRegisterMsgHandlerCall{Call: call}
+	return &MockNetworkRegisterMsgHandlerCall{Call: call}
 }
 
-// NetworkRegisterMsgHandlerCall wrap *gomock.Call
-type NetworkRegisterMsgHandlerCall struct {
+// MockNetworkRegisterMsgHandlerCall wrap *gomock.Call
+type MockNetworkRegisterMsgHandlerCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkRegisterMsgHandlerCall) Return(arg0 error) *NetworkRegisterMsgHandlerCall {
+func (c *MockNetworkRegisterMsgHandlerCall) Return(arg0 error) *MockNetworkRegisterMsgHandlerCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkRegisterMsgHandlerCall) Do(f func(pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMsgHandlerCall {
+func (c *MockNetworkRegisterMsgHandlerCall) Do(f func(pb.Message_Type, func(network.Stream, *pb.Message)) error) *MockNetworkRegisterMsgHandlerCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkRegisterMsgHandlerCall) DoAndReturn(f func(pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMsgHandlerCall {
+func (c *MockNetworkRegisterMsgHandlerCall) DoAndReturn(f func(pb.Message_Type, func(network.Stream, *pb.Message)) error) *MockNetworkRegisterMsgHandlerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -378,31 +378,31 @@ func (m *MockNetwork) RegisterMultiMsgHandler(messageTypes []pb.Message_Type, ha
 }
 
 // RegisterMultiMsgHandler indicates an expected call of RegisterMultiMsgHandler.
-func (mr *MockNetworkMockRecorder) RegisterMultiMsgHandler(messageTypes, handler any) *NetworkRegisterMultiMsgHandlerCall {
+func (mr *MockNetworkMockRecorder) RegisterMultiMsgHandler(messageTypes, handler any) *MockNetworkRegisterMultiMsgHandlerCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterMultiMsgHandler", reflect.TypeOf((*MockNetwork)(nil).RegisterMultiMsgHandler), messageTypes, handler)
-	return &NetworkRegisterMultiMsgHandlerCall{Call: call}
+	return &MockNetworkRegisterMultiMsgHandlerCall{Call: call}
 }
 
-// NetworkRegisterMultiMsgHandlerCall wrap *gomock.Call
-type NetworkRegisterMultiMsgHandlerCall struct {
+// MockNetworkRegisterMultiMsgHandlerCall wrap *gomock.Call
+type MockNetworkRegisterMultiMsgHandlerCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkRegisterMultiMsgHandlerCall) Return(arg0 error) *NetworkRegisterMultiMsgHandlerCall {
+func (c *MockNetworkRegisterMultiMsgHandlerCall) Return(arg0 error) *MockNetworkRegisterMultiMsgHandlerCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkRegisterMultiMsgHandlerCall) Do(f func([]pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMultiMsgHandlerCall {
+func (c *MockNetworkRegisterMultiMsgHandlerCall) Do(f func([]pb.Message_Type, func(network.Stream, *pb.Message)) error) *MockNetworkRegisterMultiMsgHandlerCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkRegisterMultiMsgHandlerCall) DoAndReturn(f func([]pb.Message_Type, func(network.Stream, *pb.Message)) error) *NetworkRegisterMultiMsgHandlerCall {
+func (c *MockNetworkRegisterMultiMsgHandlerCall) DoAndReturn(f func([]pb.Message_Type, func(network.Stream, *pb.Message)) error) *MockNetworkRegisterMultiMsgHandlerCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -417,31 +417,31 @@ func (m *MockNetwork) Send(arg0 string, arg1 *pb.Message) (*pb.Message, error) {
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockNetworkMockRecorder) Send(arg0, arg1 any) *NetworkSendCall {
+func (mr *MockNetworkMockRecorder) Send(arg0, arg1 any) *MockNetworkSendCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockNetwork)(nil).Send), arg0, arg1)
-	return &NetworkSendCall{Call: call}
+	return &MockNetworkSendCall{Call: call}
 }
 
-// NetworkSendCall wrap *gomock.Call
-type NetworkSendCall struct {
+// MockNetworkSendCall wrap *gomock.Call
+type MockNetworkSendCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkSendCall) Return(arg0 *pb.Message, arg1 error) *NetworkSendCall {
+func (c *MockNetworkSendCall) Return(arg0 *pb.Message, arg1 error) *MockNetworkSendCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkSendCall) Do(f func(string, *pb.Message) (*pb.Message, error)) *NetworkSendCall {
+func (c *MockNetworkSendCall) Do(f func(string, *pb.Message) (*pb.Message, error)) *MockNetworkSendCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkSendCall) DoAndReturn(f func(string, *pb.Message) (*pb.Message, error)) *NetworkSendCall {
+func (c *MockNetworkSendCall) DoAndReturn(f func(string, *pb.Message) (*pb.Message, error)) *MockNetworkSendCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -455,31 +455,31 @@ func (m *MockNetwork) SendWithStream(arg0 network.Stream, arg1 *pb.Message) erro
 }
 
 // SendWithStream indicates an expected call of SendWithStream.
-func (mr *MockNetworkMockRecorder) SendWithStream(arg0, arg1 any) *NetworkSendWithStreamCall {
+func (mr *MockNetworkMockRecorder) SendWithStream(arg0, arg1 any) *MockNetworkSendWithStreamCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendWithStream", reflect.TypeOf((*MockNetwork)(nil).SendWithStream), arg0, arg1)
-	return &NetworkSendWithStreamCall{Call: call}
+	return &MockNetworkSendWithStreamCall{Call: call}
 }
 
-// NetworkSendWithStreamCall wrap *gomock.Call
-type NetworkSendWithStreamCall struct {
+// MockNetworkSendWithStreamCall wrap *gomock.Call
+type MockNetworkSendWithStreamCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkSendWithStreamCall) Return(arg0 error) *NetworkSendWithStreamCall {
+func (c *MockNetworkSendWithStreamCall) Return(arg0 error) *MockNetworkSendWithStreamCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkSendWithStreamCall) Do(f func(network.Stream, *pb.Message) error) *NetworkSendWithStreamCall {
+func (c *MockNetworkSendWithStreamCall) Do(f func(network.Stream, *pb.Message) error) *MockNetworkSendWithStreamCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkSendWithStreamCall) DoAndReturn(f func(network.Stream, *pb.Message) error) *NetworkSendWithStreamCall {
+func (c *MockNetworkSendWithStreamCall) DoAndReturn(f func(network.Stream, *pb.Message) error) *MockNetworkSendWithStreamCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -487,37 +487,37 @@ func (c *NetworkSendWithStreamCall) DoAndReturn(f func(network.Stream, *pb.Messa
 // Start mocks base method.
 func (m *MockNetwork) Start() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Prepare")
+	ret := m.ctrl.Call(m, "Start")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockNetworkMockRecorder) Start() *NetworkStartCall {
+func (mr *MockNetworkMockRecorder) Start() *MockNetworkStartCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockNetwork)(nil).Start))
-	return &NetworkStartCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockNetwork)(nil).Start))
+	return &MockNetworkStartCall{Call: call}
 }
 
-// NetworkStartCall wrap *gomock.Call
-type NetworkStartCall struct {
+// MockNetworkStartCall wrap *gomock.Call
+type MockNetworkStartCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkStartCall) Return(arg0 error) *NetworkStartCall {
+func (c *MockNetworkStartCall) Return(arg0 error) *MockNetworkStartCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkStartCall) Do(f func() error) *NetworkStartCall {
+func (c *MockNetworkStartCall) Do(f func() error) *MockNetworkStartCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkStartCall) DoAndReturn(f func() error) *NetworkStartCall {
+func (c *MockNetworkStartCall) DoAndReturn(f func() error) *MockNetworkStartCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -531,31 +531,31 @@ func (m *MockNetwork) Stop() error {
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockNetworkMockRecorder) Stop() *NetworkStopCall {
+func (mr *MockNetworkMockRecorder) Stop() *MockNetworkStopCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockNetwork)(nil).Stop))
-	return &NetworkStopCall{Call: call}
+	return &MockNetworkStopCall{Call: call}
 }
 
-// NetworkStopCall wrap *gomock.Call
-type NetworkStopCall struct {
+// MockNetworkStopCall wrap *gomock.Call
+type MockNetworkStopCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *NetworkStopCall) Return(arg0 error) *NetworkStopCall {
+func (c *MockNetworkStopCall) Return(arg0 error) *MockNetworkStopCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *NetworkStopCall) Do(f func() error) *NetworkStopCall {
+func (c *MockNetworkStopCall) Do(f func() error) *MockNetworkStopCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *NetworkStopCall) DoAndReturn(f func() error) *NetworkStopCall {
+func (c *MockNetworkStopCall) DoAndReturn(f func() error) *MockNetworkStopCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
