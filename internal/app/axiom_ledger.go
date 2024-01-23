@@ -242,7 +242,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 
 	// start p2p network
-	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] {
+	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] && !axm.Repo.StartArgs.ReadonlyMode {
 		if err = axm.Network.Start(); err != nil {
 			return nil, fmt.Errorf("peer manager start: %w", err)
 		}
