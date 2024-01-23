@@ -35,8 +35,7 @@ type TxPool struct {
 	CleanEmptyAccountTime  Duration `mapstructure:"clean_empty_account_time" toml:"clean_empty_account_time"`
 	ToleranceNonceGap      uint64   `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
 	EnableLocalsPersist    bool     `mapstructure:"enable_locals_persist" toml:"enable_locals_persist"`
-	TxRecordsFile          string   `mapstructure:"tx_records_file" toml:"tx_records_file"`
-	RotateTxLocalsInterval Duration `mapstructure:"rotate_tx_locals" toml:"rotate_tx_locals"`
+	RotateTxLocalsInterval Duration `mapstructure:"rotate_tx_locals_interval" toml:"rotate_tx_locals_interval"`
 }
 
 type TxCache struct {
@@ -92,7 +91,6 @@ func DefaultConsensusConfig() *ConsensusConfig {
 			RotateTxLocalsInterval: Duration(1 * time.Hour),
 			ToleranceNonceGap:      1000,
 			EnableLocalsPersist:    true,
-			TxRecordsFile:          "tx_records.pb",
 		},
 		TxCache: TxCache{
 			SetSize:    50,

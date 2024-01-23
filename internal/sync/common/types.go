@@ -1,6 +1,8 @@
 package common
 
 import (
+	"time"
+
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
@@ -60,6 +62,7 @@ type WrapperStateResp struct {
 }
 
 type Chunk struct {
+	Time       time.Time
 	ChunkSize  uint64
 	CheckPoint *pb.CheckpointState
 }
@@ -97,9 +100,13 @@ type CommitData interface {
 	GetEpoch() uint64
 }
 
-var CommitDataRequestConstructor = map[SyncMode]syncRequestMessage{
-	SyncModeFull:     &pb.SyncBlockRequest{},
-	SyncModeSnapshot: &pb.SyncChainDataRequest{},
+var CommitDataRequestConstructor = map[SyncMode]func() syncRequestMessage{
+	SyncModeFull: func() syncRequestMessage {
+		return &pb.SyncBlockRequest{}
+	},
+	SyncModeSnapshot: func() syncRequestMessage {
+		return &pb.SyncChainDataRequest{}
+	},
 }
 
 type BlockData struct {

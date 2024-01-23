@@ -316,10 +316,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 
 	msg := adaptor.TransactionToMessage(tx)
 	curGasPrice := exec.getCurrentGasPrice(height)
-	if msg.GasPrice.Cmp(curGasPrice) < 0 {
-		exec.logger.Warnf("msg gas price %v not equals to current gas price %v, will adjust msg.GasPrice automatically", msg.GasPrice, curGasPrice)
-		msg.GasPrice = curGasPrice
-	}
+	msg.GasPrice = curGasPrice
 
 	statedb := exec.ledger.StateLedger
 	snapshot := statedb.Snapshot()

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	vm "github.com/axiomesh/eth-kit/evm"
@@ -91,6 +92,10 @@ type StateLedger interface {
 	IterateTrie(block *types.Block, kv storage.Storage, errC chan error)
 
 	GetTrieSnapshotMeta() (*SnapshotMeta, error)
+
+	VerifyTrie(block *types.Block) (bool, error)
+
+	Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error)
 }
 
 // StateAccessor manipulates the state data
@@ -175,4 +180,6 @@ type IAccount interface {
 	SetEnableExpensiveMetric(bool)
 
 	GetStorageRootHash() common.Hash
+
+	GetStorageRoot() common.Hash
 }

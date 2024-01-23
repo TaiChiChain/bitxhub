@@ -8,6 +8,7 @@ import (
 
 // Config defines the txpool config items.
 type Config struct {
+	RepoRoot               string
 	Logger                 logrus.FieldLogger
 	BatchSize              uint64
 	PoolSize               uint64
@@ -21,5 +22,4 @@ type Config struct {
 	RotateTxLocalsInterval time.Duration
 	GetAccountNonce        GetAccountNonceFunc
 	EnableLocalsPersist    bool
-	TxRecordsFile          string
 }

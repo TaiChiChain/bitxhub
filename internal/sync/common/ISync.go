@@ -4,6 +4,7 @@ package common
 type Sync interface {
 	Prepare(opts ...Option) (*PrepareData, error)
 
+	Start()
 	SwitchMode(mode SyncMode) error
 	Stop()
 
@@ -17,9 +18,13 @@ type Sync interface {
 type ISyncConstructor interface {
 	Mode() SyncMode
 
+	Start()
+
 	Prepare(config *Config) (*PrepareData, error)
 
 	PostCommitData(data []CommitData)
 
 	Commit() chan any
+
+	Stop()
 }

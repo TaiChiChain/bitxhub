@@ -12,6 +12,15 @@ type FullSync struct {
 	recvCommitDataCh chan []common.CommitData
 	commitCh         chan any
 	ctx              context.Context
+	cancel           context.CancelFunc
+}
+
+func (s *FullSync) Start() {
+	go s.listenCommitData()
+}
+
+func (s *FullSync) Stop() {
+	s.cancel()
 }
 
 func (s *FullSync) Mode() common.SyncMode {
@@ -26,16 +35,17 @@ func (s *FullSync) Commit() chan any {
 	return s.commitCh
 }
 
-func NewFullSync(ctx context.Context) common.ISyncConstructor {
+func NewFullSync() common.ISyncConstructor {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &FullSync{
 		recvCommitDataCh: make(chan []common.CommitData, 100),
 		commitCh:         make(chan any, 100),
 		ctx:              ctx,
+		cancel:           cancel,
 	}
 }
 
 func (s *FullSync) Prepare(_ *common.Config) (*common.PrepareData, error) {
-	go s.listenCommitData()
 	return nil, nil
 }
 

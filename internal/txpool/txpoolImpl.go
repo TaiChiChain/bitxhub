@@ -4,10 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/google/btree"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -64,8 +70,8 @@ func NewTxPool[T any, Constraint types.TXConstraint[T]](config Config) (txpool.T
 func (p *txPoolImpl[T, Constraint]) Start() error {
 	go p.listenEvent()
 
-	if p.enableLocalsPersist && p.txRecordsFile != "" {
-		if err := p.txRecords.load(p.addTxs); err != nil {
+	if p.enableLocalsPersist {
+		if err := p.processRecords(); err != nil {
 			return err
 		}
 		if err := p.txRecords.rotate(p.txStore.allTxs); err != nil {
@@ -81,8 +87,54 @@ func (p *txPoolImpl[T, Constraint]) Start() error {
 	if err != nil {
 		return err
 	}
+	if p.enableLocalsPersist {
+		err = p.timerMgr.StartTimer(timer.RotateTxLocals)
+		if err != nil {
+			return err
+		}
+	}
+
 	p.logger.Info("txpool started")
 	return nil
+}
+
+func (p *txPoolImpl[T, Constraint]) processRecords() error {
+	taskDoneCh := make(chan struct{}, 1)
+	defer close(taskDoneCh)
+
+	input, err := os.Open(p.txRecords.filePath)
+	if err != nil {
+		p.logger.Errorf("Failed to open tx records file: %v", err)
+		return err
+	}
+	defer input.Close()
+
+	now := time.Now()
+	txsCh := p.txRecords.load(input, taskDoneCh)
+	totalInsertCount := 0
+	for {
+		select {
+		case txs, ok := <-txsCh:
+			if !ok {
+				return nil
+			}
+			insertCount := p.addLocalRecordTx(txs)
+
+			totalInsertCount += insertCount
+		case <-taskDoneCh:
+			close(txsCh)
+			for txs := range txsCh {
+				insertCount := p.addLocalRecordTx(txs)
+				totalInsertCount += insertCount
+			}
+
+			p.logger.WithFields(logrus.Fields{
+				"add_num": totalInsertCount,
+				"cost":    time.Since(now),
+			}).Info("End add record txs successfully")
+			return nil
+		}
+	}
 }
 
 func (p *txPoolImpl[T, Constraint]) listenEvent() {
@@ -179,8 +231,9 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 				err = p.txRecords.insert(req.tx)
 			}
 		}
-
-		req.errCh <- err
+		defer func() {
+			req.errCh <- err
+		}()
 
 	case remoteTxsEvent, reBroadcastTxsEvent:
 		nonceTooHighAccounts := make(map[string]bool)
@@ -232,8 +285,24 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		} else {
 			p.logger.WithFields(logrus.Fields{"batchHash": req.batchHash, "err": err}).Warning("receive missing txs failed")
 		}
+		defer func() {
+			req.errCh <- err
+		}()
 
-		req.errCh <- err
+	case localRecordTxEvent:
+		req := event.Event.(*reqLocalRecordTx[T, Constraint])
+		txs := req.txs
+
+		errs := p.addTxs(txs, true)
+		lo.ForEach(errs, func(err error, i int) {
+			if err == nil {
+				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()] = true
+				validTxs = append(validTxs, txs[i])
+			}
+		})
+		defer func() {
+			req.ch <- len(validTxs)
+		}()
 
 	default:
 		p.logger.Errorf("unknown addTxs event type: %d", event.EventType)
@@ -538,6 +607,21 @@ func (p *txPoolImpl[T, Constraint]) AddLocalTx(tx *T) error {
 	return <-req.errCh
 }
 
+func (p *txPoolImpl[T, Constraint]) addLocalRecordTx(txs []*T) int {
+	req := &reqLocalRecordTx[T, Constraint]{
+		txs: txs,
+		ch:  make(chan int),
+	}
+
+	ev := &addTxsEvent{
+		EventType: localRecordTxEvent,
+		Event:     req,
+	}
+	p.postEvent(ev)
+
+	return <-req.ch
+}
+
 func (p *txPoolImpl[T, Constraint]) AddRemoteTxs(txs []*T) {
 	req := &reqRemoteTxs[T, Constraint]{
 		txs: txs,
@@ -703,11 +787,13 @@ func (p *txPoolImpl[T, Constraint]) GetUncommittedTransactions(maxsize uint64) [
 }
 
 func (p *txPoolImpl[T, Constraint]) Stop() {
+	p.timerMgr.Stop()
 	p.cancel()
 	p.wg.Wait()
-	close(p.recvCh)
 	if p.txRecords != nil {
-		p.txRecords.close()
+		if err := p.txRecords.close(); err != nil {
+			p.logger.Errorf("Failed to close txRecords: %v", err)
+		}
 	}
 	p.logger.Infof("TxPool stopped!!!")
 }
@@ -765,8 +851,8 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 		txpoolImp.rotateTxLocalsInterval = config.RotateTxLocalsInterval
 	}
 	txpoolImp.enableLocalsPersist = config.EnableLocalsPersist
-	txpoolImp.txRecordsFile = config.TxRecordsFile
-	if txpoolImp.txRecordsFile != "" {
+	txpoolImp.txRecordsFile = path.Join(repo.GetStoragePath(config.RepoRoot, storagemgr.TxPool), TxRecordsFile)
+	if txpoolImp.enableLocalsPersist {
 		txpoolImp.txRecords = newTxRecords[T, Constraint](txpoolImp.txRecordsFile, config.Logger)
 	}
 
@@ -780,7 +866,20 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	if err != nil {
 		return nil, err
 	}
-	if txpoolImp.enableLocalsPersist && txpoolImp.txRecordsFile != "" {
+	if txpoolImp.enableLocalsPersist {
+		if !fileutil.Exist(path.Dir(txpoolImp.txRecordsFile)) {
+			err = os.MkdirAll(filepath.Dir(txpoolImp.txRecordsFile), 0755)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if !fileutil.Exist(txpoolImp.txRecordsFile) {
+			_, err = os.Create(txpoolImp.txRecordsFile)
+			if err != nil {
+				return nil, err
+			}
+		}
 		err = txpoolImp.timerMgr.CreateTimer(timer.RotateTxLocals, txpoolImp.rotateTxLocalsInterval, txpoolImp.handleRemoveTimeout)
 		if err != nil {
 			return nil, err
@@ -875,7 +974,6 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (*txpool
 	p.txStore.priorityIndex.data.Ascend(func(a btree.Item) bool {
 		tx := a.(*orderedIndexKey)
 		// if tx has existed in bathedTxs
-		// TODO (YH): refactor batchedTxs to seen (all the transactions that have been executed) to track all txs batched in ledger.
 		if _, ok := p.txStore.batchedTxs[txPointer{account: tx.account, nonce: tx.nonce}]; ok {
 			return true
 		}
@@ -1032,8 +1130,8 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveBatches(batchHashList []string) 
 		dirtyAccounts := make(map[string]bool)
 		for _, txHash := range batch.TxHashList {
 			pointer, ok := p.txStore.txHashMap[txHash]
+			// if we are not found the tx in txHashMap, it means the tx has been removed
 			if !ok {
-				p.logger.Warningf("Remove transaction %s failed, Can't find it from txHashMap", txHash)
 				continue
 			}
 			p.updateNonceCache(pointer, updateAccounts)
@@ -1085,7 +1183,9 @@ func (p *txPoolImpl[T, Constraint]) cleanTxsByAccount(account string, list *txSo
 	go func(txs []*internalTransaction[T, Constraint]) {
 		defer wg.Done()
 		lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
-			p.txStore.deletePoolTx(account, poolTx.getNonce())
+			nonce := poolTx.getNonce()
+			delete(p.txStore.batchedTxs, txPointer{account: account, nonce: poolTx.getNonce()})
+			p.txStore.deletePoolTx(account, nonce)
 		})
 	}(removedTxs)
 	go func(txs []*internalTransaction[T, Constraint]) {

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"path"
 	"syscall"
 	"time"
 
+	consensus2 "github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/storage"
 	devexecutor "github.com/axiomesh/axiom-ledger/internal/executor/dev"
 	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
@@ -73,7 +73,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		fn := func(addr string) uint64 {
 			return getNonceFn(types.NewAddressByStr(addr))
 		}
-		txRecordsFile := path.Join(repo.GetStoragePath(rep.RepoRoot, storagemgr.TxPool), poolConf.TxRecordsFile)
+
 		txpoolConf := txpool2.Config{
 			Logger:                 loggers.Logger(loggers.TxPool),
 			BatchSize:              rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
@@ -85,7 +85,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			GetAccountNonce:        fn,
 			IsTimed:                rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 			EnableLocalsPersist:    poolConf.EnableLocalsPersist,
-			TxRecordsFile:          txRecordsFile,
+			RepoRoot:               rep.RepoRoot,
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
 		}
 		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
@@ -170,7 +170,6 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-
 		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlock: snap.snapBlock.Clone()})
 	} else {
 		rwLdg, err = ledger.NewLedger(rep)
@@ -225,32 +224,66 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 
 	// start p2p network
-	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] {
+	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] && !axm.Repo.StartArgs.ReadonlyMode {
 		if err = axm.Network.Start(); err != nil {
 			return nil, fmt.Errorf("peer manager start: %w", err)
 		}
 
 		latestHeight := axm.ViewLedger.ChainLedger.GetChainMeta().Height
-		if rep.StartArgs.SnapshotMode && latestHeight > axm.snapMeta.snapBlock.Height() {
-			panic(fmt.Sprintf("local latest block height %d is bigger than snap block height %d", latestHeight, axm.snapMeta.snapBlock.Height()))
-		}
 		// if we reached snap block, needn't sync
 		// prepare sync
-		if axm.Repo.StartArgs.SnapshotMode && latestHeight < axm.snapMeta.snapBlock.Height() {
-			// start snap sync
-			start := time.Now()
-			axm.logger.WithFields(logrus.Fields{
-				"start height":  latestHeight,
-				"target height": axm.snapMeta.snapBlock.Height(),
-			}).Info("start snap sync")
-			if err = axm.prepareSnapSync(latestHeight); err != nil {
-				return nil, fmt.Errorf("prepare sync: %w", err)
+		if axm.Repo.StartArgs.SnapshotMode {
+			if latestHeight > axm.snapMeta.snapBlock.Height() {
+				return nil, fmt.Errorf("local latest block height %d is bigger than snap block height %d", latestHeight, axm.snapMeta.snapBlock.Height())
 			}
-			axm.logger.WithFields(logrus.Fields{
-				"start height":  latestHeight,
-				"target height": axm.snapMeta.snapBlock.Height(),
-				"duration":      time.Since(start),
-			}).Info("end snap sync")
+			if latestHeight < axm.snapMeta.snapBlock.Height() {
+				start := time.Now()
+				axm.logger.WithFields(logrus.Fields{
+					"start height":  latestHeight,
+					"target height": axm.snapMeta.snapBlock.Height(),
+				}).Info("start snap sync")
+
+				// 1. prepare snap sync info(including epoch state which will be persisted、last sync checkpoint)
+				prepareRes, snapCheckpoint, err := axm.prepareSnapSync(latestHeight)
+				if err != nil {
+					return nil, fmt.Errorf("prepare sync: %w", err)
+				}
+
+				// 2. verify whether trie snapshot is legal (async with snap sync)
+				verifiedCh := make(chan bool, 1)
+				go func(resultCh chan bool) {
+					now := time.Now()
+					verified, err := axm.ViewLedger.StateLedger.VerifyTrie(axm.snapMeta.snapBlock)
+					if err != nil {
+						resultCh <- false
+						return
+					}
+					axm.logger.WithFields(logrus.Fields{
+						"cost":   time.Since(now),
+						"height": axm.snapMeta.snapBlock.Height(),
+						"result": verified,
+					}).Info("end verify trie snapshot")
+					resultCh <- verified
+				}(verifiedCh)
+
+				// 3. start chain data sync
+				err = axm.startSnapSync(verifiedCh, snapCheckpoint, axm.snapMeta.snapPeers, latestHeight+1, prepareRes.Data.([]*consensus2.EpochChange))
+				if err != nil {
+					return nil, fmt.Errorf("snap sync err: %w", err)
+				}
+
+				// 4. end snapshot sync, change to full mode
+				err = axm.Sync.SwitchMode(sync_comm.SyncModeFull)
+				if err != nil {
+					return nil, fmt.Errorf("switch mode err: %w", err)
+				}
+
+				axm.logger.WithFields(logrus.Fields{
+					"start height":  latestHeight,
+					"target height": axm.snapMeta.snapBlock.Height(),
+					"duration":      time.Since(start),
+				}).Info("end snap sync")
+			}
 		}
 
 		axm.ViewLedger.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlock: nil})
@@ -293,6 +326,8 @@ func (axm *AxiomLedger) Start() error {
 		if _, err := axm.Sync.Prepare(); err != nil {
 			return fmt.Errorf("sync prepare: %w", err)
 		}
+		axm.Sync.Start()
+
 		if err := axm.Consensus.Start(); err != nil {
 			return fmt.Errorf("consensus start: %w", err)
 		}

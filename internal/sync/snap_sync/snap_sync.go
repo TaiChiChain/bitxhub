@@ -28,9 +28,18 @@ type SnapSync struct {
 	network          network.Network
 	logger           logrus.FieldLogger
 
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	cnf *common.Config
+}
+
+func (s *SnapSync) Stop() {
+	s.cancel()
+}
+
+func (s *SnapSync) Start() {
+	go s.listenCommitData()
 }
 
 func (s *SnapSync) Mode() common.SyncMode {
@@ -61,7 +70,8 @@ func (s *SnapSync) Commit() chan any {
 	return s.commitCh
 }
 
-func NewSnapSync(logger logrus.FieldLogger, ctx context.Context, net network.Network) common.ISyncConstructor {
+func NewSnapSync(logger logrus.FieldLogger, net network.Network) common.ISyncConstructor {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &SnapSync{
 		commitCh:         make(chan any, 1),
 		recvCommitDataCh: make(chan []common.CommitData, 100),
@@ -69,7 +79,8 @@ func NewSnapSync(logger logrus.FieldLogger, ctx context.Context, net network.Net
 		network:          net,
 		logger:           logger,
 
-		ctx: ctx,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -80,7 +91,6 @@ func (s *SnapSync) Prepare(config *common.Config) (*common.PrepareData, error) {
 		return nil, err
 	}
 
-	go s.listenCommitData()
 	return &common.PrepareData{Data: epcs}, nil
 }
 

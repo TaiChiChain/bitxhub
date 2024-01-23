@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -16,6 +19,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	network2 "github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -37,11 +41,6 @@ const (
 const (
 	epochPrefix = "epoch." + rbft.EpochStatePrefix
 	epochPeriod = 100
-)
-
-var (
-	blockCache  = make([]*types.Block, 0)
-	gensisBlock = genGenesisBlock()
 )
 
 type mockLedger struct {
@@ -199,6 +198,20 @@ func (net *mockMiniNetwork) newMockBlockRequestPipe(nets map[string]*mockMiniNet
 		}
 	}
 	mockPipe := mock_network.NewMockPipe(ctrl)
+	log := logrus.New()
+	fp := fmt.Sprintf("recv_block_req-node%s.log", localId)
+
+	// show package path
+	pwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	path := filepath.Join(filepath.Dir(pwd), fp)
+	file, err := os.Create(path)
+	if err != nil {
+		panic(err)
+	}
+	log.SetOutput(file)
 	mockPipe.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, to string, data []byte) error {
 			switch mode {
@@ -212,7 +225,13 @@ func (net *mockMiniNetwork) newMockBlockRequestPipe(nets map[string]*mockMiniNet
 					return fmt.Errorf("send remote peer err: %s", to)
 				}
 
-				nets[to].blockReqPipeDb <- &network.PipeMsg{
+				toNet := nets[to]
+				log.WithFields(logrus.Fields{
+					"to":        to,
+					"toNetNode": toNet.Node,
+					"height":    msg.Height,
+				}).Info("recv block req")
+				toNet.blockReqPipeDb <- &network.PipeMsg{
 					From: localId,
 					Data: data,
 				}
@@ -325,6 +344,8 @@ type pipeMsgIndexM struct {
 
 type mockMiniNetwork struct {
 	*mock_network.MockNetwork
+	Node                string
+	Ctl                 *gomock.Controller
 	blockReqPipeDb      chan *network.PipeMsg
 	blockRespPipeDb     chan *network.PipeMsg
 	chainDataReqPipeDb  chan *network.PipeMsg
@@ -348,6 +369,8 @@ func newMockMiniNetworks(n int) map[string]*mockMiniNetwork {
 func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[string]*mockMiniNetwork, ctrl *gomock.Controller, localId string, wrong ...int) {
 	mock := nets[localId]
 	mock.MockNetwork = mock_network.NewMockNetwork(ctrl)
+	mock.Ctl = ctrl
+	mock.Node = localId
 	var (
 		wrongSendStream        bool
 		latencySendState       bool
@@ -524,7 +547,7 @@ func genGenesisBlock() *types.Block {
 func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager, map[string]*mockLedger) {
 	ctrl := gomock.NewController(t)
 	syncs := make([]*SyncManager, 0)
-	genesis := gensisBlock.Clone()
+	genesis := genGenesisBlock()
 
 	ledgers := make(map[string]*mockLedger)
 	// 1. prepare all ledgers
@@ -582,9 +605,115 @@ func stopSyncs(syncs []*SyncManager) {
 	}
 }
 
-func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange) {
-	ctrl := gomock.NewController(t)
-	syncs := make([]*SyncManager, 0)
+var _ network2.Network = (*mockNetwork)(nil)
+
+type mockNetwork struct {
+	p2p         *network.MockP2P
+	msgHandlers sync.Map
+	logger      logrus.FieldLogger
+}
+
+func (m *mockNetwork) CreatePipe(ctx context.Context, pipeID string) (network.Pipe, error) {
+	return m.p2p.CreatePipe(ctx, pipeID)
+}
+
+func (m *mockNetwork) Start() error {
+	m.p2p.SetMessageHandler(m.handleMessage)
+	return m.p2p.Start()
+}
+
+func (m *mockNetwork) Stop() error {
+	return m.p2p.Stop()
+}
+
+func (m *mockNetwork) PeerID() string {
+	return m.p2p.PeerID()
+}
+
+func (m *mockNetwork) Send(to string, message *pb.Message) (*pb.Message, error) {
+	msg, err := message.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := m.p2p.Send(to, msg)
+	if err != nil {
+		return nil, err
+	}
+	respMsg := &pb.Message{}
+	if err = respMsg.UnmarshalVT(resp); err != nil {
+		return nil, err
+	}
+	return respMsg, nil
+}
+
+func (m *mockNetwork) SendWithStream(stream network.Stream, message *pb.Message) error {
+	msg, err := message.MarshalVT()
+	if err != nil {
+		return err
+	}
+	return stream.AsyncSend(msg)
+}
+
+func (m *mockNetwork) CountConnectedValidators() uint64 {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockNetwork) handleMessage(s network.Stream, data []byte) {
+	msg := &pb.Message{}
+	if err := msg.UnmarshalVT(data); err != nil {
+		m.logger.Errorf("unmarshal message error: %w", err)
+		return
+	}
+
+	handler, ok := m.msgHandlers.Load(msg.Type)
+	if !ok {
+		m.logger.WithFields(logrus.Fields{
+			"error": fmt.Errorf("can't handle msg[type: %v]", msg.Type),
+			"type":  msg.Type.String(),
+		}).Error("Handle message")
+		return
+	}
+
+	msgHandler, ok := handler.(func(network.Stream, *pb.Message))
+	if !ok {
+		m.logger.WithFields(logrus.Fields{
+			"error": fmt.Errorf("invalid handler for msg [type: %v]", msg.Type),
+			"type":  msg.Type.String(),
+		}).Error("Handle message")
+		return
+	}
+
+	msgHandler(s, msg)
+}
+
+func (m *mockNetwork) RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
+	if handler == nil {
+		return errors.New("register msg handler: empty handler")
+	}
+
+	for msgType := range pb.Message_Type_name {
+		if msgType == int32(messageType) {
+			m.msgHandlers.Store(messageType, handler)
+			return nil
+		}
+	}
+
+	return errors.New("register msg handler: invalid message type")
+}
+
+func (m *mockNetwork) RegisterMultiMsgHandler(messageTypes []pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
+	for _, typ := range messageTypes {
+		if err := m.RegisterMsgHandler(typ, handler); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange, []string) {
+	syncs := make([]*SyncManager, count)
 	var (
 		epochChanges       []*consensus.EpochChange
 		needGenEpochChange bool
@@ -597,26 +726,40 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		needGenEpochChange = true
 	}
 
-	gensis := gensisBlock.Clone()
-	for i := 0; i < count; i++ {
-		lg := newMockMinLedger(t, gensis)
-		localId := strconv.Itoa(i)
+	genesis := genGenesisBlock()
 
-		latestBlock := ConstructBlock(begin-1, types.NewHashByStr(fmt.Sprintf("blcok%d", begin-2)))
-		err := lg.PersistExecutionResult(latestBlock, []*types.Receipt{})
-		require.Nil(t, err)
+	beforeBeginBlocks := make([]*types.Block, 0)
+	parent := genesis.BlockHash
+	if begin > 1 {
+		for j := 2; j < int(begin); j++ {
+			b := ConstructBlock(uint64(j), parent)
+			beforeBeginBlocks = append(beforeBeginBlocks, b)
+			parent = b.BlockHash
+		}
+	}
+
+	blockCache := make([]*types.Block, 0)
+	parentHash := genesis.BlockHash
+	if len(beforeBeginBlocks) > 0 {
+		parentHash = beforeBeginBlocks[len(beforeBeginBlocks)-1].BlockHash
+	}
+	for j := begin; j <= end; j++ {
+		block := ConstructBlock(j, parentHash)
+		blockCache = append(blockCache, block)
+		parentHash = block.BlockHash
+	}
+
+	for i := 0; i < count; i++ {
+		lg := newMockMinLedger(t, genesis)
+		localId := strconv.Itoa(i)
+		lo.ForEach(beforeBeginBlocks, func(block *types.Block, _ int) {
+			err := lg.PersistExecutionResult(block, genReceipts(block))
+			require.Nil(t, err)
+		})
 
 		if i != local {
-			if len(blockCache) == 0 {
-				parentHash := lg.chainMeta.BlockHash
-				for j := begin; j <= end; j++ {
-					block := ConstructBlock(j, parentHash)
-					blockCache = append(blockCache, block)
-					parentHash = block.BlockHash
-				}
-			}
 			lo.ForEach(blockCache, func(block *types.Block, _ int) {
-				err = lg.PersistExecutionResult(block, genReceipts(block))
+				err := lg.PersistExecutionResult(block, genReceipts(block))
 				require.Nil(t, err)
 			})
 
@@ -632,12 +775,36 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		}
 		ledgers[localId] = lg
 	}
-	nets := newMockMiniNetworks(count)
+	//nets := newMockMiniNetworks(count)
+
+	nets := make(map[string]*mockNetwork)
+	peers := make([]string, count)
+	for i := 0; i < count; i++ {
+		peers[i] = strconv.Itoa(i)
+	}
+	hm := network.GenMockHostManager(peers)
+
+	lo.ForEach(peers, func(peer string, _ int) {
+		p2pLog := log.NewWithModule(fmt.Sprintf("p2p%s", peer))
+		p2p, err := network.NewMockP2P(peer, hm, p2pLog)
+		require.Nil(t, err)
+		net := &mockNetwork{
+			p2p:    p2p,
+			logger: p2pLog,
+		}
+
+		err = net.Start()
+		require.Nil(t, err)
+
+		nets[peer] = net
+	})
+
 	for localId := range ledgers {
 		lg := ledgers[localId]
 		fmt.Printf("%s: %T", localId, lg)
 		logger := log.NewWithModule("sync" + localId)
-
+		discard := io.Discard
+		logger.Logger.SetOutput(discard)
 		getChainMetaFn := func() *types.ChainMeta {
 			return lg.GetChainMeta()
 		}
@@ -656,19 +823,20 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 			return val
 		}
 		conf := repo.Sync{
-			RequesterRetryTimeout: repo.Duration(1 * time.Second),
+			RequesterRetryTimeout: repo.Duration(5 * time.Second),
 			TimeoutCountLimit:     5,
 			ConcurrencyLimit:      100,
+			WaitStatesTimeout:     repo.Duration(30 * time.Second),
 		}
-
-		initMockMiniNetwork(t, ledgers, nets, ctrl, localId)
 
 		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
 		require.Nil(t, err)
-		syncs = append(syncs, blockSync)
+		localIndex, err := strconv.Atoi(localId)
+		require.Nil(t, err)
+		syncs[localIndex] = blockSync
 	}
 
-	return syncs, epochChanges
+	return syncs, epochChanges, peers
 }
 
 func prepareEpochChange(height uint64, hash string) *consensus.EpochChange {
@@ -698,7 +866,7 @@ func genSyncParams(peers []string, latestBlockHash string, quorum uint64, curHei
 }
 
 func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int) {
-	blocks := ConstructBlocks(endHeight, gensisBlock.BlockHash)
+	blocks := ConstructBlocks(endHeight, genGenesisBlock().BlockHash)
 	for id, lg := range ledgers {
 		if id == exceptId {
 			continue
