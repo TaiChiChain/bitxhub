@@ -1,4 +1,4 @@
-package token
+package axm
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ var (
 	ErrValue               = errors.New("input Value below zero")
 	ErrInsufficientBalance = errors.New("Value exceeds balance")
 	ErrEmptyAccount        = errors.New("account is empty")
-	ErrContractAccount     = errors.New("account is not AXM IToken contract account")
+	ErrContractAccount     = errors.New("account is not Token IToken contract account")
 )
 
 const (
@@ -40,14 +40,40 @@ const (
 	SymbolKey     = "symbolKey"
 	NameKey       = "nameKey"
 	AllowancesKey = "allowancesKey"
+
+	nameMethod         = "name"
+	symbolMethod       = "symbol"
+	totalSupplyMethod  = "totalSupply"
+	decimalsMethod     = "decimals"
+	balanceOfMethod    = "balanceOf"
+	transferMethod     = "transfer"
+	approveMethod      = "approve"
+	allowanceMethod    = "allowance"
+	transferFromMethod = "transferFrom"
+	mintMethod         = "mint"
+	burnMethod         = "burn"
 )
 
-func (am *AxmManager) checkBeforeMint(account ethcommon.Address, value *big.Int) error {
+var Method2Sig = map[string]string{
+	totalSupplyMethod:  "totalSupply()",
+	balanceOfMethod:    "balanceOf(address)",
+	transferMethod:     "transfer(address,uint256)",
+	allowanceMethod:    "allowance(address,address)",
+	approveMethod:      "approve(address,uint256)",
+	transferFromMethod: "transferFrom(address,address,uint256)",
+	nameMethod:         "name()",
+	symbolMethod:       "symbol()",
+	decimalsMethod:     "decimals()",
+	mintMethod:         "mint(uint256)",
+	burnMethod:         "burn(uint256)",
+}
+
+func (am *Manager) checkBeforeMint(account ethcommon.Address, value *big.Int) error {
 	// todo: implement it
 	return nil
 }
 
-func (am *AxmManager) checkBeforeBurn(account ethcommon.Address, value *big.Int) error {
+func (am *Manager) checkBeforeBurn(account ethcommon.Address, value *big.Int) error {
 	// Todo implement me
 	return nil
 }
@@ -63,7 +89,7 @@ func getAllowancesKey(owner, spender ethcommon.Address) string {
 	return fmt.Sprintf("%s-%s-%s", AllowancesKey, owner.String(), spender.String())
 }
 
-func GenerateGenesisTokenConfig(genesis *repo.GenesisConfig) (Config, error) {
+func GenerateConfig(genesis *repo.GenesisConfig) (Config, error) {
 	var err error
 	initialAccounts := make([]*InitialAccount, len(genesis.Accounts))
 	// calculate the total consume balance for accounts
@@ -86,16 +112,16 @@ func GenerateGenesisTokenConfig(genesis *repo.GenesisConfig) (Config, error) {
 		consumeBalance.Add(consumeBalance, balance)
 	})
 
-	totalSupply, _ := new(big.Int).SetString(genesis.Token.TotalSupply, 10)
+	totalSupply, _ := new(big.Int).SetString(genesis.Axm.TotalSupply, 10)
 	// calculate totalSupply - (sum<each account balance>)
 	contractBalance := new(big.Int).Set(totalSupply)
 	if contractBalance.Cmp(consumeBalance) < 0 {
 		return Config{}, ErrTotalSupply
 	}
 	tokenConfig := Config{
-		Name:            genesis.Token.Name,
-		Symbol:          genesis.Token.Symbol,
-		Decimals:        genesis.Token.Decimals,
+		Name:            genesis.Axm.Name,
+		Symbol:          genesis.Axm.Symbol,
+		Decimals:        genesis.Axm.Decimals,
 		InitialAccounts: initialAccounts,
 		TotalSupply:     contractBalance,
 	}

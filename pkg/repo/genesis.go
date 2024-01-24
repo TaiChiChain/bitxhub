@@ -16,7 +16,10 @@ import (
 type GenesisConfig struct {
 	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
 	Timestamp              int64           `mapstructure:"timestamp" toml:"timestamp"`
-	Token                  *Token          `mapstructure:"token" toml:"token"`
+	Axm                    *Token          `mapstructure:"axm" toml:"axm"`
+	Axc                    *Token          `mapstructure:"axc" toml:"axc"`
+	Incentive              *Incentive      `mapstructure:"incentive" toml:"incentive"`
+	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
 	Accounts               []*Account      `mapstructure:"accounts" toml:"accounts"`
@@ -34,6 +37,31 @@ type Token struct {
 	Symbol      string `mapstructure:"symbol" toml:"symbol"`
 	Decimals    uint8  `mapstructure:"decimals" toml:"decimals"`
 	TotalSupply string `mapstructure:"total_supply" toml:"total_supply"`
+}
+
+type Incentive struct {
+	Mining          *Mining          `mapstructure:"mining" toml:"mining"`
+	UserAcquisition *UserAcquisition `mapstructure:"user_acquisition" toml:"user_acquisition"`
+	Distributions   []*Distribution  `mapstructure:"distributions" toml:"distributions"`
+}
+
+type Mining struct {
+	BlockNumToHalf uint64 `mapstructure:"block_num_to_half" toml:"block_num_to_half"`
+	BlockNumToNone uint64 `mapstructure:"block_num_to_none" toml:"block_num_to_none"`
+	TotalAmount    string `mapstructure:"total_amount" toml:"total_amount"`
+}
+
+type UserAcquisition struct {
+	AvgBlockReward string `mapstructure:"avg_block_reward" toml:"avg_block_reward"`
+	BlockToNone    uint64 `mapstructure:"block_to_none" toml:"block_to_none"`
+}
+
+type Distribution struct {
+	Name         string  `mapstructure:"name" toml:"name"`
+	Addr         string  `mapstructure:"addr" toml:"addr"`
+	Percentage   float64 `mapstructure:"percentage" toml:"percentage"`
+	InitEmission float64 `mapstructure:"init_emission" toml:"init_emission"`
+	Locked       bool    `mapstructure:"locked" toml:"locked"`
 }
 
 type Admin struct {
@@ -122,8 +150,6 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 		return testNetGenesisBuilder()
 	}
 	axmBalance, _ := new(big.Int).SetString(DefaultAXMBalance, 10)
-	// balance = axmBalance * 10^decimals
-	balance := new(big.Int).Mul(axmBalance, big.NewInt(10).Exp(big.NewInt(10), big.NewInt(int64(DefaultDecimals)), nil))
 	adminLen := 4
 	accountAddrs := []string{
 		"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -155,11 +181,11 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 	accounts := lo.Map(allAccounts, func(addr string, idx int) *Account {
 		return &Account{
 			Address: addr,
-			Balance: balance.String(),
+			Balance: axmBalance.String(),
 		}
 	})
 
-	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(len(allAccounts))))
+	totalSupply := new(big.Int).Mul(axmBalance, big.NewInt(int64(len(allAccounts))))
 	return &GenesisConfig{
 		ChainID:   1356,
 		Timestamp: 1704038400,
@@ -170,11 +196,37 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 				Name:    DefaultAdminNames[idx],
 			}
 		}),
-		Token: &Token{
+		Axm: &Token{
 			Name:        "Axiom",
 			Symbol:      "AXM",
 			Decimals:    DefaultDecimals,
 			TotalSupply: totalSupply.String(),
+		},
+		Axc: &Token{
+			Name:        "Axiomesh Credit",
+			Symbol:      "axc",
+			Decimals:    DefaultDecimals,
+			TotalSupply: DefaultAXCTotalSupply,
+		},
+		Incentive: &Incentive{
+			Mining: &Mining{
+				BlockNumToHalf: 126144000,
+				BlockNumToNone: 630720001,
+				TotalAmount:    "40000000000000000000000000",
+			},
+			UserAcquisition: &UserAcquisition{
+				AvgBlockReward: "126000000000000000",
+				BlockToNone:    315360000,
+			},
+			Distributions: lo.Map(DefaultAXCDistribution, func(item Distribution, _ int) *Distribution {
+				return &Distribution{
+					Name:         item.Name,
+					Addr:         item.Addr,
+					Percentage:   item.Percentage,
+					InitEmission: item.InitEmission,
+					Locked:       item.Locked,
+				}
+			}),
 		},
 		NodeNames:              GenesisNodeNameInfo(epochEnable),
 		InitWhiteListProviders: DefaultNodeAddrs,

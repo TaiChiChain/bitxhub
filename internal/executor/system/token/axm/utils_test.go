@@ -1,4 +1,4 @@
-package token
+package axm
 
 import (
 	"math/big"
@@ -112,17 +112,17 @@ func newMockMinLedger(t *testing.T) *mockLedger {
 	return mockLg
 }
 
-func mockAxmManager(t *testing.T) *AxmManager {
+func mockAxmManager(t *testing.T) *Manager {
 	logger := log.NewWithModule("token")
 
 	mockLg := newMockMinLedger(t)
 	genesisConf := repo.DefaultGenesisConfig(false)
-	conf, err := GenerateGenesisTokenConfig(genesisConf)
+	conf, err := GenerateConfig(genesisConf)
 	require.Nil(t, err)
-	err = InitAxmTokenManager(mockLg, conf)
+	err = Init(mockLg, conf)
 	require.Nil(t, err)
-	contractAccount := mockLg.GetOrCreateAccount(types.NewAddressByStr(common.TokenManagerContractAddr))
+	contractAccount := mockLg.GetOrCreateAccount(types.NewAddressByStr(common.AXMContractAddr))
 
-	am := &AxmManager{logger: logger, account: contractAccount, stateLedger: mockLg}
+	am := &Manager{logger: logger, account: contractAccount, stateLedger: mockLg}
 	return am
 }

@@ -6,7 +6,8 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
-type IToken interface { // Name Returns the name of the token
+type IBasicToken interface {
+	// Name Returns the name of the token
 	Name() string
 
 	// Symbol Returns the symbol of the token
@@ -21,12 +22,6 @@ type IToken interface { // Name Returns the name of the token
 	// BalanceOf Returns the balance of the account
 	BalanceOf(account ethcommon.Address) *big.Int
 
-	// Mint tokens for account
-	Mint(value *big.Int) error
-
-	// Burn tokens for account, return error if account have not enough balance
-	Burn(value *big.Int) error
-
 	// Allowance Returns the Value which `spender` is still allowed to withdraw from `owner`
 	// This is zero by default, This Value changes when {approve} or {transferFrom} are called.
 	Allowance(owner, spender ethcommon.Address) *big.Int
@@ -40,4 +35,22 @@ type IToken interface { // Name Returns the name of the token
 	// TransferFrom moves `Value` tokens from `sender` to `recipient` using the allowance mechanism,
 	// 'Value' is then deducted from the caller's allowance.
 	TransferFrom(sender, recipient ethcommon.Address, value *big.Int) error
+}
+
+type ITokenMintableBurnable interface {
+	IBasicToken
+
+	// Mint tokens for account
+	Mint(value *big.Int) error
+
+	// Burn tokens for account, return error if account have not enough balance
+	Burn(value *big.Int) error
+}
+
+type ICredit interface {
+	IBasicToken
+
+	TransferLocked(recipient ethcommon.Address, value *big.Int) error
+
+	Unlock(address ethcommon.Address, value *big.Int) error
 }

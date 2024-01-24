@@ -226,9 +226,9 @@ func AriesGenesisConfig() *GenesisConfig {
 				Name:    "Q2F0",
 			},
 		},
-		Token: &Token{
+		Axm: &Token{
 			Name:        "Axiom",
-			Symbol:      "AXM",
+			Symbol:      "Token",
 			Decimals:    DefaultDecimals,
 			TotalSupply: totalSupply.String(),
 		},

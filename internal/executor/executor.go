@@ -34,6 +34,7 @@ type BlockExecutor struct {
 	logger             logrus.FieldLogger
 	blockC             chan *common.CommitEvent
 	gas                *finance.Gas
+	incentive          *finance.Incentive
 	cumulativeGasUsed  uint64
 	currentHeight      uint64
 	currentBlockHash   *types.Hash
@@ -50,6 +51,9 @@ type BlockExecutor struct {
 	lock        *sync.Mutex
 
 	nvm sys_common.VirtualMachine
+
+	epochExchange   bool
+	afterBlockHooks []func(block *types.Block)
 }
 
 // New creates executor instance
@@ -76,8 +80,15 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 
 	// initialize native vm
 	blockExecutor.nvm = system.New()
+	var err error
+	blockExecutor.incentive, err = finance.NewIncentive(rep.GenesisConfig, blockExecutor.nvm)
 
-	return blockExecutor, nil
+	blockExecutor.afterBlockHooks = []func(block *types.Block){
+		blockExecutor.updateEpochInfo,
+		blockExecutor.updateMiningInfo,
+	}
+
+	return blockExecutor, err
 }
 
 // Start starts executor

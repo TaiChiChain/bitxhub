@@ -1,8 +1,9 @@
-package token
+package axm
 
 import (
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -13,47 +14,17 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 
-const (
-	nameMethod         = "name"
-	symbolMethod       = "symbol"
-	totalSupplyMethod  = "totalSupply"
-	decimalsMethod     = "decimals"
-	balanceOfMethod    = "balanceOf"
-	transferMethod     = "transfer"
-	approveMethod      = "approve"
-	allowanceMethod    = "allowance"
-	transferFromMethod = "transferFrom"
-	mintMethod         = "mint"
-	burnMethod         = "burn"
-)
+var _ token.ITokenMintableBurnable = (*Manager)(nil)
 
-var AxmManagerMethod2Sig = map[string]string{
-	totalSupplyMethod:  "totalSupply()",
-	balanceOfMethod:    "balanceOf(address)",
-	transferMethod:     "transfer(address,uint256)",
-	allowanceMethod:    "allowance(address,address)",
-	approveMethod:      "approve(address,uint256)",
-	transferFromMethod: "transferFrom(address,address,uint256)",
-	nameMethod:         "name()",
-	symbolMethod:       "symbol()",
-	decimalsMethod:     "decimals()",
-
-	// not support for outside
-	//mintMethod:         "mint(uint256)",
-	//burnMethod: "burn(uint256)",
-}
-
-var _ IToken = (*AxmManager)(nil)
-
-type AxmManager struct {
+type Manager struct {
 	logger      logrus.FieldLogger
 	account     ledger.IAccount
 	msgFrom     ethcommon.Address
 	stateLedger ledger.StateLedger
 }
 
-func InitAxmTokenManager(lg ledger.StateLedger, config Config) error {
-	contractAccount := lg.GetOrCreateAccount(types.NewAddressByStr(common.TokenManagerContractAddr))
+func Init(lg ledger.StateLedger, config Config) error {
+	contractAccount := lg.GetOrCreateAccount(types.NewAddressByStr(common.AXMContractAddr))
 
 	contractAccount.SetState([]byte(NameKey), []byte(config.Name))
 	contractAccount.SetState([]byte(SymbolKey), []byte(config.Symbol))
@@ -76,7 +47,7 @@ func InitAxmTokenManager(lg ledger.StateLedger, config Config) error {
 	return err
 }
 
-func (am *AxmManager) Name() string {
+func (am *Manager) Name() string {
 	ok, name := am.account.GetState([]byte(NameKey))
 	if !ok {
 		return ""
@@ -84,7 +55,7 @@ func (am *AxmManager) Name() string {
 	return string(name)
 }
 
-func (am *AxmManager) Symbol() string {
+func (am *Manager) Symbol() string {
 	ok, symbol := am.account.GetState([]byte(SymbolKey))
 	if !ok {
 		return ""
@@ -92,7 +63,7 @@ func (am *AxmManager) Symbol() string {
 	return string(symbol)
 }
 
-func (am *AxmManager) Decimals() uint8 {
+func (am *Manager) Decimals() uint8 {
 	ok, decimals := am.account.GetState([]byte(DecimalsKey))
 	if !ok {
 		return 0
@@ -100,7 +71,7 @@ func (am *AxmManager) Decimals() uint8 {
 	return decimals[0]
 }
 
-func (am *AxmManager) TotalSupply() *big.Int {
+func (am *Manager) TotalSupply() *big.Int {
 	ok, totalSupply := am.account.GetState([]byte(TotalSupplyKey))
 	if !ok {
 		return big.NewInt(0)
@@ -108,7 +79,7 @@ func (am *AxmManager) TotalSupply() *big.Int {
 	return new(big.Int).SetBytes(totalSupply)
 }
 
-func (am *AxmManager) BalanceOf(account ethcommon.Address) *big.Int {
+func (am *Manager) BalanceOf(account ethcommon.Address) *big.Int {
 	acc := am.stateLedger.GetAccount(types.NewAddressByStr(account.String()))
 	if acc == nil {
 		return big.NewInt(0)
@@ -116,7 +87,7 @@ func (am *AxmManager) BalanceOf(account ethcommon.Address) *big.Int {
 	return acc.GetBalance()
 }
 
-func (am *AxmManager) Mint(amount *big.Int) error {
+func (am *Manager) Mint(amount *big.Int) error {
 	if err := am.checkBeforeMint(am.msgFrom, amount); err != nil {
 		return err
 	}
@@ -134,7 +105,7 @@ func mint(contractAccount ledger.IAccount, value *big.Int) error {
 }
 
 func changeTotalSupply(acc ledger.IAccount, amount *big.Int, increase bool) error {
-	if acc.GetAddress().String() != common.TokenManagerContractAddr {
+	if acc.GetAddress().String() != common.AXMContractAddr {
 		return ErrContractAccount
 	}
 
@@ -158,7 +129,7 @@ func changeTotalSupply(acc ledger.IAccount, amount *big.Int, increase bool) erro
 	return nil
 }
 
-func (am *AxmManager) Burn(value *big.Int) error {
+func (am *Manager) Burn(value *big.Int) error {
 	// todo: check role(only council contract account)
 	if err := am.checkBeforeBurn(am.msgFrom, value); err != nil {
 		return err
@@ -186,11 +157,11 @@ func burn(contractAccount ledger.IAccount, value *big.Int) error {
 	return nil
 }
 
-func (am *AxmManager) Allowance(owner, spender ethcommon.Address) *big.Int {
+func (am *Manager) Allowance(owner, spender ethcommon.Address) *big.Int {
 	return am.getAllowance(owner, spender)
 }
 
-func (am *AxmManager) getAllowance(owner, spender ethcommon.Address) *big.Int {
+func (am *Manager) getAllowance(owner, spender ethcommon.Address) *big.Int {
 	ok, v := am.account.GetState([]byte(getAllowancesKey(owner, spender)))
 	if !ok {
 		return big.NewInt(0)
@@ -198,11 +169,11 @@ func (am *AxmManager) getAllowance(owner, spender ethcommon.Address) *big.Int {
 	return new(big.Int).SetBytes(v)
 }
 
-func (am *AxmManager) Approve(spender ethcommon.Address, value *big.Int) error {
+func (am *Manager) Approve(spender ethcommon.Address, value *big.Int) error {
 	return am.approve(am.msgFrom, spender, value)
 }
 
-func (am *AxmManager) approve(owner, spender ethcommon.Address, value *big.Int) error {
+func (am *Manager) approve(owner, spender ethcommon.Address, value *big.Int) error {
 	var err error
 	if err = checkValue(value); err != nil {
 		return err
@@ -212,13 +183,13 @@ func (am *AxmManager) approve(owner, spender ethcommon.Address, value *big.Int) 
 	return nil
 }
 
-func (am *AxmManager) Transfer(recipient ethcommon.Address, value *big.Int) error {
+func (am *Manager) Transfer(recipient ethcommon.Address, value *big.Int) error {
 	fromAcc := am.stateLedger.GetAccount(types.NewAddressByStr(am.msgFrom.String()))
 	toAcc := am.stateLedger.GetOrCreateAccount(types.NewAddressByStr(recipient.String()))
 	return transfer(fromAcc, toAcc, value)
 }
 
-func (am *AxmManager) TransferFrom(sender, recipient ethcommon.Address, value *big.Int) error {
+func (am *Manager) TransferFrom(sender, recipient ethcommon.Address, value *big.Int) error {
 	// get allowance for <sender, msgFrom>
 	allowance := am.getAllowance(sender, am.msgFrom)
 	if allowance.Cmp(value) < 0 {
@@ -249,14 +220,14 @@ func transfer(sender, recipient ledger.IAccount, value *big.Int) error {
 	return nil
 }
 
-func NewTokenManager(cfg *common.SystemContractConfig) *AxmManager {
-	return &AxmManager{
+func New(cfg *common.SystemContractConfig) *Manager {
+	return &Manager{
 		logger: cfg.Logger,
 	}
 }
 
-func (am *AxmManager) SetContext(context *common.VMContext) {
-	am.account = context.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.TokenManagerContractAddr))
+func (am *Manager) SetContext(context *common.VMContext) {
+	am.account = context.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXMContractAddr))
 	am.stateLedger = context.StateLedger
 	am.msgFrom = *context.CurrentUser
 }

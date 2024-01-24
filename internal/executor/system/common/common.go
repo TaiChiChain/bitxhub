@@ -14,16 +14,16 @@ const (
 	// ZeroAddress is a special address, no one has control
 	ZeroAddress = "0x0000000000000000000000000000000000000000"
 
-	// system contract address range 0x1000-0xffff, start from 1000, avoid conflicts with precompiled contracts
 	// SystemContractStartAddr is the start address of system contract
+	// the address range is 0x1000-0xffff, start from 1000, avoid conflicts with precompiled contracts
 	SystemContractStartAddr = "0x0000000000000000000000000000000000001000"
 
 	// ProposalIDContractAddr is the contract to used to generate the proposal ID
 	ProposalIDContractAddr = "0x0000000000000000000000000000000000001000"
 	GovernanceContractAddr = "0x0000000000000000000000000000000000001001"
 
-	// TokenManagerContractAddr is the contract to used to manager token info
-	TokenManagerContractAddr = "0x0000000000000000000000000000000000001002"
+	// AXMContractAddr is the contract to used to manager native token info
+	AXMContractAddr = "0x0000000000000000000000000000000000001002"
 
 	// Addr2NameContractAddr for unique name mapping to address
 	Addr2NameContractAddr           = "0x0000000000000000000000000000000000001003"
@@ -32,6 +32,9 @@ const (
 
 	// EpochManagerContractAddr is the contract to used to manager chain epoch info
 	EpochManagerContractAddr = "0x0000000000000000000000000000000000001006"
+
+	// AXCContractAddr is the system contract for axc
+	AXCContractAddr = "0x0000000000000000000000000000000000001007"
 
 	// SystemContractEndAddr is the end address of system contract
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
@@ -52,6 +55,9 @@ type VirtualMachine interface {
 
 	// View return a view system contract
 	View() VirtualMachine
+
+	// GetContractInstance return the contract instance by given address
+	GetContractInstance(addr *types.Address) SystemContract
 }
 
 type VMContext struct {

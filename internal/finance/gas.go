@@ -1,19 +1,12 @@
 package finance
 
 import (
-	"errors"
 	"math"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-)
-
-var (
-	ErrTxsOutOfRange = errors.New("current txs is out of range")
-
-	ErrGasOutOfRange = errors.New("parent gas price is out of range")
 )
 
 type Gas struct {

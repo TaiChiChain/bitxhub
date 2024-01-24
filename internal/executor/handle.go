@@ -2,7 +2,6 @@ package executor
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"math/big"
 	"strings"
@@ -21,7 +20,6 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -110,7 +108,8 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 
 	exec.cumulativeGasUsed = 0
-	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
+	exec.evm = newEvm(exec.rep.Config.Executor.EVM, block.Height(), uint64(block.BlockHeader.Timestamp),
+		exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
 	// get last block's stateRoot to init the latest world state trie
 	parentBlock, err := exec.ledger.ChainLedger.GetBlock(block.Height() - 1)
 	if err != nil {
@@ -123,33 +122,11 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.ledger.StateLedger.PrepareBlock(parentBlock.BlockHeader.StateRoot, block.BlockHash, block.Height())
 	receipts := exec.applyTransactions(block.Transactions, block.Height())
 
-	// check need turn into NewEpoch
-	epochInfo := exec.rep.EpochInfo
-	epochChange := false
-	if block.BlockHeader.Number == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
-		var seed []byte
-		seed = append(seed, []byte(exec.currentBlockHash.String())...)
-		seed = append(seed, []byte(block.BlockHeader.ProposerAccount)...)
-		seed = binary.BigEndian.AppendUint64(seed, block.BlockHeader.Number)
-		seed = binary.BigEndian.AppendUint64(seed, block.BlockHeader.Epoch)
-		seed = binary.BigEndian.AppendUint64(seed, uint64(block.BlockHeader.Timestamp))
-		for _, tx := range block.Transactions {
-			seed = append(seed, []byte(tx.GetHash().String())...)
-		}
-
-		newEpoch, err := base.TurnIntoNewEpoch(seed, exec.ledger.StateLedger)
-		if err != nil {
-			panic(err)
-		}
-		exec.rep.EpochInfo = newEpoch
-		epochChange = true
-		exec.logger.WithFields(logrus.Fields{
-			"height":                commitEvent.Block.BlockHeader.Number,
-			"new_epoch":             newEpoch.Epoch,
-			"new_epoch_start_block": newEpoch.StartBlock,
-		}).Info("Turn into new epoch")
-		exec.ledger.StateLedger.Finalise()
+	for _, hook := range exec.afterBlockHooks {
+		hook(block)
 	}
+
+	exec.ledger.StateLedger.Finalise()
 
 	applyTxsDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 	exec.logger.WithFields(logrus.Fields{
@@ -177,7 +154,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
 
 	var nextGasPrice uint64
-	if epochChange && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
+	if exec.epochExchange && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
 		// epoch changed gas price
 		nextGasPrice = exec.rep.EpochInfo.FinanceParams.StartGasPrice
 		exec.logger.WithFields(logrus.Fields{
@@ -382,6 +359,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 
 func (exec *BlockExecutor) clear() {
 	exec.ledger.StateLedger.Clear()
+	exec.epochExchange = false
 }
 
 func (exec *BlockExecutor) calcReceiptMerkleRoot(receipts []*types.Receipt) (*types.Hash, error) {
@@ -425,7 +403,8 @@ func getBlockHashFunc(chainLedger ledger.ChainLedger) ethvm.GetHashFunc {
 	}
 }
 
-func newEvm(evmCfg repo.EVM, number uint64, timestamp uint64, chainCfg *params.ChainConfig, db ledger.StateLedger, chainLedger ledger.ChainLedger, coinbase string) *ethvm.EVM {
+func newEvm(evmCfg repo.EVM, number uint64, timestamp uint64, chainCfg *params.ChainConfig, db ledger.StateLedger,
+	chainLedger ledger.ChainLedger, coinbase string) *ethvm.EVM {
 	if coinbase == "" {
 		coinbase = sys_common.ZeroAddress
 	}
