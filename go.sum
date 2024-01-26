@@ -60,8 +60,8 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/axiomesh/axiom-bft v0.0.3-0.20240123062338-7261c2f9a770 h1:6DBTTZbPAOPbR6POjORSIIRvoN5JBiJb4qrXpQihlnw=
 github.com/axiomesh/axiom-bft v0.0.3-0.20240123062338-7261c2f9a770/go.mod h1:5FhJ7YL/KGvN/G+TWF+NoyJPvzWk2DemLyoh3FWhBdI=
-github.com/axiomesh/axiom-kit v0.0.3-0.20240125081733-191ebc2aab49 h1:TJD/rlxnBRTW0oDb31ma8FvIitdE7zx+V9978X6KpH8=
-github.com/axiomesh/axiom-kit v0.0.3-0.20240125081733-191ebc2aab49/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240129022857-da25701601ee h1:q/IkUWiBcae9DF7U1zYCF5B49cQ0Mm+xHSKOqhxIZZk=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240129022857-da25701601ee/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c h1:ii8/g8+2tR7RE1AzlBRd8lNsQ9EbjLk9Y3YwRcnvEQs=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c/go.mod h1:cM3qpMXFeYBIzVf8pz276Z9G+2Bx1DYjmTkfInmkZL4=
 github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53 h1:xHSy2tB4HaQL0CsiRT8XecLFKyXVwHrH01G/HgqzsUo=
