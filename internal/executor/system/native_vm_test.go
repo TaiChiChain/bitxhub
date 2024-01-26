@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
+	"github.com/ethereum/go-ethereum/core"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +18,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -222,11 +223,11 @@ func TestContractRun(t *testing.T) {
 	nvm := New()
 
 	testcases := []struct {
-		Message       *vm.Message
+		Message       *core.Message
 		IsExpectedErr bool
 	}{
 		{
-			Message: &vm.Message{
+			Message: &core.Message{
 				From: from,
 				To:   nil,
 				Data: data,
@@ -234,7 +235,7 @@ func TestContractRun(t *testing.T) {
 			IsExpectedErr: true,
 		},
 		{
-			Message: &vm.Message{
+			Message: &core.Message{
 				From: from,
 				To:   &to,
 				Data: data,
@@ -242,7 +243,7 @@ func TestContractRun(t *testing.T) {
 			IsExpectedErr: true,
 		},
 		{
-			Message: &vm.Message{
+			Message: &core.Message{
 				From: from,
 				To:   &to,
 				Data: hexutil.Bytes("error data"),
@@ -250,7 +251,7 @@ func TestContractRun(t *testing.T) {
 			IsExpectedErr: true,
 		},
 		{
-			Message: &vm.Message{
+			Message: &core.Message{
 				From: from,
 				To:   &to,
 				Data: crypto.Keccak256([]byte("vote(uint64,uint8)")),
@@ -258,7 +259,7 @@ func TestContractRun(t *testing.T) {
 			IsExpectedErr: true,
 		},
 		{
-			Message: &vm.Message{
+			Message: &core.Message{
 				From: from,
 				To:   &to,
 				Data: getIDData,
@@ -266,7 +267,7 @@ func TestContractRun(t *testing.T) {
 			IsExpectedErr: false,
 		},
 		{
-			Message: &vm.Message{
+			Message: &core.Message{
 				From: from,
 				To:   &from,
 				Data: data,

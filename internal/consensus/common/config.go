@@ -19,7 +19,6 @@ import (
 
 type Config struct {
 	RepoRoot                                    string
-	EVMConfig                                   repo.EVM
 	Config                                      *repo.ConsensusConfig
 	Logger                                      logrus.FieldLogger
 	ConsensusType                               string
@@ -149,12 +148,6 @@ func WithGetEpochInfoFromEpochMgrContractFunc(f func(epoch uint64) (*rbft.EpochI
 func WithGetCurrentEpochInfoFromEpochMgrContractFunc(f func() (*rbft.EpochInfo, error)) Option {
 	return func(config *Config) {
 		config.GetCurrentEpochInfoFromEpochMgrContractFunc = f
-	}
-}
-
-func WithEVMConfig(c repo.EVM) Option {
-	return func(config *Config) {
-		config.EVMConfig = c
 	}
 }
 

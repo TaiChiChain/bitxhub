@@ -17,7 +17,6 @@ import (
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var toAddr = common.HexToAddress(to)
@@ -92,8 +91,7 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 
 		// assign txMaxSize to 0
 		cnf := &common2.Config{
-			EVMConfig: repo.EVM{},
-			Logger:    lg,
+			Logger: lg,
 			GenesisEpochInfo: &rbft.EpochInfo{
 				MiscParams: rbft.MiscParams{
 					TxMaxSize: 0,

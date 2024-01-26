@@ -94,10 +94,7 @@ func TestNewNode(t *testing.T) {
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
 	cnf := &common.Config{
-		RepoRoot: r.RepoRoot,
-		EVMConfig: repo.EVM{
-			DisableMaxCodeSizeLimit: true,
-		},
+		RepoRoot:             r.RepoRoot,
 		Config:               r.ConsensusConfig,
 		Logger:               loggers.Logger(loggers.Consensus),
 		ConsensusType:        repo.ConsensusTypeRbft,

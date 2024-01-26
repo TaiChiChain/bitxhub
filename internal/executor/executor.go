@@ -19,7 +19,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -76,7 +76,7 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 		lock:              &sync.Mutex{},
 	}
 
-	blockExecutor.evm = newEvm(rep.Config.Executor.EVM, 1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
+	blockExecutor.evm = newEvm(1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
 
 	// initialize native vm
 	blockExecutor.nvm = system.New()
@@ -150,7 +150,7 @@ func (exec *BlockExecutor) ApplyReadonlyTransactions(txs []*types.Transaction) [
 	}
 
 	exec.ledger.StateLedger.PrepareBlock(block.BlockHeader.StateRoot, meta.BlockHash, meta.Height)
-	exec.evm = newEvm(exec.rep.Config.Executor.EVM, meta.Height, uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, "")
+	exec.evm = newEvm(meta.Height, uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, "")
 	for i, tx := range txs {
 		exec.ledger.StateLedger.SetTxContext(tx.GetHash(), i)
 		receipt := exec.applyTransaction(i, tx, meta.Height)

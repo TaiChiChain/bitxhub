@@ -105,9 +105,6 @@ func AriesConfig() *Config {
 		Executor: Executor{
 			Type:            ExecTypeNative,
 			DisableRollback: false,
-			EVM: EVM{
-				DisableMaxCodeSizeLimit: false,
-			},
 		},
 		PProf: PProf{
 			Enable:   true,
@@ -385,9 +382,6 @@ func TaurusConfig() *Config {
 		Executor: Executor{
 			Type:            ExecTypeNative,
 			DisableRollback: false,
-			EVM: EVM{
-				DisableMaxCodeSizeLimit: false,
-			},
 		},
 		PProf: PProf{
 			Enable:   true,

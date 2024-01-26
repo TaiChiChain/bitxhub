@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
@@ -16,7 +18,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -100,12 +102,12 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	return api.traceTx(msg, txctx, vmctx, *statedb, config)
 }
 
-func (api *TracerAPI) traceTx(message *vm.Message, txctx *Context, vmctx vm.BlockContext, statedb ledger.StateLedger, config *TraceConfig) (any, error) {
+func (api *TracerAPI) traceTx(message *core.Message, txctx *Context, vmctx vm.BlockContext, statedb ledger.StateLedger, config *TraceConfig) (any, error) {
 	var (
 		tracer    Tracer
 		err       error
 		timeout   = defaultTraceTimeout
-		txContext = vm.NewEVMTxContext(message)
+		txContext = core.NewEVMTxContext(message)
 	)
 	if config == nil {
 		config = &TraceConfig{}
@@ -118,7 +120,7 @@ func (api *TracerAPI) traceTx(message *vm.Message, txctx *Context, vmctx vm.Bloc
 			return nil, err
 		}
 	}
-	vmenv := vm.NewEVM(vmctx, txContext, statedb, api.api.Broker().ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true})
+	vmenv := vm.NewEVM(vmctx, txContext, &ledger.EvmStateDBAdaptor{StateLedger: statedb}, api.api.Broker().ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true})
 	// Define a meaningful timeout of a single transaction trace
 	if config.Timeout != nil {
 		if timeout, err = time.ParseDuration(*config.Timeout); err != nil {
@@ -138,7 +140,7 @@ func (api *TracerAPI) traceTx(message *vm.Message, txctx *Context, vmctx vm.Bloc
 
 	// Call Prepare to clear out the statedb access list
 	statedb.SetTxContext(types.NewHash(txctx.BlockHash.Bytes()), txctx.TxIndex)
-	if _, err = vm.ApplyMessage(vmenv, message, new(vm.GasPool).AddGas(message.GasLimit)); err != nil {
+	if _, err = core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.GasLimit)); err != nil {
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}
 	return tracer.GetResult()

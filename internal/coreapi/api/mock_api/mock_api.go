@@ -17,8 +17,8 @@ import (
 	common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	events "github.com/axiomesh/axiom-ledger/pkg/events"
-	vm "github.com/axiomesh/eth-kit/evm"
-	common0 "github.com/ethereum/go-ethereum/common"
+	core "github.com/ethereum/go-ethereum/core"
+	vm "github.com/ethereum/go-ethereum/core/vm"
 	event "github.com/ethereum/go-ethereum/event"
 	params "github.com/ethereum/go-ethereum/params"
 	gomock "go.uber.org/mock/gomock"
@@ -454,7 +454,7 @@ func (c *BrokerAPIGetBlocksCall) DoAndReturn(f func(uint64, uint64) ([]*types.Bl
 }
 
 // GetEvm mocks base method.
-func (m *MockBrokerAPI) GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error) {
+func (m *MockBrokerAPI) GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEvm", mes, vmConfig)
 	ret0, _ := ret[0].(*vm.EVM)
@@ -481,13 +481,51 @@ func (c *BrokerAPIGetEvmCall) Return(arg0 *vm.EVM, arg1 error) *BrokerAPIGetEvmC
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *BrokerAPIGetEvmCall) Do(f func(*vm.Message, *vm.Config) (*vm.EVM, error)) *BrokerAPIGetEvmCall {
+func (c *BrokerAPIGetEvmCall) Do(f func(*core.Message, *vm.Config) (*vm.EVM, error)) *BrokerAPIGetEvmCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *BrokerAPIGetEvmCall) DoAndReturn(f func(*vm.Message, *vm.Config) (*vm.EVM, error)) *BrokerAPIGetEvmCall {
+func (c *BrokerAPIGetEvmCall) DoAndReturn(f func(*core.Message, *vm.Config) (*vm.EVM, error)) *BrokerAPIGetEvmCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetNativeVm mocks base method.
+func (m *MockBrokerAPI) GetNativeVm() common.VirtualMachine {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNativeVm")
+	ret0, _ := ret[0].(common.VirtualMachine)
+	return ret0
+}
+
+// GetNativeVm indicates an expected call of GetNativeVm.
+func (mr *MockBrokerAPIMockRecorder) GetNativeVm() *BrokerAPIGetNativeVmCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNativeVm", reflect.TypeOf((*MockBrokerAPI)(nil).GetNativeVm))
+	return &BrokerAPIGetNativeVmCall{Call: call}
+}
+
+// BrokerAPIGetNativeVmCall wrap *gomock.Call
+type BrokerAPIGetNativeVmCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *BrokerAPIGetNativeVmCall) Return(arg0 common.VirtualMachine) *BrokerAPIGetNativeVmCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *BrokerAPIGetNativeVmCall) Do(f func() common.VirtualMachine) *BrokerAPIGetNativeVmCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *BrokerAPIGetNativeVmCall) DoAndReturn(f func() common.VirtualMachine) *BrokerAPIGetNativeVmCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -527,45 +565,6 @@ func (c *BrokerAPIGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, error)
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *BrokerAPIGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *BrokerAPIGetReceiptCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetSystemContract mocks base method.
-func (m *MockBrokerAPI) GetSystemContract(addr *common0.Address) (common.SystemContract, bool) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSystemContract", addr)
-	ret0, _ := ret[0].(common.SystemContract)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-// GetSystemContract indicates an expected call of GetSystemContract.
-func (mr *MockBrokerAPIMockRecorder) GetSystemContract(addr any) *BrokerAPIGetSystemContractCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSystemContract", reflect.TypeOf((*MockBrokerAPI)(nil).GetSystemContract), addr)
-	return &BrokerAPIGetSystemContractCall{Call: call}
-}
-
-// BrokerAPIGetSystemContractCall wrap *gomock.Call
-type BrokerAPIGetSystemContractCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *BrokerAPIGetSystemContractCall) Return(arg0 common.SystemContract, arg1 bool) *BrokerAPIGetSystemContractCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *BrokerAPIGetSystemContractCall) Do(f func(*common0.Address) (common.SystemContract, bool)) *BrokerAPIGetSystemContractCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *BrokerAPIGetSystemContractCall) DoAndReturn(f func(*common0.Address) (common.SystemContract, bool)) *BrokerAPIGetSystemContractCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -725,10 +724,10 @@ func (c *BrokerAPIHandleTransactionCall) DoAndReturn(f func(*types.Transaction) 
 }
 
 // StateAtTransaction mocks base method.
-func (m *MockBrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error) {
+func (m *MockBrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateAtTransaction", block, txIndex, reexec)
-	ret0, _ := ret[0].(*vm.Message)
+	ret0, _ := ret[0].(*core.Message)
 	ret1, _ := ret[1].(vm.BlockContext)
 	ret2, _ := ret[2].(*ledger.StateLedger)
 	ret3, _ := ret[3].(error)
@@ -748,19 +747,19 @@ type BrokerAPIStateAtTransactionCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *BrokerAPIStateAtTransactionCall) Return(arg0 *vm.Message, arg1 vm.BlockContext, arg2 *ledger.StateLedger, arg3 error) *BrokerAPIStateAtTransactionCall {
+func (c *BrokerAPIStateAtTransactionCall) Return(arg0 *core.Message, arg1 vm.BlockContext, arg2 *ledger.StateLedger, arg3 error) *BrokerAPIStateAtTransactionCall {
 	c.Call = c.Call.Return(arg0, arg1, arg2, arg3)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *BrokerAPIStateAtTransactionCall) Do(f func(*types.Block, int, uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error)) *BrokerAPIStateAtTransactionCall {
+func (c *BrokerAPIStateAtTransactionCall) Do(f func(*types.Block, int, uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error)) *BrokerAPIStateAtTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *BrokerAPIStateAtTransactionCall) DoAndReturn(f func(*types.Block, int, uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error)) *BrokerAPIStateAtTransactionCall {
+func (c *BrokerAPIStateAtTransactionCall) DoAndReturn(f func(*types.Block, int, uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error)) *BrokerAPIStateAtTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

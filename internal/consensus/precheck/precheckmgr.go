@@ -64,7 +64,6 @@ type TxPreCheckMgr struct {
 	getChainMetaFn func() *types.ChainMeta
 
 	ctx       context.Context
-	evmConfig repo.EVM
 	txMaxSize atomic.Uint64
 }
 
@@ -95,7 +94,6 @@ func NewTxPreCheckMgr(ctx context.Context, conf *common.Config) *TxPreCheckMgr {
 		BaseFee:        big.NewInt(0),
 		getBalanceFn:   conf.GetAccountBalance,
 		getChainMetaFn: conf.GetChainMetaFunc,
-		evmConfig:      conf.EVMConfig,
 		txpool:         conf.TxPool,
 	}
 
@@ -364,7 +362,7 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 		isContractCreation = true
 	}
 	// 5. if deployed a contract, Check whether the init code size has been exceeded.
-	if isContractCreation && len(tx.GetPayload()) > params.MaxInitCodeSize && !tp.evmConfig.DisableMaxCodeSizeLimit {
+	if isContractCreation && len(tx.GetPayload()) > params.MaxInitCodeSize {
 		return fmt.Errorf("%w: [hash:%s, nonce:%d], code size %v limit %v", core.ErrMaxInitCodeSizeExceeded,
 			tx.GetHash().String(), tx.GetNonce(), len(tx.GetPayload()), params.MaxInitCodeSize)
 	}

@@ -32,7 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 
-	vm "github.com/axiomesh/eth-kit/evm"
+	vm "github.com/ethereum/go-ethereum/core/vm"
 )
 
 // Storage represents a contract's storage.
@@ -188,7 +188,7 @@ func (l *StructLogger) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, s
 		if op == vm.SLOAD && stackLen >= 1 {
 			var (
 				address = common.Hash(stackData[stackLen-1].Bytes32())
-				value   = l.env.StateDB.GetEVMState(contract.Address(), address)
+				value   = l.env.StateDB.GetState(contract.Address(), address)
 			)
 			l.storage[contract.Address()][address] = value
 			storage = l.storage[contract.Address()].Copy()
@@ -208,7 +208,7 @@ func (l *StructLogger) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, s
 		copy(rdata, rData)
 	}
 	// create a new snapshot of the EVM.
-	log := StructLog{Pc: pc, Op: op, Gas: gas, GasCost: cost, Memory: mem, MemorySize: memory.Len(), Stack: stck, ReturnData: rdata, Storage: storage, Depth: depth, RefundCounter: l.env.StateDB.GetEVMRefund(), Err: err}
+	log := StructLog{Pc: pc, Op: op, Gas: gas, GasCost: cost, Memory: mem, MemorySize: memory.Len(), Stack: stck, ReturnData: rdata, Storage: storage, Depth: depth, RefundCounter: l.env.StateDB.GetRefund(), Err: err}
 	l.logs = append(l.logs, log)
 }
 
@@ -372,7 +372,7 @@ func (t *mdLogger) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope
 		b := fmt.Sprintf("[%v]", strings.Join(a, ","))
 		fmt.Fprintf(t.out, "%10v |", b)
 	}
-	fmt.Fprintf(t.out, "%10v |", t.env.StateDB.GetEVMRefund())
+	fmt.Fprintf(t.out, "%10v |", t.env.StateDB.GetRefund())
 	fmt.Fprintln(t.out, "")
 	if err != nil {
 		fmt.Fprintf(t.out, "Error: %v\n", err)

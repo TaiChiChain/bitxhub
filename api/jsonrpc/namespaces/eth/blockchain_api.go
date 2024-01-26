@@ -22,11 +22,11 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/axiomesh/eth-kit/adaptor"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // BlockChain API provides an API for accessing blockchain data
@@ -169,9 +169,10 @@ func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string,
 		for _, proof := range rawStorageProof.Proof {
 			storageProof = append(storageProof, base64.StdEncoding.EncodeToString(proof))
 		}
+		evmStateDB := &ledger.EvmStateDBAdaptor{StateLedger: stateLedger}
 		storageResult := StorageResult{
 			Key:   hexutil.Encode(key[:]),
-			Value: (*ethhexutil.Big)(stateLedger.GetEVMState(addr.ETHAddress(), common.BytesToHash(hashKey)).Big()),
+			Value: (*ethhexutil.Big)(evmStateDB.GetState(addr.ETHAddress(), common.BytesToHash(hashKey)).Big()),
 			Proof: storageProof,
 		}
 		ret.StorageProof = append(ret.StorageProof, storageResult)
@@ -297,7 +298,7 @@ func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.Bloc
 
 	api.logger.Debugf("eth_call, args: %v", args)
 
-	receipt, err := DoCall(api.ctx, blockNrOrHash, api.rep.Config.Executor.EVM, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
+	receipt, err := DoCall(api.ctx, blockNrOrHash, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +311,7 @@ func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.Bloc
 }
 
 // DoCall todo call with historical ledger
-func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmCfg repo.EVM, api api.CoreAPI, args types.CallArgs, timeout time.Duration, globalGasCap uint64, logger logrus.FieldLogger) (*vm.ExecutionResult, error) {
+func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, api api.CoreAPI, args types.CallArgs, timeout time.Duration, globalGasCap uint64, logger logrus.FieldLogger) (*core.ExecutionResult, error) {
 	defer func(start time.Time) { logger.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
 	var cancel context.CancelFunc
@@ -322,7 +323,7 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 	defer cancel()
 
 	// GET EVM Instance
-	msg, err := adaptor.CallArgsToMessage(&args, globalGasCap, big.NewInt(0))
+	msg, err := executor.CallArgsToMessage(&args, globalGasCap, big.NewInt(0))
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +346,7 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 		return ret, ret.Err
 	}
 
-	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true, DisableMaxCodeSizeLimit: evmCfg.DisableMaxCodeSizeLimit})
+	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true})
 	if err != nil {
 		return nil, errors.New("error get evm")
 	}
@@ -355,10 +356,10 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, evmC
 		evm.Cancel()
 	}()
 
-	txContext := vm.NewEVMTxContext(msg)
-	evm.Reset(txContext, stateLedger)
-	gp := new(vm.GasPool).AddGas(math.MaxUint64)
-	result, err := vm.ApplyMessage(evm, msg, gp)
+	txContext := core.NewEVMTxContext(msg)
+	evm.Reset(txContext, &ledger.EvmStateDBAdaptor{StateLedger: stateLedger})
+	gp := new(core.GasPool).AddGas(math.MaxUint64)
+	result, err := core.ApplyMessage(evm, msg, gp)
 
 	// If the timer caused an abort, return an appropriate error message
 	if evm.Cancelled() {
@@ -456,10 +457,10 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	cap = hi
 
 	// Create a helper to check if a gas allowance results in an executable transaction
-	executable := func(gas uint64) (bool, *vm.ExecutionResult, error) {
+	executable := func(gas uint64) (bool, *core.ExecutionResult, error) {
 		args.Gas = (*ethhexutil.Uint64)(&gas)
 
-		result, err := DoCall(api.ctx, blockNrOrHash, api.rep.Config.Executor.EVM, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
+		result, err := DoCall(api.ctx, blockNrOrHash, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
 				return true, nil, nil // Special case, raise gas limit

@@ -129,7 +129,6 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			common.WithGetCurrentEpochInfoFromEpochMgrContractFunc(func() (*rbft.EpochInfo, error) {
 				return base.GetCurrentEpochInfo(axm.ViewLedger.NewView().StateLedger)
 			}),
-			common.WithEVMConfig(axm.Repo.Config.Executor.EVM),
 			common.WithBlockSync(axm.Sync),
 			common.WithEpochStore(axm.epochStore),
 		)

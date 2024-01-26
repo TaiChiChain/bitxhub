@@ -25,7 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // Context contains some contextual infos for a transaction execution that is not

@@ -8,7 +8,6 @@ require (
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240123063523-d0b48541230d
 	github.com/axiomesh/axiom-kit v0.0.3-0.20240122014730-d12a92512cde
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c
-	github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a

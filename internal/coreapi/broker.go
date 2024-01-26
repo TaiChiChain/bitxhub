@@ -6,15 +6,16 @@ import (
 	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/eth-kit/adaptor"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 type BrokerAPI CoreAPI
@@ -120,11 +121,11 @@ func (b *BrokerAPI) GetViewStateLedger() ledger.StateLedger {
 	return b.axiomLedger.ViewLedger.StateLedger
 }
 
-func (b *BrokerAPI) GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error) {
+func (b *BrokerAPI) GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, error) {
 	if vmConfig == nil {
 		vmConfig = new(vm.Config)
 	}
-	txContext := vm.NewEVMTxContext(mes)
+	txContext := core.NewEVMTxContext(mes)
 	return b.axiomLedger.BlockExecutor.NewEvmWithViewLedger(txContext, *vmConfig)
 }
 
@@ -132,7 +133,7 @@ func (b *BrokerAPI) GetNativeVm() common.VirtualMachine {
 	return b.axiomLedger.BlockExecutor.NewViewNativeVM()
 }
 
-func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error) {
+func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error) {
 	if block.Height() == 1 {
 		return nil, vm.BlockContext{}, nil, errors.New("no transaction in genesis")
 	}
@@ -148,18 +149,18 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 
 	for idx, tx := range block.Transactions {
 		// Assemble the transaction call message and return if the requested offset
-		msg := adaptor.TransactionToMessage(tx)
-		txContext := vm.NewEVMTxContext(msg)
+		msg := executor.TransactionToMessage(tx)
+		txContext := core.NewEVMTxContext(msg)
 
-		context := vm.NewEVMBlockContext(block.Height(), uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(block))
+		context := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(block))
 		if idx == txIndex {
 			return msg, context, &statedb, nil
 		}
 		// Not yet the searched for transaction, execute on top of the current state
-		vmenv := vm.NewEVM(context, txContext, statedb, b.axiomLedger.BlockExecutor.GetChainConfig(), vm.Config{})
+		vmenv := vm.NewEVM(context, txContext, &ledger.EvmStateDBAdaptor{StateLedger: statedb}, b.axiomLedger.BlockExecutor.GetChainConfig(), vm.Config{})
 
 		statedb.SetTxContext(tx.GetHash(), idx)
-		if _, err := vm.ApplyMessage(vmenv, msg, new(vm.GasPool).AddGas(tx.GetGas())); err != nil {
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.GetGas())); err != nil {
 			return nil, vm.BlockContext{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.GetHash(), err)
 		}
 		// Ensure any modifications are committed to the state

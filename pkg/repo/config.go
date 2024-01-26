@@ -216,14 +216,9 @@ type Snapshot struct {
 	DiskCacheMegabytesLimit int `mapstructure:"disk_cache_megabytes_limit" toml:"disk_cache_megabytes_limit"`
 }
 
-type EVM struct {
-	DisableMaxCodeSizeLimit bool `mapstructure:"disable_max_code_size_limit" toml:"disable_max_code_size_limit"`
-}
-
 type Executor struct {
 	Type            string `mapstructure:"type" toml:"type"`
 	DisableRollback bool   `mapstructure:"disable_rollback" toml:"disable_rollback"`
-	EVM             EVM    `mapstructure:"evm" toml:"evm"`
 }
 
 var SupportMultiNode = make(map[string]bool)
@@ -325,9 +320,6 @@ func DefaultConfig() *Config {
 		Executor: Executor{
 			Type:            ExecTypeNative,
 			DisableRollback: false,
-			EVM: EVM{
-				DisableMaxCodeSizeLimit: false,
-			},
 		},
 		PProf: PProf{
 			Enable:   true,

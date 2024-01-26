@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
 
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // ChainLedger handles block, transaction and receipt data.
@@ -64,8 +64,6 @@ type ChainLedger interface {
 type StateLedger interface {
 	StateAccessor
 
-	vm.StateDB
-
 	AddLog(log *types.EvmLog)
 
 	GetLogs(types.Hash, uint64, *types.Hash) []*types.EvmLog
@@ -112,6 +110,12 @@ type StateAccessor interface {
 	// SetBalance
 	SetBalance(*types.Address, *big.Int)
 
+	// SubBalance
+	SubBalance(*types.Address, *big.Int)
+
+	// AddBalance
+	AddBalance(*types.Address, *big.Int)
+
 	// GetState
 	GetState(*types.Address, []byte) (bool, []byte)
 
@@ -130,14 +134,65 @@ type StateAccessor interface {
 	// GetNonce
 	GetNonce(*types.Address) uint64
 
+	// GetCodeHash
+	GetCodeHash(*types.Address) *types.Hash
+
+	// GetCodeSize
+	GetCodeSize(*types.Address) int
+
+	// AddRefund
+	AddRefund(uint64)
+
+	// SubRefund
+	SubRefund(uint64)
+
+	// GetRefund
+	GetRefund() uint64
+
+	// GetCommittedState
+	GetCommittedState(*types.Address, []byte) []byte
+
 	// Commit commits the state data
 	Commit() (*types.Hash, error)
+
+	// Suicide
+	Suicide(*types.Address) bool
+
+	// HasSuicide
+	HasSuicide(*types.Address) bool
+
+	// Exist
+	Exist(*types.Address) bool
+
+	// Empty
+	Empty(*types.Address) bool
+
+	// AddressInAccessList
+	AddressInAccessList(types.Address) bool
+
+	// SlotInAccessList
+	SlotInAccessList(types.Address, types.Hash) (bool, bool)
+
+	// AddAddressToAccessList
+	AddAddressToAccessList(types.Address)
+
+	// AddSlotToAccessList
+	AddSlotToAccessList(types.Address, types.Hash)
+
+	// AddPreimage
+	AddPreimage(types.Hash, []byte)
 
 	// Set tx context for state db
 	SetTxContext(thash *types.Hash, txIndex int)
 
 	// Clear
 	Clear()
+
+	// RevertToSnapshot
+	RevertToSnapshot(int)
+
+	// Snapshot
+	Snapshot() int
 }
 
 type IAccount interface {
@@ -182,4 +237,11 @@ type IAccount interface {
 	GetStorageRootHash() common.Hash
 
 	GetStorageRoot() common.Hash
+}
+
+var _ vm.StateDB = (*EvmStateDBAdaptor)(nil)
+
+// EvmStateDBAdaptor wraps StateLedger with Wrapper mode
+type EvmStateDBAdaptor struct {
+	StateLedger StateLedger
 }

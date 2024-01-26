@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers"
-	vm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 func init() {
@@ -158,7 +158,7 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 		addr := common.Address(stackData[stackLen-2].Bytes20())
 		t.lookupAccount(addr)
 	case op == vm.CREATE:
-		nonce := t.env.StateDB.GetEVMNonce(caller)
+		nonce := t.env.StateDB.GetNonce(caller)
 		addr := crypto.CreateAddress(caller, nonce)
 		t.lookupAccount(addr)
 		t.created[addr] = true
@@ -194,9 +194,9 @@ func (t *prestateTracer) CaptureTxEnd(restGas uint64) {
 		}
 		modified := false
 		postAccount := &account{Storage: make(map[common.Hash]common.Hash)}
-		newBalance := t.env.StateDB.GetEVMBalance(addr)
-		newNonce := t.env.StateDB.GetEVMNonce(addr)
-		newCode := t.env.StateDB.GetEVMCode(addr)
+		newBalance := t.env.StateDB.GetBalance(addr)
+		newNonce := t.env.StateDB.GetNonce(addr)
+		newCode := t.env.StateDB.GetCode(addr)
 
 		if newBalance.Cmp(t.pre[addr].Balance) != 0 {
 			modified = true
@@ -217,7 +217,7 @@ func (t *prestateTracer) CaptureTxEnd(restGas uint64) {
 				delete(t.pre[addr].Storage, key)
 			}
 
-			newVal := t.env.StateDB.GetEVMState(addr, key)
+			newVal := t.env.StateDB.GetState(addr, key)
 			if val == newVal {
 				// Omit unchanged slots
 				delete(t.pre[addr].Storage, key)
@@ -278,9 +278,9 @@ func (t *prestateTracer) lookupAccount(addr common.Address) {
 	}
 
 	t.pre[addr] = &account{
-		Balance: t.env.StateDB.GetEVMBalance(addr),
-		Nonce:   t.env.StateDB.GetEVMNonce(addr),
-		Code:    t.env.StateDB.GetEVMCode(addr),
+		Balance: t.env.StateDB.GetBalance(addr),
+		Nonce:   t.env.StateDB.GetNonce(addr),
+		Code:    t.env.StateDB.GetCode(addr),
 		Storage: make(map[common.Hash]common.Hash),
 	}
 }
@@ -292,5 +292,5 @@ func (t *prestateTracer) lookupStorage(addr common.Address, key common.Hash) {
 	if _, ok := t.pre[addr].Storage[key]; ok {
 		return
 	}
-	t.pre[addr].Storage[key] = t.env.StateDB.GetEVMState(addr, key)
+	t.pre[addr].Storage[key] = t.env.StateDB.GetState(addr, key)
 }

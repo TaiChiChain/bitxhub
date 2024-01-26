@@ -374,58 +374,61 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			// create an account
 			account := common.BytesToAddress(LeftPadBytes([]byte{100}, 20))
 
-			ledger.StateLedger.(*StateLedgerImpl).CreateEVMAccount(account)
-			ledger.StateLedger.(*StateLedgerImpl).AddEVMBalance(account, big.NewInt(2))
-			balance := ledger.StateLedger.(*StateLedgerImpl).GetEVMBalance(account)
+			evmStateDB := &EvmStateDBAdaptor{StateLedger: ledger.StateLedger}
+
+			evmStateDB.CreateAccount(account)
+			evmStateDB.AddBalance(account, big.NewInt(2))
+			balance := evmStateDB.GetBalance(account)
 			assert.Equal(t, balance, big.NewInt(2))
-			ledger.StateLedger.(*StateLedgerImpl).SubEVMBalance(account, big.NewInt(1))
-			balance = ledger.StateLedger.(*StateLedgerImpl).GetEVMBalance(account)
+			evmStateDB.SubBalance(account, big.NewInt(1))
+			balance = evmStateDB.GetBalance(account)
 			assert.Equal(t, balance, big.NewInt(1))
-			ledger.StateLedger.(*StateLedgerImpl).SetEVMNonce(account, 10)
-			nonce := ledger.StateLedger.(*StateLedgerImpl).GetEVMNonce(account)
+			evmStateDB.SetNonce(account, 10)
+			nonce := evmStateDB.GetNonce(account)
 			assert.Equal(t, nonce, uint64(10))
-			ledger.StateLedger.(*StateLedgerImpl).GetEVMCodeHash(account)
-			ledger.StateLedger.(*StateLedgerImpl).SetEVMCode(account, []byte("111"))
-			code := ledger.StateLedger.(*StateLedgerImpl).GetEVMCode(account)
+			evmStateDB.GetCodeHash(account)
+			evmStateDB.SetCode(account, []byte("111"))
+			code := evmStateDB.GetCode(account)
 			assert.Equal(t, code, []byte("111"))
-			codeSize := ledger.StateLedger.(*StateLedgerImpl).GetEVMCodeSize(account)
+			codeSize := evmStateDB.GetCodeSize(account)
 			assert.Equal(t, codeSize, 3)
-			ledger.StateLedger.(*StateLedgerImpl).AddEVMRefund(2)
-			refund := ledger.StateLedger.(*StateLedgerImpl).GetEVMRefund()
+			evmStateDB.AddRefund(2)
+			refund := evmStateDB.GetRefund()
 			assert.Equal(t, refund, uint64(2))
-			ledger.StateLedger.(*StateLedgerImpl).SubEVMRefund(1)
-			refund = ledger.StateLedger.(*StateLedgerImpl).GetEVMRefund()
+			evmStateDB.SubRefund(1)
+			refund = evmStateDB.GetRefund()
 			assert.Equal(t, refund, uint64(1))
-			ledger.StateLedger.(*StateLedgerImpl).GetEVMCommittedState(account, hash)
-			ledger.StateLedger.(*StateLedgerImpl).SetEVMState(account, hash, hash)
-			value := ledger.StateLedger.(*StateLedgerImpl).GetEVMState(account, hash)
+			evmStateDB.GetCommittedState(account, hash)
+			evmStateDB.SetState(account, hash, hash)
+			value := evmStateDB.GetState(account, hash)
 			assert.Equal(t, value, hash)
-			ledger.StateLedger.(*StateLedgerImpl).SuicideEVM(account)
-			isSuicide := ledger.StateLedger.(*StateLedgerImpl).HasSuicideEVM(account)
+			evmStateDB.Suicide(account)
+			isSuicide := evmStateDB.HasSuicided(account)
 			assert.Equal(t, isSuicide, true)
-			isExist := ledger.StateLedger.(*StateLedgerImpl).ExistEVM(account)
+			isExist := evmStateDB.Exist(account)
 			assert.Equal(t, isExist, true)
-			isEmpty := ledger.StateLedger.(*StateLedgerImpl).EmptyEVM(account)
+			isEmpty := evmStateDB.Empty(account)
 			assert.Equal(t, isEmpty, false)
-			ledger.StateLedger.(*StateLedgerImpl).PrepareEVMAccessList(account, &account, []common.Address{}, etherTypes.AccessList{})
-			ledger.StateLedger.(*StateLedgerImpl).AddAddressToEVMAccessList(account)
-			isIn := ledger.StateLedger.(*StateLedgerImpl).AddressInEVMAccessList(account)
+			evmStateDB.PrepareEVMAccessList(account, &account, []common.Address{}, etherTypes.AccessList{})
+			evmStateDB.AddAddressToAccessList(account)
+			isIn := evmStateDB.AddressInAccessList(account)
 			assert.Equal(t, isIn, true)
-			ledger.StateLedger.(*StateLedgerImpl).AddSlotToEVMAccessList(account, hash)
-			isSlotIn, _ := ledger.StateLedger.(*StateLedgerImpl).SlotInEVMAceessList(account, hash)
+			evmStateDB.AddSlotToAccessList(account, hash)
+			isSlotIn, _ := evmStateDB.SlotInAccessList(account, hash)
 			assert.Equal(t, isSlotIn, true)
-			ledger.StateLedger.(*StateLedgerImpl).AddEVMPreimage(hash, []byte("1111"))
+			evmStateDB.AddPreimage(hash, []byte("1111"))
 			// ledger.StateLedgerImpl.(*SimpleLedger).PrepareEVM(hash, 1)
-			ledger.StateLedger.(*StateLedgerImpl).StateDB()
+			evmStateDB.StateDB()
 			ledger.StateLedger.SetTxContext(types.NewHash(hash.Bytes()), 1)
-			ledger.StateLedger.(*StateLedgerImpl).AddEVMLog(&etherTypes.Log{})
+			evmStateDB.AddLog(&etherTypes.Log{})
 
 			addr := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
-			ledger.StateLedger.(*StateLedgerImpl).transientStorage = newTransientStorage()
-			ledger.StateLedger.(*StateLedgerImpl).SetEVMTransientState(addr, hash, hash)
-			ledger.StateLedger.(*StateLedgerImpl).GetEVMTransientState(addr, hash)
-			_ = ledger.StateLedger.(*StateLedgerImpl).transientStorage.Copy()
-			ledger.StateLedger.PrepareEVM(params.Rules{IsBerlin: true}, addr, addr, &addr, []common.Address{addr}, nil)
+			impl := evmStateDB.StateLedger.(*StateLedgerImpl)
+			impl.transientStorage = newTransientStorage()
+			evmStateDB.SetTransientState(addr, hash, hash)
+			evmStateDB.GetTransientState(addr, hash)
+			_ = evmStateDB.StateLedger.(*StateLedgerImpl).transientStorage.Copy()
+			evmStateDB.Prepare(params.Rules{IsBerlin: true}, addr, addr, &addr, []common.Address{addr}, nil)
 		})
 	}
 }
@@ -2011,7 +2014,8 @@ func TestStateLedger_AccountSuicide(t *testing.T) {
 			assert.NotNil(t, acc)
 
 			// suicide account
-			lg.StateLedger.SuicideEVM(account.ETHAddress())
+			evmLg := &EvmStateDBAdaptor{StateLedger: lg.StateLedger}
+			evmLg.Suicide(account.ETHAddress())
 			sl.blockHeight = 3
 			stateRoot3, err := sl.Commit()
 			assert.Nil(t, err)
@@ -3045,9 +3049,10 @@ func mockGetProof(address common.Address, storageKeys []string, stateLedger Stat
 		for _, proof := range rawStorageProof.Proof {
 			storageProof = append(storageProof, base64.StdEncoding.EncodeToString(proof))
 		}
+		evmStateDB := &EvmStateDBAdaptor{StateLedger: stateLedger}
 		storageResult := mockStorageResult{
 			Key:   hexutil.Encode(key[:]),
-			Value: (*ethhexutil.Big)(stateLedger.GetEVMState(addr.ETHAddress(), common.BytesToHash(hashKey)).Big()),
+			Value: (*ethhexutil.Big)(evmStateDB.GetState(addr.ETHAddress(), common.BytesToHash(hashKey)).Big()),
 			Proof: storageProof,
 		}
 		ret.StorageProof = append(ret.StorageProof, storageResult)

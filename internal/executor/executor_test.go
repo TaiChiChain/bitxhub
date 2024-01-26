@@ -30,7 +30,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	ethvm "github.com/axiomesh/eth-kit/evm"
+	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -129,8 +129,8 @@ func TestGetEvm(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, executor)
 
-	txCtx := ethvm.TxContext{}
-	evm, err := executor.NewEvmWithViewLedger(txCtx, ethvm.Config{NoBaseFee: true})
+	txCtx := vm.TxContext{}
+	evm, err := executor.NewEvmWithViewLedger(txCtx, vm.Config{NoBaseFee: true})
 	assert.NotNil(t, evm)
 	assert.Nil(t, err)
 
@@ -138,7 +138,7 @@ func TestGetEvm(t *testing.T) {
 	assert.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000000", h.String())
 
 	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(nil, errors.New("get block error")).Times(1)
-	evmErr, err := executor.NewEvmWithViewLedger(txCtx, ethvm.Config{NoBaseFee: true})
+	evmErr, err := executor.NewEvmWithViewLedger(txCtx, vm.Config{NoBaseFee: true})
 	assert.Nil(t, evmErr)
 	assert.NotNil(t, err)
 }
@@ -380,22 +380,17 @@ func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
 	chainLedger.EXPECT().LoadChainMeta().Return(chainMeta, nil).AnyTimes()
 	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(mockBlock(10, nil), nil).AnyTimes()
-	stateLedger.EXPECT().PrepareEVM(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetEVMNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetEVMNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
 	stateLedger.EXPECT().GetBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().GetEVMBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().SubEVMBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().ExistEVM(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().CreateEVMAccount(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddEVMBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetEVMCode(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetEVMRefund().AnyTimes()
-	stateLedger.EXPECT().GetEVMCodeHash(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetRefund().AnyTimes()
+	stateLedger.EXPECT().GetCode(gomock.Any()).AnyTimes()
 
 	signer, err := types.GenerateSigner()
 	assert.Nil(t, err)
@@ -509,22 +504,16 @@ func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
 	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(nil, errors.New("block not found")).AnyTimes()
-	stateLedger.EXPECT().PrepareEVM(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetEVMNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetEVMNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
 	stateLedger.EXPECT().GetBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().GetEVMBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().SubEVMBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().ExistEVM(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().CreateEVMAccount(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddEVMBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetEVMCode(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetEVMRefund().AnyTimes()
-	stateLedger.EXPECT().GetEVMCodeHash(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().GetRefund().AnyTimes()
 
 	signer, err := types.GenerateSigner()
 	assert.Nil(t, err)
