@@ -7,7 +7,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.12.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240123062338-7261c2f9a770
 	github.com/axiomesh/axiom-kit v0.0.3-0.20240125081733-191ebc2aab49
-	github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c
+	github.com/axiomesh/axiom-p2p v0.0.3-0.20240129022829-a190894e5649
 	github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
@@ -29,7 +29,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rosedblabs/rosedb/v2 v2.3.3
 	github.com/rs/cors v1.9.0
-	github.com/samber/lo v1.38.1
+	github.com/samber/lo v1.39.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.8.4
@@ -43,6 +43,7 @@ require (
 
 require (
 	github.com/DataDog/zstd v1.5.5 // indirect
+	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
