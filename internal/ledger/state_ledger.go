@@ -127,7 +127,7 @@ func (l *StateLedgerImpl) Finalise() {
 		keys := account.Finalise()
 
 		if l.triePreloader != nil {
-			l.triePreloader.preload(common.Hash{}, [][]byte{compositeAccountKey(account.GetAddress())})
+			l.triePreloader.preload(common.Hash{}, [][]byte{CompositeAccountKey(account.GetAddress())})
 			if len(keys) > 0 {
 				l.triePreloader.preload(account.GetStorageRootHash(), keys)
 			}
@@ -161,13 +161,17 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 				}
 			}
 			batch.Put(node.RawKey, node.RawValue)
-			if trieRoot == stateRoot && len(node.LeafContent) > 0 {
+			if trieRoot == stateRoot && len(node.LeafValue) > 0 {
 				// resolve potential contract account
 				acc := &types.InnerAccount{Balance: big.NewInt(0)}
-				if err := acc.Unmarshal(node.LeafContent); err != nil {
+				if err := acc.Unmarshal(node.LeafValue); err != nil {
 					panic(err)
 				}
 				if acc.StorageRoot != (common.Hash{}) {
+					// set contract code
+					codeKey := compositeCodeKey(types.NewAddress(node.LeafKey), acc.CodeHash)
+					batch.Put(codeKey, l.cachedDB.Get(codeKey))
+					// prepare storage trie root
 					queue = append(queue, acc.StorageRoot)
 				}
 			}
@@ -222,6 +226,25 @@ func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
 		EpochInfo: epochInfo,
 	}
 	return meta, nil
+}
+
+func (l *StateLedgerImpl) VerifyTrie(block *types.Block) (bool, error) {
+	l.logger.Infof("[VerifyTrie] start verifying blockNumber: %v, rootHash: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot.String())
+	defer l.logger.Infof("[VerifyTrie] finish VerifyTrie")
+	return jmt.VerifyTrie(block.BlockHeader.StateRoot.ETHHash(), l.cachedDB)
+}
+
+func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error) {
+	var trie *jmt.JMT
+	if rootHash == (common.Hash{}) {
+		trie = l.accountTrie
+		return trie.Prove(key)
+	}
+	trie, err := jmt.New(rootHash, l.cachedDB, l.logger)
+	if err != nil {
+		return nil, err
+	}
+	return trie.Prove(key)
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {

@@ -15,8 +15,8 @@ func TestCompositeKey(t *testing.T) {
 }
 
 func TestCompositeStorageKey(t *testing.T) {
-	compositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997"), []byte("12345fsdfdssd"))
-	compositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997"), []byte("1das2345fsdfdssd"))
-	compositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997"), []byte("12ad345fsdfdssd"))
-	compositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b998"), []byte("12345fsdfdssd"))
+	CompositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997"), []byte("12345fsdfdssd"))
+	CompositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997"), []byte("1das2345fsdfdssd"))
+	CompositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997"), []byte("12ad345fsdfdssd"))
+	CompositeStorageKey(types.NewAddressByStr("0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b998"), []byte("12345fsdfdssd"))
 }

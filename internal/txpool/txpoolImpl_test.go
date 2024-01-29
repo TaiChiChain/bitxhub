@@ -54,42 +54,51 @@ func TestTxPoolImpl_Start(t *testing.T) {
 	ast.NotNil(err)
 	ast.Contains(err.Error(), "timer RemoveTx doesn't exist")
 	pool.Stop()
+
+	t.Run("test load tx records failed", func(t *testing.T) {
+		wrongPool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+
+		wrongPool.txRecords.filePath = fmt.Sprintf("wrong-path-%d", time.Now().Unix())
+		err = wrongPool.Start()
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "no such file or directory")
+	})
 }
 
-func TestTxPoolImpl_StartWithNoRotateTxLocalsInterval(t *testing.T) {
+func TestTxPoolImpl_StartWithTxRecordsFile(t *testing.T) {
 	ast := assert.New(t)
-	config := NewMockTxPoolConfig(t)
-	config.RotateTxLocalsInterval = 0
-	pool, err := newTxPoolImpl[types.Transaction, *types.Transaction](config)
-	ast.Nil(err)
-	conf := txpool2.ConsensusConfig{
-		SelfID: 1,
-		NotifyGenerateBatchFn: func(typ int) {
-			// do nothing
-		},
-	}
-	pool.Init(conf)
-	err = pool.Start()
-	defer pool.Stop()
-	ast.Nil(err)
-}
+	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 
-func TestTxPoolImpl_StartWithNoTxRecordsFile(t *testing.T) {
-	ast := assert.New(t)
-	config := NewMockTxPoolConfig(t)
-	config.TxRecordsFile = ""
-	pool, err := newTxPoolImpl[types.Transaction, *types.Transaction](config)
+	recordFile := pool.txRecordsFile
+	err := pool.Start()
+
+	s, err := types.GenerateSigner()
 	ast.Nil(err)
-	conf := txpool2.ConsensusConfig{
-		SelfID: 1,
-		NotifyGenerateBatchFn: func(typ int) {
-			// do nothing
-		},
-	}
-	pool.Init(conf)
+	from := s.Addr.String()
+	txs := constructTxs(s, 10)
+	lo.ForEach(txs, func(tx *types.Transaction, _ int) {
+		err = pool.AddLocalTx(tx)
+		ast.Nil(err)
+	})
+	ast.Equal(10, len(pool.txStore.allTxs[from].items))
+	ast.Equal(10, len(pool.txStore.txHashMap))
+	ast.Equal(10, pool.txStore.localTTLIndex.size())
+
+	pool.Stop()
+
+	// start pool which txRecordsFile is not empty
+	pool = mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+	pool.txRecords.filePath = recordFile
+	ast.Equal(0, len(pool.txStore.txHashMap))
+	ast.Equal(0, pool.txStore.localTTLIndex.size())
+
+	// load tx records successfully
 	err = pool.Start()
+	ast.Nil(err)
 	defer pool.Stop()
-	ast.Nil(pool.txRecords)
+	ast.Equal(10, len(pool.txStore.allTxs[from].items))
+	ast.Equal(10, len(pool.txStore.txHashMap))
+	ast.Equal(10, pool.txStore.localTTLIndex.size())
 }
 
 func TestTxPoolImpl_AddLocalTx(t *testing.T) {
@@ -99,8 +108,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		pool.batchSize = 4
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
+		defer pool.Stop()
 
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
@@ -854,6 +863,32 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 
 		err = pool.ReceiveMissingRequests(batchDigest, txsM)
 		ast.Nil(err, "receive missing requests from primary, ignore pool full status")
+	})
+}
+
+func TestTxPoolImpl_AddLocalRecordTxs(t *testing.T) {
+	t.Parallel()
+	t.Run("add local record txs success", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.batchSize = 4
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		from := s.Addr.String()
+		txs := constructTxs(s, 10)
+		count := pool.addLocalRecordTx(txs)
+		ast.Equal(len(txs), count)
+		ast.NotNil(pool.txStore.allTxs[from])
+		ast.Equal(10, len(pool.txStore.allTxs[from].items))
+		ast.Equal(10, len(pool.txStore.txHashMap))
+		ast.Equal(uint64(10), pool.txStore.priorityNonBatchSize)
+		ast.Equal(10, pool.txStore.priorityIndex.size())
+		ast.Equal(0, pool.txStore.parkingLotIndex.size())
+		ast.Equal(10, pool.txStore.localTTLIndex.size())
 	})
 }
 
@@ -1614,7 +1649,8 @@ func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 	assert.Nil(t, err)
 	tx := constructTx(s, 0)
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	pool.Start()
+	err = pool.Start()
+	assert.Nil(t, err)
 	defer pool.Stop()
 	pool.addTxs([]*types.Transaction{tx}, true)
 	localTxs := pool.GetLocalTxs()

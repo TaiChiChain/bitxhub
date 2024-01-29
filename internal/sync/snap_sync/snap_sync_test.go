@@ -18,8 +18,9 @@ import (
 )
 
 func TestSnapSync_Mode(t *testing.T) {
-	sync, cancel := mockSnapSync(nil)
-	defer stopSnapSync(t, cancel)
+	sync := mockSnapSync(nil)
+	sync.Start()
+	defer sync.Stop()
 	require.Equal(t, common.SyncModeSnapshot, sync.Mode())
 }
 
@@ -29,8 +30,9 @@ func TestSnapSync_Commit(t *testing.T) {
 		&common.ChainData{Block: &types.Block{BlockHeader: &types.BlockHeader{Number: 2, Epoch: 1}}},
 	}
 
-	sync, cancel := mockSnapSync(nil)
-	defer stopSnapSync(t, cancel)
+	sync := mockSnapSync(nil)
+	sync.Start()
+	defer sync.Stop()
 
 	epochStates := make(map[uint64]*consensus.QuorumCheckpoint)
 	epochStates[1] = &consensus.QuorumCheckpoint{
@@ -89,8 +91,8 @@ func TestSnapSync_Prepare(t *testing.T) {
 			SnapPersistedEpoch:  1,
 			LatestPersistEpoch:  0,
 		}
-		sync, cancel := mockSnapSync(mockNetwork(t, nil))
-		defer stopSnapSync(t, cancel)
+		sync := mockSnapSync(mockNetwork(t, nil))
+		defer sync.Stop()
 		data, err := sync.Prepare(conf)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "all peers invalid")
@@ -109,8 +111,8 @@ func TestSnapSync_Prepare(t *testing.T) {
 			SnapPersistedEpoch:  2,
 			LatestPersistEpoch:  2,
 		}
-		sync, cancel := mockSnapSync(mockNetwork(t, epcStates))
-		defer stopSnapSync(t, cancel)
+		sync := mockSnapSync(mockNetwork(t, epcStates))
+		defer sync.Stop()
 		data, err := sync.Prepare(conf)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "epoch 1 not found")
@@ -130,8 +132,8 @@ func TestSnapSync_Prepare(t *testing.T) {
 			SnapPersistedEpoch:  1,
 			LatestPersistEpoch:  1,
 		}
-		sync, cancel := mockSnapSync(mockNetwork(t, epcStates))
-		defer stopSnapSync(t, cancel)
+		sync := mockSnapSync(mockNetwork(t, epcStates))
+		defer sync.Stop()
 		data, err := sync.Prepare(conf)
 		require.Nil(t, err)
 		require.Equal(t, 0, len(data.Data.([]*consensus.EpochChange)))
@@ -151,8 +153,8 @@ func TestSnapSync_Prepare(t *testing.T) {
 			SnapPersistedEpoch:  2,
 			LatestPersistEpoch:  0,
 		}
-		sync, cancel := mockSnapSync(mockNetwork(t, epcStates))
-		defer stopSnapSync(t, cancel)
+		sync := mockSnapSync(mockNetwork(t, epcStates))
+		defer sync.Stop()
 
 		data, err := sync.Prepare(conf)
 		require.Nil(t, err)
@@ -161,8 +163,8 @@ func TestSnapSync_Prepare(t *testing.T) {
 	})
 
 	t.Run("test latestBlock EpochHeight is bigger than snapPersistedEpoch", func(t *testing.T) {
-		sync, cancel := mockSnapSync(mockNetwork(t, epcStates))
-		defer stopSnapSync(t, cancel)
+		sync := mockSnapSync(mockNetwork(t, epcStates))
+		defer sync.Stop()
 
 		latestBlock := &types.Block{
 			BlockHeader: &types.BlockHeader{
@@ -214,12 +216,11 @@ func mockNetwork(t *testing.T, mockEpcStates map[string]map[uint64]*consensus.Qu
 	return net
 }
 
-func mockSnapSync(network network.Network) (common.ISyncConstructor, context.CancelFunc) {
+func mockSnapSync(network network.Network) common.ISyncConstructor {
 	logger := log.NewWithModule("snap_sync_test")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	return NewSnapSync(logger, ctx, network), cancel
+	return NewSnapSync(logger, network)
 }
 
 func stopSnapSync(t *testing.T, cancel context.CancelFunc) {

@@ -35,6 +35,7 @@ var _ common.Sync = (*SyncManager)(nil)
 
 type SyncManager struct {
 	mode               common.SyncMode
+	started            atomic.Bool
 	modeConstructor    common.ISyncConstructor
 	conf               repo.Sync
 	syncStatus         atomic.Bool         // sync status
@@ -145,9 +146,9 @@ func newModeConstructor(mode common.SyncMode, opt ...common.ModeOption) common.I
 	}
 	switch mode {
 	case common.SyncModeFull:
-		return full_sync.NewFullSync(conf.Ctx)
+		return full_sync.NewFullSync()
 	case common.SyncModeSnapshot:
-		return snap_sync.NewSnapSync(conf.Logger, conf.Ctx, conf.Network)
+		return snap_sync.NewSnapSync(conf.Logger, conf.Network)
 	}
 	return nil
 }
@@ -272,6 +273,7 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 		sm.logger.WithFields(logrus.Fields{
 			"start":  sm.curHeight,
 			"target": sm.curHeight + sm.chunk.ChunkSize - 1,
+			"cost":   time.Since(sm.chunk.Time),
 		}).Info("chunk task has done")
 		sm.updateStatus()
 		// produce many new requesters for new chunk
@@ -466,6 +468,7 @@ func (sm *SyncManager) initChunk() {
 		}
 	}
 	sm.chunk.FillCheckPoint(chunkMaxHeight, chunkCheckpoint)
+	sm.chunk.Time = time.Now()
 }
 
 func (sm *SyncManager) switchSyncStatus(status bool) error {
@@ -639,17 +642,17 @@ func (sm *SyncManager) isValidSyncResponse(msg *pb.Message, id string) error {
 	return nil
 }
 
-func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode common.SyncMode) ([]byte, error) {
+func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode common.SyncMode) ([]byte, uint64, error) {
 	var (
 		requestHeight uint64
 		data          []byte
 		resp          *pb.Message
 	)
 
-	req := common.CommitDataRequestConstructor[mode]
+	req := common.CommitDataRequestConstructor[mode]()
 	if err := req.UnmarshalVT(msg.Data); err != nil {
 		sm.logger.Errorf("Unmarshal sync commitData request failed: %s", err)
-		return nil, err
+		return nil, 0, err
 	}
 	requestHeight = req.GetHeight()
 
@@ -659,13 +662,13 @@ func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode commo
 			"from": msg.From,
 			"err":  err,
 		}).Error("Get commitData failed")
-		return nil, err
+		return nil, 0, err
 	}
 
 	blockBytes, err := block.Marshal()
 	if err != nil {
 		sm.logger.Errorf("Marshal commitData failed: %s", err)
-		return nil, err
+		return nil, 0, err
 	}
 
 	switch mode {
@@ -674,7 +677,7 @@ func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode commo
 		commitDataBytes, err := commitDataResp.MarshalVT()
 		if err != nil {
 			sm.logger.Errorf("Marshal sync commitData response failed: %s", err)
-			return nil, err
+			return nil, 0, err
 		}
 		resp = &pb.Message{
 			Type: pb.Message_SYNC_BLOCK_RESPONSE,
@@ -691,18 +694,18 @@ func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode commo
 				"from": msg.From,
 				"err":  err,
 			}).Error("Get receipts failed")
-			return nil, err
+			return nil, 0, err
 		}
 		receiptsBytes, err := types.MarshalReceipts(receipts)
 		if err != nil {
 			sm.logger.Errorf("Marshal receipts failed: %s", err)
-			return nil, err
+			return nil, 0, err
 		}
 		commitDataResp.Receipts = receiptsBytes
 		commitDataBytes, err := commitDataResp.MarshalVT()
 		if err != nil {
 			sm.logger.Errorf("Marshal sync commitData response failed: %s", err)
-			return nil, err
+			return nil, 0, err
 		}
 		resp = &pb.Message{
 			Type: pb.Message_SYNC_CHAIN_DATA_RESPONSE,
@@ -713,10 +716,10 @@ func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode commo
 	data, err = resp.MarshalVT()
 	if err != nil {
 		sm.logger.Errorf("Marshal sync commitData response failed: %s", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return data, nil
+	return data, requestHeight, nil
 }
 
 func (sm *SyncManager) listenSyncChainDataRequest() {
@@ -727,12 +730,12 @@ func (sm *SyncManager) listenSyncChainDataRequest() {
 			return
 		}
 
-		data, err := sm.handleCommitDataRequest(msg, common.SyncModeSnapshot)
+		data, height, err := sm.handleCommitDataRequest(msg, common.SyncModeSnapshot)
 		if err != nil {
 			sm.logger.Errorf("Handle sync chainData request failed: %s", err)
 			continue
 		}
-		if err = sm.sendCommitDataResponse(common.SyncModeSnapshot, msg.From, data); err != nil {
+		if err = sm.sendCommitDataResponse(common.SyncModeSnapshot, msg.From, data, height); err != nil {
 			sm.logger.Errorf("Send sync commitData response failed: %s", err)
 			continue
 		}
@@ -747,20 +750,20 @@ func (sm *SyncManager) listenSyncBlockDataRequest() {
 			return
 		}
 
-		data, err := sm.handleCommitDataRequest(msg, common.SyncModeFull)
+		data, height, err := sm.handleCommitDataRequest(msg, common.SyncModeFull)
 		if err != nil {
 			sm.logger.Errorf("Handle sync block request failed: %s", err)
 			continue
 		}
 
-		if err = sm.sendCommitDataResponse(common.SyncModeFull, msg.From, data); err != nil {
+		if err = sm.sendCommitDataResponse(common.SyncModeFull, msg.From, data, height); err != nil {
 			sm.logger.Errorf("Send sync commitData response failed: %s", err)
 			continue
 		}
 	}
 }
 
-func (sm *SyncManager) sendCommitDataResponse(mode common.SyncMode, to string, respData []byte) error {
+func (sm *SyncManager) sendCommitDataResponse(mode common.SyncMode, to string, respData []byte, height uint64) error {
 	var pipe network.Pipe
 	switch mode {
 	case common.SyncModeFull:
@@ -778,7 +781,8 @@ func (sm *SyncManager) sendCommitDataResponse(mode common.SyncMode, to string, r
 			return err
 		}
 		sm.logger.WithFields(logrus.Fields{
-			"to": to,
+			"to":     to,
+			"height": height,
 		}).Debug("Send sync commitData response success")
 		return nil
 	}, strategy.Limit(common.MaxRetryCount), strategy.Wait(500*time.Millisecond)); err != nil {
@@ -982,28 +986,30 @@ func (sm *SyncManager) status() bool {
 	return sm.syncStatus.Load()
 }
 
-func (sm *SyncManager) SwitchMode(mode common.SyncMode) error {
-	if sm.mode == mode {
-		return fmt.Errorf("current mode is same as switch mode: %s", common.SyncModeMap[sm.mode])
+func (sm *SyncManager) SwitchMode(newMode common.SyncMode) error {
+	if sm.mode == newMode {
+		return fmt.Errorf("current mode is same as switch newMode: %s", common.SyncModeMap[sm.mode])
 	}
 	if sm.status() {
-		return fmt.Errorf("switch mode failed, sync status is %v", sm.status())
+		return fmt.Errorf("switch newMode failed, sync status is %v", sm.status())
 	}
 
 	var (
-		constructor common.ISyncConstructor
+		newConstructor common.ISyncConstructor
 	)
-	switch mode {
+	switch newMode {
 	case common.SyncModeFull:
-		constructor = newModeConstructor(common.SyncModeFull, common.WithContext(sm.ctx))
-		_, _ = constructor.Prepare(nil)
+		newConstructor = newModeConstructor(common.SyncModeFull, common.WithContext(sm.ctx))
 	case common.SyncModeSnapshot:
-		constructor = newModeConstructor(common.SyncModeSnapshot, common.WithContext(sm.ctx), common.WithLogger(sm.logger), common.WithNetwork(sm.network))
+		newConstructor = newModeConstructor(common.SyncModeSnapshot, common.WithContext(sm.ctx), common.WithLogger(sm.logger), common.WithNetwork(sm.network))
 	default:
-		return fmt.Errorf("invalid mode: %d", mode)
+		return fmt.Errorf("invalid newMode: %d", newMode)
 	}
-	sm.mode = mode
-	sm.modeConstructor = constructor
+	sm.modeConstructor.Stop()
+	sm.mode = newMode
+	sm.modeConstructor = newConstructor
+	// start listening commitData in new newMode
+	sm.modeConstructor.Start()
 	return nil
 }
 
@@ -1018,12 +1024,6 @@ func (sm *SyncManager) Prepare(opts ...common.Option) (*common.PrepareData, erro
 	if err != nil {
 		return nil, err
 	}
-	// start handle sync block request in full mode
-	go sm.listenSyncBlockDataRequest()
-
-	// start handle sync chain data request in snap mode
-	go sm.listenSyncChainDataRequest()
-	sm.logger.Info("Prepare listen sync request")
 
 	conf := &common.Config{}
 	for _, opt := range opts {
@@ -1032,6 +1032,20 @@ func (sm *SyncManager) Prepare(opts ...common.Option) (*common.PrepareData, erro
 	return sm.modeConstructor.Prepare(conf)
 }
 
+func (sm *SyncManager) Start() {
+	if sm.started.Load() {
+		return
+	}
+	// start handle sync block request in full mode
+	go sm.listenSyncBlockDataRequest()
+
+	// start handle sync chain data request in snap mode
+	go sm.listenSyncChainDataRequest()
+	sm.logger.Info("Start listen sync request")
+
+	sm.modeConstructor.Start()
+	sm.started.Store(true)
+}
 func (sm *SyncManager) makeRequesters(height uint64) {
 	peerID := sm.pickPeer(height)
 	var pipe network.Pipe
@@ -1233,6 +1247,7 @@ func (sm *SyncManager) resetPeers() {
 }
 
 func (sm *SyncManager) Stop() {
+	sm.started.Store(false)
 	sm.cancel()
 }
 

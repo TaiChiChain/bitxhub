@@ -347,13 +347,14 @@ func (n *Node) Prepare(tx *types.Transaction) error {
 	if !precheckResp.Status {
 		return errors.Wrap(common.ErrorPreCheck, precheckResp.ErrorMsg)
 	}
-	// make sure that tx is prechecked successfully
-	n.txCache.RecvTxC <- tx
 
 	resp := <-txWithResp.PoolCh
 	if !resp.Status {
 		return errors.Wrap(common.ErrorAddTxPool, resp.ErrorMsg)
 	}
+
+	// make sure that tx is prechecked and add LocalTxPool successfully
+	n.txCache.RecvTxC <- tx
 	return nil
 }
 
