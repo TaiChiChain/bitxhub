@@ -188,6 +188,7 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 	batch.Put([]byte(trieBlockKey), blockData)
 
 	epochInfo, err := l.getEpochInfoFunc(block.BlockHeader.Epoch)
+	l.logger.Infof("[IterateTrie] epochInfo=%v", epochInfo.ValidatorSet)
 	if err != nil {
 		l.logger.Errorf("l.getEpochInfoFunc error:%v\n", err.Error())
 		errC <- err
