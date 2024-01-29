@@ -58,12 +58,14 @@ github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRF
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156 h1:eMwmnE/GDgah4HI848JfFxHt+iPb26b4zyfspmqY0/8=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax3seSYIx7SuZdm2G2xzfwmv3TPSk2ucNfQESPXM=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
+github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef h1:2JGTg6JapxP9/R33ZaagQtAM4EkkSYnIAlOG5EI8gkM=
+github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef/go.mod h1:JS7hed4L1fj0hXcyEejnW57/7LCetXggd+vwrRnYeII=
 github.com/axiomesh/axiom-bft v0.0.3-0.20240123062338-7261c2f9a770 h1:6DBTTZbPAOPbR6POjORSIIRvoN5JBiJb4qrXpQihlnw=
 github.com/axiomesh/axiom-bft v0.0.3-0.20240123062338-7261c2f9a770/go.mod h1:5FhJ7YL/KGvN/G+TWF+NoyJPvzWk2DemLyoh3FWhBdI=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240125081733-191ebc2aab49 h1:TJD/rlxnBRTW0oDb31ma8FvIitdE7zx+V9978X6KpH8=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240125081733-191ebc2aab49/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
-github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c h1:ii8/g8+2tR7RE1AzlBRd8lNsQ9EbjLk9Y3YwRcnvEQs=
-github.com/axiomesh/axiom-p2p v0.0.3-0.20231106074847-3915bda35e1c/go.mod h1:cM3qpMXFeYBIzVf8pz276Z9G+2Bx1DYjmTkfInmkZL4=
+github.com/axiomesh/axiom-p2p v0.0.3-0.20240129022829-a190894e5649 h1:7VT52ZcWFYIepyhcIcJihQaQ03I3gxFZxwW2BvdanQo=
+github.com/axiomesh/axiom-p2p v0.0.3-0.20240129022829-a190894e5649/go.mod h1:nTswZciH1CtAjLZfIw48epMthfk0oyrF2GplBAQPoWg=
 github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53 h1:xHSy2tB4HaQL0CsiRT8XecLFKyXVwHrH01G/HgqzsUo=
 github.com/axiomesh/eth-kit v0.0.3-0.20231009042227-264fda908a53/go.mod h1:3lh5eW+SoV+51Ige/ahQGetUQM7DkgIFOevnwkMp8FA=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
@@ -616,8 +618,8 @@ github.com/russross/blackfriday v1.5.2/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/samber/lo v1.38.1 h1:j2XEAqXKb09Am4ebOg31SpvzUTTs6EN3VfgeLUhPdXM=
-github.com/samber/lo v1.38.1/go.mod h1:+m/ZKRl6ClXCE2Lgf3MsQlWfh4bn1bz6CXEOxnEXnEA=
+github.com/samber/lo v1.39.0 h1:4gTz1wUhNYLhFSKl6O+8peW0v2F4BCY034GRpU9WnuA=
+github.com/samber/lo v1.39.0/go.mod h1:+m/ZKRl6ClXCE2Lgf3MsQlWfh4bn1bz6CXEOxnEXnEA=
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=
 github.com/shirou/gopsutil v3.21.11+incompatible h1:+1+c1VGhc88SSonWP6foOcLhvnKlUeu/erjjvaPEYiI=
 github.com/shirou/gopsutil v3.21.11+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=
