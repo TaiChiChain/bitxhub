@@ -34,12 +34,16 @@ func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
 
 	var peers []string
 
-	// get the validator set of the current local epoch
-	for _, v := range meta.EpochInfo.ValidatorSet {
-		if v.P2PNodeID != rep.P2PID {
-			peers = append(peers, v.P2PNodeID)
-		}
-	}
+	//// get the validator set of the current local epoch
+	//for _, v := range meta.EpochInfo.ValidatorSet {
+	//	if v.P2PNodeID != rep.P2PID {
+	//		peers = append(peers, v.P2PNodeID)
+	//	}
+	//}
+	peers = append(peers, "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF")
+	peers = append(peers, "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK")
+	peers = append(peers, "16Uiu2HAmTwEET536QC9MZmYFp1NUshjRuaq5YSH1sLjW65WasvRk")
+	peers = append(peers, "16Uiu2HAm2HeK145KTfLaURhcoxBUMZ1PfhVnLRfnmE8qncvXWoZj")
 
 	return &snapMeta{
 		snapBlock:        meta.Block,
