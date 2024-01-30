@@ -14,6 +14,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
 func TestAccount_GetState(t *testing.T) {
@@ -61,20 +62,27 @@ func TestAccount_GetState(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, []byte("b"), v)
 
-			ok, v = account.GetState([]byte("a"))
-			assert.True(t, ok)
-			assert.Equal(t, []byte("b"), v)
+			account.pendingState["a"] = []byte("v1")
+			v = account.GetCommittedState([]byte("a"))
+			assert.Equal(t, []byte("v1"), v)
 
-			account.SetState([]byte("a"), nil)
-			ok, v = account.GetState([]byte("a"))
-			assert.False(t, ok)
-			assert.Nil(t, v)
-			account.GetCommittedState([]byte("a"))
+			account.pendingState["a"] = nil
+			v = account.GetCommittedState([]byte("a"))
+			assert.Equal(t, (&types.Hash{}).Bytes(), v)
 
-			account.Finalise()
-			ok, v = account.GetState([]byte("a"))
-			assert.False(t, ok)
-			assert.Nil(t, v)
+			delete(account.pendingState, "a")
+			account.originState["a"] = []byte("v2")
+			v = account.GetCommittedState([]byte("a"))
+			assert.Equal(t, []byte("v2"), v)
+
+			account.originState["a"] = nil
+			v = account.GetCommittedState([]byte("a"))
+			assert.Equal(t, (&types.Hash{}).Bytes(), v)
+
+			delete(account.originState, "a")
+			account.snapshot = nil
+			v = account.GetCommittedState([]byte("a"))
+			assert.Equal(t, (&types.Hash{}).Bytes(), v)
 		})
 	}
 }
@@ -200,4 +208,55 @@ func TestAccount_InitJMTError(t *testing.T) {
 	_ = account.originAccount.String()
 
 	account.initStorageTrie()
+}
+
+func TestAccount_getAccountJournal(t *testing.T) {
+	repoRoot := t.TempDir()
+
+	lBlockStorage, err := leveldb.New(filepath.Join(repoRoot, "lStorage"), nil)
+	assert.Nil(t, err)
+	lStateStorage, err := leveldb.New(filepath.Join(repoRoot, "lLedger"), nil)
+	assert.Nil(t, err)
+	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
+	assert.Nil(t, err)
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	assert.Nil(t, err)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	assert.Nil(t, err)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	assert.Nil(t, err)
+
+	testcase := map[string]struct {
+		blockStorage    storage.Storage
+		stateStorage    storage.Storage
+		snapshotStorage storage.Storage
+	}{
+		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
+		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
+	}
+
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			logger := log.NewWithModule("account_test")
+			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
+			assert.Nil(t, err)
+			ledger, err := NewLedgerWithStores(createMockRepo(t), tc.blockStorage, tc.stateStorage, tc.snapshotStorage, blockFile)
+			assert.Nil(t, err)
+
+			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
+
+			code := []byte("code")
+			codeHash := []byte("codeHash")
+			account.originCode = nil
+			account.originAccount = &types.InnerAccount{CodeHash: codeHash}
+			account.dirtyAccount = &types.InnerAccount{CodeHash: nil}
+			account.ldb.Put(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash), code)
+
+			jnl := account.getAccountJournal()
+			assert.NotNil(t, jnl)
+			assert.Equal(t, account.originCode, code)
+		})
+	}
 }

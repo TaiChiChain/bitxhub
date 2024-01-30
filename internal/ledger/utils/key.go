@@ -1,4 +1,4 @@
-package ledger
+package utils
 
 import (
 	"crypto/sha256"
@@ -9,20 +9,18 @@ import (
 )
 
 const (
-	blockKey           = "block-"
-	blockHashKey       = "block-hash-"
-	blockHeightKey     = "block-height-"
-	blockTxSetKey      = "block-tx-set-"
-	interchainMetaKey  = "interchain-meta-"
-	transactionKey     = "tx-"
-	transactionMetaKey = "tx-meta-"
-	chainMetaKey       = "chain-meta"
-	codeKey            = "code-"
-	trieBlockKey       = "trie-block-"
-	trieNodeInfoKey    = "trie-nodeInfo-"
+	BlockHashKey       = "block-hash-"
+	BlockHeightKey     = "block-height-"
+	BlockTxSetKey      = "block-tx-set-"
+	InterChainMetaKey  = "interchain-meta-"
+	TransactionMetaKey = "tx-meta-"
+	ChainMetaKey       = "chain-meta"
+	TrieBlockKey       = "trie-block-"
+	TrieNodeInfoKey    = "trie-nodeInfo-"
+	SnapshotKey        = "snap-"
 )
 
-func compositeKey(prefix string, value any) []byte {
+func CompositeKey(prefix string, value any) []byte {
 	return append([]byte(prefix), []byte(fmt.Sprintf("%v", value))...)
 }
 
@@ -35,6 +33,6 @@ func CompositeStorageKey(addr *types.Address, key []byte) []byte {
 	return hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
 }
 
-func compositeCodeKey(addr *types.Address, codeHash []byte) []byte {
+func CompositeCodeKey(addr *types.Address, codeHash []byte) []byte {
 	return append(addr.Bytes(), codeHash...)
 }

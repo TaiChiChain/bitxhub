@@ -13,6 +13,7 @@ import (
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 )
 
@@ -54,7 +55,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		if !bytes.Equal(innerAccount.CodeHash, nil) {
 			code, okCode := l.accountCache.getCode(address)
 			if !okCode {
-				code = l.cachedDB.Get(compositeCodeKey(account.Addr, account.originAccount.CodeHash))
+				code = l.cachedDB.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 			}
 			account.originCode = code
 			account.dirtyCode = code
@@ -74,7 +75,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 			if !bytes.Equal(innerAccount.CodeHash, nil) {
 				code, okCode := l.accountCache.getCode(address)
 				if !okCode {
-					code = l.cachedDB.Get(compositeCodeKey(account.Addr, account.originAccount.CodeHash))
+					code = l.cachedDB.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 				}
 				account.originCode = code
 				account.dirtyCode = code
@@ -87,7 +88,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 
 	var rawAccount []byte
 	start := time.Now()
-	rawAccount, err := l.accountTrie.Get(CompositeAccountKey(address))
+	rawAccount, err := l.accountTrie.Get(utils.CompositeAccountKey(address))
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +102,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 			panic(err)
 		}
 		if !bytes.Equal(account.originAccount.CodeHash, nil) {
-			code := l.cachedDB.Get(compositeCodeKey(account.Addr, account.originAccount.CodeHash))
+			code := l.cachedDB.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 			account.originCode = code
 			account.dirtyCode = code
 		}
@@ -277,12 +278,12 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		account := acc.(*SimpleAccount)
 		if account.Suicided() {
 			accSize++
-			data, err := l.accountTrie.Get(CompositeAccountKey(account.Addr))
+			data, err := l.accountTrie.Get(utils.CompositeAccountKey(account.Addr))
 			if err != nil {
 				return nil, err
 			}
 			if data != nil {
-				err = l.accountTrie.Update(height, CompositeAccountKey(account.Addr), nil)
+				err = l.accountTrie.Update(height, utils.CompositeAccountKey(account.Addr), nil)
 				if err != nil {
 					return nil, err
 				}
@@ -293,7 +294,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		}
 
 		if !bytes.Equal(account.originCode, account.dirtyCode) && account.dirtyCode != nil {
-			ldbBatch.Put(compositeCodeKey(account.Addr, account.dirtyAccount.CodeHash), account.dirtyCode)
+			ldbBatch.Put(utils.CompositeCodeKey(account.Addr, account.dirtyAccount.CodeHash), account.dirtyCode)
 		}
 
 		l.logger.Debugf("[Commit-Before] committing storage trie begin, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
@@ -305,13 +306,13 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			origValBytes := account.originState[key]
 
 			if !bytes.Equal(origValBytes, valBytes) {
-				if err := account.storageTrie.Update(height, CompositeStorageKey(account.Addr, []byte(key)), valBytes); err != nil {
+				if err := account.storageTrie.Update(height, utils.CompositeStorageKey(account.Addr, []byte(key)), valBytes); err != nil {
 					panic(err)
 				}
 				storageSet[addr][key] = valBytes
 				if account.storageTrie.Root() != nil {
 					l.logger.Debugf("[Commit-Update-After][%v] after updating storage trie, addr: %v, key: %v, origin state: %v, "+
-						"dirty state: %v, root node: %v", stateSize, account.Addr, &bytesLazyLogger{bytes: CompositeStorageKey(account.Addr, []byte(key))},
+						"dirty state: %v, root node: %v", stateSize, account.Addr, &bytesLazyLogger{bytes: utils.CompositeStorageKey(account.Addr, []byte(key))},
 						&bytesLazyLogger{bytes: origValBytes}, &bytesLazyLogger{bytes: valBytes}, account.storageTrie.Root().String())
 				}
 				stateSize++
@@ -332,7 +333,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			if err != nil {
 				panic(err)
 			}
-			if err := l.accountTrie.Update(height, CompositeAccountKey(account.Addr), data); err != nil {
+			if err := l.accountTrie.Update(height, utils.CompositeAccountKey(account.Addr), data); err != nil {
 				panic(err)
 			}
 			accountSet[addr] = account.dirtyAccount

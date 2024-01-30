@@ -94,6 +94,8 @@ type StateLedger interface {
 	VerifyTrie(block *types.Block) (bool, error)
 
 	Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error)
+
+	GenerateSnapshot(block *types.Block, errC chan error)
 }
 
 // StateAccessor manipulates the state data

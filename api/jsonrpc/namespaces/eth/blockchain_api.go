@@ -25,6 +25,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
@@ -133,7 +134,7 @@ func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string,
 
 	// construct account proof
 	acc := stateLedger.GetOrCreateAccount(addr)
-	rawAccountProof, err := stateLedger.Prove(common.Hash{}, ledger.CompositeAccountKey(addr))
+	rawAccountProof, err := stateLedger.Prove(common.Hash{}, utils.CompositeAccountKey(addr))
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +162,7 @@ func (api *BlockChainAPI) GetProof(address common.Address, storageKeys []string,
 	}
 	for _, key := range keys {
 		hashKey := crypto.Keccak256(key.Bytes())
-		rawStorageProof, err := stateLedger.Prove(acc.GetStorageRoot(), ledger.CompositeStorageKey(addr, hashKey))
+		rawStorageProof, err := stateLedger.Prove(acc.GetStorageRoot(), utils.CompositeStorageKey(addr, hashKey))
 		if err != nil {
 			return nil, err
 		}

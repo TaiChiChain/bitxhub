@@ -12,6 +12,7 @@ import (
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
 func TestNormalCase(t *testing.T) {
@@ -66,6 +67,10 @@ func TestNormalCase(t *testing.T) {
 		"key1": []byte("val1"),
 		"key2": []byte("val2"),
 	}
+	batch := snapshot.Batch()
+	batch.Put(utils.CompositeStorageKey(addr4, []byte("key3")), []byte("val3"))
+	batch.Commit()
+
 	storageSet[addr5.String()] = map[string][]byte{
 		"key2": []byte("val22"),
 		"key3": []byte("val33"),
@@ -94,6 +99,10 @@ func TestNormalCase(t *testing.T) {
 	a4k2, err := snapshot.Storage(addr4, []byte("key2"))
 	require.Nil(t, err)
 	require.Equal(t, a4k2, []byte("val2"))
+
+	a4k3, err := snapshot.Storage(addr4, []byte("key3"))
+	require.Nil(t, err)
+	require.Equal(t, a4k3, []byte("val3"))
 
 	a5k2, err := snapshot.Storage(addr5, []byte("key2"))
 	require.Nil(t, err)
@@ -322,6 +331,8 @@ func TestRollback(t *testing.T) {
 		PrevStates: map[string][]byte{
 			"key1": []byte("val1"),
 			"key2": []byte("val2"),
+			"key3": nil,
+			"key4": make([]byte, maxBatchSize+1),
 		},
 	})
 
@@ -352,49 +363,54 @@ func TestRollback(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, a2k3, []byte("val3"))
 
-	// rollback to state 1
+	t.Run("rollback to state 1", func(t *testing.T) {
+		err = snapshot.Rollback(1)
+		require.Nil(t, err)
 
-	err = snapshot.Rollback(1)
-	require.Nil(t, err)
+		a1, err = snapshot.Account(addr1)
+		require.Nil(t, err)
 
-	a1, err = snapshot.Account(addr1)
-	require.Nil(t, err)
+		require.True(t, isEqualAccount(a1, account1))
 
-	require.True(t, isEqualAccount(a1, account1))
+		a2, err = snapshot.Account(addr2)
+		require.Nil(t, err)
+		require.True(t, isEqualAccount(a2, account2))
 
-	a2, err = snapshot.Account(addr2)
-	require.Nil(t, err)
-	require.True(t, isEqualAccount(a2, account2))
+		a2k1, err = snapshot.Storage(addr2, []byte("key1"))
+		require.Nil(t, err)
+		require.Equal(t, a2k1, []byte("val1"))
 
-	a2k1, err = snapshot.Storage(addr2, []byte("key1"))
-	require.Nil(t, err)
-	require.Equal(t, a2k1, []byte("val1"))
+		a2k2, err = snapshot.Storage(addr2, []byte("key2"))
+		require.Nil(t, err)
+		require.Equal(t, a2k2, []byte("val2"))
 
-	a2k2, err = snapshot.Storage(addr2, []byte("key2"))
-	require.Nil(t, err)
-	require.Equal(t, a2k2, []byte("val2"))
+		a2k3, err = snapshot.Storage(addr2, []byte("key3"))
+		require.Nil(t, err)
+		require.Equal(t, a2k3, []byte(nil))
+	})
 
-	// rollback to state 0
+	t.Run("rollback to state 0", func(t *testing.T) {
+		err = snapshot.Rollback(0)
+		require.Nil(t, err)
 
-	err = snapshot.Rollback(0)
-	require.Nil(t, err)
+		a1, err = snapshot.Account(addr1)
+		require.Nil(t, err)
+		require.Nil(t, a1)
 
-	a1, err = snapshot.Account(addr1)
-	require.Nil(t, err)
-	require.Nil(t, a1)
+		a2, err = snapshot.Account(addr2)
+		require.Nil(t, a2)
+	})
 
-	a2, err = snapshot.Account(addr2)
-	require.Nil(t, a2)
+	t.Run("rollback error case", func(t *testing.T) {
+		// still rollback to state 0, no-op
+		err = snapshot.Rollback(0)
+		require.Nil(t, err)
 
-	// still rollback to state 0, no-op
-
-	err = snapshot.Rollback(0)
-	require.Nil(t, err)
-
-	// rollback to state 1
-	err = snapshot.Rollback(1)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), ErrorRollbackToHigherNumber.Error())
+		// rollback to state 1
+		err = snapshot.Rollback(1)
+		require.NotNil(t, err)
+		require.Contains(t, err.Error(), ErrorRollbackToHigherNumber.Error())
+	})
 }
 
 func TestRemoveJournal(t *testing.T) {
@@ -548,6 +564,11 @@ func TestEmptySnapshot(t *testing.T) {
 	assert.Nil(t, err)
 
 	snapshot := NewSnapshot(pStateStorage, logger)
+	minHeight, maxHeight := snapshot.GetJournalRange()
+	assert.Equal(t, uint64(0), minHeight)
+	assert.Equal(t, uint64(0), maxHeight)
+	assert.Nil(t, snapshot.GetBlockJournal(0))
+	assert.Nil(t, snapshot.Rollback(0))
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{104}, 20))
@@ -575,14 +596,24 @@ func TestEmptySnapshot(t *testing.T) {
 	err = snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
-	snapshot.origin = nil
+	snapshot.origin.(*diskLayer).available = false
 
 	a1, err := snapshot.Account(addr1)
+	require.Equal(t, err, ErrSnapshotUnavailable)
+	require.Nil(t, a1)
+
+	a2k1, err := snapshot.Storage(addr2, []byte("key1"))
+	require.Equal(t, err, ErrSnapshotUnavailable)
+	require.Nil(t, a2k1)
+
+	snapshot.origin = nil
+
+	a1, err = snapshot.Account(addr1)
 	require.NotNil(t, err)
 	require.Nil(t, a1)
 	require.Contains(t, err.Error(), ErrorTargetLayerNotFound.Error())
 
-	a2k1, err := snapshot.Storage(addr2, []byte("key1"))
+	a2k1, err = snapshot.Storage(addr2, []byte("key1"))
 	require.NotNil(t, err)
 	require.Nil(t, a2k1)
 	require.Contains(t, err.Error(), ErrorTargetLayerNotFound.Error())

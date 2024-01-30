@@ -138,3 +138,13 @@ func (w *BatchWrapper) Commit() {
 		}
 	}
 }
+
+func (w *BatchWrapper) Size() int {
+	return w.Batch.Size()
+}
+
+func (w *BatchWrapper) Reset() {
+	w.Batch.Reset()
+	w.cache.Reset()
+	w.finalState = make(map[string][]byte)
+}
