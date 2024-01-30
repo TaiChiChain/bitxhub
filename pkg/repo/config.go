@@ -126,6 +126,8 @@ type P2P struct {
 	Security               string   `mapstructure:"security" toml:"security"`
 	SendTimeout            Duration `mapstructure:"send_timeout" toml:"send_timeout"`
 	ReadTimeout            Duration `mapstructure:"read_timeout" toml:"read_timeout"`
+	EnableCompression      bool     `mapstructure:"enable_compression" toml:"enable_compression"`
+	EnableMetrics          bool     `mapstructure:"enable_metrics" toml:"enable_metrics"`
 	Pipe                   P2PPipe  `mapstructure:"pipe" toml:"pipe"`
 }
 
@@ -270,9 +272,11 @@ func DefaultConfig() *Config {
 			RejectTxsIfConsensusAbnormal: false,
 		},
 		P2P: P2P{
-			Security:    P2PSecurityTLS,
-			SendTimeout: Duration(5 * time.Second),
-			ReadTimeout: Duration(5 * time.Second),
+			Security:          P2PSecurityTLS,
+			SendTimeout:       Duration(5 * time.Second),
+			ReadTimeout:       Duration(5 * time.Second),
+			EnableCompression: true,
+			EnableMetrics:     true,
 			Pipe: P2PPipe{
 				ReceiveMsgCacheSize: 10240,
 				BroadcastType:       P2PPipeBroadcastGossip,
