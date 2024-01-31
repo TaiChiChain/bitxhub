@@ -291,6 +291,8 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	msg := TransactionToMessage(tx)
 	curGasPrice := exec.getCurrentGasPrice(height)
 	msg.GasPrice = curGasPrice
+	msg.GasFeeCap = curGasPrice
+	msg.GasTipCap = curGasPrice
 
 	statedb := exec.ledger.StateLedger
 	evmStateDB := &ledger.EvmStateDBAdaptor{StateLedger: statedb}
