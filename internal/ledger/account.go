@@ -16,6 +16,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
 
@@ -173,7 +174,7 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 
 	o.initStorageTrie()
 	start := time.Now()
-	val, err := o.storageTrie.Get(CompositeStorageKey(o.Addr, key))
+	val, err := o.storageTrie.Get(utils.CompositeStorageKey(o.Addr, key))
 	if err != nil {
 		panic(err)
 	}
@@ -220,7 +221,7 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 
 	o.initStorageTrie()
 	start := time.Now()
-	val, err := o.storageTrie.Get(CompositeStorageKey(o.Addr, key))
+	val, err := o.storageTrie.Get(utils.CompositeStorageKey(o.Addr, key))
 	if err != nil {
 		panic(err)
 	}
@@ -299,7 +300,7 @@ func (o *SimpleAccount) Code() []byte {
 	code, ok := o.cache.getCode(o.Addr)
 	if !ok {
 		start := time.Now()
-		code = o.ldb.Get(compositeCodeKey(o.Addr, o.CodeHash()))
+		code = o.ldb.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
 		if o.enableExpensiveMetric {
 			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
@@ -424,8 +425,8 @@ func (o *SimpleAccount) Finalise() [][]byte {
 	for key, value := range o.dirtyState {
 		o.pendingState[key] = value
 
-		// collect all stoage key of the account
-		keys2Preload = append(keys2Preload, CompositeStorageKey(o.Addr, []byte(key)))
+		// collect all storage key of the account
+		keys2Preload = append(keys2Preload, utils.CompositeStorageKey(o.Addr, []byte(key)))
 	}
 	o.dirtyState = make(map[string][]byte)
 	return keys2Preload
@@ -442,7 +443,7 @@ func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
 	}
 
 	if o.originCode == nil && o.originAccount != nil && o.originAccount.CodeHash != nil {
-		o.originCode = o.ldb.Get(compositeCodeKey(o.Addr, o.originAccount.CodeHash))
+		o.originCode = o.ldb.Get(utils.CompositeCodeKey(o.Addr, o.originAccount.CodeHash))
 	}
 
 	if entry.AccountChanged {

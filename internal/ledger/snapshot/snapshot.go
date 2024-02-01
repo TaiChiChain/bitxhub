@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
 type Snapshot struct {
@@ -29,6 +29,9 @@ var (
 	ErrorRemoveJournalOutOfRange = errors.New("remove journal out of range")
 	ErrorTargetLayerNotFound     = errors.New("can not find target layer")
 )
+
+// maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
+const maxBatchSize = 64 * 1024 * 1024
 
 func NewSnapshot(diskdb storage.Storage, logger logrus.FieldLogger) *Snapshot {
 	return &Snapshot{
@@ -51,9 +54,9 @@ func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 
 	batch := snap.diskdb.NewBatch()
 	for i := minHeight; i < height; i++ {
-		batch.Delete(CompositeSnapJournalKey(i))
+		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
 	}
-	batch.Put(CompositeSnapJournalKey(MinHeightStr), marshalHeight(height))
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, MinHeightStr), marshalHeight(height))
 	batch.Commit()
 
 	return nil
@@ -93,10 +96,10 @@ func (snap *Snapshot) UpdateJournal(height uint64, journal *BlockJournal) error 
 		return fmt.Errorf("marshal snapshot journal error: %w", err)
 	}
 	batch := snap.diskdb.NewBatch()
-	batch.Put(CompositeSnapJournalKey(height), data)
-	batch.Put(CompositeSnapJournalKey(MaxHeightStr), marshalHeight(height))
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, height), data)
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, MaxHeightStr), marshalHeight(height))
 	if height == 1 {
-		batch.Put(CompositeSnapJournalKey(MinHeightStr), marshalHeight(height))
+		batch.Put(utils.CompositeKey(utils.SnapshotKey, MinHeightStr), marshalHeight(height))
 	}
 	batch.Commit()
 	return nil
@@ -106,6 +109,11 @@ func (snap *Snapshot) UpdateJournal(height uint64, journal *BlockJournal) error 
 func (snap *Snapshot) Rollback(height uint64) error {
 	minHeight, maxHeight := snap.GetJournalRange()
 	snap.logger.Infof("[Snapshot-Rollback],minHeight=%v,maxHeight=%v,height=%v", minHeight, maxHeight, height)
+
+	// empty snapshot, no-op
+	if minHeight == 0 && maxHeight == 0 {
+		return nil
+	}
 
 	if maxHeight < height {
 		return ErrorRollbackToHigherNumber
@@ -119,9 +127,9 @@ func (snap *Snapshot) Rollback(height uint64) error {
 		return nil
 	}
 
+	batch := snap.diskdb.NewBatch()
 	for i := maxHeight; i > height; i-- {
-		snap.logger.Debugf("[Snapshot-Rollback] execute journal of height %v", i)
-		batch := snap.diskdb.NewBatch()
+		snap.logger.Infof("[Snapshot-Rollback] execute journal of height %v", i)
 		blockJournal := snap.GetBlockJournal(i)
 		if blockJournal == nil {
 			return ErrorRemoveJournalOutOfRange
@@ -130,14 +138,23 @@ func (snap *Snapshot) Rollback(height uint64) error {
 			snap.logger.Debugf("[Snapshot-Rollback] execute entry: %v", entry.String())
 			revertJournal(entry, batch)
 		}
-		batch.Delete(CompositeSnapJournalKey(i))
-		batch.Put(CompositeSnapJournalKey(MaxHeightStr), marshalHeight(i-1))
-		batch.Commit()
+		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
+		batch.Put(utils.CompositeKey(utils.SnapshotKey, MaxHeightStr), marshalHeight(i-1))
+		if batch.Size() > maxBatchSize {
+			batch.Commit()
+			batch.Reset()
+			snap.logger.Infof("[Snapshot-Rollback] write batch periodically")
+		}
 	}
+	batch.Commit()
 
 	snap.origin.Clear()
 
 	return nil
+}
+
+func (snap *Snapshot) Batch() storage.Batch {
+	return snap.diskdb.NewBatch()
 }
 
 func encodeToBase64(src map[string][]byte) map[string][]byte {

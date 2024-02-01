@@ -15,6 +15,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -120,7 +121,7 @@ func (l *ChainLedgerImpl) GetBlock(height uint64) (*types.Block, error) {
 		return nil, fmt.Errorf("unmarshal block error: %w", err)
 	}
 
-	txHashesData := l.blockchainStore.Get(compositeKey(blockTxSetKey, height))
+	txHashesData := l.blockchainStore.Get(utils.CompositeKey(utils.BlockTxSetKey, height))
 	if txHashesData == nil {
 		return nil, errors.New("cannot get tx hashes of block")
 	}
@@ -154,7 +155,7 @@ func (l *ChainLedgerImpl) GetBlockHash(height uint64) *types.Hash {
 		return &types.Hash{}
 	}
 
-	hash := l.blockchainStore.Get(compositeKey(blockHeightKey, height))
+	hash := l.blockchainStore.Get(utils.CompositeKey(utils.BlockHeightKey, height))
 	if hash == nil {
 		return &types.Hash{}
 	}
@@ -173,7 +174,7 @@ func (l *ChainLedgerImpl) GetBlockSign(height uint64) ([]byte, error) {
 
 // GetBlockByHash get the block using block hash
 func (l *ChainLedgerImpl) GetBlockByHash(hash *types.Hash) (*types.Block, error) {
-	data := l.blockchainStore.Get(compositeKey(blockHashKey, hash.String()))
+	data := l.blockchainStore.Get(utils.CompositeKey(utils.BlockHashKey, hash.String()))
 	if data == nil {
 		return nil, ErrNotFound
 	}
@@ -188,7 +189,7 @@ func (l *ChainLedgerImpl) GetBlockByHash(hash *types.Hash) (*types.Block, error)
 
 // GetTransaction get the transaction using transaction hash
 func (l *ChainLedgerImpl) GetTransaction(hash *types.Hash) (*types.Transaction, error) {
-	metaBytes := l.blockchainStore.Get(compositeKey(transactionMetaKey, hash.String()))
+	metaBytes := l.blockchainStore.Get(utils.CompositeKey(utils.TransactionMetaKey, hash.String()))
 	if metaBytes == nil {
 		return nil, ErrNotFound
 	}
@@ -212,7 +213,7 @@ func (l *ChainLedgerImpl) GetTransaction(hash *types.Hash) (*types.Transaction, 
 }
 
 func (l *ChainLedgerImpl) GetTransactionCount(height uint64) (uint64, error) {
-	txHashesData := l.blockchainStore.Get(compositeKey(blockTxSetKey, height))
+	txHashesData := l.blockchainStore.Get(utils.CompositeKey(utils.BlockTxSetKey, height))
 	if txHashesData == nil {
 		return 0, errors.New("cannot get tx hashes of block")
 	}
@@ -226,7 +227,7 @@ func (l *ChainLedgerImpl) GetTransactionCount(height uint64) (uint64, error) {
 
 // GetTransactionMeta get the transaction meta data
 func (l *ChainLedgerImpl) GetTransactionMeta(hash *types.Hash) (*types.TransactionMeta, error) {
-	data := l.blockchainStore.Get(compositeKey(transactionMetaKey, hash.String()))
+	data := l.blockchainStore.Get(utils.CompositeKey(utils.TransactionMetaKey, hash.String()))
 	if data == nil {
 		return nil, ErrNotFound
 	}
@@ -241,7 +242,7 @@ func (l *ChainLedgerImpl) GetTransactionMeta(hash *types.Hash) (*types.Transacti
 
 // GetReceipt get the transaction receipt
 func (l *ChainLedgerImpl) GetReceipt(hash *types.Hash) (*types.Receipt, error) {
-	metaBytes := l.blockchainStore.Get(compositeKey(transactionMetaKey, hash.String()))
+	metaBytes := l.blockchainStore.Get(utils.CompositeKey(utils.TransactionMetaKey, hash.String()))
 	if metaBytes == nil {
 		return nil, ErrNotFound
 	}
@@ -359,14 +360,14 @@ func (l *ChainLedgerImpl) GetChainMeta() *types.ChainMeta {
 
 // LoadChainMeta load chain meta data
 func (l *ChainLedgerImpl) LoadChainMeta() (*types.ChainMeta, error) {
-	ok := l.blockchainStore.Has([]byte(chainMetaKey))
+	ok := l.blockchainStore.Has([]byte(utils.ChainMetaKey))
 
 	chain := &types.ChainMeta{
 		Height:    0,
 		BlockHash: &types.Hash{},
 	}
 	if ok {
-		body := l.blockchainStore.Get([]byte(chainMetaKey))
+		body := l.blockchainStore.Get([]byte(utils.ChainMetaKey))
 		if err := chain.Unmarshal(body); err != nil {
 			return nil, fmt.Errorf("unmarshal chain meta: %w", err)
 		}
@@ -392,7 +393,7 @@ func (l *ChainLedgerImpl) prepareTransactions(batcher storage.Batch, block *type
 			return nil, fmt.Errorf("marshal tx meta error: %s", err)
 		}
 
-		batcher.Put(compositeKey(transactionMetaKey, tx.GetHash().String()), metaBytes)
+		batcher.Put(utils.CompositeKey(utils.TransactionMetaKey, tx.GetHash().String()), metaBytes)
 	}
 
 	return types.MarshalTransactions(block.Transactions)
@@ -433,11 +434,11 @@ func (l *ChainLedgerImpl) prepareBlock(batcher storage.Batch, block *types.Block
 		return nil, fmt.Errorf("marshal tx hash error: %w", err)
 	}
 
-	batcher.Put(compositeKey(blockTxSetKey, height), data)
+	batcher.Put(utils.CompositeKey(utils.BlockTxSetKey, height), data)
 
 	hash := block.BlockHash.String()
-	batcher.Put(compositeKey(blockHashKey, hash), []byte(fmt.Sprintf("%d", height)))
-	batcher.Put(compositeKey(blockHeightKey, height), []byte(hash))
+	batcher.Put(utils.CompositeKey(utils.BlockHashKey, hash), []byte(fmt.Sprintf("%d", height)))
+	batcher.Put(utils.CompositeKey(utils.BlockHeightKey, height), []byte(hash))
 
 	return bs, nil
 }
@@ -448,7 +449,7 @@ func (l *ChainLedgerImpl) persistChainMeta(batcher storage.Batch, meta *types.Ch
 		return fmt.Errorf("marshal chain meta error: %w", err)
 	}
 
-	batcher.Put([]byte(chainMetaKey), data)
+	batcher.Put([]byte(utils.ChainMetaKey), data)
 
 	return nil
 }
@@ -463,12 +464,12 @@ func (l *ChainLedgerImpl) removeChainDataOnBlock(batch storage.Batch, height uin
 		return fmt.Errorf("truncate blocks failed: %w", err)
 	}
 
-	batch.Delete(compositeKey(blockTxSetKey, height))
-	batch.Delete(compositeKey(blockHashKey, block.BlockHash.String()))
-	batch.Delete(compositeKey(interchainMetaKey, height))
+	batch.Delete(utils.CompositeKey(utils.BlockTxSetKey, height))
+	batch.Delete(utils.CompositeKey(utils.BlockHashKey, block.BlockHash.String()))
+	batch.Delete(utils.CompositeKey(utils.InterChainMetaKey, height))
 
 	for _, tx := range block.Transactions {
-		batch.Delete(compositeKey(transactionMetaKey, tx.GetHash().String()))
+		batch.Delete(utils.CompositeKey(utils.TransactionMetaKey, tx.GetHash().String()))
 	}
 
 	l.txCache.Remove(height)
@@ -496,10 +497,15 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 		if err != nil {
 			return fmt.Errorf("remove chain data on block %d failed: %w", i, err)
 		}
+		if batch.Size() > maxBatchSize {
+			batch.Commit()
+			batch.Reset()
+			l.logger.Infof("[RollbackBlockChain] write batch periodically")
+		}
 	}
 
 	if height == 0 {
-		batch.Delete([]byte(chainMetaKey))
+		batch.Delete([]byte(utils.ChainMetaKey))
 		meta = &types.ChainMeta{}
 	} else {
 		block, err := l.GetBlock(height)

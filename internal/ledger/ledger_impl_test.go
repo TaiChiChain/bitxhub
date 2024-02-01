@@ -14,7 +14,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
@@ -35,7 +34,9 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -124,7 +125,7 @@ func TestNew002(t *testing.T) {
 
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
-			tc.blockStorage.Put([]byte(chainMetaKey), []byte{1})
+			tc.blockStorage.Put([]byte(utils.ChainMetaKey), []byte{1})
 			logger := log.NewWithModule("account_test")
 			blockFile, err := blockfile.NewBlockFile(filepath.Join(repoRoot, name), logger)
 			assert.Nil(t, err)
@@ -496,8 +497,10 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.NotNil(t, block)
 			assert.Equal(t, uint64(3), ledger.ChainLedger.GetChainMeta().Height)
 
+			ledger.StateLedger.(*StateLedgerImpl).accountCache.codeCache.Remove(addr0.String())
 			account0 = ledger.StateLedger.GetAccount(addr0)
 			assert.Equal(t, uint64(4), account0.GetBalance().Uint64())
+			assert.Equal(t, code1[:], account0.Code())
 
 			err = ledger.Rollback(4)
 			assert.True(t, errors.Is(err, ErrNotFound))
@@ -508,16 +511,31 @@ func TestChainLedger_Rollback(t *testing.T) {
 			hash = ledger.ChainLedger.GetBlockHash(100)
 			assert.NotNil(t, hash)
 
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Delete(utils.CompositeKey(utils.BlockHeightKey, 3))
+			hash = ledger.ChainLedger.GetBlockHash(3)
+			assert.NotNil(t, hash)
+
 			num, err := ledger.ChainLedger.GetTransactionCount(0)
 			assert.NotNil(t, err)
 			num, err = ledger.ChainLedger.GetTransactionCount(3)
 			assert.Nil(t, err)
 			assert.NotNil(t, num)
 
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockTxSetKey, 3), []byte("???"))
+			num, err = ledger.ChainLedger.GetTransactionCount(3)
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), "unmarshal tx hash data error")
+			assert.Equal(t, num, uint64(0))
+
 			meta, err := ledger.ChainLedger.LoadChainMeta()
 			assert.Nil(t, err)
 			assert.NotNil(t, meta)
 			assert.Equal(t, uint64(3), meta.Height)
+
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put([]byte(utils.ChainMetaKey), []byte("nil"))
+			meta2, err := ledger.ChainLedger.LoadChainMeta()
+			assert.Contains(t, err.Error(), "unmarshal chain meta")
+			assert.Nil(t, meta2)
 
 			err = ledger.Rollback(3)
 			assert.Nil(t, err)
@@ -757,6 +775,20 @@ func TestGetBlockSign(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetBlockSign(uint64(0))
 			assert.NotNil(t, err)
+
+			block := &types.Block{
+				BlockHeader: &types.BlockHeader{
+					Number: 1,
+				},
+				BlockHash:    types.NewHash([]byte{1}),
+				Transactions: []*types.Transaction{},
+				Signature:    []byte("sig"),
+			}
+			err = ledger.ChainLedger.PersistExecutionResult(block, []*types.Receipt{})
+			assert.Nil(t, err)
+			sig, err := ledger.ChainLedger.GetBlockSign(uint64(1))
+			assert.Nil(t, err)
+			assert.Equal(t, sig, []byte("sig"))
 		})
 	}
 }
@@ -773,9 +805,14 @@ func TestGetBlockByHash(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
 			assert.True(t, errors.Is(err, ErrNotFound))
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(blockHashKey, types.NewHash([]byte("1")).String()), []byte("1"))
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockHashKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
+
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockHashKey, types.NewHash([]byte("1")).String()), []byte("?"))
+			_, err = ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
+			assert.NotNil(t, err)
+			assert.Contains(t, err.Error(), "wrong height,")
 		})
 	}
 }
@@ -792,7 +829,7 @@ func TestGetTransaction(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.True(t, errors.Is(err, ErrNotFound))
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
 			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
@@ -820,7 +857,7 @@ func TestGetTransaction1(t *testing.T) {
 			}
 			metaBytes, err := meta.Marshal()
 			require.Nil(t, err)
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), metaBytes)
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), metaBytes)
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
 			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
@@ -843,7 +880,7 @@ func TestGetTransactionMeta(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetTransactionMeta(types.NewHash([]byte("1")))
 			assert.True(t, errors.Is(err, ErrNotFound))
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetTransactionMeta(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
 			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
@@ -866,7 +903,7 @@ func TestGetReceipt(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
 			_, err := ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.True(t, errors.Is(err, ErrNotFound))
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), []byte("0"))
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), []byte("0"))
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
 			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
@@ -898,7 +935,7 @@ func TestGetReceipt1(t *testing.T) {
 			}
 			metaBytes, err := meta.Marshal()
 			require.Nil(t, err)
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(transactionMetaKey, types.NewHash([]byte("1")).String()), metaBytes)
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), metaBytes)
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
 			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
@@ -952,758 +989,708 @@ func TestPrepare(t *testing.T) {
 // =========================== Test History Ledger ===========================
 
 func TestStateLedger_EOAHistory(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
+
+	// create an account
+	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+
+	// set EOA account data in block 1
+	// account1: balance=101, nonce=0
+	// account2: balance=201, nonce=0
+	// account3: balance=301, nonce=0
+	sl.blockHeight = 1
+	sl.SetBalance(account1, new(big.Int).SetInt64(101))
+	sl.SetBalance(account2, new(big.Int).SetInt64(201))
+	sl.SetBalance(account3, new(big.Int).SetInt64(301))
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	isSuicide := sl.HasSuicide(account1)
+	assert.Equal(t, isSuicide, false)
+	assert.Equal(t, uint64(1), sl.Version())
+
+	// set EOA account data in block 2
+	// account1: balance=102, nonce=12
+	// account2: balance=201, nonce=22
+	// account3: balance=302, nonce=32
+	sl.blockHeight = 2
+	sl.SetBalance(account1, new(big.Int).SetInt64(102))
+	sl.SetBalance(account3, new(big.Int).SetInt64(302))
+	sl.SetNonce(account1, 12)
+	sl.SetNonce(account2, 22)
+	sl.SetNonce(account3, 32)
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(2), sl.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
+
+	// set EOA account data in block 3
+	// account1: balance=103, nonce=13
+	// account2: balance=203, nonce=23
+	// account3: balance=302, nonce=32
+	sl.blockHeight = 3
+	sl.SetBalance(account1, new(big.Int).SetInt64(103))
+	sl.SetBalance(account2, new(big.Int).SetInt64(203))
+	sl.SetNonce(account1, 13)
+	sl.SetNonce(account2, 23)
+	stateRoot3, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(3), sl.Version())
+	assert.NotEqual(t, stateRoot2, stateRoot3)
+
+	// set EOA account data in block 4 (same with block 3)
+	// account1: balance=103, nonce=13
+	// account2: balance=203, nonce=23
+	// account3: balance=302, nonce=32
+	sl.blockHeight = 4
+	stateRoot4, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(4), sl.Version())
+	assert.Equal(t, stateRoot3, stateRoot4)
+
+	// set EOA account data in block 5
+	// account1: balance=103, nonce=15
+	// account2: balance=203, nonce=25
+	// account3: balance=305, nonce=35
+	sl.blockHeight = 5
+	sl.SetBalance(account1, new(big.Int).SetInt64(103))
+	sl.SetBalance(account2, new(big.Int).SetInt64(203))
+	sl.SetBalance(account3, new(big.Int).SetInt64(305))
+	sl.SetNonce(account1, 15)
+	sl.SetNonce(account2, 25)
+	sl.SetNonce(account3, 35)
+	stateRoot5, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(5), sl.Version())
+	assert.NotEqual(t, stateRoot4, stateRoot5)
+
+	// check state ledger in block 1
+	block1 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    1,
+			StateRoot: stateRoot1,
+		},
 	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg1 := sl.NewView(block1, false)
+	lg1.(*StateLedgerImpl).accountCache.clear()
+	assert.Equal(t, uint64(101), lg1.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(201), lg1.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(301), lg1.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(0), lg1.GetNonce(account1))
+	assert.Equal(t, uint64(0), lg1.GetNonce(account2))
+	assert.Equal(t, uint64(0), lg1.GetNonce(account3))
 
-			// create an account
-			account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-			account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-			account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
-
-			// set EOA account data in block 1
-			// account1: balance=101, nonce=0
-			// account2: balance=201, nonce=0
-			// account3: balance=301, nonce=0
-			sl.blockHeight = 1
-			sl.SetBalance(account1, new(big.Int).SetInt64(101))
-			sl.SetBalance(account2, new(big.Int).SetInt64(201))
-			sl.SetBalance(account3, new(big.Int).SetInt64(301))
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			isSuicide := sl.HasSuicide(account1)
-			assert.Equal(t, isSuicide, false)
-			assert.Equal(t, uint64(1), sl.Version())
-
-			// set EOA account data in block 2
-			// account1: balance=102, nonce=12
-			// account2: balance=201, nonce=22
-			// account3: balance=302, nonce=32
-			sl.blockHeight = 2
-			sl.SetBalance(account1, new(big.Int).SetInt64(102))
-			sl.SetBalance(account3, new(big.Int).SetInt64(302))
-			sl.SetNonce(account1, 12)
-			sl.SetNonce(account2, 22)
-			sl.SetNonce(account3, 32)
-			stateRoot2, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(2), sl.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
-
-			// set EOA account data in block 3
-			// account1: balance=103, nonce=13
-			// account2: balance=203, nonce=23
-			// account3: balance=302, nonce=32
-			sl.blockHeight = 3
-			sl.SetBalance(account1, new(big.Int).SetInt64(103))
-			sl.SetBalance(account2, new(big.Int).SetInt64(203))
-			sl.SetNonce(account1, 13)
-			sl.SetNonce(account2, 23)
-			stateRoot3, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(3), sl.Version())
-			assert.NotEqual(t, stateRoot2, stateRoot3)
-
-			// set EOA account data in block 4 (same with block 3)
-			// account1: balance=103, nonce=13
-			// account2: balance=203, nonce=23
-			// account3: balance=302, nonce=32
-			sl.blockHeight = 4
-			stateRoot4, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(4), sl.Version())
-			assert.Equal(t, stateRoot3, stateRoot4)
-
-			// set EOA account data in block 5
-			// account1: balance=103, nonce=15
-			// account2: balance=203, nonce=25
-			// account3: balance=305, nonce=35
-			sl.blockHeight = 5
-			sl.SetBalance(account1, new(big.Int).SetInt64(103))
-			sl.SetBalance(account2, new(big.Int).SetInt64(203))
-			sl.SetBalance(account3, new(big.Int).SetInt64(305))
-			sl.SetNonce(account1, 15)
-			sl.SetNonce(account2, 25)
-			sl.SetNonce(account3, 35)
-			stateRoot5, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(5), sl.Version())
-			assert.NotEqual(t, stateRoot4, stateRoot5)
-
-			// check state ledger in block 1
-			block1 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    1,
-					StateRoot: stateRoot1,
-				},
-			}
-			lg1 := sl.NewView(block1, false)
-			lg1.(*StateLedgerImpl).accountCache.clear()
-			assert.Equal(t, uint64(101), lg1.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(201), lg1.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(301), lg1.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(0), lg1.GetNonce(account1))
-			assert.Equal(t, uint64(0), lg1.GetNonce(account2))
-			assert.Equal(t, uint64(0), lg1.GetNonce(account3))
-
-			// check state ledger in block 2
-			block2 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    2,
-					StateRoot: stateRoot2,
-				},
-			}
-			lg2 := sl.NewViewWithoutCache(block2, false)
-			assert.Equal(t, uint64(102), lg2.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(201), lg2.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(302), lg2.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(12), lg2.GetNonce(account1))
-			assert.Equal(t, uint64(22), lg2.GetNonce(account2))
-			assert.Equal(t, uint64(32), lg2.GetNonce(account3))
-
-			// check state ledger in block 3
-			block3 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    3,
-					StateRoot: stateRoot3,
-				},
-			}
-			lg3 := sl.NewViewWithoutCache(block3, false)
-			assert.Equal(t, uint64(103), lg3.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(203), lg3.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(302), lg3.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(13), lg3.GetNonce(account1))
-			assert.Equal(t, uint64(23), lg3.GetNonce(account2))
-			assert.Equal(t, uint64(32), lg3.GetNonce(account3))
-
-			// check state ledger in block 4
-			block4 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    4,
-					StateRoot: stateRoot4,
-				},
-			}
-			lg4 := sl.NewViewWithoutCache(block4, false)
-			assert.Equal(t, uint64(103), lg4.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(203), lg4.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(302), lg4.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(13), lg4.GetNonce(account1))
-			assert.Equal(t, uint64(23), lg4.GetNonce(account2))
-			assert.Equal(t, uint64(32), lg4.GetNonce(account3))
-
-			// check state ledger in block 5
-			block5 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    5,
-					StateRoot: stateRoot5,
-				},
-			}
-			lg5 := sl.NewView(block5, true)
-			lg5.(*StateLedgerImpl).accountCache.clear()
-			assert.Equal(t, uint64(103), lg5.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(203), lg5.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(305), lg5.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(15), lg5.GetNonce(account1))
-			assert.Equal(t, uint64(25), lg5.GetNonce(account2))
-			assert.Equal(t, uint64(35), lg5.GetNonce(account3))
-		})
+	// check state ledger in block 2
+	block2 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    2,
+			StateRoot: stateRoot2,
+		},
 	}
+	lg2 := sl.NewViewWithoutCache(block2, false)
+	assert.Equal(t, uint64(102), lg2.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(201), lg2.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(302), lg2.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(12), lg2.GetNonce(account1))
+	assert.Equal(t, uint64(22), lg2.GetNonce(account2))
+	assert.Equal(t, uint64(32), lg2.GetNonce(account3))
+
+	// check state ledger in block 3
+	block3 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    3,
+			StateRoot: stateRoot3,
+		},
+	}
+	lg3 := sl.NewViewWithoutCache(block3, false)
+	assert.Equal(t, uint64(103), lg3.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(203), lg3.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(302), lg3.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(13), lg3.GetNonce(account1))
+	assert.Equal(t, uint64(23), lg3.GetNonce(account2))
+	assert.Equal(t, uint64(32), lg3.GetNonce(account3))
+
+	// check state ledger in block 4
+	block4 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    4,
+			StateRoot: stateRoot4,
+		},
+	}
+	lg4 := sl.NewViewWithoutCache(block4, false)
+	assert.Equal(t, uint64(103), lg4.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(203), lg4.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(302), lg4.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(13), lg4.GetNonce(account1))
+	assert.Equal(t, uint64(23), lg4.GetNonce(account2))
+	assert.Equal(t, uint64(32), lg4.GetNonce(account3))
+
+	// check state ledger in block 5
+	block5 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    5,
+			StateRoot: stateRoot5,
+		},
+	}
+	lg5 := sl.NewView(block5, true)
+	lg5.(*StateLedgerImpl).accountCache.clear()
+	assert.Equal(t, uint64(103), lg5.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(203), lg5.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(305), lg5.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(15), lg5.GetNonce(account1))
+	assert.Equal(t, uint64(25), lg5.GetNonce(account2))
+	assert.Equal(t, uint64(35), lg5.GetNonce(account3))
 }
 
 func TestStateLedger_ContractStateHistory(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
+
+	// create an account
+	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+
+	// set contract account data in block 1
+	// account1: key1=val101, key2=val102
+	// account3: key1=val301, key2=val302
+	sl.blockHeight = 1
+	sl.SetState(account1, []byte("key1"), []byte("val101"))
+	sl.SetState(account1, []byte("key2"), []byte("val102"))
+	sl.SetState(account3, []byte("key1"), []byte("val301"))
+	sl.SetState(account3, []byte("key2"), []byte("val302"))
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	isSuicide := sl.HasSuicide(account1)
+	assert.Equal(t, isSuicide, false)
+	assert.Equal(t, uint64(1), sl.Version())
+
+	// set contract account data in block 2
+	// account1: key1=val1011, key2=val102
+	// account2: key1=val201, key2=val202
+	// account3: key1=val3011, key2=val3021
+	sl.blockHeight = 2
+	sl.SetState(account1, []byte("key1"), []byte("val1011"))
+	sl.SetState(account2, []byte("key1"), []byte("val201"))
+	sl.SetState(account2, []byte("key2"), []byte("val202"))
+	sl.SetState(account3, []byte("key1"), []byte("val3011"))
+	sl.SetState(account3, []byte("key2"), []byte("val3021"))
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(2), sl.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
+
+	// set contract account data in block 3
+	// account1: key1=val1013, key2=val102
+	// account2: key1=val2011, key2=nil
+	// account3: key1=nil, key2=nil
+	sl.blockHeight = 3
+	sl.SetState(account1, []byte("key1"), []byte("val1013"))
+	sl.SetState(account2, []byte("key1"), []byte("val2011"))
+	sl.SetState(account2, []byte("key2"), nil)
+	sl.SetState(account3, []byte("key1"), nil)
+	sl.SetState(account3, []byte("key2"), nil)
+	sl.Finalise()
+	stateRoot3, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(3), sl.Version())
+	assert.NotEqual(t, stateRoot2, stateRoot3)
+
+	// set contract account data in block 4 (same with block 3)
+	// account1: key1=val1013, key2=val102
+	// account2: key1=val2011, key2=nil
+	// account3: key1=nil, key2=nil
+	sl.blockHeight = 4
+	sl.Finalise()
+	stateRoot4, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(4), sl.Version())
+	assert.Equal(t, stateRoot3, stateRoot4)
+
+	// set contract account data in block 5
+	// account1: key1=val1015, key2=val1025
+	// account2: key1=val2015, key2=val2025
+	// account3: key1=val3015, key2=val3025
+	sl.blockHeight = 5
+	sl.SetState(account1, []byte("key1"), []byte("val1015"))
+	sl.SetState(account1, []byte("key2"), []byte("val1025"))
+	sl.SetState(account2, []byte("key1"), []byte("val2015"))
+	sl.SetState(account2, []byte("key2"), []byte("val2025"))
+	sl.SetState(account3, []byte("key1"), []byte("val3015"))
+	sl.SetState(account3, []byte("key2"), []byte("val3025"))
+	sl.Finalise()
+	stateRoot5, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(5), sl.Version())
+	assert.NotEqual(t, stateRoot4, stateRoot5)
+
+	// check state ledger in block 1
+	block1 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    1,
+			StateRoot: stateRoot1,
+		},
 	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg1 := sl.NewViewWithoutCache(block1, false)
+	exist, a1k1 := lg1.GetState(account1, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val101"), a1k1)
+	exist, a1k2 := lg1.GetState(account1, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val102"), a1k2)
+	exist, _ = lg1.GetState(account2, []byte("key1"))
+	assert.False(t, exist)
+	exist, a3k1 := lg1.GetState(account3, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val301"), a3k1)
+	exist, a3k2 := lg1.GetState(account3, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val302"), a3k2)
 
-			// create an account
-			account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-			account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-			account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
-
-			// set contract account data in block 1
-			// account1: key1=val101, key2=val102
-			// account3: key1=val301, key2=val302
-			sl.blockHeight = 1
-			sl.SetState(account1, []byte("key1"), []byte("val101"))
-			sl.SetState(account1, []byte("key2"), []byte("val102"))
-			sl.SetState(account3, []byte("key1"), []byte("val301"))
-			sl.SetState(account3, []byte("key2"), []byte("val302"))
-			sl.Finalise()
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			isSuicide := sl.HasSuicide(account1)
-			assert.Equal(t, isSuicide, false)
-			assert.Equal(t, uint64(1), sl.Version())
-
-			// set contract account data in block 2
-			// account1: key1=val1011, key2=val102
-			// account2: key1=val201, key2=val202
-			// account3: key1=val3011, key2=val3021
-			sl.blockHeight = 2
-			sl.SetState(account1, []byte("key1"), []byte("val1011"))
-			sl.SetState(account2, []byte("key1"), []byte("val201"))
-			sl.SetState(account2, []byte("key2"), []byte("val202"))
-			sl.SetState(account3, []byte("key1"), []byte("val3011"))
-			sl.SetState(account3, []byte("key2"), []byte("val3021"))
-			sl.Finalise()
-			stateRoot2, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(2), sl.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
-
-			// set contract account data in block 3
-			// account1: key1=val1013, key2=val102
-			// account2: key1=val2011, key2=nil
-			// account3: key1=nil, key2=nil
-			sl.blockHeight = 3
-			sl.SetState(account1, []byte("key1"), []byte("val1013"))
-			sl.SetState(account2, []byte("key1"), []byte("val2011"))
-			sl.SetState(account2, []byte("key2"), nil)
-			sl.SetState(account3, []byte("key1"), nil)
-			sl.SetState(account3, []byte("key2"), nil)
-			sl.Finalise()
-			stateRoot3, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(3), sl.Version())
-			assert.NotEqual(t, stateRoot2, stateRoot3)
-
-			// set contract account data in block 4 (same with block 3)
-			// account1: key1=val1013, key2=val102
-			// account2: key1=val2011, key2=nil
-			// account3: key1=nil, key2=nil
-			sl.blockHeight = 4
-			sl.Finalise()
-			stateRoot4, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(4), sl.Version())
-			assert.Equal(t, stateRoot3, stateRoot4)
-
-			// set contract account data in block 5
-			// account1: key1=val1015, key2=val1025
-			// account2: key1=val2015, key2=val2025
-			// account3: key1=val3015, key2=val3025
-			sl.blockHeight = 5
-			sl.SetState(account1, []byte("key1"), []byte("val1015"))
-			sl.SetState(account1, []byte("key2"), []byte("val1025"))
-			sl.SetState(account2, []byte("key1"), []byte("val2015"))
-			sl.SetState(account2, []byte("key2"), []byte("val2025"))
-			sl.SetState(account3, []byte("key1"), []byte("val3015"))
-			sl.SetState(account3, []byte("key2"), []byte("val3025"))
-			sl.Finalise()
-			stateRoot5, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(5), sl.Version())
-			assert.NotEqual(t, stateRoot4, stateRoot5)
-
-			// check state ledger in block 1
-			block1 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    1,
-					StateRoot: stateRoot1,
-				},
-			}
-			lg1 := sl.NewViewWithoutCache(block1, false)
-			exist, a1k1 := lg1.GetState(account1, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val101"), a1k1)
-			exist, a1k2 := lg1.GetState(account1, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val102"), a1k2)
-			exist, _ = lg1.GetState(account2, []byte("key1"))
-			assert.False(t, exist)
-			exist, a3k1 := lg1.GetState(account3, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val301"), a3k1)
-			exist, a3k2 := lg1.GetState(account3, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val302"), a3k2)
-
-			// check state ledger in block 2
-			block2 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    2,
-					StateRoot: stateRoot2,
-				},
-			}
-			lg2 := sl.NewViewWithoutCache(block2, false)
-			exist, a1k1 = lg2.GetState(account1, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1011"), a1k1)
-			exist, a1k2 = lg2.GetState(account1, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val102"), a1k2)
-			exist, a2k1 := lg2.GetState(account2, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val201"), a2k1)
-			exist, a2k2 := lg2.GetState(account2, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val202"), a2k2)
-			exist, a3k1 = lg2.GetState(account3, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val3011"), a3k1)
-			exist, a3k2 = lg2.GetState(account3, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val3021"), a3k2)
-
-			// check state ledger in block 3
-			block3 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    3,
-					StateRoot: stateRoot3,
-				},
-			}
-			lg3 := sl.NewViewWithoutCache(block3, false)
-			exist, a1k1 = lg3.GetState(account1, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1013"), a1k1)
-			exist, a1k2 = lg3.GetState(account1, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val102"), a1k2)
-			exist, a2k1 = lg3.GetState(account2, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val2011"), a2k1)
-			exist, a2k2 = lg3.GetState(account2, []byte("key2"))
-			assert.False(t, exist)
-			exist, a3k1 = lg3.GetState(account3, []byte("key1"))
-			assert.False(t, exist)
-			exist, a3k2 = lg3.GetState(account3, []byte("key2"))
-			assert.False(t, exist)
-
-			// check state ledger in block 4
-			block4 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    4,
-					StateRoot: stateRoot4,
-				},
-			}
-			lg4 := sl.NewViewWithoutCache(block4, false)
-			exist, a1k1 = lg4.GetState(account1, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1013"), a1k1)
-			exist, a1k2 = lg4.GetState(account1, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val102"), a1k2)
-			exist, a2k1 = lg4.GetState(account2, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val2011"), a2k1)
-			exist, a2k2 = lg4.GetState(account2, []byte("key2"))
-			assert.False(t, exist)
-			exist, a3k1 = lg4.GetState(account3, []byte("key1"))
-			assert.False(t, exist)
-			exist, a3k2 = lg4.GetState(account3, []byte("key2"))
-			assert.False(t, exist)
-
-			// check state ledger in block 5
-			block5 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    5,
-					StateRoot: stateRoot5,
-				},
-			}
-			lg5 := sl.NewViewWithoutCache(block5, false)
-			exist, a1k1 = lg5.GetState(account1, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1015"), a1k1)
-			exist, a1k2 = lg5.GetState(account1, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1025"), a1k2)
-			exist, a2k1 = lg5.GetState(account2, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val2015"), a2k1)
-			exist, a2k2 = lg5.GetState(account2, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val2025"), a2k2)
-			exist, a3k1 = lg5.GetState(account3, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val3015"), a3k1)
-			exist, a3k2 = lg5.GetState(account3, []byte("key2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val3025"), a3k2)
-		})
+	// check state ledger in block 2
+	block2 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    2,
+			StateRoot: stateRoot2,
+		},
 	}
+	lg2 := sl.NewViewWithoutCache(block2, false)
+	exist, a1k1 = lg2.GetState(account1, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1011"), a1k1)
+	exist, a1k2 = lg2.GetState(account1, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val102"), a1k2)
+	exist, a2k1 := lg2.GetState(account2, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val201"), a2k1)
+	exist, a2k2 := lg2.GetState(account2, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val202"), a2k2)
+	exist, a3k1 = lg2.GetState(account3, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val3011"), a3k1)
+	exist, a3k2 = lg2.GetState(account3, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val3021"), a3k2)
+
+	// check state ledger in block 3
+	block3 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    3,
+			StateRoot: stateRoot3,
+		},
+	}
+	lg3 := sl.NewViewWithoutCache(block3, false)
+	exist, a1k1 = lg3.GetState(account1, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1013"), a1k1)
+	exist, a1k2 = lg3.GetState(account1, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val102"), a1k2)
+	exist, a2k1 = lg3.GetState(account2, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val2011"), a2k1)
+	exist, a2k2 = lg3.GetState(account2, []byte("key2"))
+	assert.False(t, exist)
+	exist, a3k1 = lg3.GetState(account3, []byte("key1"))
+	assert.False(t, exist)
+	exist, a3k2 = lg3.GetState(account3, []byte("key2"))
+	assert.False(t, exist)
+
+	// check state ledger in block 4
+	block4 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    4,
+			StateRoot: stateRoot4,
+		},
+	}
+	lg4 := sl.NewViewWithoutCache(block4, false)
+	exist, a1k1 = lg4.GetState(account1, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1013"), a1k1)
+	exist, a1k2 = lg4.GetState(account1, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val102"), a1k2)
+	exist, a2k1 = lg4.GetState(account2, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val2011"), a2k1)
+	exist, a2k2 = lg4.GetState(account2, []byte("key2"))
+	assert.False(t, exist)
+	exist, a3k1 = lg4.GetState(account3, []byte("key1"))
+	assert.False(t, exist)
+	exist, a3k2 = lg4.GetState(account3, []byte("key2"))
+	assert.False(t, exist)
+
+	// check state ledger in block 5
+	block5 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    5,
+			StateRoot: stateRoot5,
+		},
+	}
+	lg5 := sl.NewViewWithoutCache(block5, false)
+	exist, a1k1 = lg5.GetState(account1, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1015"), a1k1)
+	exist, a1k2 = lg5.GetState(account1, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1025"), a1k2)
+	exist, a2k1 = lg5.GetState(account2, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val2015"), a2k1)
+	exist, a2k2 = lg5.GetState(account2, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val2025"), a2k2)
+	exist, a3k1 = lg5.GetState(account3, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val3015"), a3k1)
+	exist, a3k2 = lg5.GetState(account3, []byte("key2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val3025"), a3k2)
 }
 
 func TestStateLedger_ContractCodeHistory(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
+
+	// create an account
+	eoaAccount := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+	contractAccount := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+
+	// set account data in block 1
+	// account1: nonce=1
+	// account2: key1=val1,code=code1
+	sl.blockHeight = 1
+	sl.SetNonce(eoaAccount, 1)
+	code1 := sha256.Sum256([]byte("code1"))
+	sl.SetState(contractAccount, []byte("key1"), []byte("val1"))
+	sl.SetCode(contractAccount, code1[:])
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(1), sl.Version())
+
+	// set account data in block 2
+	// account1: nonce=1
+	// account2: key1=val1,code=code2
+	sl.blockHeight = 2
+	code2 := sha256.Sum256([]byte("code2"))
+	sl.SetCode(contractAccount, code2[:])
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.NotNil(t, stateRoot2)
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(2), sl.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
+
+	// set account data in block 3
+	// account1: nonce=2
+	// account2: key1=val1,code=code2
+	sl.blockHeight = 3
+	sl.SetNonce(eoaAccount, 2)
+	sl.Finalise()
+	stateRoot3, err := sl.Commit()
+	assert.NotNil(t, stateRoot3)
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(3), sl.Version())
+	assert.NotEqual(t, stateRoot2, stateRoot3)
+
+	// check state ledger in block 1
+	block1 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    1,
+			StateRoot: stateRoot1,
+		},
 	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg1 := sl.NewViewWithoutCache(block1, false)
+	assert.Equal(t, uint64(1), lg1.GetNonce(eoaAccount))
+	exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1"), a2k1)
+	assert.Equal(t, code1[:], lg1.GetCode(contractAccount))
 
-			// create an account
-			eoaAccount := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-			contractAccount := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-
-			// set account data in block 1
-			// account1: nonce=1
-			// account2: key1=val1,code=code1
-			sl.blockHeight = 1
-			sl.SetNonce(eoaAccount, 1)
-			code1 := sha256.Sum256([]byte("code1"))
-			sl.SetState(contractAccount, []byte("key1"), []byte("val1"))
-			sl.SetCode(contractAccount, code1[:])
-			sl.Finalise()
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(1), sl.Version())
-
-			// set account data in block 2
-			// account1: nonce=1
-			// account2: key1=val1,code=code2
-			sl.blockHeight = 2
-			code2 := sha256.Sum256([]byte("code2"))
-			sl.SetCode(contractAccount, code2[:])
-			sl.Finalise()
-			stateRoot2, err := sl.Commit()
-			assert.NotNil(t, stateRoot2)
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(2), sl.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
-
-			// set account data in block 3
-			// account1: nonce=2
-			// account2: key1=val1,code=code2
-			sl.blockHeight = 3
-			sl.SetNonce(eoaAccount, 2)
-			sl.Finalise()
-			stateRoot3, err := sl.Commit()
-			assert.NotNil(t, stateRoot3)
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(3), sl.Version())
-			assert.NotEqual(t, stateRoot2, stateRoot3)
-
-			// check state ledger in block 1
-			block1 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    1,
-					StateRoot: stateRoot1,
-				},
-			}
-			lg1 := sl.NewViewWithoutCache(block1, false)
-			assert.Equal(t, uint64(1), lg1.GetNonce(eoaAccount))
-			exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1"), a2k1)
-			assert.Equal(t, code1[:], lg1.GetCode(contractAccount))
-
-			// check state ledger in block 2
-			block2 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    2,
-					StateRoot: stateRoot2,
-				},
-			}
-			lg2 := sl.NewViewWithoutCache(block2, false)
-			assert.Equal(t, uint64(1), lg2.GetNonce(eoaAccount))
-			exist, a2k1 = lg2.GetState(contractAccount, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1"), a2k1)
-			assert.Equal(t, code2[:], lg2.GetCode(contractAccount))
-
-			// check state ledger in block 3
-			block3 := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number:    3,
-					StateRoot: stateRoot3,
-				},
-			}
-			lg3 := sl.NewViewWithoutCache(block3, false)
-			assert.Equal(t, uint64(2), lg3.GetNonce(eoaAccount))
-			exist, a2k1 = lg3.GetState(contractAccount, []byte("key1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("val1"), a2k1)
-			assert.Equal(t, code2[:], lg3.GetCode(contractAccount))
-		})
+	// check state ledger in block 2
+	block2 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    2,
+			StateRoot: stateRoot2,
+		},
 	}
+	lg2 := sl.NewViewWithoutCache(block2, false)
+	assert.Equal(t, uint64(1), lg2.GetNonce(eoaAccount))
+	exist, a2k1 = lg2.GetState(contractAccount, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1"), a2k1)
+	assert.Equal(t, code2[:], lg2.GetCode(contractAccount))
+
+	// check state ledger in block 3
+	block3 := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:    3,
+			StateRoot: stateRoot3,
+		},
+	}
+	lg3 := sl.NewViewWithoutCache(block3, false)
+	assert.Equal(t, uint64(2), lg3.GetNonce(eoaAccount))
+	exist, a2k1 = lg3.GetState(contractAccount, []byte("key1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("val1"), a2k1)
+	assert.Equal(t, code2[:], lg3.GetCode(contractAccount))
 }
 
 func TestStateLedger_RollbackToAccountHistoryVersion(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
 
-			// create an account
-			account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-			account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-			account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+	// create an account
+	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
 
-			// set EOA account data in block 1
-			// account1: balance=101, nonce=0
-			// account2: balance=201, nonce=0
-			// account3: balance=301, nonce=0
-			sl.blockHeight = 1
-			sl.SetBalance(account1, new(big.Int).SetInt64(101))
-			sl.SetBalance(account2, new(big.Int).SetInt64(201))
-			sl.SetNonce(account1, 1)
-			sl.SetNonce(account2, 2)
-			sl.Finalise()
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(1, stateRoot1))
-			isSuicide := sl.HasSuicide(account1)
-			assert.Equal(t, isSuicide, false)
-			assert.Equal(t, uint64(1), sl.Version())
+	// set EOA account data in block 1
+	// account1: balance=101, nonce=0
+	// account2: balance=201, nonce=0
+	// account3: balance=301, nonce=0
+	sl.blockHeight = 1
+	sl.SetBalance(account1, new(big.Int).SetInt64(101))
+	sl.SetBalance(account2, new(big.Int).SetInt64(201))
+	sl.SetNonce(account1, 1)
+	sl.SetNonce(account2, 2)
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(1, stateRoot1))
+	isSuicide := sl.HasSuicide(account1)
+	assert.Equal(t, isSuicide, false)
+	assert.Equal(t, uint64(1), sl.Version())
 
-			// set EOA account data in block 2
-			// account1: balance=102, nonce=12
-			// account2: balance=201, nonce=22
-			// account3: balance=302, nonce=32
-			sl.blockHeight = 2
-			sl.SetBalance(account1, new(big.Int).SetInt64(102))
-			sl.SetBalance(account3, new(big.Int).SetInt64(302))
-			sl.SetNonce(account1, 12)
-			sl.SetNonce(account2, 22)
-			sl.SetNonce(account3, 32)
-			sl.Finalise()
-			stateRoot2, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(2, stateRoot2))
-			assert.Equal(t, uint64(2), sl.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
+	// set EOA account data in block 2
+	// account1: balance=102, nonce=12
+	// account2: balance=201, nonce=22
+	// account3: balance=302, nonce=32
+	sl.blockHeight = 2
+	sl.SetBalance(account1, new(big.Int).SetInt64(102))
+	sl.SetBalance(account3, new(big.Int).SetInt64(302))
+	sl.SetNonce(account1, 12)
+	sl.SetNonce(account2, 22)
+	sl.SetNonce(account3, 32)
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(2, stateRoot2))
+	assert.Equal(t, uint64(2), sl.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
 
-			// set EOA account data in block 3
-			// account1: balance=103, nonce=13
-			// account2: balance=203, nonce=23
-			// account3: balance=302, nonce=32
-			sl.blockHeight = 3
-			sl.SetBalance(account1, new(big.Int).SetInt64(103))
-			sl.SetBalance(account2, new(big.Int).SetInt64(203))
-			sl.SetNonce(account1, 13)
-			sl.SetNonce(account2, 23)
-			sl.Finalise()
-			stateRoot3, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(3, stateRoot3))
-			assert.Equal(t, uint64(3), sl.Version())
-			assert.NotEqual(t, stateRoot2, stateRoot3)
+	// set EOA account data in block 3
+	// account1: balance=103, nonce=13
+	// account2: balance=203, nonce=23
+	// account3: balance=302, nonce=32
+	sl.blockHeight = 3
+	sl.SetBalance(account1, new(big.Int).SetInt64(103))
+	sl.SetBalance(account2, new(big.Int).SetInt64(203))
+	sl.SetNonce(account1, 13)
+	sl.SetNonce(account2, 23)
+	sl.Finalise()
+	stateRoot3, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(3, stateRoot3))
+	assert.Equal(t, uint64(3), sl.Version())
+	assert.NotEqual(t, stateRoot2, stateRoot3)
 
-			// revert from block 3 to block 2
-			err = lg.Rollback(2)
-			assert.Nil(t, err)
+	// revert from block 3 to block 2
+	err = lg.Rollback(2)
+	assert.Nil(t, err)
 
-			// check state ledger in block 2
-			lg = lg.NewViewWithoutCache()
-			assert.Equal(t, uint64(102), lg.StateLedger.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(201), lg.StateLedger.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(302), lg.StateLedger.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(12), lg.StateLedger.GetNonce(account1))
-			assert.Equal(t, uint64(22), lg.StateLedger.GetNonce(account2))
-			assert.Equal(t, uint64(32), lg.StateLedger.GetNonce(account3))
+	// check state ledger in block 2
+	lg = lg.NewViewWithoutCache()
+	assert.Equal(t, uint64(102), lg.StateLedger.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(201), lg.StateLedger.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(302), lg.StateLedger.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(12), lg.StateLedger.GetNonce(account1))
+	assert.Equal(t, uint64(22), lg.StateLedger.GetNonce(account2))
+	assert.Equal(t, uint64(32), lg.StateLedger.GetNonce(account3))
 
-			// revert from block 2 to block 1
-			err = lg.Rollback(1)
-			assert.Nil(t, err)
+	// revert from block 2 to block 1
+	err = lg.Rollback(1)
+	assert.Nil(t, err)
 
-			// check state ledger in block 1
-			assert.Equal(t, uint64(101), lg.StateLedger.GetBalance(account1).Uint64())
-			assert.Equal(t, uint64(201), lg.StateLedger.GetBalance(account2).Uint64())
-			assert.Equal(t, uint64(0), lg.StateLedger.GetBalance(account3).Uint64())
-			assert.Equal(t, uint64(1), lg.StateLedger.GetNonce(account1))
-			assert.Equal(t, uint64(2), lg.StateLedger.GetNonce(account2))
-			assert.Equal(t, uint64(0), lg.StateLedger.GetNonce(account3))
+	// check state ledger in block 1
+	assert.Equal(t, uint64(101), lg.StateLedger.GetBalance(account1).Uint64())
+	assert.Equal(t, uint64(201), lg.StateLedger.GetBalance(account2).Uint64())
+	assert.Equal(t, uint64(0), lg.StateLedger.GetBalance(account3).Uint64())
+	assert.Equal(t, uint64(1), lg.StateLedger.GetNonce(account1))
+	assert.Equal(t, uint64(2), lg.StateLedger.GetNonce(account2))
+	assert.Equal(t, uint64(0), lg.StateLedger.GetNonce(account3))
 
-			// revert from block 1 to block 3
-			err = lg.Rollback(3)
-			assert.NotNil(t, err)
-		})
-	}
+	// revert from block 1 to block 3
+	err = lg.Rollback(3)
+	assert.NotNil(t, err)
 }
 
 func TestStateLedger_RollbackToContractHistoryVersion(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
 
-			// create an account
-			account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-			account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-			account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+	// create an account
+	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
 
-			// set contract account data in block 1
-			// account1: k1=v1
-			// account2: k2=v2
-			sl.blockHeight = 1
-			sl.SetState(account1, []byte("k1"), []byte("v1"))
-			sl.SetState(account2, []byte("k2"), []byte("v2"))
-			sl.Finalise()
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(1, stateRoot1))
-			assert.Equal(t, uint64(1), sl.Version())
+	// set contract account data in block 1
+	// account1: k1=v1
+	// account2: k2=v2
+	sl.blockHeight = 1
+	sl.SetState(account1, []byte("k1"), []byte("v1"))
+	sl.SetState(account2, []byte("k2"), []byte("v2"))
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(1, stateRoot1))
+	assert.Equal(t, uint64(1), sl.Version())
 
-			// set contract account data in block 2
-			// account1: k1=v1, k11=v11
-			// account2: k2=v22
-			// account3: k3=v3
-			sl.blockHeight = 2
-			sl.SetState(account1, []byte("k11"), []byte("v11"))
-			sl.SetState(account2, []byte("k2"), []byte("v22"))
-			sl.SetState(account3, []byte("k3"), []byte("v3"))
-			sl.Finalise()
-			stateRoot2, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(2, stateRoot2))
-			assert.Equal(t, uint64(2), sl.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
+	// set contract account data in block 2
+	// account1: k1=v1, k11=v11
+	// account2: k2=v22
+	// account3: k3=v3
+	sl.blockHeight = 2
+	sl.SetState(account1, []byte("k11"), []byte("v11"))
+	sl.SetState(account2, []byte("k2"), []byte("v22"))
+	sl.SetState(account3, []byte("k3"), []byte("v3"))
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(2, stateRoot2))
+	assert.Equal(t, uint64(2), sl.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
 
-			// set contract account data in block 3
-			// account1: k1=v111, k11=nil
-			// account2: k2=v222
-			// account3: k3=v33
-			sl.blockHeight = 3
-			sl.SetState(account1, []byte("k1"), []byte("v111"))
-			sl.SetState(account1, []byte("k11"), nil)
-			sl.SetState(account2, []byte("k2"), []byte("v222"))
-			sl.SetState(account3, []byte("k3"), []byte("v33"))
-			sl.Finalise()
-			stateRoot3, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(3, stateRoot3))
-			assert.Equal(t, uint64(3), sl.Version())
-			assert.NotEqual(t, stateRoot2, stateRoot3)
+	// set contract account data in block 3
+	// account1: k1=v111, k11=nil
+	// account2: k2=v222
+	// account3: k3=v33
+	sl.blockHeight = 3
+	sl.SetState(account1, []byte("k1"), []byte("v111"))
+	sl.SetState(account1, []byte("k11"), nil)
+	sl.SetState(account2, []byte("k2"), []byte("v222"))
+	sl.SetState(account3, []byte("k3"), []byte("v33"))
+	sl.Finalise()
+	stateRoot3, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(3, stateRoot3))
+	assert.Equal(t, uint64(3), sl.Version())
+	assert.NotEqual(t, stateRoot2, stateRoot3)
 
-			// set contract account data in block 4
-			// account1: k1=v111, k11=v1111
-			// account2: k2=v222
-			// account3: k3=v33
-			sl.blockHeight = 4
-			sl.SetState(account1, []byte("k11"), []byte("v1111"))
-			sl.Finalise()
-			stateRoot4, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(4, stateRoot3))
-			assert.Equal(t, uint64(4), sl.Version())
-			assert.NotEqual(t, stateRoot4, stateRoot3)
+	// set contract account data in block 4
+	// account1: k1=v111, k11=v1111
+	// account2: k2=v222
+	// account3: k3=v33
+	sl.blockHeight = 4
+	sl.SetState(account1, []byte("k11"), []byte("v1111"))
+	sl.Finalise()
+	stateRoot4, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(4, stateRoot3))
+	assert.Equal(t, uint64(4), sl.Version())
+	assert.NotEqual(t, stateRoot4, stateRoot3)
 
-			// check state ledger in block 4
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v := lg.StateLedger.GetState(account1, []byte("k11"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v1111"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v111"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v222"), v)
-			// verify acc3
-			exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v33"), v)
+	// check state ledger in block 4
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v := lg.StateLedger.GetState(account1, []byte("k11"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v1111"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v111"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v222"), v)
+	// verify acc3
+	exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v33"), v)
 
-			// revert from block 4 to block 3
-			err = lg.Rollback(3)
-			assert.Nil(t, err)
-			fmt.Printf("lg.StateLedger.Version()=%v\n", lg.StateLedger.Version())
-			// check state ledger in block 3
-			// account1: k1=v111, k11=nil
-			// account2: k2=v222
-			// account3: k3=v33
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v = lg.StateLedger.GetState(account1, []byte("k11"))
-			assert.False(t, exist)
-			assert.Equal(t, []byte(nil), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v111"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v222"), v)
-			// verify acc3
-			exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v33"), v)
+	// revert from block 4 to block 3
+	err = lg.Rollback(3)
+	assert.Nil(t, err)
+	fmt.Printf("lg.StateLedger.Version()=%v\n", lg.StateLedger.Version())
+	// check state ledger in block 3
+	// account1: k1=v111, k11=nil
+	// account2: k2=v222
+	// account3: k3=v33
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v = lg.StateLedger.GetState(account1, []byte("k11"))
+	assert.False(t, exist)
+	assert.Equal(t, []byte(nil), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v111"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v222"), v)
+	// verify acc3
+	exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v33"), v)
 
-			// revert from block 3 to block 2
-			err = lg.Rollback(2)
-			assert.Nil(t, err)
-			// check state ledger in block 2
-			// account1: k1=v1, k11=v11
-			// account2: k2=v22
-			// account3: k3=v3
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v = lg.StateLedger.GetState(account1, []byte("k11"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v11"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v1"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v22"), v)
-			// verify acc3
-			exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v3"), v)
+	// revert from block 3 to block 2
+	err = lg.Rollback(2)
+	assert.Nil(t, err)
+	// check state ledger in block 2
+	// account1: k1=v1, k11=v11
+	// account2: k2=v22
+	// account3: k3=v3
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v = lg.StateLedger.GetState(account1, []byte("k11"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v11"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v1"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v22"), v)
+	// verify acc3
+	exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v3"), v)
 
-			// revert from block 2 to block 1
-			err = lg.Rollback(1)
-			assert.Nil(t, err)
-			// check state ledger in block 1
-			// account1: k1=v1
-			// account2: k2=v2
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v = lg.StateLedger.GetState(account1, []byte("k11"))
-			assert.False(t, exist)
-			assert.Equal(t, []byte(nil), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v1"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v2"), v)
-			// verify acc3
-			exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
-			assert.False(t, exist)
-			assert.Equal(t, []byte(nil), v)
-		})
-	}
+	// revert from block 2 to block 1
+	err = lg.Rollback(1)
+	assert.Nil(t, err)
+	// check state ledger in block 1
+	// account1: k1=v1
+	// account2: k2=v2
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v = lg.StateLedger.GetState(account1, []byte("k11"))
+	assert.False(t, exist)
+	assert.Equal(t, []byte(nil), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v1"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v2"), v)
+	// verify acc3
+	exist, v = lg.StateLedger.GetState(account3, []byte("k3"))
+	assert.False(t, exist)
+	assert.Equal(t, []byte(nil), v)
 }
 
 func TestStateLedger_ReplayAfterAccountRollback(t *testing.T) {
@@ -1837,195 +1824,175 @@ func TestStateLedger_ReplayAfterAccountRollback(t *testing.T) {
 }
 
 func TestStateLedger_ReplayAfterStateRollback(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
 
-			// create an account
-			account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-			account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
+	// create an account
+	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
+	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
 
-			// set contract account data in block 1
-			// account1: k1=v1,k2=v2
-			// account2: k2=v2
-			sl.blockHeight = 1
-			sl.SetState(account1, []byte("k1"), []byte("v1"))
-			sl.SetState(account1, []byte("k2"), []byte("v2"))
-			sl.SetState(account2, []byte("k2"), []byte("v2"))
-			sl.Finalise()
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(1, stateRoot1))
-			assert.Equal(t, uint64(1), sl.Version())
+	// set contract account data in block 1
+	// account1: k1=v1,k2=v2
+	// account2: k2=v2
+	sl.blockHeight = 1
+	sl.SetState(account1, []byte("k1"), []byte("v1"))
+	sl.SetState(account1, []byte("k2"), []byte("v2"))
+	sl.SetState(account2, []byte("k2"), []byte("v2"))
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(1, stateRoot1))
+	assert.Equal(t, uint64(1), sl.Version())
 
-			// set contract account data in block 2
-			// account1: k1=v1, k2=v22, k3=v3
-			// account2: k2=v22
-			sl.blockHeight = 2
-			sl.SetState(account1, []byte("k2"), []byte("v22"))
-			sl.SetState(account1, []byte("k3"), []byte("v3"))
-			sl.SetState(account2, []byte("k2"), []byte("v22"))
-			sl.Finalise()
-			stateRoot2, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(2, stateRoot2))
-			assert.Equal(t, uint64(2), sl.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
+	// set contract account data in block 2
+	// account1: k1=v1, k2=v22, k3=v3
+	// account2: k2=v22
+	sl.blockHeight = 2
+	sl.SetState(account1, []byte("k2"), []byte("v22"))
+	sl.SetState(account1, []byte("k3"), []byte("v3"))
+	sl.SetState(account2, []byte("k2"), []byte("v22"))
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(2, stateRoot2))
+	assert.Equal(t, uint64(2), sl.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
 
-			// check state ledger in block 2
-			// account1: k1=v1, k2=v22, k3=v3
-			// account2: k2=v22
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v := lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v1"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v22"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k3"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v3"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v22"), v)
+	// check state ledger in block 2
+	// account1: k1=v1, k2=v22, k3=v3
+	// account2: k2=v22
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v := lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v1"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v22"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k3"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v3"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v22"), v)
 
-			// revert from block 2 to block 1
-			err = lg.Rollback(1)
-			assert.Nil(t, err)
-			// replay block 2 with the same state
-			sl.blockHeight = 2
-			sl.SetState(account1, []byte("k2"), []byte("v22"))
-			sl.SetState(account2, []byte("k2"), []byte("v22"))
-			sl.SetState(account1, []byte("k3"), []byte("v3"))
-			sl.Finalise()
-			stateRoot2AfterReplay1, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(2, stateRoot2AfterReplay1))
-			assert.Equal(t, stateRoot2AfterReplay1, stateRoot2)
+	// revert from block 2 to block 1
+	err = lg.Rollback(1)
+	assert.Nil(t, err)
+	// replay block 2 with the same state
+	sl.blockHeight = 2
+	sl.SetState(account1, []byte("k2"), []byte("v22"))
+	sl.SetState(account2, []byte("k2"), []byte("v22"))
+	sl.SetState(account1, []byte("k3"), []byte("v3"))
+	sl.Finalise()
+	stateRoot2AfterReplay1, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(2, stateRoot2AfterReplay1))
+	assert.Equal(t, stateRoot2AfterReplay1, stateRoot2)
 
-			// check state ledger in block 2 after replay
-			// account1: k1=v1, k2=v22, k3=v3
-			// account2: k2=v22
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v1"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v22"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k3"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v3"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v22"), v)
+	// check state ledger in block 2 after replay
+	// account1: k1=v1, k2=v22, k3=v3
+	// account2: k2=v22
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v1"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v22"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k3"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v3"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v22"), v)
 
-			// revert from block 2 to block 1
-			err = lg.Rollback(1)
-			assert.Nil(t, err)
-			// replay block 2 with different state
-			sl.blockHeight = 2
-			sl.SetState(account1, []byte("k2"), []byte("v222"))
-			sl.SetState(account2, []byte("k2"), []byte("v222"))
-			sl.SetState(account1, []byte("k3"), []byte("v33"))
-			sl.Finalise()
-			stateRoot2AfterReplay2, err := sl.Commit()
-			assert.Nil(t, err)
-			lg.PersistBlockData(genBlockData(2, stateRoot2AfterReplay2))
-			assert.NotEqual(t, stateRoot2AfterReplay2, stateRoot2)
+	// revert from block 2 to block 1
+	err = lg.Rollback(1)
+	assert.Nil(t, err)
+	// replay block 2 with different state
+	sl.blockHeight = 2
+	sl.SetState(account1, []byte("k2"), []byte("v222"))
+	sl.SetState(account2, []byte("k2"), []byte("v222"))
+	sl.SetState(account1, []byte("k3"), []byte("v33"))
+	sl.Finalise()
+	stateRoot2AfterReplay2, err := sl.Commit()
+	assert.Nil(t, err)
+	lg.PersistBlockData(genBlockData(2, stateRoot2AfterReplay2))
+	assert.NotEqual(t, stateRoot2AfterReplay2, stateRoot2)
 
-			// check state ledger in block 2 after second replay
-			// account1: k1=v1, k2=v222, k3=v33
-			// account2: k2=v222
-			lg = lg.NewViewWithoutCache()
-			// verify acc1
-			exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v1"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v222"), v)
-			exist, v = lg.StateLedger.GetState(account1, []byte("k3"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v33"), v)
-			// verify acc2
-			exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("v222"), v)
-		})
-	}
+	// check state ledger in block 2 after second replay
+	// account1: k1=v1, k2=v222, k3=v33
+	// account2: k2=v222
+	lg = lg.NewViewWithoutCache()
+	// verify acc1
+	exist, v = lg.StateLedger.GetState(account1, []byte("k1"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v1"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v222"), v)
+	exist, v = lg.StateLedger.GetState(account1, []byte("k3"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v33"), v)
+	// verify acc2
+	exist, v = lg.StateLedger.GetState(account2, []byte("k2"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("v222"), v)
 }
 
 func TestStateLedger_AccountSuicide(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			lg, _ := initLedger(t, "", tc.kvType)
-			sl := lg.StateLedger.(*StateLedgerImpl)
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
 
-			// create an account
-			account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+	// create an account
+	account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 
-			sl.blockHeight = 1
-			sl.SetState(account, []byte("a"), []byte("b"))
-			sl.Finalise()
-			stateRoot1, err := sl.Commit()
-			assert.NotNil(t, stateRoot1)
-			assert.Nil(t, err)
-			assert.Equal(t, sl.HasSuicide(account), false)
-			assert.Equal(t, uint64(1), sl.Version())
+	sl.blockHeight = 1
+	sl.SetState(account, []byte("a"), []byte("b"))
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+	assert.Equal(t, sl.HasSuicide(account), false)
+	assert.Equal(t, uint64(1), sl.Version())
 
-			code := RightPadBytes([]byte{100}, 100)
-			lg.StateLedger.SetCode(account, code)
-			lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
-			sl.blockHeight = 2
-			sl.Finalise()
-			stateRoot2, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(2), lg.StateLedger.Version())
-			assert.NotEqual(t, stateRoot1, stateRoot2)
+	code := RightPadBytes([]byte{100}, 100)
+	lg.StateLedger.SetCode(account, code)
+	lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
+	sl.blockHeight = 2
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(2), lg.StateLedger.Version())
+	assert.NotEqual(t, stateRoot1, stateRoot2)
 
-			exist, va := sl.GetState(account, []byte("a"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("b"), va)
+	exist, va := sl.GetState(account, []byte("a"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("b"), va)
 
-			exist, vb := sl.GetState(account, []byte("b"))
-			assert.True(t, exist)
-			assert.Equal(t, []byte("3"), vb)
+	exist, vb := sl.GetState(account, []byte("b"))
+	assert.True(t, exist)
+	assert.Equal(t, []byte("3"), vb)
 
-			acc := sl.GetAccount(account)
-			assert.NotNil(t, acc)
+	acc := sl.GetAccount(account)
+	assert.NotNil(t, acc)
 
-			// suicide account
-			evmLg := &EvmStateDBAdaptor{StateLedger: lg.StateLedger}
-			evmLg.Suicide(account.ETHAddress())
-			sl.blockHeight = 3
-			stateRoot3, err := sl.Commit()
-			assert.Nil(t, err)
-			assert.Equal(t, uint64(3), lg.StateLedger.Version())
-			assert.NotEqual(t, stateRoot2, stateRoot3)
+	// suicide account
+	evmLg := &EvmStateDBAdaptor{StateLedger: lg.StateLedger}
+	evmLg.Suicide(account.ETHAddress())
+	sl.blockHeight = 3
+	stateRoot3, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(3), lg.StateLedger.Version())
+	assert.NotEqual(t, stateRoot2, stateRoot3)
 
-			acc = sl.GetAccount(account)
-			assert.Nil(t, acc)
-		})
-	}
+	acc = sl.GetAccount(account)
+	assert.Nil(t, acc)
 }
 
 // =========================== Test Trie Snapshot ===========================
@@ -2035,9 +2002,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 	sl := lg.StateLedger.(*StateLedgerImpl)
 
 	// create an account
-	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+	account1 := types.NewAddressByStr("dac17f958d2ee523a2206206994597c13d831ec7")
+	account2 := types.NewAddressByStr("0000000000000000000000000000000000000007")
+	account3 := types.NewAddressByStr("9000000000000000000000000000000000000000")
 
 	// set EOA account data in block 1
 	// account1: balance=101, nonce=0
@@ -2279,6 +2246,26 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, block5.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
 	})
+
+	t.Run("test iterate and verify trie error", func(t *testing.T) {
+		// iterate trie of block 5
+		block5 := &types.Block{
+			BlockHeader: &types.BlockHeader{
+				Number:    5,
+				StateRoot: stateRoot5,
+			},
+		}
+		s5 := initKVStorage(createMockRepo(t).RepoRoot)
+		errC5 := make(chan error)
+		sl.getEpochInfoFunc = func(epoch uint64) (*rbft.EpochInfo, error) {
+			return nil, errors.Errorf("getEpochInfoFunc error test")
+		}
+		go sl.IterateTrie(block5, s5, errC5)
+		err, ok := <-errC5
+		assert.True(t, ok)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "getEpochInfoFunc error test")
+	})
 }
 
 func TestStateLedger_IterateStorageTrie(t *testing.T) {
@@ -2286,9 +2273,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 	sl := lg.StateLedger.(*StateLedgerImpl)
 
 	// create an account
-	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-	account3 := types.NewAddress(LeftPadBytes([]byte{103}, 20))
+	account1 := types.NewAddressByStr("dac17f958d2ee523a2206206994597c13d831ec7")
+	account2 := types.NewAddressByStr("0000000000000000000000000000000000000007")
+	account3 := types.NewAddressByStr("9000000000000000000000000000000000000000")
 
 	// set storage account data in block 1
 	// account1: k1=v1
@@ -2590,12 +2577,12 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	require.Nil(t, meta)
 	require.Equal(t, err, ErrNotFound)
 
-	sl.cachedDB.Put([]byte(trieBlockKey), []byte{1})
+	sl.cachedDB.Put([]byte(utils.TrieBlockKey), []byte{1})
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
 
-	sl.cachedDB.Put([]byte(trieNodeInfoKey), []byte{1})
+	sl.cachedDB.Put([]byte(utils.TrieNodeInfoKey), []byte{1})
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2609,7 +2596,7 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	blockData, err := block.Marshal()
 	require.Nil(t, err)
 	require.NotNil(t, blockData)
-	sl.cachedDB.Put([]byte(trieBlockKey), blockData)
+	sl.cachedDB.Put([]byte(utils.TrieBlockKey), blockData)
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2625,13 +2612,200 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	epochData, err := json.Marshal(epochInfo)
 	require.Nil(t, err)
 	require.NotNil(t, epochData)
-	sl.cachedDB.Put([]byte(trieNodeInfoKey), epochData)
+	sl.cachedDB.Put([]byte(utils.TrieNodeInfoKey), epochData)
 
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.NotNil(t, meta)
 	require.Nil(t, err)
 	require.Equal(t, block.BlockHeader.Epoch, meta.Block.BlockHeader.Epoch)
 	require.Equal(t, epochInfo.Epoch, meta.EpochInfo.Epoch)
+}
+
+func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
+
+	// create an account
+	account1 := types.NewAddressByStr("dac17f958d2ee523a2206206994597c13d831ec7")
+	account2 := types.NewAddressByStr("0000000000000000000000000000000000000007")
+	account3 := types.NewAddressByStr("9000000000000000000000000000000000000000")
+
+	// set storage account data in block 1
+	// account1: k1=v1
+	// account2: balance=1, nonce=2
+	sl.blockHeight = 1
+	sl.SetState(account1, []byte("k1"), []byte("v1"))
+	sl.SetCode(account1, []byte("code1"))
+	sl.SetBalance(account2, big.NewInt(1))
+	sl.SetNonce(account2, 2)
+	sl.Finalise()
+	stateRoot1, err := sl.Commit()
+	assert.NotNil(t, stateRoot1)
+	assert.Nil(t, err)
+
+	// set storage account data in block 2
+	// account1: k1=v1, k2=v2
+	// account2: balance=1, nonce=2
+	// account3: balance=3, nonce=4
+	sl.blockHeight = 2
+	sl.SetState(account1, []byte("k2"), []byte("v2"))
+	sl.SetBalance(account3, big.NewInt(3))
+	sl.SetNonce(account3, 4)
+	sl.Finalise()
+	stateRoot2, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.NotEqual(t, stateRoot1, stateRoot2)
+
+	// set storage account data in block 3 (same with block 2)
+	// account1: k1=v1, k2=v2
+	// account2: balance=1, nonce=2
+	// account3: balance=3, nonce=4
+	sl.blockHeight = 3
+	sl.Finalise()
+	stateRoot3, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(3), sl.Version())
+	assert.Equal(t, stateRoot2, stateRoot3)
+
+	// set storage account data in block 4
+	// account1: k1=v1, k2=v22
+	// account2: balance=1, nonce=5
+	// account3: balance=6, nonce=7
+	sl.blockHeight = 4
+	sl.SetState(account1, []byte("k2"), []byte("v22"))
+	sl.SetNonce(account2, 5)
+	sl.SetBalance(account3, big.NewInt(6))
+	sl.SetNonce(account3, 7)
+	sl.Finalise()
+	stateRoot4, err := sl.Commit()
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(4), sl.Version())
+	assert.NotEqual(t, stateRoot3, stateRoot4)
+
+	t.Run("test iterate and verify trie of block 1", func(t *testing.T) {
+		// iterate trie of block 1
+		block1 := &types.Block{
+			BlockHeader: &types.BlockHeader{
+				Number:    1,
+				StateRoot: stateRoot1,
+			},
+		}
+		snap := newSnapshot(t.TempDir())
+		sl.snapshot = snap
+		errC1 := make(chan error)
+		go sl.GenerateSnapshot(block1, errC1)
+		err, ok := <-errC1
+		assert.True(t, ok)
+		assert.Nil(t, err)
+
+		// check snapshot in block 1
+		val, err := snap.Storage(account1, []byte("k1"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v1"))
+		acc, err := snap.Account(account2)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(2))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(1))
+	})
+
+	t.Run("test iterate and verify trie of block 2", func(t *testing.T) {
+		// iterate trie of block 2
+		block2 := &types.Block{
+			BlockHeader: &types.BlockHeader{
+				Number:    2,
+				StateRoot: stateRoot2,
+			},
+		}
+		snap := newSnapshot(t.TempDir())
+		sl.snapshot = snap
+		errC := make(chan error)
+		go sl.GenerateSnapshot(block2, errC)
+		err, ok := <-errC
+		assert.True(t, ok)
+		assert.Nil(t, err)
+
+		// check snapshot in block 2
+		val, err := snap.Storage(account1, []byte("k1"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v1"))
+		val, err = snap.Storage(account1, []byte("k2"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v2"))
+		acc, err := snap.Account(account2)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(2))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(1))
+		acc, err = snap.Account(account3)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(4))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(3))
+	})
+
+	t.Run("test iterate and verify trie of block 3", func(t *testing.T) {
+		// iterate trie of block 3
+		block3 := &types.Block{
+			BlockHeader: &types.BlockHeader{
+				Number:    3,
+				StateRoot: stateRoot3,
+			},
+		}
+		snap := newSnapshot(t.TempDir())
+		sl.snapshot = snap
+		errC := make(chan error)
+		go sl.GenerateSnapshot(block3, errC)
+		err, ok := <-errC
+		assert.True(t, ok)
+		assert.Nil(t, err)
+
+		// check snapshot in block 3
+		val, err := snap.Storage(account1, []byte("k1"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v1"))
+		val, err = snap.Storage(account1, []byte("k2"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v2"))
+		acc, err := snap.Account(account2)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(2))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(1))
+		acc, err = snap.Account(account3)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(4))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(3))
+	})
+
+	t.Run("test iterate and verify trie of block 4", func(t *testing.T) {
+		// iterate trie of block 4
+		block4 := &types.Block{
+			BlockHeader: &types.BlockHeader{
+				Number:    4,
+				StateRoot: stateRoot4,
+			},
+		}
+		snap := newSnapshot(t.TempDir())
+		sl.snapshot = snap
+		errC := make(chan error)
+		go sl.GenerateSnapshot(block4, errC)
+		err, ok := <-errC
+		assert.True(t, ok)
+		assert.Nil(t, err)
+
+		// check snapshot in block 4
+		val, err := snap.Storage(account1, []byte("k1"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v1"))
+		val, err = snap.Storage(account1, []byte("k2"))
+		assert.Nil(t, err)
+		assert.Equal(t, val, []byte("v22"))
+		acc, err := snap.Account(account2)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(5))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(1))
+		acc, err = snap.Account(account3)
+		assert.Nil(t, err)
+		assert.Equal(t, acc.Nonce, uint64(7))
+		assert.Equal(t, acc.Balance.Uint64(), uint64(6))
+	})
 }
 
 // =========================== Test Trie Proof ===========================
@@ -2688,7 +2862,7 @@ func TestStateLedger_TrieProof(t *testing.T) {
 		assert.NotNil(t, acc3)
 		assert.NotEqual(t, "", acc3.String())
 		// prove account1 in block1
-		account1Proof, err := lg1.Prove(stateRoot1.ETHHash(), CompositeAccountKey(account1))
+		account1Proof, err := lg1.Prove(stateRoot1.ETHHash(), utils.CompositeAccountKey(account1))
 		assert.Nil(t, err)
 		verify, err := jmt.VerifyProof(stateRoot1.ETHHash(), account1Proof)
 		assert.Nil(t, err)
@@ -2697,15 +2871,15 @@ func TestStateLedger_TrieProof(t *testing.T) {
 		assert.Nil(t, err)
 		assert.False(t, verify)
 		// prove account3 in block1
-		account3Proof, err := lg1.Prove(stateRoot1.ETHHash(), CompositeAccountKey(account3))
+		account3Proof, err := lg1.Prove(stateRoot1.ETHHash(), utils.CompositeAccountKey(account3))
 		assert.Nil(t, err)
 		verify, err = jmt.VerifyProof(stateRoot1.ETHHash(), account3Proof)
 		assert.Nil(t, err)
 		assert.True(t, verify)
 		// prove account3's storage in block1
-		account3StorageProof, err := lg1.Prove(acc3.GetStorageRootHash(), CompositeStorageKey(account3, []byte("key1")))
+		account3StorageProof, err := lg1.Prove(acc3.GetStorageRootHash(), utils.CompositeStorageKey(account3, []byte("key1")))
 		assert.Nil(t, err)
-		assert.True(t, bytes.Equal(CompositeStorageKey(account3, []byte("key1")), account3StorageProof.Key))
+		assert.True(t, bytes.Equal(utils.CompositeStorageKey(account3, []byte("key1")), account3StorageProof.Key))
 		assert.Equal(t, []byte("val1"), account3StorageProof.Value)
 		verify, err = jmt.VerifyProof(acc3.GetStorageRootHash(), account3StorageProof)
 		assert.Nil(t, err)
@@ -2727,21 +2901,21 @@ func TestStateLedger_TrieProof(t *testing.T) {
 		acc3 := lg2.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 		// prove account1 in block2
-		account1Proof, err := lg2.Prove(stateRoot2.ETHHash(), CompositeAccountKey(account1))
+		account1Proof, err := lg2.Prove(stateRoot2.ETHHash(), utils.CompositeAccountKey(account1))
 		assert.Nil(t, err)
 		verify, err := jmt.VerifyProof(stateRoot2.ETHHash(), account1Proof)
 		assert.Nil(t, err)
 		assert.True(t, verify)
 		// prove account3 in block2
-		account3Proof, err := lg2.Prove(stateRoot2.ETHHash(), CompositeAccountKey(account3))
+		account3Proof, err := lg2.Prove(stateRoot2.ETHHash(), utils.CompositeAccountKey(account3))
 		assert.Nil(t, err)
 		verify, err = jmt.VerifyProof(stateRoot2.ETHHash(), account3Proof)
 		assert.Nil(t, err)
 		assert.True(t, verify)
 		// prove account3's storage in block2
-		account3StorageProof, err := lg2.Prove(acc3.GetStorageRootHash(), CompositeStorageKey(account3, []byte("key1")))
+		account3StorageProof, err := lg2.Prove(acc3.GetStorageRootHash(), utils.CompositeStorageKey(account3, []byte("key1")))
 		assert.Nil(t, err)
-		assert.True(t, bytes.Equal(CompositeStorageKey(account3, []byte("key1")), account3StorageProof.Key))
+		assert.True(t, bytes.Equal(utils.CompositeStorageKey(account3, []byte("key1")), account3StorageProof.Key))
 		assert.Equal(t, []byte("val2"), account3StorageProof.Value)
 		verify, err = jmt.VerifyProof(acc3.GetStorageRootHash(), account3StorageProof)
 		assert.Nil(t, err)
@@ -2807,7 +2981,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.NotNil(t, acc3)
 
 		// prove account1 (EOA) in block1, check validity of account1 GetProof result
-		account1Proof, err := lg1.Prove(stateRoot1.ETHHash(), CompositeAccountKey(account1))
+		account1Proof, err := lg1.Prove(stateRoot1.ETHHash(), utils.CompositeAccountKey(account1))
 		assert.Nil(t, err)
 		account1RpcProof, err := mockGetProof(account1.ETHAddress(), nil, lg1)
 		assert.True(t, equalProof(account1Proof, convertAccountProof(account1RpcProof)))
@@ -2816,7 +2990,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.True(t, verify)
 
 		// prove account3 (contract) in block1, check validity of account3 GetProof result
-		account3Proof, err := lg1.Prove(stateRoot1.ETHHash(), CompositeAccountKey(account3))
+		account3Proof, err := lg1.Prove(stateRoot1.ETHHash(), utils.CompositeAccountKey(account3))
 		assert.Nil(t, err)
 		account3RpcProof, err := mockGetProof(account3.ETHAddress(), nil, lg1)
 		assert.True(t, equalProof(account3Proof, convertAccountProof(account3RpcProof)))
@@ -2825,7 +2999,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.True(t, verify)
 
 		// prove account3's storage in block1
-		account3StorageProof, err := lg1.Prove(acc3.GetStorageRoot(), CompositeStorageKey(account3, key1[:]))
+		account3StorageProof, err := lg1.Prove(acc3.GetStorageRoot(), utils.CompositeStorageKey(account3, key1[:]))
 		assert.Nil(t, err)
 		account3Key1RpcProof, err := mockGetProof(account3.ETHAddress(), []string{"0x1"}, lg1)
 		assert.Nil(t, err)
@@ -2847,7 +3021,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.NotNil(t, acc3)
 
 		// prove account1 (EOA) in block2, check validity of account1 GetProof result
-		account1Proof, err := lg2.Prove(stateRoot2.ETHHash(), CompositeAccountKey(account1))
+		account1Proof, err := lg2.Prove(stateRoot2.ETHHash(), utils.CompositeAccountKey(account1))
 		assert.Nil(t, err)
 		account1RpcProof, err := mockGetProof(account1.ETHAddress(), nil, lg2)
 		assert.True(t, equalProof(account1Proof, convertAccountProof(account1RpcProof)))
@@ -2861,7 +3035,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.False(t, verify)
 
 		// prove account3 (contract) in block2, check validity of account3 GetProof result
-		account3Proof, err := lg2.Prove(stateRoot2.ETHHash(), CompositeAccountKey(account3))
+		account3Proof, err := lg2.Prove(stateRoot2.ETHHash(), utils.CompositeAccountKey(account3))
 		assert.Nil(t, err)
 		account3RpcProof, err := mockGetProof(account3.ETHAddress(), nil, lg2)
 		assert.True(t, equalProof(account3Proof, convertAccountProof(account3RpcProof)))
@@ -2875,7 +3049,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.False(t, verify)
 
 		// prove account3's storage in block2
-		account3StorageProof, err := lg2.Prove(acc3.GetStorageRoot(), CompositeStorageKey(account3, key1[:]))
+		account3StorageProof, err := lg2.Prove(acc3.GetStorageRoot(), utils.CompositeStorageKey(account3, key1[:]))
 		assert.Nil(t, err)
 		account3Key1RpcProof, err := mockGetProof(account3.ETHAddress(), []string{"0x1"}, lg2)
 		assert.Nil(t, err)
@@ -2952,7 +3126,7 @@ type mockStorageResult struct {
 
 func convertAccountProof(proof *mockAccountResult) *jmt.ProofResult {
 	res := &jmt.ProofResult{}
-	res.Key = CompositeAccountKey(types.NewAddress(proof.Address.Bytes()))
+	res.Key = utils.CompositeAccountKey(types.NewAddress(proof.Address.Bytes()))
 	acc := &types.InnerAccount{
 		Nonce:       uint64(proof.Nonce),
 		Balance:     (proof.Balance).ToInt(),
@@ -2980,7 +3154,7 @@ func convertAccountProof(proof *mockAccountResult) *jmt.ProofResult {
 
 func convertStorageProof(acc common.Hash, proof *mockStorageResult) *jmt.ProofResult {
 	res := &jmt.ProofResult{}
-	res.Key = CompositeStorageKey(types.NewAddress(acc.Bytes()), crypto1.Keccak256(hexutil.Decode(proof.Key)))
+	res.Key = utils.CompositeStorageKey(types.NewAddress(acc.Bytes()), crypto1.Keccak256(hexutil.Decode(proof.Key)))
 	res.Value = proof.Value.ToInt().Bytes()
 	for _, item := range proof.Proof {
 		p, err := base64.StdEncoding.DecodeString(item)
@@ -3012,7 +3186,7 @@ func mockGetProof(address common.Address, storageKeys []string, stateLedger Stat
 
 	// construct account proof
 	acc := stateLedger.GetOrCreateAccount(addr)
-	rawAccountProof, err := stateLedger.Prove(common.Hash{}, CompositeAccountKey(addr))
+	rawAccountProof, err := stateLedger.Prove(common.Hash{}, utils.CompositeAccountKey(addr))
 	if err != nil {
 		return nil, err
 	}
@@ -3041,7 +3215,7 @@ func mockGetProof(address common.Address, storageKeys []string, stateLedger Stat
 	}
 	for _, key := range keys {
 		hashKey := crypto1.Keccak256(key.Bytes())
-		rawStorageProof, err := stateLedger.Prove(acc.GetStorageRoot(), CompositeStorageKey(addr, hashKey))
+		rawStorageProof, err := stateLedger.Prove(acc.GetStorageRoot(), utils.CompositeStorageKey(addr, hashKey))
 		if err != nil {
 			return nil, err
 		}
@@ -3251,4 +3425,10 @@ func initKVStorage(path string) storage.Storage {
 	dir, _ := os.MkdirTemp(path, "")
 	s, _ := pebble.New(dir, nil, nil)
 	return s
+}
+
+func newSnapshot(path string) *snapshot.Snapshot {
+	dir, _ := os.MkdirTemp(path, "")
+	s, _ := pebble.New(dir, nil, nil)
+	return snapshot.NewSnapshot(s, log.NewWithModule("snapshot_test"))
 }

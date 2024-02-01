@@ -1191,6 +1191,42 @@ func (c *StateLedgerFinaliseCall) DoAndReturn(f func()) *StateLedgerFinaliseCall
 	return c
 }
 
+// GenerateSnapshot mocks base method.
+func (m *MockStateLedger) GenerateSnapshot(block *types.Block, errC chan error) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "GenerateSnapshot", block, errC)
+}
+
+// GenerateSnapshot indicates an expected call of GenerateSnapshot.
+func (mr *MockStateLedgerMockRecorder) GenerateSnapshot(block, errC any) *StateLedgerGenerateSnapshotCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSnapshot", reflect.TypeOf((*MockStateLedger)(nil).GenerateSnapshot), block, errC)
+	return &StateLedgerGenerateSnapshotCall{Call: call}
+}
+
+// StateLedgerGenerateSnapshotCall wrap *gomock.Call
+type StateLedgerGenerateSnapshotCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerGenerateSnapshotCall) Return() *StateLedgerGenerateSnapshotCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerGenerateSnapshotCall) Do(f func(*types.Block, chan error)) *StateLedgerGenerateSnapshotCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerGenerateSnapshotCall) DoAndReturn(f func(*types.Block, chan error)) *StateLedgerGenerateSnapshotCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetAccount mocks base method.
 func (m *MockStateLedger) GetAccount(arg0 *types.Address) ledger.IAccount {
 	m.ctrl.T.Helper()

@@ -10,6 +10,7 @@ import (
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
 var (
@@ -48,9 +49,9 @@ func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
 		if err != nil {
 			panic(err)
 		}
-		batch.Put(CompositeSnapAccountKey(journal.Address.String()), data)
+		batch.Put(utils.CompositeAccountKey(journal.Address), data)
 	} else {
-		batch.Delete(CompositeSnapAccountKey(journal.Address.String()))
+		batch.Delete(utils.CompositeAccountKey(journal.Address))
 	}
 
 	for key, val := range journal.PrevStates {
@@ -59,9 +60,9 @@ func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
 			panic(fmt.Sprintf("decode key from base64 err: %v", err))
 		}
 		if val != nil {
-			batch.Put(CompositeSnapStorageKey(journal.Address.String(), decodedKey), val)
+			batch.Put(utils.CompositeStorageKey(journal.Address, decodedKey), val)
 		} else {
-			batch.Delete(CompositeSnapStorageKey(journal.Address.String(), decodedKey))
+			batch.Delete(utils.CompositeStorageKey(journal.Address, decodedKey))
 		}
 	}
 }
@@ -70,12 +71,12 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
-	data := snap.diskdb.Get(CompositeSnapJournalKey(MinHeightStr))
+	data := snap.diskdb.Get(utils.CompositeKey(utils.SnapshotKey, MinHeightStr))
 	if data != nil {
 		minHeight = unmarshalHeight(data)
 	}
 
-	data = snap.diskdb.Get(CompositeSnapJournalKey(MaxHeightStr))
+	data = snap.diskdb.Get(utils.CompositeKey(utils.SnapshotKey, MaxHeightStr))
 	if data != nil {
 		maxHeight = unmarshalHeight(data)
 	}
@@ -84,7 +85,7 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 }
 
 func (snap *Snapshot) GetBlockJournal(height uint64) *BlockJournal {
-	data := snap.diskdb.Get(CompositeSnapJournalKey(height))
+	data := snap.diskdb.Get(utils.CompositeKey(utils.SnapshotKey, height))
 	if data == nil {
 		return nil
 	}

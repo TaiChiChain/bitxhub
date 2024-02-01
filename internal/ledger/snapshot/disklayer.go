@@ -9,6 +9,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
 type diskLayer struct {
@@ -53,13 +54,13 @@ func (dl *diskLayer) Update(stateRoot common.Hash, destructs map[string]struct{}
 	batch := dl.diskdb.NewBatch()
 
 	for addr := range destructs {
-		accountKey := CompositeSnapAccountKey(addr)
+		accountKey := utils.CompositeAccountKey(types.NewAddressByStr(addr))
 		batch.Delete(accountKey)
 		dl.cache.Del(accountKey)
 	}
 
 	for addr, acc := range accounts {
-		accountKey := CompositeSnapAccountKey(addr)
+		accountKey := utils.CompositeAccountKey(types.NewAddressByStr(addr))
 		blob, err := acc.Marshal()
 		if err != nil {
 			panic(err)
@@ -68,9 +69,10 @@ func (dl *diskLayer) Update(stateRoot common.Hash, destructs map[string]struct{}
 		dl.cache.Set(accountKey, blob)
 	}
 
-	for addr, slots := range storage {
+	for rawAddr, slots := range storage {
+		addr := types.NewAddressByStr(rawAddr)
 		for slot, blob := range slots {
-			storageKey := CompositeSnapStorageKey(addr, []byte(slot))
+			storageKey := utils.CompositeStorageKey(addr, []byte(slot))
 			batch.Put(storageKey, blob)
 			dl.cache.Set(storageKey, blob)
 		}
@@ -88,7 +90,7 @@ func (dl *diskLayer) Account(addr *types.Address) (*types.InnerAccount, error) {
 		return nil, ErrSnapshotUnavailable
 	}
 
-	accountKey := CompositeSnapAccountKey(addr.String())
+	accountKey := utils.CompositeAccountKey(addr)
 
 	// Try to retrieve the account from the memory cache
 	if blob, found := dl.cache.HasGet(nil, accountKey); found {
@@ -121,7 +123,7 @@ func (dl *diskLayer) Storage(addr *types.Address, key []byte) ([]byte, error) {
 		return nil, ErrSnapshotUnavailable
 	}
 
-	snapKey := CompositeSnapStorageKey(addr.String(), key)
+	snapKey := utils.CompositeStorageKey(addr, key)
 
 	if blob, found := dl.cache.HasGet(nil, snapKey); found {
 		return blob, nil

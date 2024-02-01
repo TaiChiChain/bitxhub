@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -86,9 +87,9 @@ var ledgerCMD = &cli.Command{
 			Action: getLatestChainMeta,
 		},
 		{
-			Name:   "simple-rollback",
-			Usage:  "Rollback to the local block history height(by replaying transactions)",
-			Action: simpleRollback,
+			Name:   "rollback",
+			Usage:  "Rollback ledger to the specific block history height",
+			Action: rollback,
 			Flags: []cli.Flag{
 				&cli.Uint64Flag{
 					Name:        "target-block-number",
@@ -295,27 +296,32 @@ func fetchAndExecuteBlocks(ctx context.Context, r *repo.Repo, targetLedger *ledg
 	}
 }
 
-func simpleRollback(ctx *cli.Context) error {
+func rollback(ctx *cli.Context) error {
 	r, err := prepareRepo(ctx)
 	if err != nil {
 		return err
 	}
+	logger := loggers.Logger(loggers.App)
+	originBlockchainDir := repo.GetStoragePath(r.RepoRoot, storagemgr.BlockChain)
+	originBlockfileDir := repo.GetStoragePath(r.RepoRoot, storagemgr.Blockfile)
+	originStateLedgerDir := repo.GetStoragePath(r.RepoRoot, storagemgr.Ledger)
 
-	chainLedger, err := ledger.NewChainLedger(r, "")
+	originChainLedger, err := ledger.NewChainLedger(r, "")
 	if err != nil {
 		return fmt.Errorf("init chain ledger failed: %w", err)
 	}
 
+	// check if target height is legal
 	targetBlockNumber := ledgerSimpleRollbackArgs.TargetBlockNumber
 	if targetBlockNumber <= 1 {
 		return errors.New("target-block-number must be greater than 1")
 	}
-	chainMeta := chainLedger.GetChainMeta()
+	chainMeta := originChainLedger.GetChainMeta()
 	if targetBlockNumber >= chainMeta.Height {
 		return errors.Errorf("target-block-number %d must be less than the current latest block height %d\n", targetBlockNumber, chainMeta.Height)
 	}
-	rollbackDir := path.Join(r.RepoRoot, fmt.Sprintf("storage-rollback-%d", targetBlockNumber))
 
+	rollbackDir := path.Join(r.RepoRoot, fmt.Sprintf("storage-rollback-%d", targetBlockNumber))
 	force := ledgerSimpleRollbackArgs.Force
 	if fileutil.Exist(rollbackDir) {
 		if !force {
@@ -325,33 +331,76 @@ func simpleRollback(ctx *cli.Context) error {
 			return err
 		}
 	}
-
-	targetBlockHash := chainLedger.GetBlockHash(targetBlockNumber).String()
-
-	logger := loggers.Logger(loggers.App)
+	targetBlock, err := originChainLedger.GetBlock(targetBlockNumber)
+	if err != nil {
+		return fmt.Errorf("get target block failed: %w", err)
+	}
 	if force {
-		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHash, rollbackDir)
+		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlock.Hash(), rollbackDir)
 	} else {
-		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHash, rollbackDir)
+		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlock.Hash(), rollbackDir)
 		if err := waitUserConfirm(); err != nil {
 			return err
 		}
 	}
 
+	// copy blockchain dir
+	targetBlockchainDir := path.Join(rollbackDir, storagemgr.BlockChain)
+	if err := os.MkdirAll(targetBlockchainDir, os.ModePerm); err != nil {
+		return errors.Errorf("mkdir blockchain dir error: %v", err.Error())
+	}
+	if err := copyDir(originBlockchainDir, targetBlockchainDir); err != nil {
+		return errors.Errorf("copy blockchain dir to rollback dir error: %v", err.Error())
+	}
+	logger.Infof("copy blockchain dir to rollback dir success")
+
+	// copy blockfile dir
+	targetBlockfileDir := path.Join(rollbackDir, storagemgr.Blockfile)
+	if err := os.MkdirAll(targetBlockfileDir, os.ModePerm); err != nil {
+		return errors.Errorf("mkdir blockfile dir error: %v", err.Error())
+	}
+	if err := copyDir(originBlockfileDir, targetBlockfileDir); err != nil {
+		return errors.Errorf("copy blockfile dir to rollback dir error: %v", err.Error())
+	}
+	logger.Infof("copy blockfile dir to rollback dir success")
+
+	// copy state ledger dir
+	targetStateLedgerDir := path.Join(rollbackDir, storagemgr.Ledger)
+	if err := os.MkdirAll(targetStateLedgerDir, os.ModePerm); err != nil {
+		return errors.Errorf("mkdir state ledger dir error: %v", err.Error())
+	}
+	if err := copyDir(originStateLedgerDir, targetStateLedgerDir); err != nil {
+		return errors.Errorf("copy state ledger dir to rollback dir error: %v", err.Error())
+	}
+	logger.Infof("copy state ledger dir to rollback dir success")
+
+	// rollback chain ledger
 	rollbackChainLedger, err := ledger.NewChainLedger(r, rollbackDir)
 	if err != nil {
 		return fmt.Errorf("init rollback chain ledger failed: %w", err)
 	}
+	if err := rollbackChainLedger.RollbackBlockChain(targetBlockNumber); err != nil {
+		return errors.Errorf("rollback chain ledger error: %v", err.Error())
+	}
+
+	// rollback state ledger
 	rollbackStateLedger, err := ledger.NewStateLedger(r, rollbackDir)
 	if err != nil {
 		return fmt.Errorf("init rollback state ledger failed: %w", err)
 	}
-	return fetchAndExecuteBlocks(ctx.Context, r, &ledger.Ledger{
-		ChainLedger: rollbackChainLedger,
-		StateLedger: rollbackStateLedger,
-	}, func(n uint64) (*types.Block, error) {
-		return chainLedger.GetBlock(n)
-	}, targetBlockNumber)
+	if err := rollbackStateLedger.RollbackState(targetBlockNumber, targetBlock.BlockHeader.StateRoot); err != nil {
+		return fmt.Errorf("rollback state ledger failed: %w", err)
+	}
+
+	// wait for generating snapshot of target block
+	errC := make(chan error)
+	go rollbackStateLedger.GenerateSnapshot(targetBlock, errC)
+	err = <-errC
+	if err != nil {
+		return fmt.Errorf("generate snapshot failed: %w", err)
+	}
+
+	return nil
 }
 
 func simpleSync(ctx *cli.Context) error {
@@ -482,5 +531,50 @@ func pretty(d any) error {
 		return err
 	}
 	fmt.Println(string(res))
+	return nil
+}
+
+func copyDir(src, dest string) error {
+	files, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		srcPath := filepath.Join(src, file.Name())
+		destPath := filepath.Join(dest, file.Name())
+
+		if file.IsDir() {
+			if err := copyDir(srcPath, destPath); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFile(srcPath, destPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func copyFile(src, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

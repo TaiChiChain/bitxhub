@@ -16,6 +16,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -26,6 +27,9 @@ var _ StateLedger = (*StateLedgerImpl)(nil)
 var (
 	ErrorRollbackToHigherNumber = errors.New("rollback to higher blockchain height")
 )
+
+// maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
+const maxBatchSize = 64 * 1024 * 1024
 
 type revision struct {
 	id           int
@@ -127,7 +131,7 @@ func (l *StateLedgerImpl) Finalise() {
 		keys := account.Finalise()
 
 		if l.triePreloader != nil {
-			l.triePreloader.preload(common.Hash{}, [][]byte{CompositeAccountKey(account.GetAddress())})
+			l.triePreloader.preload(common.Hash{}, [][]byte{utils.CompositeAccountKey(account.GetAddress())})
 			if len(keys) > 0 {
 				l.triePreloader.preload(account.GetStorageRootHash(), keys)
 			}
@@ -140,7 +144,7 @@ func (l *StateLedgerImpl) Finalise() {
 // todo make arguments configurable
 func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, errC chan error) {
 	stateRoot := block.BlockHeader.StateRoot.ETHHash()
-	l.logger.Debugf("[IterateTrie] blockhash: %v, rootHash: %v", block.BlockHash, stateRoot)
+	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", block.BlockHash, stateRoot)
 
 	queue := []common.Hash{stateRoot}
 	batch := kv.NewBatch()
@@ -161,6 +165,12 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 				}
 			}
 			batch.Put(node.RawKey, node.RawValue)
+			// data size exceed threshold, flush to disk
+			if batch.Size() > maxBatchSize {
+				batch.Commit()
+				batch.Reset()
+				l.logger.Infof("[IterateTrie] write batch periodically")
+			}
 			if trieRoot == stateRoot && len(node.LeafValue) > 0 {
 				// resolve potential contract account
 				acc := &types.InnerAccount{Balance: big.NewInt(0)}
@@ -169,7 +179,7 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 				}
 				if acc.StorageRoot != (common.Hash{}) {
 					// set contract code
-					codeKey := compositeCodeKey(types.NewAddress(node.LeafKey), acc.CodeHash)
+					codeKey := utils.CompositeCodeKey(types.NewAddress(types.HexToBytes(node.LeafKey)), acc.CodeHash)
 					batch.Put(codeKey, l.cachedDB.Get(codeKey))
 					// prepare storage trie root
 					queue = append(queue, acc.StorageRoot)
@@ -185,7 +195,7 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 		errC <- err
 		return
 	}
-	batch.Put([]byte(trieBlockKey), blockData)
+	batch.Put([]byte(utils.TrieBlockKey), blockData)
 
 	epochInfo, err := l.getEpochInfoFunc(block.BlockHeader.Epoch)
 	if err != nil {
@@ -197,16 +207,17 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 		errC <- err
 		return
 	}
-	batch.Put([]byte(trieNodeInfoKey), blob)
+	batch.Put([]byte(utils.TrieNodeInfoKey), blob)
 
 	batch.Commit()
+	l.logger.Infof("[IterateTrie] iterate trie successfully")
 
 	errC <- nil
 }
 
 func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
-	rawBlock := l.cachedDB.Get([]byte(trieBlockKey))
-	rawEpochInfo := l.cachedDB.Get([]byte(trieNodeInfoKey))
+	rawBlock := l.cachedDB.Get([]byte(utils.TrieBlockKey))
+	rawEpochInfo := l.cachedDB.Get([]byte(utils.TrieNodeInfoKey))
 	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 {
 		return nil, ErrNotFound
 	}
@@ -226,6 +237,56 @@ func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
 		EpochInfo: epochInfo,
 	}
 	return meta, nil
+}
+
+func (l *StateLedgerImpl) GenerateSnapshot(block *types.Block, errC chan error) {
+	stateRoot := block.BlockHeader.StateRoot.ETHHash()
+	l.logger.Infof("[GenerateSnapshot] blockNum: %v, blockhash: %v, rootHash: %v", block.Height(), block.BlockHash, stateRoot)
+
+	queue := []common.Hash{stateRoot}
+	batch := l.snapshot.Batch()
+	for len(queue) > 0 {
+		trieRoot := queue[0]
+		iter := jmt.NewIterator(trieRoot, l.cachedDB, 100, time.Second)
+		l.logger.Debugf("[GenerateSnapshot] trie root=%v", trieRoot)
+		go iter.IterateLeaf()
+
+		for {
+			node, err := iter.Next()
+			if err != nil {
+				if err == jmt.ErrorNoMoreData {
+					break
+				} else {
+					errC <- err
+					return
+				}
+			}
+			batch.Put(node.LeafKey, node.LeafValue)
+			// data size exceed threshold, flush to disk
+			if batch.Size() > maxBatchSize {
+				batch.Commit()
+				batch.Reset()
+				l.logger.Infof("[GenerateSnapshot] write batch periodically")
+			}
+			if trieRoot == stateRoot && len(node.LeafValue) > 0 {
+				// resolve potential contract account
+				acc := &types.InnerAccount{Balance: big.NewInt(0)}
+				if err := acc.Unmarshal(node.LeafValue); err != nil {
+					panic(err)
+				}
+				if acc.StorageRoot != (common.Hash{}) {
+					// prepare storage trie root
+					queue = append(queue, acc.StorageRoot)
+				}
+			}
+		}
+		queue = queue[1:]
+		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
+	}
+	batch.Commit()
+	l.logger.Infof("[GenerateSnapshot] generate snapshot successfully")
+
+	errC <- nil
 }
 
 func (l *StateLedgerImpl) VerifyTrie(block *types.Block) (bool, error) {
