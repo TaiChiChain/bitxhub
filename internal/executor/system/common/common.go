@@ -1,6 +1,8 @@
 package common
 
 import (
+	"errors"
+
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtype "github.com/ethereum/go-ethereum/core/types"
 	"github.com/sirupsen/logrus"
@@ -35,6 +37,10 @@ const (
 
 	// SystemContractEndAddr is the end address of system contract
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
+)
+
+var (
+	ErrDisallowedSystemCall = errors.New("disallowed system contract calls")
 )
 
 type SystemContractConfig struct {

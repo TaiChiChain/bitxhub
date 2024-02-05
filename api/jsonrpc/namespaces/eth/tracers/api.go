@@ -8,12 +8,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers/logger"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	vm "github.com/axiomesh/eth-kit/evm"
@@ -59,7 +60,7 @@ type TraceConfig struct {
 
 var errTxNotFound = errors.New("transaction not found")
 
-func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (any, error) {
+func (api *TracerAPI) TraceTransaction(hash ethcommon.Hash, config *TraceConfig) (any, error) {
 	txHash := types.NewHash(hash.Bytes())
 	tx, err := api.api.Broker().GetTransaction(txHash)
 	if err != nil {
@@ -67,6 +68,12 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	}
 	if tx == nil {
 		return nil, errTxNotFound
+	}
+
+	// todo : Ignoring calls to system contracts, as calling system contracts in the current EVM may risk ledger forks.
+	to := tx.Inner.GetTo()
+	if to != nil && common.SystemContractStartAddr <= to.Hex() && common.SystemContractEndAddr >= to.Hex() {
+		return nil, common.ErrDisallowedSystemCall
 	}
 
 	meta, err := api.api.Broker().GetTransactionMeta(txHash)
