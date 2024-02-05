@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -59,7 +59,7 @@ type TraceConfig struct {
 
 var errTxNotFound = errors.New("transaction not found")
 
-func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (any, error) {
+func (api *TracerAPI) TraceTransaction(hash ethcommon.Hash, config *TraceConfig) (any, error) {
 	txHash := types.NewHash(hash.Bytes())
 	tx, err := api.api.Broker().GetTransaction(txHash)
 	if err != nil {
@@ -138,6 +138,11 @@ func (api *TracerAPI) traceTx(message *vm.Message, txctx *Context, vmctx vm.Bloc
 
 	// Call Prepare to clear out the statedb access list
 	statedb.SetTxContext(types.NewHash(txctx.BlockHash.Bytes()), txctx.TxIndex)
+	// System contract cannot be traced
+	nvm := api.api.Broker().GetNativeVm()
+	if message.To != nil && nvm.IsSystemContract(types.NewAddress(message.To.Bytes())) {
+		return nil, fmt.Errorf("system contract cannot be traced")
+	}
 	if _, err = vm.ApplyMessage(vmenv, message, new(vm.GasPool).AddGas(message.GasLimit)); err != nil {
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}
