@@ -72,6 +72,18 @@ func (mr *MockSyncMockRecorder) Prepare(opts ...any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockSync)(nil).Prepare), opts...)
 }
 
+// Start mocks base method.
+func (m *MockSync) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockSyncMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSync)(nil).Start))
+}
+
 // StartSync mocks base method.
 func (m *MockSync) StartSync(params *common.SyncParams, syncTaskDoneCh chan error) error {
 	m.ctrl.T.Helper()
@@ -188,4 +200,28 @@ func (m *MockISyncConstructor) Prepare(config *common.Config) (*common.PrepareDa
 func (mr *MockISyncConstructorMockRecorder) Prepare(config any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockISyncConstructor)(nil).Prepare), config)
+}
+
+// Start mocks base method.
+func (m *MockISyncConstructor) Start() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Start")
+}
+
+// Start indicates an expected call of Start.
+func (mr *MockISyncConstructorMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockISyncConstructor)(nil).Start))
+}
+
+// Stop mocks base method.
+func (m *MockISyncConstructor) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockISyncConstructorMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockISyncConstructor)(nil).Stop))
 }

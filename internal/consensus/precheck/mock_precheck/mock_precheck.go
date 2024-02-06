@@ -50,31 +50,31 @@ func (m *MockPreCheck) CommitValidTxs() chan *precheck.ValidTxs {
 }
 
 // CommitValidTxs indicates an expected call of CommitValidTxs.
-func (mr *MockPreCheckMockRecorder) CommitValidTxs() *PreCheckCommitValidTxsCall {
+func (mr *MockPreCheckMockRecorder) CommitValidTxs() *MockPreCheckCommitValidTxsCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitValidTxs", reflect.TypeOf((*MockPreCheck)(nil).CommitValidTxs))
-	return &PreCheckCommitValidTxsCall{Call: call}
+	return &MockPreCheckCommitValidTxsCall{Call: call}
 }
 
-// PreCheckCommitValidTxsCall wrap *gomock.Call
-type PreCheckCommitValidTxsCall struct {
+// MockPreCheckCommitValidTxsCall wrap *gomock.Call
+type MockPreCheckCommitValidTxsCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PreCheckCommitValidTxsCall) Return(arg0 chan *precheck.ValidTxs) *PreCheckCommitValidTxsCall {
+func (c *MockPreCheckCommitValidTxsCall) Return(arg0 chan *precheck.ValidTxs) *MockPreCheckCommitValidTxsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PreCheckCommitValidTxsCall) Do(f func() chan *precheck.ValidTxs) *PreCheckCommitValidTxsCall {
+func (c *MockPreCheckCommitValidTxsCall) Do(f func() chan *precheck.ValidTxs) *MockPreCheckCommitValidTxsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PreCheckCommitValidTxsCall) DoAndReturn(f func() chan *precheck.ValidTxs) *PreCheckCommitValidTxsCall {
+func (c *MockPreCheckCommitValidTxsCall) DoAndReturn(f func() chan *precheck.ValidTxs) *MockPreCheckCommitValidTxsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -86,31 +86,31 @@ func (m *MockPreCheck) PostUncheckedTxEvent(ev *common.UncheckedTxEvent) {
 }
 
 // PostUncheckedTxEvent indicates an expected call of PostUncheckedTxEvent.
-func (mr *MockPreCheckMockRecorder) PostUncheckedTxEvent(ev any) *PreCheckPostUncheckedTxEventCall {
+func (mr *MockPreCheckMockRecorder) PostUncheckedTxEvent(ev any) *MockPreCheckPostUncheckedTxEventCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostUncheckedTxEvent", reflect.TypeOf((*MockPreCheck)(nil).PostUncheckedTxEvent), ev)
-	return &PreCheckPostUncheckedTxEventCall{Call: call}
+	return &MockPreCheckPostUncheckedTxEventCall{Call: call}
 }
 
-// PreCheckPostUncheckedTxEventCall wrap *gomock.Call
-type PreCheckPostUncheckedTxEventCall struct {
+// MockPreCheckPostUncheckedTxEventCall wrap *gomock.Call
+type MockPreCheckPostUncheckedTxEventCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PreCheckPostUncheckedTxEventCall) Return() *PreCheckPostUncheckedTxEventCall {
+func (c *MockPreCheckPostUncheckedTxEventCall) Return() *MockPreCheckPostUncheckedTxEventCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PreCheckPostUncheckedTxEventCall) Do(f func(*common.UncheckedTxEvent)) *PreCheckPostUncheckedTxEventCall {
+func (c *MockPreCheckPostUncheckedTxEventCall) Do(f func(*common.UncheckedTxEvent)) *MockPreCheckPostUncheckedTxEventCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PreCheckPostUncheckedTxEventCall) DoAndReturn(f func(*common.UncheckedTxEvent)) *PreCheckPostUncheckedTxEventCall {
+func (c *MockPreCheckPostUncheckedTxEventCall) DoAndReturn(f func(*common.UncheckedTxEvent)) *MockPreCheckPostUncheckedTxEventCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -118,35 +118,35 @@ func (c *PreCheckPostUncheckedTxEventCall) DoAndReturn(f func(*common.UncheckedT
 // Start mocks base method.
 func (m *MockPreCheck) Start() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Prepare")
+	m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockPreCheckMockRecorder) Start() *PreCheckStartCall {
+func (mr *MockPreCheckMockRecorder) Start() *MockPreCheckStartCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockPreCheck)(nil).Start))
-	return &PreCheckStartCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockPreCheck)(nil).Start))
+	return &MockPreCheckStartCall{Call: call}
 }
 
-// PreCheckStartCall wrap *gomock.Call
-type PreCheckStartCall struct {
+// MockPreCheckStartCall wrap *gomock.Call
+type MockPreCheckStartCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PreCheckStartCall) Return() *PreCheckStartCall {
+func (c *MockPreCheckStartCall) Return() *MockPreCheckStartCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PreCheckStartCall) Do(f func()) *PreCheckStartCall {
+func (c *MockPreCheckStartCall) Do(f func()) *MockPreCheckStartCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PreCheckStartCall) DoAndReturn(f func()) *PreCheckStartCall {
+func (c *MockPreCheckStartCall) DoAndReturn(f func()) *MockPreCheckStartCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -158,31 +158,31 @@ func (m *MockPreCheck) UpdateEpochInfo(epoch *rbft.EpochInfo) {
 }
 
 // UpdateEpochInfo indicates an expected call of UpdateEpochInfo.
-func (mr *MockPreCheckMockRecorder) UpdateEpochInfo(epoch any) *PreCheckUpdateEpochInfoCall {
+func (mr *MockPreCheckMockRecorder) UpdateEpochInfo(epoch any) *MockPreCheckUpdateEpochInfoCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEpochInfo", reflect.TypeOf((*MockPreCheck)(nil).UpdateEpochInfo), epoch)
-	return &PreCheckUpdateEpochInfoCall{Call: call}
+	return &MockPreCheckUpdateEpochInfoCall{Call: call}
 }
 
-// PreCheckUpdateEpochInfoCall wrap *gomock.Call
-type PreCheckUpdateEpochInfoCall struct {
+// MockPreCheckUpdateEpochInfoCall wrap *gomock.Call
+type MockPreCheckUpdateEpochInfoCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *PreCheckUpdateEpochInfoCall) Return() *PreCheckUpdateEpochInfoCall {
+func (c *MockPreCheckUpdateEpochInfoCall) Return() *MockPreCheckUpdateEpochInfoCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *PreCheckUpdateEpochInfoCall) Do(f func(*rbft.EpochInfo)) *PreCheckUpdateEpochInfoCall {
+func (c *MockPreCheckUpdateEpochInfoCall) Do(f func(*rbft.EpochInfo)) *MockPreCheckUpdateEpochInfoCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *PreCheckUpdateEpochInfoCall) DoAndReturn(f func(*rbft.EpochInfo)) *PreCheckUpdateEpochInfoCall {
+func (c *MockPreCheckUpdateEpochInfoCall) DoAndReturn(f func(*rbft.EpochInfo)) *MockPreCheckUpdateEpochInfoCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
