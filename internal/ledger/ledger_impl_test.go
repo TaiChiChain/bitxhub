@@ -763,36 +763,6 @@ func TestChainLedger_AddState(t *testing.T) {
 	}
 }
 
-func TestGetBlockSign(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			ledger, _ := initLedger(t, "", tc.kvType)
-			_, err := ledger.ChainLedger.GetBlockSign(uint64(0))
-			assert.NotNil(t, err)
-
-			block := &types.Block{
-				BlockHeader: &types.BlockHeader{
-					Number: 1,
-				},
-				BlockHash:    types.NewHash([]byte{1}),
-				Transactions: []*types.Transaction{},
-				Signature:    []byte("sig"),
-			}
-			err = ledger.ChainLedger.PersistExecutionResult(block, []*types.Receipt{})
-			assert.Nil(t, err)
-			sig, err := ledger.ChainLedger.GetBlockSign(uint64(1))
-			assert.Nil(t, err)
-			assert.Equal(t, sig, []byte("sig"))
-		})
-	}
-}
-
 func TestGetBlockByHash(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string

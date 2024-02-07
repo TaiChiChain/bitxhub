@@ -162,16 +162,6 @@ func (l *ChainLedgerImpl) GetBlockHash(height uint64) *types.Hash {
 	return types.NewHashByStr(string(hash))
 }
 
-// GetBlockSign get the signature of block
-func (l *ChainLedgerImpl) GetBlockSign(height uint64) ([]byte, error) {
-	block, err := l.GetBlock(height)
-	if err != nil {
-		return nil, fmt.Errorf("get block with height %d failed: %w", height, err)
-	}
-
-	return block.Signature, nil
-}
-
 // GetBlockByHash get the block using block hash
 func (l *ChainLedgerImpl) GetBlockByHash(hash *types.Hash) (*types.Block, error) {
 	data := l.blockchainStore.Get(utils.CompositeKey(utils.BlockHashKey, hash.String()))
@@ -400,21 +390,10 @@ func (l *ChainLedgerImpl) prepareTransactions(batcher storage.Batch, block *type
 }
 
 func (l *ChainLedgerImpl) prepareBlock(batcher storage.Batch, block *types.Block) ([]byte, error) {
-	// Generate block header signature
-	if block.Signature == nil {
-		signed, err := l.repo.P2PKeySign(block.BlockHash.Bytes())
-		if err != nil {
-			return nil, fmt.Errorf("sign block %s failed: %w", block.BlockHash.String(), err)
-		}
-
-		block.Signature = signed
-	}
-
 	storedBlock := &types.Block{
 		BlockHeader:  block.BlockHeader,
 		Transactions: nil,
 		BlockHash:    block.BlockHash,
-		Signature:    block.Signature,
 		Extra:        block.Extra,
 	}
 	bs, err := storedBlock.Marshal()

@@ -19,9 +19,6 @@ type ChainLedger interface {
 	// GetBlock get block with height
 	GetBlock(height uint64) (*types.Block, error)
 
-	// GetBlockSign get the signature of block
-	GetBlockSign(height uint64) ([]byte, error)
-
 	// GetBlockByHash get the block using block hash
 	GetBlockByHash(hash *types.Hash) (*types.Block, error)
 
