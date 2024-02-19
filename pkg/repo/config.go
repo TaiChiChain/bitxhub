@@ -88,11 +88,16 @@ type Port struct {
 }
 
 type JsonRPC struct {
-	GasCap                       uint64   `mapstructure:"gas_cap" toml:"gas_cap"`
-	EVMTimeout                   Duration `mapstructure:"evm_timeout" toml:"evm_timeout"`
-	ReadLimiter                  JLimiter `mapstructure:"read_limiter" toml:"read_limiter"`
-	WriteLimiter                 JLimiter `mapstructure:"write_limiter" toml:"write_limiter"`
-	RejectTxsIfConsensusAbnormal bool     `mapstructure:"reject_txs_if_consensus_abnormal" toml:"reject_txs_if_consensus_abnormal"`
+	GasCap                       uint64     `mapstructure:"gas_cap" toml:"gas_cap"`
+	EVMTimeout                   Duration   `mapstructure:"evm_timeout" toml:"evm_timeout"`
+	ReadLimiter                  JLimiter   `mapstructure:"read_limiter" toml:"read_limiter"`
+	WriteLimiter                 JLimiter   `mapstructure:"write_limiter" toml:"write_limiter"`
+	RejectTxsIfConsensusAbnormal bool       `mapstructure:"reject_txs_if_consensus_abnormal" toml:"reject_txs_if_consensus_abnormal"`
+	QueryLimit                   QueryLimit `mapstructure:"query_limit" toml:"query_limit"`
+}
+
+type QueryLimit struct {
+	GetLogsBlockRangeLimit uint64 `mapstructure:"get_logs_block_range_limit" toml:"get_logs_block_range_limit"`
 }
 
 type P2PPipeGossipsub struct {
@@ -270,6 +275,9 @@ func DefaultConfig() *Config {
 				Enable:   false,
 			},
 			RejectTxsIfConsensusAbnormal: false,
+			QueryLimit: QueryLimit{
+				GetLogsBlockRangeLimit: 2000,
+			},
 		},
 		P2P: P2P{
 			Security:          P2PSecurityTLS,

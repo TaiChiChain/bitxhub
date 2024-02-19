@@ -14,22 +14,17 @@ import (
 )
 
 type GenesisConfig struct {
-	ChainID                uint64            `mapstructure:"chainid" toml:"chainid"`
-	Timestamp              int64             `mapstructure:"timestamp" toml:"timestamp"`
-	QueryLimitConfig       *QueryLimitConfig `mapstructure:"query_limit_config" toml:"query_limit_config"`
-	Axm                    *Token            `mapstructure:"axm" toml:"axm"`
-	Axc                    *Token            `mapstructure:"axc" toml:"axc"`
-	Incentive              *Incentive        `mapstructure:"incentive" toml:"incentive"`
-	Balance                string            `mapstructure:"balance" toml:"balance"`
-	Admins                 []*Admin          `mapstructure:"admins" toml:"admins"`
-	InitWhiteListProviders []string          `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
-	Accounts               []*Account        `mapstructure:"accounts" toml:"accounts"`
-	EpochInfo              *rbft.EpochInfo   `mapstructure:"epoch_info" toml:"epoch_info"`
-	NodeNames              []*NodeName       `mapstructure:"node_names" toml:"node_names"`
-}
-
-type QueryLimitConfig struct {
-	BlockRangeLimit uint64 `mapstructure:"block_range_limit" toml:"block_range_limit"`
+	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
+	Timestamp              int64           `mapstructure:"timestamp" toml:"timestamp"`
+	Axm                    *Token          `mapstructure:"axm" toml:"axm"`
+	Axc                    *Token          `mapstructure:"axc" toml:"axc"`
+	Incentive              *Incentive      `mapstructure:"incentive" toml:"incentive"`
+	Balance                string          `mapstructure:"balance" toml:"balance"`
+	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
+	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
+	Accounts               []*Account      `mapstructure:"accounts" toml:"accounts"`
+	EpochInfo              *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
+	NodeNames              []*NodeName     `mapstructure:"node_names" toml:"node_names"`
 }
 
 type Account struct {
@@ -201,9 +196,6 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 				Name:    DefaultAdminNames[idx],
 			}
 		}),
-		QueryLimitConfig: &QueryLimitConfig{
-			BlockRangeLimit: 2000,
-		},
 		Axm: &Token{
 			Name:        "Axiom",
 			Symbol:      "AXM",
