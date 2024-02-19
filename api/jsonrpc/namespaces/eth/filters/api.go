@@ -412,7 +412,7 @@ func (api *FilterAPI) GetLogs(ctx context.Context, ethCrit FilterCriteria) ([]*e
 			end = crit.ToBlock.Int64()
 		}
 		// Construct the range filter
-		filter = NewRangeFilter(api.api, begin, end, crit.Addresses, crit.Topics)
+		filter = NewRangeFilter(api.api, begin, end, crit.Addresses, crit.Topics, api.rep.Config.JsonRPC.QueryLimit.GetLogsBlockRangeLimit)
 	}
 	// Run the filter and return all the logs
 	logs, err := filter.Logs(ctx)
@@ -471,7 +471,7 @@ func (api *FilterAPI) GetFilterLogs(ctx context.Context, id rpc.ID) ([]*ethereum
 			end = f.crit.ToBlock.Int64()
 		}
 		// Construct the range filter
-		filter = NewRangeFilter(api.api, begin, end, f.crit.Addresses, f.crit.Topics)
+		filter = NewRangeFilter(api.api, begin, end, f.crit.Addresses, f.crit.Topics, api.rep.Config.JsonRPC.QueryLimit.GetLogsBlockRangeLimit)
 	}
 	// Run the filter and return all the logs
 	logs, err := filter.Logs(ctx)
