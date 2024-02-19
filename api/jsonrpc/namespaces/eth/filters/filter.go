@@ -29,12 +29,13 @@ import (
 
 // Filter can be used to retrieve and filter logs.
 type Filter struct {
-	api       api.CoreAPI
-	addresses []*types.Address
-	topics    [][]*types.Hash
-	block     *types.Hash // Block hash if filtering a single block
-	begin     int64
-	end       int64 // Range interval if filtering multiple blocks
+	api             api.CoreAPI
+	addresses       []*types.Address
+	topics          [][]*types.Hash
+	block           *types.Hash // Block hash if filtering a single block
+	begin           int64
+	end             int64 // Range interval if filtering multiple blocks
+	blockRangeLimit uint64
 }
 
 type bytesBacked interface {
@@ -43,7 +44,7 @@ type bytesBacked interface {
 
 // NewRangeFilter creates a new filter which uses a bloom filter on blocks to
 // figure out whether a particular block is interesting or not.
-func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []*types.Address, topics [][]*types.Hash) *Filter {
+func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []*types.Address, topics [][]*types.Hash, blockRangeLimit uint64) *Filter {
 	// Flatten the address and topic filter clauses into a single bloombits filter
 	// system. Since the bloombits are not positional, nil topics are permitted,
 	// which get flattened into a nil byte slice.
@@ -68,6 +69,7 @@ func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []*types.Addres
 
 	filter.begin = begin
 	filter.end = end
+	filter.blockRangeLimit = blockRangeLimit
 
 	return filter
 }
@@ -119,6 +121,9 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 	end := uint64(f.end)
 	if f.end == rpctypes.PendingBlockNumber.Int64() || f.end == rpctypes.LatestBlockNumber.Int64() {
 		end = head
+	}
+	if int64(end)-f.begin >= int64(f.blockRangeLimit) {
+		return nil, fmt.Errorf("query block range needs to be less than or equal to %d", f.blockRangeLimit)
 	}
 
 	return f.unindexedLogs(ctx, end)
