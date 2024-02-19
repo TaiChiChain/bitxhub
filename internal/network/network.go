@@ -151,7 +151,7 @@ func (swarm *networkImpl) init() error {
 		}),
 		network.WithBootstrap(bootstrap),
 		network.WithConnectionGater(gater),
-		network.WithCompression(swarm.repo.Config.P2P.EnableCompression),
+		network.WithCompressionOption(swarm.repo.Config.P2P.CompressionAlgo),
 		network.WithMetrics(swarm.repo.Config.P2P.EnableMetrics),
 	}
 

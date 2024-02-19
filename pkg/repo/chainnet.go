@@ -5,6 +5,7 @@ import (
 	"time"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	network "github.com/axiomesh/axiom-p2p"
 )
 
 const (
@@ -60,11 +61,11 @@ func AriesConfig() *Config {
 			RejectTxsIfConsensusAbnormal: false,
 		},
 		P2P: P2P{
-			Security:          P2PSecurityTLS,
-			SendTimeout:       Duration(5 * time.Second),
-			ReadTimeout:       Duration(5 * time.Second),
-			EnableCompression: true,
-			EnableMetrics:     true,
+			Security:        P2PSecurityTLS,
+			SendTimeout:     Duration(5 * time.Second),
+			ReadTimeout:     Duration(5 * time.Second),
+			CompressionAlgo: network.SnappyCompression,
+			EnableMetrics:   true,
 			Pipe: P2PPipe{
 				ReceiveMsgCacheSize: 1024,
 				BroadcastType:       P2PPipeBroadcastGossip,
@@ -337,11 +338,11 @@ func TaurusConfig() *Config {
 				"/ip4/43.198.79.250/tcp/4001/p2p/16Uiu2HAm4pPKpHEPZWNga6VKCtT8YQMwZb7bu8Hj9QtwNgoy5ajN",
 				"/ip4/18.162.169.230/tcp/4001/p2p/16Uiu2HAmMF4Xcnh4VTBLGVRwTeHVCb5z8vpHKWS8hE5Q5FQNDTSe",
 			},
-			Security:          P2PSecurityTLS,
-			SendTimeout:       Duration(5 * time.Second),
-			ReadTimeout:       Duration(5 * time.Second),
-			EnableCompression: true,
-			EnableMetrics:     true,
+			Security:        P2PSecurityTLS,
+			SendTimeout:     Duration(5 * time.Second),
+			ReadTimeout:     Duration(5 * time.Second),
+			CompressionAlgo: network.SnappyCompression,
+			EnableMetrics:   true,
 			Pipe: P2PPipe{
 				ReceiveMsgCacheSize: 1024,
 				BroadcastType:       P2PPipeBroadcastGossip,
