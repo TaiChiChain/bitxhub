@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
+	network "github.com/axiomesh/axiom-p2p"
 )
 
 type Duration time.Duration
@@ -122,13 +123,13 @@ type P2PPipe struct {
 }
 
 type P2P struct {
-	BootstrapNodeAddresses []string `mapstructure:"bootstrap_node_addresses" toml:"bootstrap_node_addresses"`
-	Security               string   `mapstructure:"security" toml:"security"`
-	SendTimeout            Duration `mapstructure:"send_timeout" toml:"send_timeout"`
-	ReadTimeout            Duration `mapstructure:"read_timeout" toml:"read_timeout"`
-	EnableCompression      bool     `mapstructure:"enable_compression" toml:"enable_compression"`
-	EnableMetrics          bool     `mapstructure:"enable_metrics" toml:"enable_metrics"`
-	Pipe                   P2PPipe  `mapstructure:"pipe" toml:"pipe"`
+	BootstrapNodeAddresses []string                `mapstructure:"bootstrap_node_addresses" toml:"bootstrap_node_addresses"`
+	Security               string                  `mapstructure:"security" toml:"security"`
+	SendTimeout            Duration                `mapstructure:"send_timeout" toml:"send_timeout"`
+	ReadTimeout            Duration                `mapstructure:"read_timeout" toml:"read_timeout"`
+	CompressionAlgo        network.CompressionAlgo `mapstructure:"compression_option" toml:"compression_option"`
+	EnableMetrics          bool                    `mapstructure:"enable_metrics" toml:"enable_metrics"`
+	Pipe                   P2PPipe                 `mapstructure:"pipe" toml:"pipe"`
 }
 
 type Monitor struct {
@@ -272,11 +273,11 @@ func DefaultConfig() *Config {
 			RejectTxsIfConsensusAbnormal: false,
 		},
 		P2P: P2P{
-			Security:          P2PSecurityTLS,
-			SendTimeout:       Duration(5 * time.Second),
-			ReadTimeout:       Duration(5 * time.Second),
-			EnableCompression: true,
-			EnableMetrics:     true,
+			Security:        P2PSecurityTLS,
+			SendTimeout:     Duration(5 * time.Second),
+			ReadTimeout:     Duration(5 * time.Second),
+			CompressionAlgo: network.SnappyCompression,
+			EnableMetrics:   true,
 			Pipe: P2PPipe{
 				ReceiveMsgCacheSize: 10240,
 				BroadcastType:       P2PPipeBroadcastGossip,
