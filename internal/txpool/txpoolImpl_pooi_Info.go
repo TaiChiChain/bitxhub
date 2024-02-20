@@ -180,6 +180,7 @@ func (p *txPoolImpl[T, Constraint]) handleGetMeta(full bool) *commonpool.Meta[T,
 		TxCountLimit:    p.poolMaxSize,
 		TxCount:         uint64(len(p.txStore.txHashMap)),
 		ReadyTxCount:    p.txStore.priorityNonBatchSize,
+		NotReadyTxCount: uint64(p.txStore.parkingLotIndex.size()),
 		Batches:         make(map[string]*commonpool.BatchSimpleInfo, len(p.txStore.batchesCache)),
 		MissingBatchTxs: make(map[string]map[uint64]string, len(p.txStore.missingBatch)),
 		Accounts:        make(map[string]*commonpool.AccountMeta[T, Constraint], len(p.txStore.allTxs)),
@@ -210,8 +211,11 @@ func (p *txPoolImpl[T, Constraint]) handleGetMeta(full bool) *commonpool.Meta[T,
 			return key, value
 		})
 	}
-	for addr := range p.txStore.allTxs {
-		res.Accounts[addr] = p.handleGetAccountMeta(addr, full)
+	for addr, val := range p.txStore.allTxs {
+		// if account is not exist any txs in txStore, omit it
+		if !val.empty {
+			res.Accounts[addr] = p.handleGetAccountMeta(addr, full)
+		}
 	}
 
 	return res
