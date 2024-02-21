@@ -191,7 +191,7 @@ func AriesConsensusConfig() *ConsensusConfig {
 		},
 		Solo: Solo{
 			BatchTimeout:     Duration(500 * time.Millisecond),
-			CheckpointPeriod: 10,
+			CheckpointPeriod: 1,
 		},
 	}
 }
@@ -469,7 +469,7 @@ func TaurusConsensusConfig() *ConsensusConfig {
 		},
 		Solo: Solo{
 			BatchTimeout:     Duration(500 * time.Millisecond),
-			CheckpointPeriod: 10,
+			CheckpointPeriod: 1,
 		},
 	}
 }

@@ -15,6 +15,11 @@ var (
 		Name:      "ready_tx_counter",
 		Help:      "the total number of transactions which ready to generate batch",
 	})
+	queueTxNum = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "txpool",
+		Name:      "queue_tx_counter",
+		Help:      "the total number of transactions which not ready(nonce is too high)",
+	})
 	processEventDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "txpool",
@@ -48,4 +53,5 @@ func init() {
 	prometheus.MustRegister(readyTxNum)
 	prometheus.MustRegister(rejectTxNum)
 	prometheus.MustRegister(removeTxNum)
+	prometheus.MustRegister(queueTxNum)
 }

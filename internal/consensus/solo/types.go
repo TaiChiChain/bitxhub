@@ -6,9 +6,7 @@ import (
 )
 
 const (
-	singleTx    = 1
 	maxChanSize = 1024
-	ErrPoolFull = "txpool is full"
 )
 
 // consensusEvent is a type meant to clearly convey that the return type or parameter to a function will be supplied to/from an events.Manager

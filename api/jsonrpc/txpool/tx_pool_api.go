@@ -17,9 +17,6 @@ import (
 )
 
 const (
-	pendingType = "pending"
-	queuedType  = "queued"
-
 	unit = "wei"
 )
 

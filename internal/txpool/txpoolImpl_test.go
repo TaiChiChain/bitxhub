@@ -123,6 +123,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(1, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(0), pool.txStore.txHashMap[tx.RbftGetTxHash()].nonce)
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 		ast.Equal(1, pool.txStore.priorityIndex.size())
 		ast.Equal(0, pool.txStore.parkingLotIndex.size())
 		ast.Equal(1, pool.txStore.localTTLIndex.size())
@@ -180,6 +181,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(1, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(1), pool.txStore.txHashMap[tx.RbftGetTxHash()].nonce)
 		ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize)
 		ast.Equal(0, pool.txStore.priorityIndex.size())
 		ast.Equal(1, pool.txStore.parkingLotIndex.size())
 		poolTx := pool.txStore.allTxs[from].items[1]
@@ -189,6 +191,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		err = pool.AddLocalTx(tx)
 		ast.Nil(err)
 		ast.Equal(uint64(2), pool.txStore.priorityNonBatchSize, "we receive wanted nonce")
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize, "we receive wanted nonce, tx1 from parking lot move to priority")
+
 		ast.Equal(2, pool.txStore.localTTLIndex.size())
 		ast.Equal(2, pool.txStore.removeTTLIndex.size())
 		ast.Equal(2, pool.txStore.priorityIndex.size())
@@ -262,6 +266,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Nil(err)
 		ast.Equal(1, pool.txStore.localTTLIndex.size())
 		ast.Equal(1, pool.txStore.removeTTLIndex.size())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 
 		tx02, err := types.GenerateTransactionWithSigner(0, to, big.NewInt(1000), nil, s)
 		ast.Nil(err)
@@ -269,6 +275,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		err = pool.AddLocalTx(tx02)
 		ast.NotNil(err)
 		ast.Contains(err.Error(), ErrNonceTooLow.Error())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 
 		tx21 := constructTx(s, 2)
 		err = pool.AddLocalTx(tx21)
@@ -277,6 +285,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(tx21.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash(), "tx21 exist in txpool")
 		ast.Equal(2, pool.txStore.localTTLIndex.size())
 		ast.Equal(2, pool.txStore.removeTTLIndex.size())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx21 belong to parking lot")
 
 		tx22, err := types.GenerateTransactionWithSigner(2, to, big.NewInt(1000), nil, s)
 		ast.Nil(err)
@@ -287,6 +297,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.NotEqual(tx21.RbftGetTxHash(), tx22.RbftGetTxHash())
 		poolTx = pool.txStore.getPoolTxByTxnPointer(from, tx22.RbftGetNonce())
 		ast.Equal(tx22.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash(), "tx22 replaced tx21")
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx22 belong to parking lot")
 		ast.Equal(2, pool.txStore.localTTLIndex.size())
 		ast.Equal(2, pool.txStore.removeTTLIndex.size())
 		removeKey := &orderedIndexKey{
@@ -316,6 +328,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		tx0 := constructTx(s, 0)
 		err = pool.AddLocalTx(tx0)
 		ast.Nil(err)
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize, "tx0 belong to priority non-batch")
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 
 		tx2 := constructTx(s, 2)
 		err = pool.AddLocalTx(tx2)
@@ -324,6 +338,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(2, pool.txStore.localTTLIndex.size())
 		ast.Equal(2, pool.txStore.removeTTLIndex.size())
 		ast.Equal(1, pool.txStore.parkingLotIndex.size())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx2 belong to parking lot")
 
 		tx3 := constructTx(s, 3)
 		err = pool.AddLocalTx(tx3)
@@ -332,6 +348,8 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(1, pool.txStore.localTTLIndex.size())
 		ast.Equal(1, pool.txStore.removeTTLIndex.size())
 		ast.Equal(0, pool.txStore.parkingLotIndex.size())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx2 and tx3 had been removed from parking lot")
 	})
 }
 
@@ -358,6 +376,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast.Equal(1, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(0), pool.txStore.txHashMap[tx.RbftGetTxHash()].nonce)
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 		ast.Equal(1, pool.txStore.priorityIndex.size())
 		ast.Equal(0, pool.txStore.parkingLotIndex.size())
 		poolTx := pool.txStore.allTxs[from].items[0]
@@ -410,9 +429,10 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast.NotNil(pool.txStore.allTxs[from])
 		ast.Equal(9, len(pool.txStore.allTxs[from].items))
 		ast.Equal(9, len(pool.txStore.txHashMap))
-		ast.Equal(uint64(5), pool.txStore.priorityNonBatchSize)
 		ast.Equal(5, pool.txStore.priorityIndex.size(), "tx0-tx4 are in priority queue")
 		ast.Equal(4, pool.txStore.parkingLotIndex.size(), "tx6-tx9 are in parking lot")
+		ast.Equal(uint64(5), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(4), pool.txStore.parkingLotSize)
 		ast.Equal(0, pool.txStore.localTTLIndex.size())
 		ast.Equal(9, pool.txStore.removeTTLIndex.size())
 
@@ -422,9 +442,66 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast.Equal(lackTx.RbftGetTxHash(), pool.GetPendingTxByHash(lackTx.RbftGetTxHash()).RbftGetTxHash())
 		ast.Equal(10, len(pool.txStore.allTxs[from].items))
 		ast.Equal(10, len(pool.txStore.txHashMap))
-		ast.Equal(uint64(10), pool.txStore.priorityNonBatchSize)
 		ast.Equal(10, pool.txStore.priorityIndex.size(), "tx0-tx0 are in priority queue")
 		ast.Equal(4, pool.txStore.parkingLotIndex.size(), "tx6-tx9 are in parking lot")
+		ast.Equal(uint64(10), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx6-tx9 status is not in parking lot")
+		ast.Equal(0, pool.txStore.localTTLIndex.size())
+		ast.Equal(10, pool.txStore.removeTTLIndex.size())
+	})
+
+	t.Run("nonce is bigger in different txs", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		from := s.Addr.String()
+		txs := constructTxs(s, 10)
+		// remove tx0
+		lackTx := txs[0]
+		txs1 := append(txs[1:5])
+		txs2 := append(txs[5:10])
+
+		pool.AddRemoteTxs(txs1)
+		// because add remote txs is async,
+		// so we need to send getMeta event to ensure last event is handled
+		ast.Equal(uint64(0), pool.GetAccountMeta(from, true).PendingNonce)
+		ast.NotNil(pool.txStore.allTxs[from])
+		ast.Equal(4, len(pool.txStore.allTxs[from].items))
+		ast.Equal(4, len(pool.txStore.txHashMap))
+		ast.Equal(0, pool.txStore.priorityIndex.size())
+		ast.Equal(4, pool.txStore.parkingLotIndex.size(), "tx1-tx4 are in parking lot")
+		ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(4), pool.txStore.parkingLotSize)
+		ast.Equal(0, pool.txStore.localTTLIndex.size())
+		ast.Equal(4, pool.txStore.removeTTLIndex.size())
+
+		pool.AddRemoteTxs(txs2)
+		ast.Equal(uint64(0), pool.GetAccountMeta(from, true).PendingNonce)
+		ast.NotNil(pool.txStore.allTxs[from])
+		ast.Equal(9, len(pool.txStore.allTxs[from].items))
+		ast.Equal(9, len(pool.txStore.txHashMap))
+		ast.Equal(0, pool.txStore.priorityIndex.size())
+		ast.Equal(9, pool.txStore.parkingLotIndex.size(), "tx1-tx9 are in parking lot")
+		ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(9), pool.txStore.parkingLotSize)
+		ast.Equal(0, pool.txStore.localTTLIndex.size())
+		ast.Equal(9, pool.txStore.removeTTLIndex.size())
+
+		pool.AddRemoteTxs([]*types.Transaction{lackTx})
+		// because add remote txs is async,
+		// so we need to send getPendingTxByHash event to ensure last event is handled
+		ast.Equal(lackTx.RbftGetTxHash(), pool.GetPendingTxByHash(lackTx.RbftGetTxHash()).RbftGetTxHash())
+		ast.Equal(10, len(pool.txStore.allTxs[from].items))
+		ast.Equal(10, len(pool.txStore.txHashMap))
+		ast.Equal(10, pool.txStore.priorityIndex.size(), "tx0-tx9 are in priority queue")
+		ast.Equal(9, pool.txStore.parkingLotIndex.size(), "tx1-tx9 are in parking lot")
+		ast.Equal(uint64(10), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx6-tx9 status is not in parking lot")
 		ast.Equal(0, pool.txStore.localTTLIndex.size())
 		ast.Equal(10, pool.txStore.removeTTLIndex.size())
 	})
@@ -502,6 +579,8 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		err = pool.AddLocalTx(tx01)
 		ast.Nil(err)
 		ast.Equal(1, pool.txStore.localTTLIndex.size(), "tx01 exist in txpool")
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 
 		tx02, err := types.GenerateTransactionWithSigner(0, to, big.NewInt(1000), nil, s)
 		ast.Nil(err)
@@ -516,6 +595,8 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		poolTx := pool.txStore.getPoolTxByTxnPointer(from, tx21.RbftGetNonce())
 		ast.Equal(tx21.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash(), "tx21 exist in txpool")
 		ast.Equal(2, pool.txStore.localTTLIndex.size(), "tx21 exist in txpool")
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx21 exist in parking lot")
 
 		tx22, err := types.GenerateTransactionWithSigner(2, to, big.NewInt(1000), nil, s)
 		ast.Nil(err)
@@ -528,6 +609,8 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		poolTx = pool.txStore.getPoolTxByTxnPointer(from, tx22.RbftGetNonce())
 		ast.Equal(tx22.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash(), "tx22 replaced tx21")
 		ast.Equal(1, pool.txStore.localTTLIndex.size(), "tx21 removed in txpool")
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx22 exist in parking lot")
 	})
 
 	t.Run("duplicate nonce but not the same tx in same txs", func(t *testing.T) {
@@ -549,6 +632,8 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast.Nil(pool.GetPendingTxByHash(tx02.RbftGetTxHash()), "tx02 not exist in txpool, because it's nonce too low")
 		ast.Equal(0, pool.txStore.localTTLIndex.size())
 		ast.Equal(1, pool.txStore.removeTTLIndex.size())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 
 		tx21 := constructTx(s, 2)
 		tx22, err := types.GenerateTransactionWithSigner(2, to, big.NewInt(1000), nil, s)
@@ -559,6 +644,8 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast.Equal(tx22.RbftGetTxHash(), pool.GetPendingTxByHash(tx22.RbftGetTxHash()).RbftGetTxHash())
 		ast.Equal(0, pool.txStore.localTTLIndex.size())
 		ast.Equal(2, pool.txStore.removeTTLIndex.size())
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+		ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx22 exist in parking lot")
 	})
 
 	t.Run("nonce too high in same txs, trigger remove high nonce tx", func(t *testing.T) {
@@ -588,14 +675,19 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		txs2 = txs2[1:]
 		txs3 := constructTxs(s3, 4)
 
-		// txs include txs1,txs2,tx3
-		txs := append(txs1, txs2...)
-		txs = append(txs, txs3...)
+		// txs include txs1,tx3
+		txs := append(txs1, txs3...)
 
 		pool.AddRemoteTxs(txs)
 		ast.Equal(0, len(pool.GetAccountMeta(from1, false).SimpleTxs), "from1 trigger remove all high nonce tx, so its tx count should be 0")
-		ast.Equal(0, len(pool.GetAccountMeta(from2, false).SimpleTxs), "from2 trigger remove all high nonce tx, so its tx count should be 0")
 		ast.Equal(4, len(pool.GetAccountMeta(from3, false).SimpleTxs))
+		ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize, "from3 exist tx0-tx3 in txpool")
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
+
+		pool.AddRemoteTxs(txs2)
+		ast.Equal(0, len(pool.GetAccountMeta(from2, false).SimpleTxs), "from2 trigger remove all high nonce tx, so its tx count should be 0")
+		ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize, "from3 exist tx0-tx3 in txpool")
+		ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 	})
 }
 
@@ -935,7 +1027,12 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 		batch, err := pool.GenerateRequestBatch(typ)
 		ast.Nil(err)
 		ast.NotNil(batch)
+		txHashList := batch.TxHashList
 		ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
+		ast.Equal(1, len(pool.txStore.batchesCache))
+		lo.ForEach(pool.GetMeta(true).Batches[batch.BatchHash].Txs, func(tx *commonpool.TxSimpleInfo, index int) {
+			ast.Equal(txHashList[index], tx.Hash)
+		})
 	})
 
 	t.Run("generate batch size event which is less than batchSize", func(t *testing.T) {

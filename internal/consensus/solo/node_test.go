@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -172,7 +173,7 @@ func TestNode_ReportState(t *testing.T) {
 		err = node.Prepare(tx11)
 		ast.NotNil(err)
 		<-txSubscribeCh
-		ast.Contains(err.Error(), ErrPoolFull)
+		ast.Contains(err.Error(), txpool2.ErrTxPoolFull.Error())
 		ast.Equal(10, len(node.batchDigestM), "the pool should be full, tx11 is not add in txpool successfully")
 	})
 
