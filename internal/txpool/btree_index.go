@@ -93,12 +93,18 @@ func (idx *btreeIndex[T, Constraint]) removeBySortedNonceKey(poolTx *internalTra
 	idx.data.Delete(makeSortedNonceKey(poolTx.getNonce()))
 }
 
-func (idx *btreeIndex[T, Constraint]) insertByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) {
-	idx.data.ReplaceOrInsert(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce()))
+func (idx *btreeIndex[T, Constraint]) insertByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) bool {
+	if old := idx.data.ReplaceOrInsert(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce())); old != nil {
+		return true
+	}
+	return false
 }
 
-func (idx *btreeIndex[T, Constraint]) removeByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) {
-	idx.data.Delete(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce()))
+func (idx *btreeIndex[T, Constraint]) removeByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) bool {
+	if old := idx.data.Delete(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce())); old != nil {
+		return true
+	}
+	return false
 }
 
 func (idx *btreeIndex[T, Constraint]) removeByOrderedQueueKeys(account string, txs []*internalTransaction[T, Constraint]) error {

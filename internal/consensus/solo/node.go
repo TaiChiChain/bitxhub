@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -51,6 +52,7 @@ type Node struct {
 	sync.RWMutex
 	txFeed        event.Feed
 	mockBlockFeed event.Feed
+	started       atomic.Bool
 }
 
 func NewNode(config *common.Config) (*Node, error) {
@@ -140,6 +142,7 @@ func (n *Node) Start() error {
 	n.txPreCheck.Start()
 	go n.listenEvent()
 	go n.listenReadyBlock()
+	n.started.Store(true)
 	n.logger.Info("Consensus started")
 	return nil
 }
@@ -181,8 +184,8 @@ func (n *Node) Step([]byte) error {
 }
 
 func (n *Node) Ready() error {
-	if n.txpool.IsPoolFull() {
-		return fmt.Errorf(ErrPoolFull)
+	if !n.started.Load() {
+		return common.ErrorConsensusStart
 	}
 	return nil
 }

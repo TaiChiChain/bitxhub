@@ -39,7 +39,10 @@ type transactionStore[T any, Constraint types.TXConstraint[T]] struct {
 	// trace the missing transaction
 	missingBatch map[string]map[uint64]string
 
-	// track the non-batch priority transaction.
+	// track the parkingLot transaction which is actually not ready.
+	parkingLotSize uint64
+
+	// track the priority transaction.
 	priorityNonBatchSize uint64
 
 	// localTTLIndex based on the tolerance time to track all the remained txs
@@ -55,6 +58,7 @@ func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNo
 	return &transactionStore[T, Constraint]{
 		logger:               logger,
 		priorityNonBatchSize: 0,
+		parkingLotSize:       0,
 		txHashMap:            make(map[string]*txPointer),
 		allTxs:               make(map[string]*txSortedMap[T, Constraint]),
 		batchedTxs:           make(map[txPointer]bool),
@@ -134,7 +138,9 @@ func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, non
 func (txStore *transactionStore[T, Constraint]) removeTxInPool(poolTx *internalTransaction[T, Constraint]) {
 	txStore.deletePoolTx(poolTx.getAccount(), poolTx.getNonce())
 	txStore.priorityIndex.removeByOrderedQueueKey(poolTx)
-	txStore.parkingLotIndex.removeByOrderedQueueKey(poolTx)
+	if ok := txStore.parkingLotIndex.removeByOrderedQueueKey(poolTx); ok {
+		txStore.decreaseParkingLotSize(1)
+	}
 	txStore.removeTTLIndex.removeByOrderedQueueKey(poolTx)
 	txStore.localTTLIndex.removeByOrderedQueueKey(poolTx)
 }
@@ -154,6 +160,20 @@ func (txStore *transactionStore[T, Constraint]) getPoolTxByTxnPointer(account st
 		return list.items[nonce]
 	}
 	return nil
+}
+
+func (txStore *transactionStore[T, Constraint]) increaseParkingLotSize(addSize uint64) {
+	txStore.parkingLotSize = txStore.parkingLotSize + addSize
+	queueTxNum.Set(float64(txStore.parkingLotSize))
+}
+
+func (txStore *transactionStore[T, Constraint]) decreaseParkingLotSize(subSize uint64) {
+	if txStore.parkingLotSize < subSize {
+		txStore.logger.Error("parkingLotSize < subSize,", "parkingLotSize: ", txStore.parkingLotSize, "subSize: ", subSize)
+		txStore.parkingLotSize = 0
+	}
+	txStore.parkingLotSize = txStore.parkingLotSize - subSize
+	queueTxNum.Set(float64(txStore.parkingLotSize))
 }
 
 // todo: gc the empty account in txpool(delete key)

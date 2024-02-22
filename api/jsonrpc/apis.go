@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"github.com/axiomesh/axiom-ledger/api/jsonrpc/txpool"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/sirupsen/logrus"
 
@@ -96,7 +97,7 @@ func GetAPIs(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) ([]rpc.
 		rpc.API{
 			Namespace: TxPoolNamespace,
 			Version:   apiVersion,
-			Service:   axm.NewTxPoolAPI(rep, api, logger),
+			Service:   txpool.NewTxPoolAPI(rep, api, logger),
 			Public:    true,
 		},
 	)

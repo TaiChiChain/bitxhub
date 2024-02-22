@@ -199,10 +199,10 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		err                          error
 		completionMissingBatchHashes []string
 		nextEvents                   []txPoolEvent
-		dirtyAccounts                map[string]bool
+		dirtyAccounts                map[string]int
 		validTxs                     []*T
 	)
-	dirtyAccounts = make(map[string]bool)
+	dirtyAccounts = make(map[string]int)
 	start := time.Now()
 	metricsPrefix := "addTxs_"
 	defer func() {
@@ -227,7 +227,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 
 		// if error is nil, it means the tx is inserted into pool successfully
 		if err == nil {
-			dirtyAccounts[Constraint(req.tx).RbftGetFrom()] = true
+			dirtyAccounts[Constraint(req.tx).RbftGetFrom()]++
 			validTxs = append(validTxs, req.tx)
 			if p.enableLocalsPersist && p.txRecordsFile != "" {
 				err = p.txRecords.insert(req.tx)
@@ -257,15 +257,10 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 				removeEvent := p.genHighNonceEvent(txs[i])
 				nextEvents = append(nextEvents, removeEvent)
 				nonceTooHighAccounts[Constraint(txs[i]).RbftGetFrom()] = true
-				// remove account from dirty accounts
-				delete(dirtyAccounts, Constraint(txs[i]).RbftGetFrom())
-				validTxs = lo.Filter(validTxs, func(tx *T, _ int) bool {
-					return Constraint(tx).RbftGetFrom() != Constraint(tx).RbftGetFrom()
-				})
 			}
 
 			if err == nil {
-				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()] = true
+				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()]++
 				validTxs = append(validTxs, txs[i])
 			} else {
 				p.logger.WithFields(logrus.Fields{"txHash": Constraint(txs[i]).RbftGetTxHash(), "err": err}).Debug("add remote tx failed")
@@ -280,7 +275,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 			lo.ForEach(validTxs, func(tx *T, _ int) {
 				// if the tx is a new tx, need process it as dirty tx(update nonce cache)
 				if replaced := p.replaceTx(tx); !replaced {
-					dirtyAccounts[Constraint(tx).RbftGetFrom()] = true
+					dirtyAccounts[Constraint(tx).RbftGetFrom()]++
 				}
 			})
 			delete(p.txStore.missingBatch, req.batchHash)
@@ -298,7 +293,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		errs := p.addTxs(txs, true)
 		lo.ForEach(errs, func(err error, i int) {
 			if err == nil {
-				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()] = true
+				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()]++
 				validTxs = append(validTxs, txs[i])
 			}
 		})
@@ -428,6 +423,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent
 	}
 }
 
+// remove invalid txs(invalid signature or gasPrice too low)
 func (p *txPoolImpl[T, Constraint]) handleRemoveInvalidTxs(removeTxsM map[string][]*internalTransaction[T, Constraint]) int {
 	updateAccounts := make(map[string]uint64)
 	removeCount := 0
@@ -1301,14 +1297,18 @@ func (p *txPoolImpl[T, Constraint]) cleanTxsByAccount(account string, list *txSo
 	var failed atomic.Bool
 	var wg sync.WaitGroup
 	wg.Add(5)
-	go func(txs []*internalTransaction[T, Constraint]) {
+	go func(txs []*internalTransaction[T, Constraint], pendingNonce uint64) {
 		defer wg.Done()
 		lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
 			nonce := poolTx.getNonce()
+			// tx which removed is belonged to parkingLot, we should decrease parkingLotSize
+			if nonce > pendingNonce {
+				p.txStore.decreaseParkingLotSize(1)
+			}
 			delete(p.txStore.batchedTxs, txPointer{account: account, nonce: poolTx.getNonce()})
 			p.txStore.deletePoolTx(account, nonce)
 		})
-	}(removedTxs)
+	}(removedTxs, p.txStore.nonceCache.getPendingNonce(account))
 	go func(txs []*internalTransaction[T, Constraint]) {
 		defer wg.Done()
 		if err := p.txStore.priorityIndex.removeByOrderedQueueKeys(account, txs); err != nil {
@@ -1873,8 +1873,8 @@ func (p *txPoolImpl[T, Constraint]) removeTxsByAccount(account string, nonce uin
 // =============================================================================
 // internal methods
 // =============================================================================
-func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string]bool) {
-	for account := range dirtyAccounts {
+func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string]int) {
+	for account, allNewCnt := range dirtyAccounts {
 		if list, ok := p.txStore.allTxs[account]; ok {
 			// search for related sequential txs in allTxs
 			// and add these txs into priorityIndex and parkingLotIndex.
@@ -1887,12 +1887,23 @@ func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string
 				p.txStore.priorityIndex.insertByOrderedQueueKey(poolTx)
 				// p.logger.Debugf("insert ready tx[account: %s, nonce: %d] into priorityIndex", poolTx.getAccount(), poolTx.getNonce())
 			}
+
 			p.increasePriorityNonBatchSize(uint64(len(readyTxs)))
 
+			newNonReadyCnt := 0
 			// insert non-ready txs into parkingLotIndex
 			for _, poolTx := range nonReadyTxs {
-				p.txStore.parkingLotIndex.insertByOrderedQueueKey(poolTx)
+				if replace := p.txStore.parkingLotIndex.insertByOrderedQueueKey(poolTx); !replace {
+					p.txStore.increaseParkingLotSize(1)
+					newNonReadyCnt++
+				}
 			}
+			newReadyCnt := allNewCnt - newNonReadyCnt
+			nonReady2ReadyCnt := len(readyTxs) - newReadyCnt
+
+			// update parkingLotSize
+			p.txStore.decreaseParkingLotSize(uint64(nonReady2ReadyCnt))
+
 		}
 	}
 }
@@ -1909,6 +1920,10 @@ func (p *txPoolImpl[T, Constraint]) increasePriorityNonBatchSize(addSize uint64)
 }
 
 func (p *txPoolImpl[T, Constraint]) decreasePriorityNonBatchSize(subSize uint64) {
+	if p.txStore.priorityNonBatchSize < subSize {
+		p.logger.Error("priorityNonBatchSize < subSize", "priorityNonBatchSize: ", p.txStore.priorityNonBatchSize, "subSize: ", subSize)
+		p.txStore.priorityNonBatchSize = 0
+	}
 	p.txStore.priorityNonBatchSize = p.txStore.priorityNonBatchSize - subSize
 	if !p.checkPendingRequestInPool() {
 		p.setNoPendingRequest()
