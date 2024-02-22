@@ -8,17 +8,20 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth/tracers"
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers/logger"
+	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -59,6 +62,14 @@ type TraceConfig struct {
 	TracerConfig json.RawMessage
 }
 
+// TraceCallConfig is the config for traceCall API. It holds one more
+// field to override the state for tracing.
+type TraceCallConfig struct {
+	TraceConfig
+	StateOverrides *StateOverride
+	BlockOverrides *BlockOverrides
+}
+
 var errTxNotFound = errors.New("transaction not found")
 
 func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (any, error) {
@@ -92,7 +103,7 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	if err != nil {
 		return nil, err
 	}
-	txctx := &Context{
+	txctx := &tracers.Context{
 		BlockHash:   block.BlockHash.ETHHash(),
 		BlockNumber: new(big.Int).SetUint64(block.Height()),
 		TxIndex:     int(meta.Index),
@@ -102,9 +113,9 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	return api.traceTx(msg, txctx, vmctx, *statedb, config)
 }
 
-func (api *TracerAPI) traceTx(message *core.Message, txctx *Context, vmctx vm.BlockContext, statedb ledger.StateLedger, config *TraceConfig) (any, error) {
+func (api *TracerAPI) traceTx(message *core.Message, txctx *tracers.Context, vmctx vm.BlockContext, statedb ledger.StateLedger, config *TraceConfig) (any, error) {
 	var (
-		tracer    Tracer
+		tracer    tracers.Tracer
 		err       error
 		timeout   = defaultTraceTimeout
 		txContext = core.NewEVMTxContext(message)
@@ -115,7 +126,7 @@ func (api *TracerAPI) traceTx(message *core.Message, txctx *Context, vmctx vm.Bl
 	// Default tracer is the struct logger
 	tracer = logger.NewStructLogger(config.Config)
 	if config.Tracer != nil {
-		tracer, err = DefaultDirectory.New(*config.Tracer, txctx, config.TracerConfig)
+		tracer, err = tracers.DefaultDirectory.New(*config.Tracer, txctx, config.TracerConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -144,4 +155,147 @@ func (api *TracerAPI) traceTx(message *core.Message, txctx *Context, vmctx vm.Bl
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}
 	return tracer.GetResult()
+}
+
+func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, config *TraceCallConfig) (interface{}, error) {
+	// Try to retrieve the specified block
+	var (
+		err   error
+		block *types.Block
+	)
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		block, err = api.api.Broker().GetBlock("HASH", hash.String())
+	} else if blockNum, ok := blockNrOrHash.Number(); ok {
+		if blockNum == rpctypes.PendingBlockNumber || blockNum == rpctypes.LatestBlockNumber {
+			meta, _ := api.api.Chain().Meta()
+			blockNum = rpctypes.BlockNumber(meta.Height)
+		}
+		block, err = api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNum))
+	} else {
+		return nil, errors.New("invalid arguments; neither block nor hash specified")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	statedb := api.api.Broker().GetViewStateLedger().NewViewWithoutCache(block, false)
+
+	vmctx := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, nil)
+	// Apply the customization rules if required.
+	if config != nil {
+		if err := config.StateOverrides.Apply(statedb); err != nil {
+			return nil, err
+		}
+		config.BlockOverrides.Apply(&vmctx)
+	}
+	// Execute the trace
+	msg, err := executor.CallArgsToMessage(&args, api.rep.Config.JsonRPC.GasCap, big.NewInt(0))
+	if err != nil {
+		return nil, err
+	}
+
+	var traceConfig *TraceConfig
+	if config != nil {
+		traceConfig = &config.TraceConfig
+	}
+	return api.traceTx(msg, new(tracers.Context), vmctx, statedb, traceConfig)
+}
+
+// OverrideAccount indicates the overriding fields of account during the execution
+// of a message call.
+// Note, state and stateDiff can't be specified at the same time. If state is
+// set, message execution will only use the data in the given state. Otherwise
+// if statDiff is set, all diff will be applied first and then execute the call
+// message.
+type OverrideAccount struct {
+	Nonce     *hexutil.Uint64              `json:"nonce"`
+	Code      *hexutil.Bytes               `json:"code"`
+	Balance   **hexutil.Big                `json:"balance"`
+	State     *map[common.Hash]common.Hash `json:"state"`
+	StateDiff *map[common.Hash]common.Hash `json:"stateDiff"`
+}
+
+// StateOverride is the collection of overridden accounts.
+type StateOverride map[common.Address]OverrideAccount
+
+// Apply overrides the fields of specified accounts into the given state.
+func (diff *StateOverride) Apply(state ledger.StateLedger) error {
+	if diff == nil {
+		return nil
+	}
+	for addr, account := range *diff {
+		taddr := types.NewAddressByStr(addr.String())
+		// Override account nonce.
+		if account.Nonce != nil {
+			state.SetNonce(taddr, uint64(*account.Nonce))
+		}
+		// Override account(contract) code.
+		if account.Code != nil {
+			state.SetCode(taddr, *account.Code)
+		}
+		// Override account balance.
+		if account.Balance != nil {
+			state.SetBalance(taddr, (*big.Int)(*account.Balance))
+		}
+		if account.State != nil && account.StateDiff != nil {
+			return fmt.Errorf("account %s has both 'state' and 'stateDiff'", addr.String())
+		}
+		// Replace entire state if caller requires.
+		if account.State != nil {
+			acc := state.GetAccount(taddr)
+			for k, v := range *account.State {
+				acc.SetState(k.Bytes(), v.Bytes())
+			}
+		}
+		// Apply state diff into specified accounts.
+		if account.StateDiff != nil {
+			for key, value := range *account.StateDiff {
+				state.SetState(taddr, key.Bytes(), value.Bytes())
+			}
+		}
+	}
+	// Now finalize the changes. Finalize is normally performed between transactions.
+	// By using finalize, the overrides are semantically behaving as
+	// if they were created in a transaction just before the tracing occur.
+	state.Finalise()
+	return nil
+}
+
+// BlockOverrides is a set of header fields to override.
+type BlockOverrides struct {
+	Number     *hexutil.Big
+	Difficulty *hexutil.Big
+	Time       *hexutil.Uint64
+	GasLimit   *hexutil.Uint64
+	Coinbase   *common.Address
+	Random     *common.Hash
+	BaseFee    *hexutil.Big
+}
+
+// Apply overrides the given header fields into the given block context.
+func (diff *BlockOverrides) Apply(blockCtx *vm.BlockContext) {
+	if diff == nil {
+		return
+	}
+	if diff.Number != nil {
+		blockCtx.BlockNumber = diff.Number.ToInt()
+	}
+	if diff.Difficulty != nil {
+		blockCtx.Difficulty = diff.Difficulty.ToInt()
+	}
+	if diff.Time != nil {
+		blockCtx.Time = uint64(*diff.Time)
+	}
+	if diff.GasLimit != nil {
+		blockCtx.GasLimit = uint64(*diff.GasLimit)
+	}
+	if diff.Coinbase != nil {
+		blockCtx.Coinbase = *diff.Coinbase
+	}
+	if diff.Random != nil {
+		blockCtx.Random = diff.Random
+	}
+	if diff.BaseFee != nil {
+		blockCtx.BaseFee = diff.BaseFee.ToInt()
+	}
 }
