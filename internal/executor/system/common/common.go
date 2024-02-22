@@ -97,3 +97,4 @@ func CalculateDynamicGas(bytes []byte) uint64 {
 	gas, _ := core.IntrinsicGas(bytes, []ethtype.AccessTuple{}, false, true, true, true)
 	return gas
 }
+
