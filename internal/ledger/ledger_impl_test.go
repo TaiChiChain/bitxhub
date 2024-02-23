@@ -763,6 +763,148 @@ func TestChainLedger_AddState(t *testing.T) {
 	}
 }
 
+func TestGetBlockWithOutTxByNumber(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(1)
+			assert.True(t, errors.Is(err, ErrNotFound))
+
+			ledger, _ = initLedger(t, "", tc.kvType)
+			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
+
+			// create an addr0
+			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+
+			ledger.StateLedger.PrepareBlock(nil, nil, 1)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
+			stateLedger.Finalise()
+			stateRoot1, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			assert.NotNil(t, stateRoot1)
+			ledger.PersistBlockData(genBlockData(1, stateRoot1))
+
+			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
+			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
+
+			code := sha256.Sum256([]byte("code"))
+			ledger.StateLedger.SetCode(addr0, code[:])
+			ledger.StateLedger.Finalise()
+
+			stateRoot2, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			ledger.PersistBlockData(genBlockData(2, stateRoot2))
+
+			block, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(2)
+			assert.Nil(t, err)
+			assert.NotNil(t, block)
+			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+
+		})
+	}
+}
+
+func TestGetBlockWithOutTxByHash(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockWithOutTxByHash(types.NewHash([]byte("1")))
+			assert.True(t, errors.Is(err, ErrNotFound))
+
+			ledger, _ = initLedger(t, "", tc.kvType)
+			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
+
+			// create an addr0
+			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+
+			ledger.StateLedger.PrepareBlock(nil, nil, 1)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
+			stateLedger.Finalise()
+			stateRoot1, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			assert.NotNil(t, stateRoot1)
+			ledger.PersistBlockData(genBlockData(1, stateRoot1))
+
+			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
+			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
+
+			code := sha256.Sum256([]byte("code"))
+			ledger.StateLedger.SetCode(addr0, code[:])
+			ledger.StateLedger.Finalise()
+
+			stateRoot2, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			ledger.PersistBlockData(genBlockData(2, stateRoot2))
+
+			block, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(2)
+			assert.Nil(t, err)
+			assert.NotNil(t, block)
+			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+			key := utils.CompositeKey(utils.BlockHashKey, block.BlockHash.String())
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(key, []byte("2"))
+
+			block2, err := ledger.ChainLedger.GetBlockWithOutTxByHash(block.BlockHash)
+			assert.Nil(t, err)
+			assert.NotNil(t, block2)
+			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+
+		})
+	}
+}
+
+func TestGetBlockTxHashListByNumber(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockTxHashListByNumber(1)
+			assert.NotNil(t, err)
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockTxSetKey, 1), []byte("1"))
+			_, err = ledger.ChainLedger.GetBlockTxHashListByNumber(1)
+			assert.NotNil(t, err)
+		})
+	}
+}
+
+func TestGetBlockTxListByNumber(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockTxListByNumber(1)
+			assert.NotNil(t, err)
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			require.Nil(t, err)
+			_, err = ledger.ChainLedger.GetBlockTxListByNumber(1)
+			assert.NotNil(t, err)
+		})
+	}
+}
+
 func TestGetBlockByHash(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
