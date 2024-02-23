@@ -63,19 +63,6 @@ const (
 	Decimals = 10000
 )
 
-var Method2Sig = map[string]string{
-	totalSupplyMethod:  "totalSupply()",
-	balanceOfMethod:    "balanceOf(address)",
-	transferMethod:     "transfer(address,uint256)",
-	allowanceMethod:    "allowance(address,address)",
-	approveMethod:      "approve(address,uint256)",
-	transferFromMethod: "transferFrom(address,address,uint256)",
-	nameMethod:         "name()",
-	symbolMethod:       "symbol()",
-	decimalsMethod:     "decimals()",
-	unlockMethod:       "unlock(address,uint256)",
-}
-
 var Event2Sig = map[string]string{
 	approveMethod:  "Approval(address,address,uint256)",
 	transferMethod: "Transfer(address,address,uint256)",

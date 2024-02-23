@@ -53,13 +53,6 @@ const (
 	SuperUser
 )
 
-var WhiteListMethod2Sig = map[string]string{
-	SubmitMethod:                 "submit(bytes)",
-	RemoveMethod:                 "remove(bytes)",
-	QueryAuthInfoMethod:          "queryAuthInfo(bytes)",
-	QueryWhiteListProviderMethod: "queryWhiteListProvider(bytes)",
-}
-
 type AuthInfo struct {
 	User      string
 	Providers []string

@@ -161,12 +161,16 @@ func (api *TracerAPI) traceTx(message *core.Message, txctx *tracers.Context, vmc
 	// Call Prepare to clear out the statedb access list
 	statedb.SetTxContext(types.NewHash(txctx.BlockHash.Bytes()), txctx.TxIndex)
 	if _, err = core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.GasLimit)); err != nil {
+		api.logger.Errorf("trace failed: %w", err)
 		return nil, fmt.Errorf("tracing failed: %w", err)
 	}
-	return tracer.GetResult()
+	traceRes, err := tracer.GetResult()
+	api.logger.Debugf("trace call, result: %+v, %s", traceRes, err)
+	return traceRes, err
 }
 
 func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, config *TraceCallConfig) (any, error) {
+	api.logger.Debugf("trace call, args: %+v, block number or hash: %+v, config: %+v", args, blockNrOrHash, config)
 	// Try to retrieve the specified block
 	var (
 		err         error

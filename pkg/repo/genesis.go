@@ -21,6 +21,7 @@ type GenesisConfig struct {
 	Incentive              *Incentive      `mapstructure:"incentive" toml:"incentive"`
 	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
+	SmartAccountAdmin      string          `mapstructure:"smart_account_admin" toml:"smart_account_admin"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
 	Accounts               []*Account      `mapstructure:"accounts" toml:"accounts"`
 	EpochInfo              *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
@@ -196,6 +197,7 @@ func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
 				Name:    DefaultAdminNames[idx],
 			}
 		}),
+		SmartAccountAdmin: DefaultNodeAddrs[0],
 		Axm: &Token{
 			Name:        "Axiom",
 			Symbol:      "AXM",

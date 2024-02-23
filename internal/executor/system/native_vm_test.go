@@ -1,17 +1,16 @@
 package system
 
 import (
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
 	"math/big"
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/core/vm"
-
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
-	"github.com/ethereum/go-ethereum/core"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -21,10 +20,12 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 const (
@@ -61,6 +62,7 @@ func TestContractInitGenesisData(t *testing.T) {
 		}).AnyTimes()
 
 		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+		stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 
 		err := InitGenesisData(genesis, mockLedger.StateLedger)
 		assert.Nil(t, err)
@@ -126,6 +128,7 @@ func TestContractInitGenesisData(t *testing.T) {
 		}).AnyTimes()
 
 		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+		stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 
 		err := InitGenesisData(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
@@ -171,6 +174,7 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 	}).AnyTimes()
 
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 	err := InitGenesisData(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)
 }
@@ -324,4 +328,80 @@ func TestNativeVM_RequiredGas(t *testing.T) {
 	nvm := New()
 	gas := nvm.RequiredGas([]byte{1})
 	assert.Equal(t, uint64(21016), gas)
+}
+
+func Test_convertInputArgs(t *testing.T) {
+	op := struct {
+		Sender               ethcommon.Address `json:"sender"`
+		Nonce                *big.Int          `json:"nonce"`
+		InitCode             []byte            `json:"initCode"`
+		CallData             []byte            `json:"callData"`
+		CallGasLimit         *big.Int          `json:"callGasLimit"`
+		VerificationGasLimit *big.Int          `json:"verificationGasLimit"`
+		PreVerificationGas   *big.Int          `json:"preVerificationGas"`
+		MaxFeePerGas         *big.Int          `json:"maxFeePerGas"`
+		MaxPriorityFeePerGas *big.Int          `json:"maxPriorityFeePerGas"`
+		PaymasterAndData     []byte            `json:"paymasterAndData"`
+		Signature            []byte            `json:"signature"`
+	}{
+		Sender:               ethcommon.HexToAddress("0x9624CE13b5E63cfAb1369b7f832B36128242454E"),
+		Nonce:                big.NewInt(0),
+		InitCode:             []byte("0x00000000000000000000000000000000000010095fbfb9cf0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc0000000000000000000000000000000000000000000000000000000000015b43"),
+		CallData:             []byte("0xb61d27f60000000000000000000000008464135c8f25da09e49bc8782676a84730c318bc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044a9059cbb000000000000000000000000c7f999b83af6df9e67d0a37ee7e900bf38b3d013000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000"),
+		CallGasLimit:         big.NewInt(0),
+		VerificationGasLimit: big.NewInt(10000000),
+		PreVerificationGas:   big.NewInt(10000000),
+		MaxFeePerGas:         big.NewInt(10000000),
+		MaxPriorityFeePerGas: big.NewInt(10000000),
+		PaymasterAndData:     []byte{},
+		Signature:            []byte("0x70aae8a31ee824b05e449e082f9fcf848218fe4563988d426e72d4675d1179b9735c026f847eb22e6b0f1a8dc81825678f383b07189c5df6a4a513a972ad71191"),
+	}
+
+	// call entrypoint SimulateHandleOp
+	entrypoint := saccount.NewEntryPoint(&common.SystemContractConfig{})
+	method := reflect.ValueOf(entrypoint).MethodByName("SimulateHandleOp")
+	var inputs []reflect.Value
+	inputs = append(inputs, reflect.ValueOf(op))
+	inputs = append(inputs, reflect.ValueOf(ethcommon.Address{}))
+	inputs = append(inputs, reflect.ValueOf([]byte("")))
+	outputs := convertInputArgs(method, inputs)
+	assert.Equal(t, len(inputs), len(outputs))
+
+	ops := []struct {
+		Sender               ethcommon.Address `json:"sender"`
+		Nonce                *big.Int          `json:"nonce"`
+		InitCode             []byte            `json:"initCode"`
+		CallData             []byte            `json:"callData"`
+		CallGasLimit         *big.Int          `json:"callGasLimit"`
+		VerificationGasLimit *big.Int          `json:"verificationGasLimit"`
+		PreVerificationGas   *big.Int          `json:"preVerificationGas"`
+		MaxFeePerGas         *big.Int          `json:"maxFeePerGas"`
+		MaxPriorityFeePerGas *big.Int          `json:"maxPriorityFeePerGas"`
+		PaymasterAndData     []byte            `json:"paymasterAndData"`
+		Signature            []byte            `json:"signature"`
+	}{
+		{
+			Sender:               ethcommon.HexToAddress("0x9624CE13b5E63cfAb1369b7f832B36128242454E"),
+			Nonce:                big.NewInt(0),
+			InitCode:             []byte("0x00000000000000000000000000000000000010095fbfb9cf0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc0000000000000000000000000000000000000000000000000000000000015b43"),
+			CallData:             []byte("0xb61d27f60000000000000000000000008464135c8f25da09e49bc8782676a84730c318bc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044a9059cbb000000000000000000000000c7f999b83af6df9e67d0a37ee7e900bf38b3d013000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000"),
+			CallGasLimit:         big.NewInt(0),
+			VerificationGasLimit: big.NewInt(10000000),
+			PreVerificationGas:   big.NewInt(10000000),
+			MaxFeePerGas:         big.NewInt(10000000),
+			MaxPriorityFeePerGas: big.NewInt(10000000),
+			PaymasterAndData:     []byte{},
+			Signature:            []byte("0x70aae8a31ee824b05e449e082f9fcf848218fe4563988d426e72d4675d1179b9735c026f847eb22e6b0f1a8dc81825678f383b07189c5df6a4a513a972ad71191"),
+		},
+	}
+
+	// call entrypoint HandleOps
+	entrypoint = saccount.NewEntryPoint(&common.SystemContractConfig{})
+	method = reflect.ValueOf(entrypoint).MethodByName("HandleOps")
+	var inputArgs []reflect.Value
+	inputArgs = append(inputArgs, reflect.ValueOf(ops))
+	inputArgs = append(inputArgs, reflect.ValueOf(ethcommon.Address{}))
+
+	outputs = convertInputArgs(method, inputs)
+	assert.Equal(t, len(inputs), len(outputs))
 }

@@ -74,14 +74,6 @@ const (
 	Reject
 )
 
-// GovernanceMethod2Sig is method name to method signature mapping
-var GovernanceMethod2Sig = map[string]string{
-	"propose":             "propose(uint8,string,string,uint64,bytes)",
-	"vote":                "vote(uint64,uint8)",
-	"proposal":            "proposal(uint64)",
-	"getLatestProposalID": "getLatestProposalID()",
-}
-
 type IGovenance interface {
 	Propose(proposalType uint8, title, desc string, expiredBlockNumber uint64, extra []byte) error
 
