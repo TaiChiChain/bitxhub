@@ -26,16 +26,24 @@ type BrokerAPI interface {
 	GetTransaction(*types.Hash) (*types.Transaction, error)
 	GetTransactionMeta(*types.Hash) (*types.TransactionMeta, error)
 	GetReceipt(*types.Hash) (*types.Receipt, error)
-	GetBlock(mode string, key string) (*types.Block, error)
-	GetBlocks(start uint64, end uint64) ([]*types.Block, error)
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *vm.Message, vmConfig *vm.Config) (*vm.EVM, error)
 	GetSystemContract(addr *ethcommon.Address) (common.SystemContract, bool)
 	ConsensusReady() error
-	GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
 
 	ChainConfig() *params.ChainConfig
 	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*vm.Message, vm.BlockContext, *ledger.StateLedger, error)
+
+	GetBlockWithoutTx(mode string, key string) (*types.Block, error)
+	GetBlockTxHashList(height uint64) ([]*types.Hash, error)
+	GetBlockTxList(height uint64) ([]*types.Transaction, error)
+
+	// todo：
+	// @deprecated, use GetBlockWithoutTx、GetBlockTxHashList and GetBlockTxList instead
+	//GetBlock(mode string, key string) (*types.Block, error)
+	//GetBlocks(start uint64, end uint64) ([]*types.Block, error)
+	//GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
+
 }
 
 type NetworkAPI interface {

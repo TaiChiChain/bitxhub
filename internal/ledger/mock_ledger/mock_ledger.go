@@ -132,6 +132,38 @@ func (mr *MockChainLedgerMockRecorder) GetBlock(height any) *ChainLedgerGetBlock
 	return &ChainLedgerGetBlockCall{Call: call}
 }
 
+func (m *MockChainLedger) GetBlockWithOutTxByNumber(height uint64) (*types.Block, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockWithOutTxByNumber", height)
+	ret0, _ := ret[0].(*types.Block)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (m *MockChainLedger) GetBlockWithOutTxByHash(hash *types.Hash) (*types.Block, error){
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockWithOutTxByHash", hash)
+	ret0, _ := ret[0].(*types.Block)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (m *MockChainLedger) GetBlockTxHashListByNumber(height uint64) ([]*types.Hash, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockTxHashListByNumber", height)
+	ret0, _ := ret[0].([]*types.Hash)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (m *MockChainLedger) GetBlockTxListByNumber(height uint64) ([]*types.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockTxListByNumber", height)
+	ret0, _ := ret[0].([]*types.Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
 // ChainLedgerGetBlockCall wrap *gomock.Call
 type ChainLedgerGetBlockCall struct {
 	*gomock.Call
@@ -1910,9 +1942,9 @@ func (c *StateLedgerNewViewCall) DoAndReturn(f func(*types.Block) ledger.StateLe
 }
 
 // NewViewWithoutCache mocks base method.
-func (m *MockStateLedger) NewViewWithoutCache(block *types.Block) ledger.StateLedger {
+func (m *MockStateLedger) NewViewWithoutCache(blockHeader *types.BlockHeader) ledger.StateLedger {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewViewWithoutCache", block)
+	ret := m.ctrl.Call(m, "NewViewWithoutCache", blockHeader)
 	ret0, _ := ret[0].(ledger.StateLedger)
 	return ret0
 }
