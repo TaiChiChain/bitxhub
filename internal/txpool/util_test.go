@@ -45,7 +45,6 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 	log.Logger.SetLevel(logrus.DebugLevel)
 	poolConfig := Config{
 		RepoRoot:              dir,
-		BatchSize:             DefaultTestBatchSize,
 		PoolSize:              DefaultPoolSize,
 		Logger:                log,
 		ToleranceTime:         DefaultToleranceTime,
@@ -56,13 +55,16 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 		GetAccountBalance: func(address string) *big.Int {
 			return big.NewInt(math.MaxInt64)
 		},
-		IsTimed:                false,
 		RotateTxLocalsInterval: DefaultRotateTxLocalsInterval,
 		EnableLocalsPersist:    true,
 
 		ChainInfo: &txpool.ChainInfo{
 			Height:   1,
 			GasPrice: big.NewInt(defaultGasPrice),
+			EpochConf: &txpool.EpochConfig{
+				EnableGenEmptyBatch: false,
+				BatchSize:           DefaultTestBatchSize,
+			},
 		},
 	}
 	return poolConfig
