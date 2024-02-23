@@ -47,14 +47,14 @@ func (api *TransactionAPI) GetBlockTransactionCountByNumber(blockNum rpctypes.Bl
 		blockNum = rpctypes.BlockNumber(meta.Height)
 	}
 
-	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNum))
+	blockTxHashList, err := api.api.Broker().GetBlockTxHashList(uint64(blockNum))
 	if err != nil {
 		queryFailedCounter.Inc()
 		api.logger.Debugf("eth api GetBlockTransactionCountByNumber err:%s", err)
 		return nil
 	}
 
-	count := uint(len(block.Transactions))
+	count := uint(len(blockTxHashList))
 
 	return (*hexutil.Uint)(&count)
 }
@@ -68,14 +68,20 @@ func (api *TransactionAPI) GetBlockTransactionCountByHash(hash common.Hash) *hex
 
 	api.logger.Debugf("eth_getBlockTransactionCountByHash, hash: %s", hash.String())
 
-	block, err := api.api.Broker().GetBlock("HASH", hash.String())
+	block, err := api.api.Broker().GetBlockWithoutTx("HASH", hash.String())
 	if err != nil {
 		api.logger.Debugf("eth api GetBlockTransactionCountByHash err:%s", err)
 		queryFailedCounter.Inc()
 		return nil
 	}
 
-	count := uint(len(block.Transactions))
+	blockTxHashList, err := api.api.Broker().GetBlockTxHashList(block.Height())
+	if err != nil {
+		queryFailedCounter.Inc()
+		api.logger.Debugf("eth api GetBlockTransactionCountByNumber err:%s", err)
+		return nil
+	}
+	count := uint(len(blockTxHashList))
 
 	return (*hexutil.Uint)(&count)
 }
@@ -324,22 +330,29 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 }
 
 func getTxByBlockInfoAndIndex(api api.CoreAPI, mode string, key string, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
-	block, err := api.Broker().GetBlock(mode, key)
+	block, err := api.Broker().GetBlockWithoutTx(mode, key)
 	if err != nil {
 		return nil, err
 	}
 
-	if int(idx) >= len(block.Transactions) {
+	blockTxHashList, err := api.Broker().GetBlockTxHashList(block.Height())
+	if err != nil {
+		return nil, err
+	}
+	if int(idx) >= len(blockTxHashList) {
 		return nil, errors.New("index beyond block transactions' size")
 	}
 
-	tx := block.Transactions[idx]
-
-	meta, err := api.Broker().GetTransactionMeta(tx.GetHash())
+	txHash := blockTxHashList[idx]
+	meta, err := api.Broker().GetTransactionMeta(txHash)
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil
 		}
+		return nil, err
+	}
+	tx, err := api.Broker().GetTransaction(txHash)
+	if err != nil {
 		return nil, err
 	}
 

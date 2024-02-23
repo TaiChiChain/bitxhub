@@ -31,31 +31,31 @@ func getStateLedgerAt(api api.CoreAPI, blockNrOrHash *rpctypes.BlockNumberOrHash
 	if blockNrOrHash != nil {
 		if blockNumber, ok := blockNrOrHash.Number(); ok {
 			if blockNumber == rpctypes.PendingBlockNumber || blockNumber == rpctypes.LatestBlockNumber {
-				block, err = api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", meta.Height))
+				block, err = api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", meta.Height))
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				block, err = api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNumber))
+				block, err = api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", blockNumber))
 				if err != nil {
 					return nil, err
 				}
 			}
 		} else if blockHash, ok := blockNrOrHash.Hash(); ok {
-			block, err = api.Broker().GetBlock("HASH", fmt.Sprintf("%s", blockHash))
+			block, err = api.Broker().GetBlockWithoutTx("HASH", fmt.Sprintf("%s", blockHash))
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
 		// default case: use the latest committed block
-		block, err = api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", meta.Height))
+		block, err = api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", meta.Height))
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	lg := api.Broker().GetViewStateLedger().NewViewWithoutCache(block)
+	lg := api.Broker().GetViewStateLedger().NewViewWithoutCache(block.BlockHeader)
 	if lg == nil {
 		return nil, errors.New("GetViewStateLedger error")
 	}

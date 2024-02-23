@@ -820,6 +820,148 @@ func TestGetBlockByHash(t *testing.T) {
 	}
 }
 
+func TestGetBlockWithOutTxByNumber(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(1)
+			assert.True(t, errors.Is(err, ErrNotFound))
+
+			ledger, _ = initLedger(t, "", tc.kvType)
+			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
+
+			// create an addr0
+			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+
+			ledger.StateLedger.PrepareBlock(nil, nil, 1)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
+			stateLedger.Finalise()
+			stateRoot1, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			assert.NotNil(t, stateRoot1)
+			ledger.PersistBlockData(genBlockData(1, stateRoot1))
+
+			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
+			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
+
+			code := sha256.Sum256([]byte("code"))
+			ledger.StateLedger.SetCode(addr0, code[:])
+			ledger.StateLedger.Finalise()
+
+			stateRoot2, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			ledger.PersistBlockData(genBlockData(2, stateRoot2))
+
+			block, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(2)
+			assert.Nil(t, err)
+			assert.NotNil(t, block)
+			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+
+		})
+	}
+}
+
+func TestGetBlockWithOutTxByHash(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockWithOutTxByHash(types.NewHash([]byte("1")))
+			assert.True(t, errors.Is(err, ErrNotFound))
+
+			ledger, _ = initLedger(t, "", tc.kvType)
+			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
+
+			// create an addr0
+			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+
+			ledger.StateLedger.PrepareBlock(nil, nil, 1)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
+			stateLedger.Finalise()
+			stateRoot1, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			assert.NotNil(t, stateRoot1)
+			ledger.PersistBlockData(genBlockData(1, stateRoot1))
+
+			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
+			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
+			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
+
+			code := sha256.Sum256([]byte("code"))
+			ledger.StateLedger.SetCode(addr0, code[:])
+			ledger.StateLedger.Finalise()
+
+			stateRoot2, err := stateLedger.Commit()
+			assert.Nil(t, err)
+			ledger.PersistBlockData(genBlockData(2, stateRoot2))
+
+			block, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(2)
+			assert.Nil(t, err)
+			assert.NotNil(t, block)
+			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+			key := compositeKey(blockHashKey, block.BlockHash.String())
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(key, []byte("2"))
+
+			block2, err := ledger.ChainLedger.GetBlockWithOutTxByHash(block.BlockHash)
+			assert.Nil(t, err)
+			assert.NotNil(t, block2)
+			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+
+		})
+	}
+}
+
+func TestGetBlockTxHashListByNumber(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockTxHashListByNumber(1)
+			assert.NotNil(t, err)
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(compositeKey(blockTxSetKey, 1), []byte("1"))
+			_, err = ledger.ChainLedger.GetBlockTxHashListByNumber(1)
+			assert.NotNil(t, err)
+		})
+	}
+}
+
+func TestGetBlockTxListByNumber(t *testing.T) {
+	testcase := map[string]struct {
+		kvType string
+	}{
+		"leveldb": {kvType: "leveldb"},
+		"pebble":  {kvType: "pebble"},
+	}
+	for name, tc := range testcase {
+		t.Run(name, func(t *testing.T) {
+			ledger, _ := initLedger(t, "", tc.kvType)
+			_, err := ledger.ChainLedger.GetBlockTxListByNumber(1)
+			assert.NotNil(t, err)
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			require.Nil(t, err)
+			_, err = ledger.ChainLedger.GetBlockTxListByNumber(1)
+			assert.NotNil(t, err)
+		})
+	}
+}
+
 func TestGetTransaction(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
@@ -1081,7 +1223,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1)
+			lg1 := sl.NewViewWithoutCache(block1.BlockHeader)
 			assert.Equal(t, uint64(101), lg1.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(201), lg1.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(301), lg1.GetBalance(account3).Uint64())
@@ -1096,7 +1238,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot2,
 				},
 			}
-			lg2 := sl.NewViewWithoutCache(block2)
+			lg2 := sl.NewViewWithoutCache(block2.BlockHeader)
 			assert.Equal(t, uint64(102), lg2.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(201), lg2.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(302), lg2.GetBalance(account3).Uint64())
@@ -1111,7 +1253,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot3,
 				},
 			}
-			lg3 := sl.NewViewWithoutCache(block3)
+			lg3 := sl.NewViewWithoutCache(block3.BlockHeader)
 			assert.Equal(t, uint64(103), lg3.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg3.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(302), lg3.GetBalance(account3).Uint64())
@@ -1126,7 +1268,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot4,
 				},
 			}
-			lg4 := sl.NewViewWithoutCache(block4)
+			lg4 := sl.NewViewWithoutCache(block4.BlockHeader)
 			assert.Equal(t, uint64(103), lg4.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg4.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(302), lg4.GetBalance(account3).Uint64())
@@ -1141,7 +1283,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 					StateRoot: stateRoot5,
 				},
 			}
-			lg5 := sl.NewViewWithoutCache(block5)
+			lg5 := sl.NewViewWithoutCache(block5.BlockHeader)
 			assert.Equal(t, uint64(103), lg5.GetBalance(account1).Uint64())
 			assert.Equal(t, uint64(203), lg5.GetBalance(account2).Uint64())
 			assert.Equal(t, uint64(305), lg5.GetBalance(account3).Uint64())
@@ -1252,7 +1394,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1)
+			lg1 := sl.NewViewWithoutCache(block1.BlockHeader)
 			exist, a1k1 := lg1.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val101"), a1k1)
@@ -1275,7 +1417,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot2,
 				},
 			}
-			lg2 := sl.NewViewWithoutCache(block2)
+			lg2 := sl.NewViewWithoutCache(block2.BlockHeader)
 			exist, a1k1 = lg2.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1011"), a1k1)
@@ -1302,7 +1444,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot3,
 				},
 			}
-			lg3 := sl.NewViewWithoutCache(block3)
+			lg3 := sl.NewViewWithoutCache(block3.BlockHeader)
 			exist, a1k1 = lg3.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1013"), a1k1)
@@ -1326,7 +1468,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot4,
 				},
 			}
-			lg4 := sl.NewViewWithoutCache(block4)
+			lg4 := sl.NewViewWithoutCache(block4.BlockHeader)
 			exist, a1k1 = lg4.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1013"), a1k1)
@@ -1350,7 +1492,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 					StateRoot: stateRoot5,
 				},
 			}
-			lg5 := sl.NewViewWithoutCache(block5)
+			lg5 := sl.NewViewWithoutCache(block5.BlockHeader)
 			exist, a1k1 = lg5.GetState(account1, []byte("key1"))
 			assert.True(t, exist)
 			assert.Equal(t, []byte("val1015"), a1k1)
@@ -1435,7 +1577,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 					StateRoot: stateRoot1,
 				},
 			}
-			lg1 := sl.NewViewWithoutCache(block1)
+			lg1 := sl.NewViewWithoutCache(block1.BlockHeader)
 			assert.Equal(t, uint64(1), lg1.GetNonce(eoaAccount))
 			exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
 			assert.True(t, exist)
@@ -1449,7 +1591,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 					StateRoot: stateRoot2,
 				},
 			}
-			lg2 := sl.NewViewWithoutCache(block2)
+			lg2 := sl.NewViewWithoutCache(block2.BlockHeader)
 			assert.Equal(t, uint64(1), lg2.GetNonce(eoaAccount))
 			exist, a2k1 = lg2.GetState(contractAccount, []byte("key1"))
 			assert.True(t, exist)
@@ -1463,7 +1605,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 					StateRoot: stateRoot3,
 				},
 			}
-			lg3 := sl.NewViewWithoutCache(block3)
+			lg3 := sl.NewViewWithoutCache(block3.BlockHeader)
 			assert.Equal(t, uint64(2), lg3.GetNonce(eoaAccount))
 			exist, a2k1 = lg3.GetState(contractAccount, []byte("key1"))
 			assert.True(t, exist)

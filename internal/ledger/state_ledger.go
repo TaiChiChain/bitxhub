@@ -84,8 +84,8 @@ func (l *StateLedgerImpl) NewView(block *types.Block) StateLedger {
 }
 
 // NewView get a view
-func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block) StateLedger {
-	l.logger.Debugf("[NewViewWithoutCache] height: %v, stateRoot: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot)
+func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader) StateLedger {
+	l.logger.Debugf("[NewViewWithoutCache] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
 	ac, _ := NewAccountCache(0, true)
 	lg := &StateLedgerImpl{
 		repo:          l.repo,
@@ -103,7 +103,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block) StateLedger {
 		logs:          NewEvmLogs(),
 		blockJournals: make(map[string]*BlockJournal),
 	}
-	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
+	lg.refreshAccountTrie(blockHeader.StateRoot)
 	return lg
 }
 
