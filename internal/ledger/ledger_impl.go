@@ -154,6 +154,6 @@ func (l *Ledger) NewViewWithoutCache() *Ledger {
 	}
 	return &Ledger{
 		ChainLedger: l.ChainLedger,
-		StateLedger: l.StateLedger.NewViewWithoutCache(block, true),
+		StateLedger: l.StateLedger.NewViewWithoutCache(block.BlockHeader, true),
 	}
 }

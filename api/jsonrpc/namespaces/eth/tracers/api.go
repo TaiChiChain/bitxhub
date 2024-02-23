@@ -84,10 +84,15 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
+	block, err := api.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
 	if err != nil {
 		return nil, err
 	}
+	blockTxList, err := api.api.Broker().GetBlockTxList(block.Height())
+	if err != nil {
+		return nil, err
+	}
+	block.Transactions = blockTxList
 	msg, vmctx, statedb, err := api.api.Broker().StateAtTransaction(block, int(meta.Index), reexec)
 	if err != nil {
 		return nil, err

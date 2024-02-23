@@ -73,6 +73,33 @@ func (b *BrokerAPI) GetBlock(mode string, value string) (*types.Block, error) {
 	}
 }
 
+func (b *BrokerAPI) GetBlockWithoutTx(mode string, key string) (*types.Block, error) {
+	switch mode {
+	case "HEIGHT":
+		height, err := strconv.ParseUint(key, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("wrong block number: %s", key)
+		}
+		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockWithOutTxByNumber(height)
+	case "HASH":
+		hash := types.NewHashByStr(key)
+		if hash == nil {
+			return nil, errors.New("invalid format of block hash for querying block")
+		}
+		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockWithOutTxByHash(hash)
+	default:
+		return nil, fmt.Errorf("wrong args about getting block: %s", mode)
+	}
+}
+
+func (b *BrokerAPI) GetBlockTxHashList(height uint64) ([]*types.Hash, error) {
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxHashListByNumber(height)
+}
+
+func (b *BrokerAPI) GetBlockTxList(height uint64) ([]*types.Transaction, error) {
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxListByNumber(height)
+}
+
 func (b *BrokerAPI) GetBlocks(start uint64, end uint64) ([]*types.Block, error) {
 	meta := b.axiomLedger.ViewLedger.ChainLedger.GetChainMeta()
 
@@ -142,7 +169,7 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 		return nil, vm.BlockContext{}, nil, fmt.Errorf("parent %#x not found", block.BlockHeader.ParentHash)
 	}
 
-	statedb := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parent, false)
+	statedb := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parent.BlockHeader, false)
 	if txIndex == 0 && len(block.Transactions) == 0 {
 		return nil, vm.BlockContext{}, &statedb, nil
 	}
