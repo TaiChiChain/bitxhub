@@ -1798,9 +1798,9 @@ func (c *MockStateLedgerNewViewCall) DoAndReturn(f func(*types.Block, bool) ledg
 }
 
 // NewViewWithoutCache mocks base method.
-func (m *MockStateLedger) NewViewWithoutCache(block *types.Block, enableSnapshot bool) ledger.StateLedger {
+func (m *MockStateLedger) NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) ledger.StateLedger {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewViewWithoutCache", block, enableSnapshot)
+	ret := m.ctrl.Call(m, "NewViewWithoutCache", blockHeader, enableSnapshot)
 	ret0, _ := ret[0].(ledger.StateLedger)
 	return ret0
 }

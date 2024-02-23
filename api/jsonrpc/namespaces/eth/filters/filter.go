@@ -98,7 +98,7 @@ func newFilter(api api.CoreAPI, addresses []*types.Address, topics [][]*types.Ha
 func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 	// If we're doing singleton block filtering, execute and return
 	if f.block != nil {
-		block, err := f.api.Broker().GetBlock("HASH", f.block.String())
+		block, err := f.api.Broker().GetBlockWithoutTx("HASH", f.block.String())
 		if err != nil {
 			return nil, err
 		}
@@ -134,12 +134,12 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.EvmLog, error) {
 	var logs []*types.EvmLog
 	for ; f.begin <= int64(end); f.begin++ {
-		headers, err := f.api.Broker().GetBlockHeaders(uint64(f.begin), uint64(f.begin))
-		if headers == nil || err != nil {
+		block, err := f.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", f.begin))
+		if block == nil || err != nil {
 			return logs, err
 		}
 
-		found, err := f.blockLogs(ctx, headers[0])
+		found, err := f.blockLogs(ctx, block.BlockHeader)
 		if err != nil {
 			return logs, err
 		}
@@ -179,13 +179,13 @@ func (f *Filter) checkMatches(_ context.Context, blockNum uint64) (logs []*types
 func (f *Filter) getBlockReceipts(blockNum uint64) ([]*types.Receipt, error) {
 	var receipts []*types.Receipt
 
-	block, err := f.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNum))
+	blockHashList, err := f.api.Broker().GetBlockTxHashList(blockNum)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, tx := range block.Transactions {
-		receipt, err := f.api.Broker().GetReceipt(tx.GetHash())
+	for _, txHash := range blockHashList {
+		receipt, err := f.api.Broker().GetReceipt(txHash)
 		if err != nil {
 			return nil, err
 		}

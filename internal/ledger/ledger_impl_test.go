@@ -1060,7 +1060,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 			StateRoot: stateRoot2,
 		},
 	}
-	lg2 := sl.NewViewWithoutCache(block2, false)
+	lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 	assert.Equal(t, uint64(102), lg2.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(201), lg2.GetBalance(account2).Uint64())
 	assert.Equal(t, uint64(302), lg2.GetBalance(account3).Uint64())
@@ -1075,7 +1075,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 			StateRoot: stateRoot3,
 		},
 	}
-	lg3 := sl.NewViewWithoutCache(block3, false)
+	lg3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
 	assert.Equal(t, uint64(103), lg3.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(203), lg3.GetBalance(account2).Uint64())
 	assert.Equal(t, uint64(302), lg3.GetBalance(account3).Uint64())
@@ -1090,7 +1090,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 			StateRoot: stateRoot4,
 		},
 	}
-	lg4 := sl.NewViewWithoutCache(block4, false)
+	lg4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
 	assert.Equal(t, uint64(103), lg4.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(203), lg4.GetBalance(account2).Uint64())
 	assert.Equal(t, uint64(302), lg4.GetBalance(account3).Uint64())
@@ -1207,7 +1207,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 			StateRoot: stateRoot1,
 		},
 	}
-	lg1 := sl.NewViewWithoutCache(block1, false)
+	lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
 	exist, a1k1 := lg1.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val101"), a1k1)
@@ -1230,7 +1230,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 			StateRoot: stateRoot2,
 		},
 	}
-	lg2 := sl.NewViewWithoutCache(block2, false)
+	lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 	exist, a1k1 = lg2.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1011"), a1k1)
@@ -1257,7 +1257,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 			StateRoot: stateRoot3,
 		},
 	}
-	lg3 := sl.NewViewWithoutCache(block3, false)
+	lg3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
 	exist, a1k1 = lg3.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1013"), a1k1)
@@ -1281,7 +1281,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 			StateRoot: stateRoot4,
 		},
 	}
-	lg4 := sl.NewViewWithoutCache(block4, false)
+	lg4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
 	exist, a1k1 = lg4.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1013"), a1k1)
@@ -1305,7 +1305,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 			StateRoot: stateRoot5,
 		},
 	}
-	lg5 := sl.NewViewWithoutCache(block5, false)
+	lg5 := sl.NewViewWithoutCache(block5.BlockHeader, false)
 	exist, a1k1 = lg5.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1015"), a1k1)
@@ -1380,7 +1380,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 			StateRoot: stateRoot1,
 		},
 	}
-	lg1 := sl.NewViewWithoutCache(block1, false)
+	lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
 	assert.Equal(t, uint64(1), lg1.GetNonce(eoaAccount))
 	exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
 	assert.True(t, exist)
@@ -1394,7 +1394,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 			StateRoot: stateRoot2,
 		},
 	}
-	lg2 := sl.NewViewWithoutCache(block2, false)
+	lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 	assert.Equal(t, uint64(1), lg2.GetNonce(eoaAccount))
 	exist, a2k1 = lg2.GetState(contractAccount, []byte("key1"))
 	assert.True(t, exist)
@@ -1408,7 +1408,7 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 			StateRoot: stateRoot3,
 		},
 	}
-	lg3 := sl.NewViewWithoutCache(block3, false)
+	lg3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
 	assert.Equal(t, uint64(2), lg3.GetNonce(eoaAccount))
 	exist, a2k1 = lg3.GetState(contractAccount, []byte("key1"))
 	assert.True(t, exist)
@@ -2063,9 +2063,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 1
-		sl1 := sl.NewViewWithoutCache(block1, false)
+		sl1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
 		sl1.(*StateLedgerImpl).cachedDB = s1
-		sl1 = sl1.NewViewWithoutCache(block1, false)
+		sl1 = sl1.NewViewWithoutCache(block1.BlockHeader, false)
 		verify, err := sl1.VerifyTrie(block1)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2098,9 +2098,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 2
-		sl2 := sl.NewViewWithoutCache(block2, false)
+		sl2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 		sl2.(*StateLedgerImpl).cachedDB = s2
-		sl2 = sl2.NewViewWithoutCache(block2, false)
+		sl2 = sl2.NewViewWithoutCache(block2.BlockHeader, false)
 		verify, err := sl2.VerifyTrie(block2)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2131,7 +2131,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 3
-		sl3 := sl.NewViewWithoutCache(block3, false)
+		sl3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
 		sl3.(*StateLedgerImpl).cachedDB = s3
 		verify, err := sl3.VerifyTrie(block3)
 		assert.True(t, verify)
@@ -2168,9 +2168,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 4
-		sl4 := sl.NewViewWithoutCache(block4, false)
+		sl4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
 		sl4.(*StateLedgerImpl).cachedDB = s4
-		sl4 = sl4.NewViewWithoutCache(block4, false)
+		sl4 = sl4.NewViewWithoutCache(block4.BlockHeader, false)
 		verify, err := sl4.VerifyTrie(block4)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2200,9 +2200,9 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.True(t, ok)
 		assert.Nil(t, err)
 		// check state ledger in block 5
-		sl5 := sl.NewViewWithoutCache(block5, false)
+		sl5 := sl.NewViewWithoutCache(block5.BlockHeader, false)
 		sl5.(*StateLedgerImpl).cachedDB = s5
-		sl5 = sl5.NewViewWithoutCache(block5, false)
+		sl5 = sl5.NewViewWithoutCache(block5.BlockHeader, false)
 		verify, err := sl5.VerifyTrie(block5)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2334,9 +2334,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 1
-		sl1 := sl.NewViewWithoutCache(block1, false)
+		sl1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
 		sl1.(*StateLedgerImpl).cachedDB = s1
-		sl1 = sl1.NewViewWithoutCache(block1, false)
+		sl1 = sl1.NewViewWithoutCache(block1.BlockHeader, false)
 		verify, err := sl1.VerifyTrie(block1)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2375,9 +2375,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 2
-		sl2 := sl.NewViewWithoutCache(block2, false)
+		sl2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 		sl2.(*StateLedgerImpl).cachedDB = s2
-		sl2 = sl2.NewViewWithoutCache(block2, false)
+		sl2 = sl2.NewViewWithoutCache(block2.BlockHeader, false)
 		verify, err := sl2.VerifyTrie(block2)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2417,7 +2417,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 3
-		sl3 := sl.NewViewWithoutCache(block3, false)
+		sl3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
 		sl3.(*StateLedgerImpl).cachedDB = s3
 		verify, err := sl3.VerifyTrie(block3)
 		assert.True(t, verify)
@@ -2461,9 +2461,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 4
-		sl4 := sl.NewViewWithoutCache(block4, false)
+		sl4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
 		sl4.(*StateLedgerImpl).cachedDB = s4
-		sl4 = sl4.NewViewWithoutCache(block4, false)
+		sl4 = sl4.NewViewWithoutCache(block4.BlockHeader, false)
 		verify, err := sl4.VerifyTrie(block4)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2506,9 +2506,9 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check state ledger in block 5
-		sl5 := sl.NewViewWithoutCache(block5, false)
+		sl5 := sl.NewViewWithoutCache(block5.BlockHeader, false)
 		sl5.(*StateLedgerImpl).cachedDB = s5
-		sl5 = sl5.NewViewWithoutCache(block5, false)
+		sl5 = sl5.NewViewWithoutCache(block5.BlockHeader, false)
 		verify, err := sl5.VerifyTrie(block5)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2827,7 +2827,7 @@ func TestStateLedger_TrieProof(t *testing.T) {
 				StateRoot: stateRoot1,
 			},
 		}
-		lg1 := sl.NewViewWithoutCache(block1, false)
+		lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
 		acc3 := lg1.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 		assert.NotEqual(t, "", acc3.String())
@@ -2867,7 +2867,7 @@ func TestStateLedger_TrieProof(t *testing.T) {
 				StateRoot: stateRoot2,
 			},
 		}
-		lg2 := sl.NewViewWithoutCache(block2, false)
+		lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 		acc3 := lg2.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 		// prove account1 in block2
@@ -2946,7 +2946,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 				StateRoot: stateRoot1,
 			},
 		}
-		lg1 := sl.NewViewWithoutCache(block1, false)
+		lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
 		acc3 := lg1.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 
@@ -2986,7 +2986,7 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 				StateRoot: stateRoot2,
 			},
 		}
-		lg2 := sl.NewViewWithoutCache(block2, false)
+		lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
 		acc3 := lg2.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 
@@ -3069,7 +3069,7 @@ func TestLedger_NewView(t *testing.T) {
 		}
 		lg.ChainLedger.PersistExecutionResult(block1, []*types.Receipt{})
 		lg.ChainLedger.UpdateChainMeta(&types.ChainMeta{Height: 1})
-		lg1 := lg.NewView().StateLedger.NewViewWithoutCache(block1, false)
+		lg1 := lg.NewView().StateLedger.NewViewWithoutCache(block1.BlockHeader, false)
 		exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
 		assert.True(t, exist)
 		assert.Equal(t, []byte("val1"), a2k1)

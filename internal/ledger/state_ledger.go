@@ -97,8 +97,8 @@ func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) State
 }
 
 // NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
-func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger {
-	l.logger.Debugf("[NewViewWithoutCache] height: %v, stateRoot: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot)
+func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger {
+	l.logger.Debugf("[NewViewWithoutCache] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
 	ac, _ := NewAccountCache(0, true)
 	// TODO(zqr): multi snapshot layers can also support historical view ledger
 	lg := &StateLedgerImpl{
@@ -116,7 +116,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(block *types.Block, enableSnapshot
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
 	}
-	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
+	lg.refreshAccountTrie(blockHeader.StateRoot)
 	return lg
 }
 

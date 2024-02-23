@@ -202,7 +202,7 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 		blockNum = rpctypes.BlockNumber(meta.Height)
 	}
 
-	block, err := api.api.Broker().GetBlock("HEIGHT", fmt.Sprintf("%d", blockNum))
+	block, err := api.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", blockNum))
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil
@@ -225,7 +225,7 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map
 
 	api.logger.Debugf("eth_getBlockByHash, hash: %s, full: %v", hash.String(), fullTx)
 
-	block, err := api.api.Broker().GetBlock("HASH", hash.String())
+	block, err := api.api.Broker().GetBlockWithoutTx("HASH", hash.String())
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil
@@ -520,22 +520,26 @@ func (api *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *r
 // transactions.
 func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, block *types.Block, fullTx bool) (map[string]any, error) {
 	var err error
-	formatTx := func(tx *types.Transaction, index uint64) (any, error) {
-		return tx.GetHash().ETHHash(), nil
-	}
+	var transactions []any
 	if fullTx {
-		formatTx = func(tx *types.Transaction, index uint64) (any, error) {
-			return NewRPCTransaction(tx, common.BytesToHash(block.BlockHash.Bytes()), block.Height(), index), nil
-		}
-	}
-	txs := block.Transactions
-	transactions := make([]any, len(txs))
-	for i, tx := range txs {
-		if transactions[i], err = formatTx(tx, uint64(i)); err != nil {
+		txList, err := api.Broker().GetBlockTxList(block.Height())
+		if err != nil {
 			return nil, err
 		}
+		transactions = make([]any, len(txList))
+		for i, tx := range txList {
+			transactions[i] = NewRPCTransaction(tx, common.BytesToHash(block.BlockHash.Bytes()), block.Height(), uint64(i))
+		}
+	} else {
+		txHashList, err := api.Broker().GetBlockTxHashList(block.Height())
+		if err != nil {
+			return nil, err
+		}
+		transactions = make([]any, len(txHashList))
+		for i, txHash := range txHashList {
+			transactions[i] = txHash.ETHHash()
+		}
 	}
-
 	gasPrice, err := api.Gas().GetCurrentGasPrice(block.Height())
 	if err != nil {
 		return nil, err

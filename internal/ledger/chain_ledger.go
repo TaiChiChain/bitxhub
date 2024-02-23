@@ -150,6 +150,69 @@ func (l *ChainLedgerImpl) GetBlock(height uint64) (*types.Block, error) {
 	return block, nil
 }
 
+func (l *ChainLedgerImpl) GetBlockWithOutTxByNumber(height uint64) (*types.Block, error) {
+	if height > l.chainMeta.Height {
+		return nil, ErrNotFound
+	}
+
+	if block, ok := l.blockCache.Get(height); ok {
+		return block, nil
+	}
+	data, err := l.bf.Get(blockfile.BlockFileBodiesTable, height)
+	if err != nil {
+		return nil, fmt.Errorf("get bodies with height %d from blockfile failed: %w", height, err)
+	}
+
+	block := &types.Block{}
+	if err := block.Unmarshal(data); err != nil {
+		return nil, fmt.Errorf("unmarshal block error: %w", err)
+	}
+	return block, nil
+}
+
+func (l *ChainLedgerImpl) GetBlockWithOutTxByHash(hash *types.Hash) (*types.Block, error) {
+	data := l.blockchainStore.Get(utils.CompositeKey(utils.BlockHashKey, hash.String()))
+	if data == nil {
+		return nil, ErrNotFound
+	}
+
+	height, err := strconv.Atoi(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("wrong height, %w", err)
+	}
+
+	return l.GetBlockWithOutTxByNumber(uint64(height))
+}
+
+func (l *ChainLedgerImpl) GetBlockTxHashListByNumber(height uint64) ([]*types.Hash, error) {
+	txHashesData := l.blockchainStore.Get(utils.CompositeKey(utils.BlockTxSetKey, height))
+	if txHashesData == nil {
+		return nil, errors.New("cannot get tx hashes of block")
+	}
+	txHashes := make([]*types.Hash, 0)
+	if err := json.Unmarshal(txHashesData, &txHashes); err != nil {
+		return nil, fmt.Errorf("unmarshal tx hash data error: %w", err)
+	}
+	return txHashes, nil
+}
+
+func (l *ChainLedgerImpl) GetBlockTxListByNumber(height uint64) ([]*types.Transaction, error) {
+	var txs []*types.Transaction
+	txs, ok := l.txCache.Get(height)
+	if !ok {
+		txsBytes, err := l.bf.Get(blockfile.BlockFileTXsTable, height)
+		if err != nil {
+			return nil, fmt.Errorf("get transactions with height %d from blockfile failed: %w", height, err)
+		}
+		txs, err = types.UnmarshalTransactions(txsBytes)
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal txs bytes error: %w", err)
+		}
+		l.txCache.Add(height, txs)
+	}
+	return txs, nil
+}
+
 func (l *ChainLedgerImpl) GetBlockHash(height uint64) *types.Hash {
 	if height > l.chainMeta.Height {
 		return &types.Hash{}

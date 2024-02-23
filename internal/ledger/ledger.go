@@ -22,6 +22,18 @@ type ChainLedger interface {
 	// GetBlockByHash get the block using block hash
 	GetBlockByHash(hash *types.Hash) (*types.Block, error)
 
+	// GetBlockWithOutTxByNumber get the block without tx using block height
+	GetBlockWithOutTxByNumber(height uint64) (*types.Block, error)
+
+	// GetBlockWithOutTxByHash get the block without tx using block hash
+	GetBlockWithOutTxByHash(hash *types.Hash) (*types.Block, error)
+
+	// GetBlockTxHashListByNumber get the block tx hash list using block height
+	GetBlockTxHashListByNumber(height uint64) ([]*types.Hash, error)
+
+	// GetBlockTxListByNumber get the block tx hash list using block height
+	GetBlockTxListByNumber(height uint64) ([]*types.Transaction, error)
+
 	// GetTransaction get the transaction using transaction hash
 	GetTransaction(hash *types.Hash) (*types.Transaction, error)
 
@@ -82,7 +94,7 @@ type StateLedger interface {
 	NewView(block *types.Block, enableSnapshot bool) StateLedger
 
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
-	NewViewWithoutCache(block *types.Block, enableSnapshot bool) StateLedger
+	NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger
 
 	IterateTrie(block *types.Block, kv storage.Storage, errC chan error)
 
