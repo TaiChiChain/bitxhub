@@ -1154,7 +1154,8 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (
 		p.decreasePriorityNonBatchSize(txBatch.BatchItemSize())
 	}
 	p.logger.Debugf("Primary generate a batch with %d txs, which hash is %s, and now there are %d "+
-		"pending txs and %d batches in txPool", txBatch.BatchItemSize(), batchHash, p.txStore.priorityNonBatchSize, len(p.txStore.batchesCache))
+		"pending txs and %d batches in txPool, pending Status: %v", txBatch.BatchItemSize(),
+		batchHash, p.txStore.priorityNonBatchSize, len(p.txStore.batchesCache), p.hasPendingRequestInPool())
 	return removeInvalidTxs, txBatch, nil
 }
 

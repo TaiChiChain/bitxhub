@@ -287,7 +287,12 @@ func (n *Node) listenEvent() {
 						}
 					}
 					n.logger.WithFields(logrus.Fields{
-						"epoch": currentEpoch,
+						"epoch":               currentEpoch.Epoch,
+						"start":               currentEpoch.StartBlock,
+						"period":              currentEpoch.EpochPeriod,
+						"batchSize":           currentEpoch.ConsensusParams.BlockMaxTxNum,
+						"checkpoint":          n.epcCnf.checkpoint,
+						"enableGenEmptyBlock": n.epcCnf.enableGenEmptyBlock,
 					}).Info("Report epoch changed")
 				}
 
@@ -304,32 +309,22 @@ func (n *Node) listenEvent() {
 				if err := n.processBatchTimeout(e); err != nil {
 					n.logger.Errorf("Process batch timeout failed: %v", err)
 				}
-				if err := n.batchMgr.RestartTimer(timer.Batch); err != nil {
-					n.logger.Errorf("restart batch timeout failed: %v", err)
-				}
 
-				// check if there is no tx in the txpool, start the no tx batch timer
-				if n.epcCnf.enableGenEmptyBlock && !n.txpool.HasPendingRequestInPool() {
-					if !n.batchMgr.IsTimerActive(timer.NoTxBatch) {
-						if err := n.batchMgr.StartTimer(timer.NoTxBatch); err != nil {
-							n.logger.Errorf("start no-tx batch timeout failed: %v", err)
-						}
-					}
-				}
 			case *getLowWatermarkReq:
 				e.Resp <- n.lastExec
 			case *genBatchReq:
 				n.batchMgr.StopTimer(timer.Batch)
+				n.batchMgr.StopTimer(timer.NoTxBatch)
 				batch, err := n.txpool.GenerateRequestBatch(e.typ)
 				if err != nil {
 					n.logger.Errorf("Generate batch failed: %v", err)
 				} else if batch != nil {
 					n.postProposal(batch)
-				}
-				// start no-tx batch timer when this node handle the last transaction
-				if n.epcCnf.enableGenEmptyBlock && !n.txpool.HasPendingRequestInPool() {
-					if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
-						n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
+					// start no-tx batch timer when this node handle the last transaction
+					if n.epcCnf.enableGenEmptyBlock && !n.txpool.HasPendingRequestInPool() {
+						if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
+							n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
+						}
 					}
 				}
 				if err = n.batchMgr.RestartTimer(timer.Batch); err != nil {
@@ -344,7 +339,23 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 	switch e {
 	case timer.Batch:
 		n.batchMgr.StopTimer(timer.Batch)
+		defer func() {
+			if err := n.batchMgr.RestartTimer(timer.Batch); err != nil {
+				n.logger.Errorf("restart batch timeout failed: %v", err)
+			}
+		}()
 		if n.txpool.HasPendingRequestInPool() {
+			n.batchMgr.StopTimer(timer.NoTxBatch)
+			defer func() {
+				// if generate last batch, restart no-tx batch timeout to ensure next empty-block will be generated after no-tx batch timeout
+				if n.txpool.HasPendingRequestInPool() {
+					if n.epcCnf.enableGenEmptyBlock {
+						if err := n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
+							n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
+						}
+					}
+				}
+			}()
 			batch, err := n.txpool.GenerateRequestBatch(txpool.GenBatchTimeoutEvent)
 			if err != nil {
 				return err
@@ -367,15 +378,19 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 			}
 		}
 	case timer.NoTxBatch:
+		n.batchMgr.StopTimer(timer.NoTxBatch)
+		defer func() {
+			if n.epcCnf.enableGenEmptyBlock {
+				if err := n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
+					n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
+				}
+			}
+		}()
 		if n.txpool.HasPendingRequestInPool() {
 			n.logger.Debugf("TxPool is not empty, skip handle the no-tx batch timer event")
 			return nil
 		}
-		if !n.epcCnf.enableGenEmptyBlock {
-			n.batchMgr.StopTimer(timer.NoTxBatch)
-			return errors.New("the node is not support the no-tx batch, skip the timer")
-		}
-		n.batchMgr.StopTimer(timer.NoTxBatch)
+
 		batch, err := n.txpool.GenerateRequestBatch(txpool.GenBatchNoTxTimeoutEvent)
 		if err != nil {
 			return err
@@ -396,9 +411,6 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 			n.batchMgr.lastBatchTime = now
 
 			n.postProposal(batch)
-			if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
-				n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
-			}
 			n.logger.Debugf("batch no-tx timeout, post proposal: %v", batch)
 		}
 	}

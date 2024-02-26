@@ -64,8 +64,7 @@ type RBFTTimeout struct {
 }
 
 type Solo struct {
-	BatchTimeout     Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
-	CheckpointPeriod uint64   `mapstructure:"checkpoint_period" toml:"checkpoint_period"`
+	BatchTimeout Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
 }
 
 func DefaultConsensusConfig() *ConsensusConfig {
@@ -114,8 +113,7 @@ func DefaultConsensusConfig() *ConsensusConfig {
 			},
 		},
 		Solo: Solo{
-			BatchTimeout:     Duration(500 * time.Millisecond),
-			CheckpointPeriod: 1,
+			BatchTimeout: Duration(500 * time.Millisecond),
 		},
 	}
 }
