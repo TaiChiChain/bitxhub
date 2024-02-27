@@ -133,9 +133,9 @@ func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 		FinanceParams: rbft.FinanceParams{
 			GasLimit:               0x5f5e100,
 			StartGasPriceAvailable: true,
-			StartGasPrice:          5000000000000,
-			MaxGasPrice:            10000000000000,
-			MinGasPrice:            1000000000000,
+			StartGasPrice:          DefaultStartGasPrice,
+			MaxGasPrice:            DefaultMaxGasPrice,
+			MinGasPrice:            DefaultMinGasPrice,
 			GasChangeRateValue:     1250,
 			GasChangeRateDecimals:  4,
 		},

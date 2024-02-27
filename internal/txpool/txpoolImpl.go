@@ -2,8 +2,8 @@ package txpool
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,6 +20,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/google/btree"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 )
@@ -27,10 +28,11 @@ import (
 var _ commonpool.TxPool[types.Transaction, *types.Transaction] = (*txPoolImpl[types.Transaction, *types.Transaction])(nil)
 
 var (
-	ErrTxPoolFull   = errors.New("tx pool full")
-	ErrNonceTooLow  = errors.New("nonce too low")
-	ErrNonceTooHigh = errors.New("nonce too high")
-	ErrDuplicateTx  = errors.New("duplicate tx")
+	ErrTxPoolFull     = errors.New("tx pool full")
+	ErrNonceTooLow    = errors.New("nonce too low")
+	ErrNonceTooHigh   = errors.New("nonce too high")
+	ErrDuplicateTx    = errors.New("duplicate tx")
+	ErrGasPriceTooLow = errors.New("gas price too low")
 )
 
 // txPoolImpl contains all currently known transactions.
@@ -44,6 +46,8 @@ type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
 	cleanEmptyAccountTime  time.Duration
 	rotateTxLocalsInterval time.Duration
 	poolMaxSize            uint64
+	priceLimit             atomic.Pointer[big.Int] // Minimum gas price to enforce for acceptance into the pool
+	PriceBump              uint64                  // Minimum price bump percentage to replace an already existing transaction (nonce)
 	enableLocalsPersist    bool
 	txRecordsFile          string
 	chainInfo              *commonpool.ChainInfo
@@ -760,6 +764,7 @@ func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
 		txAccount := Constraint(tx).RbftGetFrom()
 		txHash := Constraint(tx).RbftGetTxHash()
 		txNonce := Constraint(tx).RbftGetNonce()
+		gasPrice := Constraint(tx).RbftGetGasPrice()
 
 		currentSeqNo, ok := currentSeqNoMap[txAccount]
 		if !ok {
@@ -768,7 +773,7 @@ func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
 		}
 
 		// 1. validate tx
-		if err := p.validateTx(txHash, txNonce, currentSeqNo); err != nil {
+		if err := p.validateTx(txHash, txNonce, currentSeqNo, gasPrice); err != nil {
 			traceRejectTx(err.Error())
 			errs[i] = err
 			return
@@ -804,7 +809,7 @@ func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
 	return errs
 }
 
-func (p *txPoolImpl[T, Constraint]) validateTx(txHash string, txNonce, currentSeqNo uint64) error {
+func (p *txPoolImpl[T, Constraint]) validateTx(txHash string, txNonce, currentSeqNo uint64, gasPrice *big.Int) error {
 	// 1. reject duplicate tx
 	if pointer := p.txStore.txHashMap[txHash]; pointer != nil {
 		return ErrDuplicateTx
@@ -818,6 +823,11 @@ func (p *txPoolImpl[T, Constraint]) validateTx(txHash string, txNonce, currentSe
 	// 3. reject nonce too low tx
 	if txNonce < currentSeqNo {
 		return ErrNonceTooLow
+	}
+
+	// 4. reject tx with gas price lower than price limit
+	if gasPrice.Cmp(p.getPriceLimit()) < 0 {
+		return errors.Wrap(ErrGasPriceTooLow, "tx gas price is lower than price limit: "+p.priceLimit.Load().String())
 	}
 
 	return nil
@@ -900,6 +910,14 @@ func (p *txPoolImpl[T, Constraint]) Stop() {
 	p.logger.Infof("TxPool stopped!!!")
 }
 
+func (p *txPoolImpl[T, Constraint]) setPriceLimit(price uint64) {
+	p.priceLimit.Store(new(big.Int).SetUint64(price))
+}
+
+func (p *txPoolImpl[T, Constraint]) getPriceLimit() *big.Int {
+	return p.priceLimit.Load()
+}
+
 // newTxPoolImpl returns the txpool instance.
 func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txPoolImpl[T, Constraint], error) {
 	// check config parameters
@@ -964,6 +982,7 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	}
 
 	txpoolImp.chainInfo = config.ChainInfo
+	txpoolImp.setPriceLimit(config.PriceLimit)
 
 	txpoolImp.logger.Infof("TxPool pool size = %d", txpoolImp.poolMaxSize)
 	txpoolImp.logger.Infof("TxPool batch size = %d", txpoolImp.chainInfo.EpochConf.BatchSize)
@@ -975,6 +994,7 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	txpoolImp.logger.Infof("TxPool rotate tx locals interval = %v", txpoolImp.rotateTxLocalsInterval)
 	txpoolImp.logger.Infof("TxPool enable locals persist = %v", txpoolImp.enableLocalsPersist)
 	txpoolImp.logger.Infof("TxPool tx records file = %s", txpoolImp.txRecordsFile)
+	txpoolImp.logger.Infof("TxPool price limit = %v", txpoolImp.getPriceLimit())
 	txpoolImp.logger.Infof("TxPool chain info:[gasPrice: %v][height: %v][epoch Config: %+v]", txpoolImp.chainInfo.GasPrice.String(), txpoolImp.chainInfo.Height, txpoolImp.chainInfo.EpochConf)
 	return txpoolImp, nil
 }

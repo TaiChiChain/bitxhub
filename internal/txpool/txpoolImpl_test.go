@@ -351,6 +351,24 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 		ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx2 and tx3 had been removed from parking lot")
 	})
+
+	t.Run("gas price too low", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.chainInfo.EpochConf.BatchSize = 4
+		err := pool.Start()
+		ast.Nil(err)
+		defer pool.Stop()
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		tx := constructTx(s, 0)
+		// set price limit is bigger than tx gas price
+		pool.setPriceLimit(tx.RbftGetGasPrice().Uint64() + 1)
+		err = pool.AddLocalTx(tx)
+		ast.NotNil(err)
+		ast.Contains(err.Error(), ErrGasPriceTooLow.Error())
+	})
 }
 
 func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {

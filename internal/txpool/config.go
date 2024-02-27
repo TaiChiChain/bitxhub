@@ -21,6 +21,7 @@ type Config struct {
 	GetAccountNonce        GetAccountNonceFunc
 	GetAccountBalance      GetAccountBalanceFunc
 	EnableLocalsPersist    bool
+	PriceLimit             uint64
 }
 
 // sanitize checks the provided user configurations and changes anything that's

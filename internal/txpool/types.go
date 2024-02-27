@@ -11,7 +11,6 @@ import (
 // nolint
 const (
 	DefaultPoolSize               = 50000
-	DefaultBatchSize              = 500
 	DefaultToleranceNonceGap      = 1000
 	DefaultToleranceTime          = 5 * time.Minute
 	DefaultToleranceRemoveTime    = 15 * time.Minute

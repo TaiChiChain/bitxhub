@@ -86,6 +86,12 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			EpochConf: epcCnf,
 		}
 
+		priceLimit := poolConf.PriceLimit
+		// ensure price limit is not less than min gas price
+		if rep.EpochInfo.FinanceParams.MinGasPrice > priceLimit {
+			priceLimit = rep.EpochInfo.FinanceParams.MinGasPrice
+		}
+
 		txpoolConf := txpool2.Config{
 			Logger:                 loggers.Logger(loggers.TxPool),
 			PoolSize:               poolConf.PoolSize,
@@ -99,6 +105,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			RepoRoot:               rep.RepoRoot,
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
 			ChainInfo:              chainInfo,
+			PriceLimit:             priceLimit,
 		}
 		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
 		if err != nil {

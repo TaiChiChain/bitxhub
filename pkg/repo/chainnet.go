@@ -167,6 +167,7 @@ func AriesConsensusConfig() *ConsensusConfig {
 			RotateTxLocalsInterval: Duration(1 * time.Hour),
 			ToleranceNonceGap:      1000,
 			EnableLocalsPersist:    true,
+			PriceLimit:             DefaultMinGasPrice,
 		},
 		TxCache: TxCache{
 			SetSize:    50,
@@ -439,11 +440,14 @@ func TaurusConsensusConfig() *ConsensusConfig {
 			Burst:  10000,
 		},
 		TxPool: TxPool{
-			PoolSize:              50000,
-			ToleranceTime:         Duration(5 * time.Minute),
-			ToleranceRemoveTime:   Duration(15 * time.Minute),
-			CleanEmptyAccountTime: Duration(10 * time.Minute),
-			ToleranceNonceGap:     1000,
+			PoolSize:               50000,
+			ToleranceTime:          Duration(5 * time.Minute),
+			ToleranceRemoveTime:    Duration(15 * time.Minute),
+			CleanEmptyAccountTime:  Duration(10 * time.Minute),
+			ToleranceNonceGap:      1000,
+			EnableLocalsPersist:    true,
+			RotateTxLocalsInterval: Duration(10 * time.Hour),
+			PriceLimit:             DefaultMinGasPrice,
 		},
 		TxCache: TxCache{
 			SetSize:    50,

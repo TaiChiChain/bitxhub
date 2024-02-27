@@ -57,6 +57,7 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 		},
 		RotateTxLocalsInterval: DefaultRotateTxLocalsInterval,
 		EnableLocalsPersist:    true,
+		PriceLimit:             0,
 
 		ChainInfo: &txpool.ChainInfo{
 			Height:   1,
