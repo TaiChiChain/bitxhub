@@ -107,7 +107,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 	t.Run("nonce is wanted", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		ast.Nil(err)
 		defer pool.Stop()
@@ -140,7 +140,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 	t.Run("pool is full", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		pool.poolMaxSize = 1
 		err := pool.Start()
 		defer pool.Stop()
@@ -351,6 +351,24 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 		ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx2 and tx3 had been removed from parking lot")
 	})
+
+	t.Run("gas price too low", func(t *testing.T) {
+		ast := assert.New(t)
+		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+		pool.chainInfo.EpochConf.BatchSize = 4
+		err := pool.Start()
+		ast.Nil(err)
+		defer pool.Stop()
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		tx := constructTx(s, 0)
+		// set price limit is bigger than tx gas price
+		pool.setPriceLimit(tx.RbftGetGasPrice().Uint64() + 1)
+		err = pool.AddLocalTx(tx)
+		ast.NotNil(err)
+		ast.Contains(err.Error(), ErrGasPriceTooLow.Error())
+	})
 }
 
 func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
@@ -358,7 +376,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 	t.Run("nonce is wanted", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -386,7 +404,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 	t.Run("pool is full", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		pool.poolMaxSize = 1
 		err := pool.Start()
 		defer pool.Stop()
@@ -652,7 +670,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		pool.toleranceNonceGap = 1
-		pool.batchSize = 500 // make sure not to trigger generate batch
+		pool.chainInfo.EpochConf.BatchSize = 500 // make sure not to trigger generate batch
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -696,7 +714,7 @@ func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
 	t.Run("nonce is wanted", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -723,7 +741,7 @@ func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
 	t.Run("pool is full", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		pool.poolMaxSize = 1
 		err := pool.Start()
 		defer pool.Stop()
@@ -753,7 +771,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		// ensure not notify generate batch
-		pool.batchSize = 500
+		pool.chainInfo.EpochConf.BatchSize = 500
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -802,7 +820,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		// ensure not notify generate batch
-		pool.batchSize = 500
+		pool.chainInfo.EpochConf.BatchSize = 500
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -863,7 +881,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		// ensure not notify generate batch
-		pool.batchSize = 500
+		pool.chainInfo.EpochConf.BatchSize = 500
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -915,7 +933,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		// ensure not notify generate batch
-		pool.batchSize = 500
+		pool.chainInfo.EpochConf.BatchSize = 500
 		pool.poolMaxSize = 1
 		err := pool.Start()
 		defer pool.Stop()
@@ -964,7 +982,7 @@ func TestTxPoolImpl_AddLocalRecordTxs(t *testing.T) {
 	t.Run("add local record txs success", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -990,7 +1008,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate wrong batch event", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -1003,7 +1021,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate batch size event", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		ch := make(chan int, 1)
 		pool.notifyGenerateBatchFn = func(typ int) {
 			ch <- typ
@@ -1038,7 +1056,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate batch size event which is less than batchSize", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		defer pool.Stop()
 		ast.Nil(err)
@@ -1055,7 +1073,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate batch timeout event", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		ast.Nil(err)
 		defer pool.Stop()
@@ -1086,7 +1104,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate batch timeout event which tx pool is empty", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		ast.Nil(err)
 		defer pool.Stop()
@@ -1111,7 +1129,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate no-tx batch timeout event which tx pool is not empty", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		ast.Nil(err)
 		defer pool.Stop()
@@ -1131,7 +1149,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate no-tx batch timeout event which not support no-tx", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		err := pool.Start()
 		ast.Nil(err)
 		defer pool.Stop()
@@ -1144,8 +1162,8 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate no-tx batch timeout event", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
-		pool.isTimed = true
+		pool.chainInfo.EpochConf.BatchSize = 4
+		pool.chainInfo.EpochConf.EnableGenEmptyBatch = true
 		err := pool.Start()
 		ast.Nil(err)
 		defer pool.Stop()
@@ -1170,7 +1188,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 	t.Run("generate batch size event, but validate tx gasPrice failed", func(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.batchSize = 4
+		pool.chainInfo.EpochConf.BatchSize = 4
 		ch := make(chan int, 1)
 		pool.notifyGenerateBatchFn = func(typ int) {
 			ch <- typ
@@ -1626,13 +1644,13 @@ func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
 	pool.AddRemoteTxs(txs)
 	ast.NotNil(pool.GetPendingTxByHash(txHashList[0]))
 	removeTx := pool.txStore.getPoolTxByTxnPointer(from, 0)
-	pool.txStore.priorityIndex.removeByOrderedQueueKey(removeTx)
+	pool.txStore.priorityIndex.removeKey(removeTx)
 
 	err = pool.RestoreOneBatch(batchDigest)
 	ast.NotNil(err)
 	ast.Contains(err.Error(), "can't find tx from priorityIndex")
 
-	pool.txStore.priorityIndex.insertByOrderedQueueKey(removeTx)
+	pool.txStore.priorityIndex.insertKey(removeTx)
 	err = pool.RestoreOneBatch(batchDigest)
 	ast.NotNil(err)
 	ast.Contains(err.Error(), "can't find tx from batchedTxs")
@@ -1769,7 +1787,7 @@ func TestTxPoolImpl_GetInfo(t *testing.T) {
 func TestTxPoolImpl_RemoveBatches(t *testing.T) {
 	ast := assert.New(t)
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	pool.batchSize = 4
+	pool.chainInfo.EpochConf.BatchSize = 4
 	err := pool.Start()
 	defer pool.Stop()
 	ast.Nil(err)
@@ -1849,7 +1867,7 @@ func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 
 func TestTxPoolImpl_UpdateChainInfo(t *testing.T) {
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	oldChainInfo := pool.chainInfo
+	oldChainInfo := pool.chainInfo.Clone()
 	assert.NotNil(t, oldChainInfo)
 	err := pool.Start()
 	assert.Nil(t, err)
@@ -1882,7 +1900,7 @@ func TestTPSWithLocalTx(t *testing.T) {
 	t.Skip()
 	ast := assert.New(t)
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	pool.batchSize = 500
+	pool.chainInfo.EpochConf.BatchSize = 500
 
 	batchesCache := make(chan *commonpool.RequestHashBatch[types.Transaction, *types.Transaction], 10240)
 	pool.notifyGenerateBatchFn = func(typ int) {
@@ -1935,7 +1953,7 @@ func TestTPSWithRemoteTxs(t *testing.T) {
 	// ignore log
 	pool.logger.(*logrus.Entry).Logger.SetLevel(logrus.ErrorLevel)
 
-	pool.batchSize = 500
+	pool.chainInfo.EpochConf.BatchSize = 500
 	pool.toleranceNonceGap = 100000
 
 	batchesCache := make(chan *commonpool.RequestHashBatch[types.Transaction, *types.Transaction], 10240)
@@ -2054,7 +2072,7 @@ func listenBatchCache(total int, endCh chan int64, cacheCh chan *commonpool.Requ
 			fmt.Printf("GetRequestsByHashList: %d, cost: %v\n", newBatch.SeqNo, time.Since(now))
 
 			pool.RemoveBatches([]string{newBatch.BatchHash})
-			if newBatch.SeqNo >= uint64(total)/pool.batchSize {
+			if newBatch.SeqNo >= uint64(total)/pool.chainInfo.EpochConf.BatchSize {
 				end := newBatch.Timestamp
 				endCh <- end
 			}

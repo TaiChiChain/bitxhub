@@ -54,9 +54,7 @@ func TestNode_Start(t *testing.T) {
 		}),
 		common.WithTxPool(mockTxPool(t)),
 		common.WithGetCurrentEpochInfoFromEpochMgrContractFunc(func() (*rbft.EpochInfo, error) {
-			return &rbft.EpochInfo{ConsensusParams: rbft.ConsensusParams{
-				EnableTimedGenEmptyBlock: false,
-			}}, nil
+			return r.GenesisConfig.EpochInfo, nil
 		}),
 	)
 	require.Nil(t, err)
@@ -134,37 +132,39 @@ func TestTimedBlock(t *testing.T) {
 }
 
 func TestNode_ReportState(t *testing.T) {
-	ast := assert.New(t)
-	node, err := mockSoloNode(t, false)
-	ast.Nil(err)
-
-	err = node.Start()
-	ast.Nil(err)
-	defer node.Stop()
-	node.batchDigestM[10] = "test"
-	node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
-	time.Sleep(10 * time.Millisecond)
-	ast.Equal(0, len(node.batchDigestM))
-
-	txList, signer := prepareMultiTx(t, 10)
-	ast.Equal(10, len(txList))
-
-	txSubscribeCh := make(chan []*types.Transaction, 1)
-	sub := node.SubscribeTxEvent(txSubscribeCh)
-	defer sub.Unsubscribe()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	mockAddTx(node, ctx)
-
-	for _, tx := range txList {
-		err = node.Prepare(tx)
+	t.Run("test report state", func(t *testing.T) {
+		ast := assert.New(t)
+		node, err := mockSoloNode(t, false)
 		ast.Nil(err)
-		<-txSubscribeCh
-		// sleep to make sure the tx is generated to the batch
-		time.Sleep(batchTimeout + 10*time.Millisecond)
-	}
-	t.Run("test pool full", func(t *testing.T) {
+
+		err = node.Start()
+		ast.Nil(err)
+		defer node.Stop()
+		node.batchDigestM[10] = "test"
+		node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
+		time.Sleep(10 * time.Millisecond)
+		ast.Equal(0, len(node.batchDigestM))
+
+		txList, signer := prepareMultiTx(t, 10)
+		ast.Equal(10, len(txList))
+
+		txSubscribeCh := make(chan []*types.Transaction, 1)
+		sub := node.SubscribeTxEvent(txSubscribeCh)
+		defer sub.Unsubscribe()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		mockAddTx(node, ctx)
+
+		for _, tx := range txList {
+			err = node.Prepare(tx)
+			ast.Nil(err)
+			<-txSubscribeCh
+			// sleep to make sure the tx is generated to the batch
+			time.Sleep(batchTimeout + 10*time.Millisecond)
+		}
+
+		//test pool full
 		ast.Equal(10, len(node.batchDigestM))
 		tx11, err := types.GenerateTransactionWithSigner(uint64(11),
 			types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), big.NewInt(0), nil, signer)
@@ -175,19 +175,25 @@ func TestNode_ReportState(t *testing.T) {
 		<-txSubscribeCh
 		ast.Contains(err.Error(), txpool2.ErrTxPoolFull.Error())
 		ast.Equal(10, len(node.batchDigestM), "the pool should be full, tx11 is not add in txpool successfully")
-	})
 
-	ast.NotNil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be in txpool")
-	// trigger the report state
-	pointer9 := &events.TxPointer{
-		Hash:    txList[9].GetHash(),
-		Account: txList[9].RbftGetFrom(),
-		Nonce:   txList[9].RbftGetNonce(),
-	}
-	node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
-	time.Sleep(100 * time.Millisecond)
-	ast.Equal(0, len(node.batchDigestM))
-	ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")
+		ast.NotNil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be in txpool")
+		// trigger the report state
+		pointer9 := &events.TxPointer{
+			Hash:    txList[9].GetHash(),
+			Account: txList[9].RbftGetFrom(),
+			Nonce:   txList[9].RbftGetNonce(),
+		}
+		node.getCurrentEpochInfoFunc = func() (*rbft.EpochInfo, error) {
+			return &rbft.EpochInfo{Epoch: 2, StartBlock: 10, EpochPeriod: 10, ConsensusParams: rbft.ConsensusParams{EnableTimedGenEmptyBlock: true}}, nil
+		}
+		node.epcCnf.epochPeriod = 10
+		node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
+		node.GetLowWatermark()
+		ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")
+		ast.Equal(0, len(node.batchDigestM))
+		ast.True(node.epcCnf.enableGenEmptyBlock)
+		ast.Equal(uint64(10), node.epcCnf.startBlock)
+	})
 }
 
 func prepareMultiTx(t *testing.T, count int) ([]*types.Transaction, *types.Signer) {

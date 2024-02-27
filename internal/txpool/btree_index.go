@@ -85,29 +85,38 @@ func (idx *btreeIndex[T, Constraint]) getTimestamp(poolTx *internalTransaction[T
 	return 0
 }
 
-func (idx *btreeIndex[T, Constraint]) insertBySortedNonceKey(nonce uint64) {
-	idx.data.ReplaceOrInsert(makeSortedNonceKey(nonce))
-}
+func (idx *btreeIndex[T, Constraint]) insertKey(poolTx *internalTransaction[T, Constraint]) bool {
+	switch idx.typ {
+	case SortNonce:
+		if old := idx.data.ReplaceOrInsert(makeSortedNonceKey(poolTx.getNonce())); old != nil {
+			return true
+		}
 
-func (idx *btreeIndex[T, Constraint]) removeBySortedNonceKey(poolTx *internalTransaction[T, Constraint]) {
-	idx.data.Delete(makeSortedNonceKey(poolTx.getNonce()))
-}
-
-func (idx *btreeIndex[T, Constraint]) insertByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) bool {
-	if old := idx.data.ReplaceOrInsert(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce())); old != nil {
-		return true
+	case Ordered, Rebroadcast, Remove:
+		if old := idx.data.ReplaceOrInsert(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce())); old != nil {
+			return true
+		}
 	}
+
 	return false
 }
 
-func (idx *btreeIndex[T, Constraint]) removeByOrderedQueueKey(poolTx *internalTransaction[T, Constraint]) bool {
-	if old := idx.data.Delete(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce())); old != nil {
-		return true
+func (idx *btreeIndex[T, Constraint]) removeKey(poolTx *internalTransaction[T, Constraint]) bool {
+	switch idx.typ {
+	case SortNonce:
+		if old := idx.data.Delete(makeSortedNonceKey(poolTx.getNonce())); old != nil {
+			return true
+		}
+	case Ordered, Rebroadcast, Remove:
+		if old := idx.data.Delete(makeOrderedIndexKey(idx.getTimestamp(poolTx), poolTx.getAccount(), poolTx.getNonce())); old != nil {
+			return true
+		}
 	}
+
 	return false
 }
 
-func (idx *btreeIndex[T, Constraint]) removeByOrderedQueueKeys(account string, txs []*internalTransaction[T, Constraint]) error {
+func (idx *btreeIndex[T, Constraint]) removeBatchKeys(account string, txs []*internalTransaction[T, Constraint]) error {
 	var err error
 	lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
 		if poolTx.getAccount() != account {
@@ -118,9 +127,8 @@ func (idx *btreeIndex[T, Constraint]) removeByOrderedQueueKeys(account string, t
 	if err != nil {
 		return err
 	}
-
-	lo.ForEach(txs, func(poolTx *internalTransaction[T, Constraint], _ int) {
-		idx.removeByOrderedQueueKey(poolTx)
+	lo.ForEach(txs, func(tx *internalTransaction[T, Constraint], _ int) {
+		idx.removeKey(tx)
 	})
 	return nil
 }

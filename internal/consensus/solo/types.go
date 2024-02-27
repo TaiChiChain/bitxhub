@@ -14,9 +14,10 @@ type consensusEvent any
 
 // chainState is a type for reportState
 type chainState struct {
-	Height     uint64
-	BlockHash  *types.Hash
-	TxHashList []*types.Hash
+	Height       uint64
+	BlockHash    *types.Hash
+	TxHashList   []*types.Hash
+	EpochChanged bool
 }
 
 // getLowWatermarkReq is a type for syncer request GetLowWatermark
@@ -33,4 +34,11 @@ type batchTimerManager struct {
 	lastBatchTime           int64
 	minTimeoutBatchTime     float64
 	minNoTxTimeoutBatchTime float64
+}
+
+type epochConfig struct {
+	startBlock          uint64
+	epochPeriod         uint64
+	checkpoint          uint64
+	enableGenEmptyBlock bool
 }

@@ -76,15 +76,24 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		getBalanceFn := func(addr string) *big.Int {
 			return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(addr))
 		}
-
+		epcCnf := &txpool.EpochConfig{
+			BatchSize:           rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
+			EnableGenEmptyBatch: rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+		}
 		chainInfo := &txpool.ChainInfo{
-			Height:   chainMeta.Height,
-			GasPrice: chainMeta.GasPrice,
+			Height:    chainMeta.Height,
+			GasPrice:  chainMeta.GasPrice,
+			EpochConf: epcCnf,
+		}
+
+		priceLimit := poolConf.PriceLimit
+		// ensure price limit is not less than min gas price
+		if rep.EpochInfo.FinanceParams.MinGasPrice > priceLimit {
+			priceLimit = rep.EpochInfo.FinanceParams.MinGasPrice
 		}
 
 		txpoolConf := txpool2.Config{
 			Logger:                 loggers.Logger(loggers.TxPool),
-			BatchSize:              rep.EpochInfo.ConsensusParams.BlockMaxTxNum,
 			PoolSize:               poolConf.PoolSize,
 			ToleranceTime:          poolConf.ToleranceTime.ToDuration(),
 			ToleranceRemoveTime:    poolConf.ToleranceRemoveTime.ToDuration(),
@@ -92,11 +101,11 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			CleanEmptyAccountTime:  poolConf.CleanEmptyAccountTime.ToDuration(),
 			GetAccountNonce:        fn,
 			GetAccountBalance:      getBalanceFn,
-			IsTimed:                rep.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 			EnableLocalsPersist:    poolConf.EnableLocalsPersist,
 			RepoRoot:               rep.RepoRoot,
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
 			ChainInfo:              chainInfo,
+			PriceLimit:             priceLimit,
 		}
 		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
 		if err != nil {

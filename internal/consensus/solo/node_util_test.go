@@ -26,7 +26,6 @@ import (
 
 const (
 	poolSize        = 10
-	adminBalance    = 100000000000000000
 	batchTimeout    = 50 * time.Millisecond
 	removeTxTimeout = 1 * time.Second
 )
@@ -42,9 +41,7 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 	txpoolConf := txpool2.Config{
 		RepoRoot:            repoRoot,
 		EnableLocalsPersist: false,
-		IsTimed:             false,
 		Logger:              &common.Logger{FieldLogger: logger},
-		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
 		PoolSize:            poolSize,
 		ToleranceRemoveTime: removeTxTimeout,
 		GetAccountNonce: func(address string) uint64 {
@@ -54,7 +51,14 @@ func mockTxPool(t *testing.T) txpool.TxPool[types.Transaction, *types.Transactio
 			maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
 			return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
 		},
-		ChainInfo: &txpool.ChainInfo{Height: 1, GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9))},
+		ChainInfo: &txpool.ChainInfo{
+			Height:   1,
+			GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9)),
+			EpochConf: &txpool.EpochConfig{
+				EnableGenEmptyBatch: r.GenesisConfig.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+				BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
+			},
+		},
 	}
 
 	txpoolInst, err := txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
@@ -76,9 +80,7 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 	mockPrecheck := mock_precheck.NewMockMinPreCheck(mockCtl, validTxsCh)
 
 	txpoolConf := txpool2.Config{
-		IsTimed:             r.GenesisConfig.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
 		Logger:              &common.Logger{FieldLogger: logger},
-		BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
 		PoolSize:            poolSize,
 		ToleranceRemoveTime: removeTxTimeout,
 		GetAccountNonce: func(address string) uint64 {
@@ -88,14 +90,21 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 			maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
 			return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
 		},
-		ChainInfo: &txpool.ChainInfo{Height: 1, GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9))},
+		ChainInfo: &txpool.ChainInfo{
+			Height:   1,
+			GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9)),
+			EpochConf: &txpool.EpochConfig{
+				EnableGenEmptyBatch: r.GenesisConfig.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+				BatchSize:           r.GenesisConfig.EpochInfo.ConsensusParams.BlockMaxTxNum,
+			},
+		},
 	}
 	var noTxBatchTimeout time.Duration
 	if enableTimed {
-		txpoolConf.IsTimed = true
+		txpoolConf.ChainInfo.EpochConf.EnableGenEmptyBatch = true
 		noTxBatchTimeout = 50 * time.Millisecond
 	} else {
-		txpoolConf.IsTimed = false
+		txpoolConf.ChainInfo.EpochConf.EnableGenEmptyBatch = false
 		noTxBatchTimeout = cfg.TimedGenBlock.NoTxBatchTimeout.ToDuration()
 	}
 	txpoolInst, err := txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
@@ -110,7 +119,6 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 			PrivKey: s.Sk,
 		},
 		lastExec:         uint64(0),
-		isTimed:          txpoolConf.IsTimed,
 		noTxBatchTimeout: noTxBatchTimeout,
 		batchTimeout:     cfg.Solo.BatchTimeout.ToDuration(),
 		commitC:          make(chan *common.CommitEvent, maxChanSize),
@@ -118,12 +126,17 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		txpool:           txpoolInst,
 		network:          mockNetwork,
 		batchDigestM:     make(map[uint64]string),
-		checkpoint:       10,
 		recvCh:           recvCh,
 		logger:           logger,
 		ctx:              ctx,
 		cancel:           cancel,
 		txPreCheck:       mockPrecheck,
+		epcCnf: &epochConfig{
+			epochPeriod:         r.GenesisConfig.EpochInfo.EpochPeriod,
+			startBlock:          r.GenesisConfig.EpochInfo.StartBlock,
+			checkpoint:          r.GenesisConfig.EpochInfo.ConsensusParams.CheckpointPeriod,
+			enableGenEmptyBlock: txpoolConf.ChainInfo.EpochConf.EnableGenEmptyBatch,
+		},
 	}
 	batchTimerMgr := timer.NewTimerManager(logger)
 	err = batchTimerMgr.CreateTimer(timer.Batch, batchTimeout, soloNode.handleTimeoutEvent)

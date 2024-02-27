@@ -102,7 +102,7 @@ func (txStore *transactionStore[T, Constraint]) insertPoolTx(account string, txI
 		txStore.deletePoolTx(account, nonce)
 	}
 	txList.items[nonce] = txItem
-	txList.index.insertBySortedNonceKey(nonce)
+	txList.index.insertKey(txItem)
 	// if the account is empty, we need to set the empty flag to false because we insert a new tx
 	if txList.isEmpty() {
 		txList.setNotEmpty()
@@ -122,7 +122,7 @@ func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, non
 			txStore.logger.Warningf("tx [account:%s, nonce:%d] not found in txpool", account, nonce)
 			return
 		}
-		txList.index.removeBySortedNonceKey(poolTx)
+		txList.index.removeKey(poolTx)
 		delete(txList.items, nonce)
 		poolTxNum.Dec()
 
@@ -137,21 +137,21 @@ func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, non
 
 func (txStore *transactionStore[T, Constraint]) removeTxInPool(poolTx *internalTransaction[T, Constraint]) {
 	txStore.deletePoolTx(poolTx.getAccount(), poolTx.getNonce())
-	txStore.priorityIndex.removeByOrderedQueueKey(poolTx)
-	if ok := txStore.parkingLotIndex.removeByOrderedQueueKey(poolTx); ok {
+	txStore.priorityIndex.removeKey(poolTx)
+	if ok := txStore.parkingLotIndex.removeKey(poolTx); ok {
 		txStore.decreaseParkingLotSize(1)
 	}
-	txStore.removeTTLIndex.removeByOrderedQueueKey(poolTx)
-	txStore.localTTLIndex.removeByOrderedQueueKey(poolTx)
+	txStore.removeTTLIndex.removeKey(poolTx)
+	txStore.localTTLIndex.removeKey(poolTx)
 }
 
 func (txStore *transactionStore[T, Constraint]) insertTxInPool(poolTx *internalTransaction[T, Constraint], isLocal bool) {
 	txStore.insertPoolTx(poolTx.getAccount(), poolTx)
 	if isLocal {
-		txStore.localTTLIndex.insertByOrderedQueueKey(poolTx)
+		txStore.localTTLIndex.insertKey(poolTx)
 	}
 	// record the tx arrived timestamp
-	txStore.removeTTLIndex.insertByOrderedQueueKey(poolTx)
+	txStore.removeTTLIndex.insertKey(poolTx)
 }
 
 // getPoolTxByTxnPointer gets transaction by account address + nonce
