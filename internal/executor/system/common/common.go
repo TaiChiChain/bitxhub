@@ -52,13 +52,21 @@ type VirtualMachine interface {
 	IsSystemContract(addr *types.Address) bool
 
 	// Reset the state of the system contract
-	Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address)
+	Reset(currentHeight uint64, stateLedger ledger.StateLedger)
 
 	// View return a view system contract
 	View() VirtualMachine
 
 	// GetContractInstance return the contract instance by given address
 	GetContractInstance(addr *types.Address) SystemContract
+
+	// EnhancedInput return the enhanced input by given from and to address
+	EnhancedInput(from *ethcommon.Address, to *ethcommon.Address, originalInput []byte) ([]byte, error)
+
+	// DecodeEnhancedInput decode the enhanced input
+	// return the original input
+	// reset 'from' and 'to' address for nvm
+	DecodeEnhancedInput(data []byte) ([]byte, error)
 }
 
 type VMContext struct {

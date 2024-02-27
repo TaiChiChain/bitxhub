@@ -298,7 +298,9 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	snapshot := statedb.Snapshot()
 
 	if exec.nvm.IsSystemContract(tx.GetTo()) {
-		usedGas := exec.nvm.RequiredGas(msg.Data)
+		var input []byte
+		input, err = exec.nvm.EnhancedInput(&msg.From, msg.To, msg.Data)
+		usedGas := exec.nvm.RequiredGas(input)
 		if usedGas != 0 {
 			fee := new(big.Int).SetUint64(usedGas)
 			fee.Mul(fee, msg.GasPrice)
@@ -309,7 +311,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 			}
 
 			if err == nil {
-				result = system.RunAxiomNativeVM(exec.nvm, height, statedb, msg.Data, msg.From, msg.To)
+				result = system.RunAxiomNativeVM(exec.nvm, height, statedb, input)
 				if result != nil && result.UsedGas != 0 {
 					core.Transfer(evmStateDB, msg.From, exec.evm.Context.Coinbase, fee)
 				}

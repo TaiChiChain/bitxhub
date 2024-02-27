@@ -115,6 +115,16 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 		TxHash:      hash,
 	}
 
+	// if system contract call, enhance input
+	nvm := api.api.Broker().GetNativeVm()
+	if msg.To != nil && nvm.IsSystemContract(types.NewAddress(msg.To.Bytes())) {
+		input, err := nvm.EnhancedInput(&msg.From, msg.To, msg.Data)
+		if err != nil {
+			return nil, err
+		}
+		msg.Data = input
+	}
+
 	return api.traceTx(msg, txctx, vmctx, *statedb, config)
 }
 

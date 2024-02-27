@@ -53,6 +53,9 @@ var axmManagerABI string
 //go:embed sol/AxcManager.abi
 var axcManagerABI string
 
+//go:embed sol/StateEnhance.abi
+var stateEnhanceABI string
+
 var _ common.VirtualMachine = (*NativeVM)(nil)
 
 // NativeVM handle abi decoding for parameters and abi encoding for return data
@@ -129,12 +132,10 @@ func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]s
 	nvm.setEVMPrecompiled(addr)
 }
 
-func (nvm *NativeVM) Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address) {
+func (nvm *NativeVM) Reset(currentHeight uint64, stateLedger ledger.StateLedger) {
 	nvm.stateLedger = stateLedger
 	nvm.currentHeight = currentHeight
 	nvm.currentLogs = make([]common.Log, 0)
-	nvm.from = from
-	nvm.to = to
 }
 
 func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
@@ -146,13 +147,16 @@ func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 		}
 	}()
 
-	if nvm.to == nil {
-		return nil, ErrNotExistSystemContract
+	// decode stateful enhanced input
+	// such as from ,to and so on
+	originalData, err := nvm.DecodeEnhancedInput(data)
+	if err != nil {
+		return nil, err
 	}
 
 	// get args and method, call the contract method
 	contractAddr := nvm.to.Hex()
-	methodName, err := nvm.getMethodName(contractAddr, data)
+	methodName, err := nvm.getMethodName(contractAddr, originalData)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +184,7 @@ func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 	if !method.IsValid() {
 		return nil, ErrNotImplementFuncSystemContract
 	}
-	args, err := nvm.parseArgs(contractAddr, data, methodName)
+	args, err := nvm.parseSystemContractArgs(contractAddr, originalData, methodName)
 	if err != nil {
 		return nil, err
 	}
@@ -251,19 +255,23 @@ func (nvm *NativeVM) getMethodName(contractAddr string, data []byte) (string, er
 	return "", ErrNotExistMethodName
 }
 
+func (nvm *NativeVM) parseSystemContractArgs(contractAddr string, data []byte, methodName string) ([]any, error) {
+	contractABI, ok := nvm.contract2ABI[contractAddr]
+	if !ok {
+		return nil, ErrNotExistSystemContractABI
+	}
+
+	return nvm.parseArgs(contractABI, data, methodName)
+}
+
 // parseArgs parse the arguments to specified interface by method name
-func (nvm *NativeVM) parseArgs(contractAddr string, data []byte, methodName string) ([]any, error) {
+func (nvm *NativeVM) parseArgs(contractABI abi.ABI, data []byte, methodName string) ([]any, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("msg data length is not improperly formatted: %q - Bytes: %+v", data, data)
 	}
 
 	// dinvmard method id
 	msgData := data[4:]
-
-	contractABI, ok := nvm.contract2ABI[contractAddr]
-	if !ok {
-		return nil, ErrNotExistSystemContractABI
-	}
 
 	var args abi.Arguments
 	if method, ok := contractABI.Methods[methodName]; ok {
@@ -366,8 +374,8 @@ func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContr
 	return nvm.contract2Instance[addr.String()]
 }
 
-func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte, from ethcommon.Address, to *ethcommon.Address) *core.ExecutionResult {
-	nvm.Reset(height, ledger, from, to)
+func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte) *core.ExecutionResult {
+	nvm.Reset(height, ledger)
 	usedGas := nvm.RequiredGas(data)
 	returnData, err := nvm.Run(data)
 	return &core.ExecutionResult{
@@ -422,4 +430,41 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 	return nil
+}
+
+func (nvm *NativeVM) EnhancedInput(from *ethcommon.Address, to *ethcommon.Address, originalInput []byte) (encodedData []byte, err error) {
+	if from == nil {
+		from = &ethcommon.Address{}
+	}
+	if to == nil {
+		to = &ethcommon.Address{}
+	}
+	parsedABI, err := abi.JSON(strings.NewReader(stateEnhanceABI))
+	if err != nil {
+		return nil, err
+	}
+	encodedData, err = parsedABI.Pack("enhance", from, to, originalInput)
+	if err != nil {
+		return nil, err
+	}
+
+	return encodedData, nil
+}
+
+func (nvm *NativeVM) DecodeEnhancedInput(data []byte) ([]byte, error) {
+	enhanceABI, err := abi.JSON(strings.NewReader(stateEnhanceABI))
+	if err != nil {
+		return nil, err
+	}
+	parseArgs, err := nvm.parseArgs(enhanceABI, data, "enhance")
+	if err != nil {
+		return nil, err
+	}
+	if len(parseArgs) != 3 {
+		return nil, fmt.Errorf("invalid args length %d", len(parseArgs))
+	}
+	nvm.from = parseArgs[0].(ethcommon.Address)
+	toAddr := parseArgs[1].(ethcommon.Address)
+	nvm.to = &toAddr
+	return parseArgs[2].([]byte), nil
 }

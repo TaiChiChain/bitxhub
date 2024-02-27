@@ -4,11 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -276,8 +278,10 @@ func TestContractRun(t *testing.T) {
 		},
 	}
 	for _, testcase := range testcases {
-		nvm.Reset(2, stateLedger, testcase.Message.From, testcase.Message.To)
-		_, err := nvm.Run(testcase.Message.Data)
+		nvm.Reset(2, stateLedger)
+		input, err := nvm.EnhancedInput(&testcase.Message.From, testcase.Message.To, testcase.Message.Data)
+		assert.Nil(t, err)
+		_, err = nvm.Run(input)
 		if testcase.IsExpectedErr {
 			assert.NotNil(t, err)
 		} else {
@@ -308,8 +312,72 @@ func generateGetLatestProposalIDData(t *testing.T) []byte {
 
 func TestNativeVM_RequiredGas(t *testing.T) {
 	nvm := New()
-	gas := nvm.RequiredGas([]byte{1})
-	assert.Equal(t, uint64(21016), gas)
+	input, err := nvm.EnhancedInput(nil, nil, []byte{1})
+	assert.Nil(t, err)
+	gas := nvm.RequiredGas(input)
+	assert.Equal(t, uint64(21740), gas)
+}
+
+func TestNativeVM_EnhancedInput(t *testing.T) {
+	nvm := New()
+	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
+	from := types.NewAddressByStr(admin1).ETHAddress()
+	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
+	testCases := []struct {
+		from          *ethcommon.Address
+		to            *ethcommon.Address
+		originalInput []byte
+		err           error
+	}{
+		{
+			from:          nil,
+			to:            nil,
+			originalInput: nil,
+			err:           nil,
+		},
+		{
+			from:          &from,
+			to:            &to,
+			originalInput: data,
+			err:           nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		_, err := nvm.EnhancedInput(testCase.from, testCase.to, testCase.originalInput)
+		assert.Equal(t, testCase.err, err)
+	}
+}
+
+func TestNativeVM_DecodeEnhancedInput(t *testing.T) {
+	nvm := New()
+	originalData := generateVoteData(t, 1, governance.Pass)
+	input, err := nvm.EnhancedInput(nil, nil, originalData)
+	assert.Nil(t, err)
+	testCases := []struct {
+		originalData []byte
+		input        []byte
+		nilError     bool
+	}{
+		{
+			originalData: nil,
+			input:        nil,
+			nilError:     false,
+		},
+		{
+			originalData: originalData,
+			input:        input,
+			nilError:     true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		data, err := nvm.DecodeEnhancedInput(testCase.input)
+		assert.True(t, err == nil == testCase.nilError)
+		if testCase.nilError {
+			assert.Equal(t, originalData, data)
+		}
+	}
 }
 
 func TestRunAxiomNativeVM(t *testing.T) {
@@ -326,6 +394,8 @@ func TestRunAxiomNativeVM(t *testing.T) {
 	from := types.NewAddressByStr(admin1).ETHAddress()
 	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
 	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
-	nativeVM := RunAxiomNativeVM(nvm, 2, stateLedger, data, from, &to)
+	input, err := nvm.EnhancedInput(&from, &to, data)
+	assert.Nil(t, err)
+	nativeVM := RunAxiomNativeVM(nvm, 2, stateLedger, input)
 	assert.NotNil(t, nativeVM.Err)
 }

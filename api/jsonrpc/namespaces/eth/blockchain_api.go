@@ -343,7 +343,11 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, api 
 		if err != nil {
 			return nil, err
 		}
-		ret := system.RunAxiomNativeVM(nvm, chainMeta.Height, stateLedger, msg.Data, msg.From, msg.To)
+		enhancedInput, err := nvm.EnhancedInput(&msg.From, msg.To, msg.Data)
+		if err != nil {
+			return nil, err
+		}
+		ret := system.RunAxiomNativeVM(nvm, chainMeta.Height, stateLedger, enhancedInput)
 		return ret, ret.Err
 	}
 
@@ -391,7 +395,11 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	// Judge whether this is system contract
 	nvm := api.api.Broker().GetNativeVm()
 	if args.To != nil && nvm.IsSystemContract(types.NewAddress(args.To.Bytes())) {
-		gas := nvm.RequiredGas(*args.Data)
+		input, err := nvm.EnhancedInput(args.From, args.To, *args.Data)
+		if err != nil {
+			return 0, err
+		}
+		gas := nvm.RequiredGas(input)
 		return ethhexutil.Uint64(gas), err
 	}
 
