@@ -49,6 +49,8 @@ type ChainLedger interface {
 	// PersistExecutionResult persist the execution result
 	PersistExecutionResult(block *types.Block, receipts []*types.Receipt) error
 
+	BatchPersistExecutionResult(batchBlock []*types.Block, BatchReceipts [][]*types.Receipt) error
+
 	// GetChainMeta get chain meta data
 	GetChainMeta() *types.ChainMeta
 

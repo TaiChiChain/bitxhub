@@ -41,6 +41,11 @@ func (m *MockPipe) EXPECT() *MockPipeMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockPipe) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // Broadcast mocks base method.
 func (m *MockPipe) Broadcast(ctx context.Context, targets []string, data []byte) error {
 	m.ctrl.T.Helper()
@@ -214,6 +219,11 @@ func NewMockNetwork(ctrl *gomock.Controller) *MockNetwork {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockNetwork) EXPECT() *MockNetworkMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockNetwork) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // CountConnectedValidators mocks base method.

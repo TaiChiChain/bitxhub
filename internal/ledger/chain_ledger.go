@@ -334,33 +334,68 @@ func (l *ChainLedgerImpl) GetReceiptsByHeight(height uint64) ([]*types.Receipt, 
 
 // PersistExecutionResult persist the execution result
 func (l *ChainLedgerImpl) PersistExecutionResult(block *types.Block, receipts []*types.Receipt) error {
-	current := time.Now()
-
 	if block == nil {
-		return errors.New("empty block data")
+		return errors.New("empty persist block data")
+	}
+	return l.doBatchPersistExecutionResult([]*types.Block{block}, [][]*types.Receipt{receipts})
+}
+
+func (l *ChainLedgerImpl) BatchPersistExecutionResult(batchBlock []*types.Block, BatchReceipts [][]*types.Receipt) error {
+	if len(batchBlock) == 0 {
+		return errors.New("empty batch persist block data")
+	}
+
+	if len(batchBlock) != len(BatchReceipts) {
+		return errors.New("batch persist execution result param's length not match")
+	}
+	return l.doBatchPersistExecutionResult(batchBlock, BatchReceipts)
+}
+
+func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Block, batchReceipts [][]*types.Receipt) error {
+	current := time.Now()
+	if len(batchBlock) == 0 {
+		return errors.New("empty doBatch persist block data")
+	}
+
+	if len(batchBlock) != len(batchReceipts) {
+		return errors.New("doBatch persist execution result param's length not match")
 	}
 
 	batcher := l.blockchainStore.NewBatch()
+	var listOfHash, listOfBody, listOfReceipts, listOfTransactions [][]byte
+	for i, block := range batchBlock {
 
-	rs, err := l.prepareReceipts(batcher, block, receipts)
-	if err != nil {
-		return fmt.Errorf("preapare receipts failed: %w", err)
+		listOfHash = append(listOfHash, block.BlockHash.Bytes())
+
+		receipts := batchReceipts[i]
+		rs, err := l.prepareReceipts(batcher, block, receipts)
+		if err != nil {
+			return fmt.Errorf("preapare receipts failed: %w", err)
+		}
+		listOfReceipts = append(listOfReceipts, rs)
+		ts, err := l.prepareTransactions(batcher, block)
+		if err != nil {
+			return fmt.Errorf("prepare transactions failed: %w", err)
+		}
+		listOfTransactions = append(listOfTransactions, ts)
+
+		b, err := l.prepareBlock(batcher, block)
+		if err != nil {
+			return fmt.Errorf("prepare block failed: %w", err)
+		}
+		listOfBody = append(listOfBody, b)
 	}
 
-	ts, err := l.prepareTransactions(batcher, block)
-	if err != nil {
-		return fmt.Errorf("prepare transactions failed: %w", err)
+	if err := l.bf.BatchAppendBlock(l.chainMeta.Height, listOfHash, listOfBody, listOfReceipts, listOfTransactions); err != nil {
+		return fmt.Errorf("append block with height %d to blockfile failed: %w", l.chainMeta.Height, err)
 	}
 
-	b, err := l.prepareBlock(batcher, block)
-	if err != nil {
-		return fmt.Errorf("prepare block failed: %w", err)
-	}
+	lastBlock := batchBlock[len(batchBlock)-1]
 
 	meta := &types.ChainMeta{
-		Height:    block.BlockHeader.Number,
-		GasPrice:  big.NewInt(block.BlockHeader.GasPrice),
-		BlockHash: block.BlockHash,
+		Height:    lastBlock.BlockHeader.Number,
+		GasPrice:  big.NewInt(lastBlock.BlockHeader.GasPrice),
+		BlockHash: lastBlock.BlockHash,
 	}
 
 	l.logger.WithFields(logrus.Fields{
@@ -369,29 +404,25 @@ func (l *ChainLedgerImpl) PersistExecutionResult(block *types.Block, receipts []
 		"BlockHash": meta.BlockHash,
 	}).Debug("prepare chain meta")
 
-	if err := l.bf.AppendBlock(l.chainMeta.Height, block.BlockHash.Bytes(), b, rs, ts); err != nil {
-		return fmt.Errorf("append block with height %d to blockfile failed: %w", l.chainMeta.Height, err)
-	}
-
 	if err := l.persistChainMeta(batcher, meta); err != nil {
 		return fmt.Errorf("persist chain meta failed: %w", err)
 	}
 
 	batcher.Commit()
-
-	if len(block.Transactions) > 0 {
-		l.txCache.Add(meta.Height, block.Transactions)
+	for i, block := range batchBlock {
+		if len(block.Transactions) > 0 {
+			l.txCache.Add(block.BlockHeader.Number, block.Transactions)
+		}
+		receipts := batchReceipts[i]
+		if len(receipts) > 0 {
+			l.receiptCache.Add(block.BlockHeader.Number, receipts)
+		}
+		l.blockCache.Add(block.BlockHeader.Number, block)
 	}
-	if len(receipts) > 0 {
-		l.receiptCache.Add(meta.Height, receipts)
-	}
-
-	l.blockCache.Add(meta.Height, block)
 
 	l.UpdateChainMeta(meta)
 
 	l.logger.WithField("time", time.Since(current)).Debug("persist execution result elapsed")
-
 	return nil
 }
 

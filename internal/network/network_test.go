@@ -159,7 +159,6 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 		},
 	}, nil).AnyTimes()
 
-	chainLedger.EXPECT().GetBlockSign(gomock.Any()).Return([]byte("sign"), nil).AnyTimes()
 	chainLedger.EXPECT().GetTransaction(gomock.Any()).Return(&types.Transaction{}, nil).AnyTimes()
 	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
 	chainLedger.EXPECT().GetChainMeta().Return(&types.ChainMeta{Height: 1, BlockHash: types.NewHashByStr("")}).AnyTimes()
