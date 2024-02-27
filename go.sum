@@ -62,10 +62,10 @@ github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef h1:2JGTg6JapxP
 github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef/go.mod h1:JS7hed4L1fj0hXcyEejnW57/7LCetXggd+vwrRnYeII=
 github.com/axiomesh/axiom-bft v0.0.3-0.20240123063523-d0b48541230d h1:0V2GW9Fd7H4a6Z7RlcvZWPk2DuIH9UzJZ+DIQQ4tbHU=
 github.com/axiomesh/axiom-bft v0.0.3-0.20240123063523-d0b48541230d/go.mod h1:ntjy1xKch94LjPAvAzzyaktSuzoev3zlHZxaaRT9NsQ=
-github.com/axiomesh/axiom-kit v0.0.3-0.20240222033123-91560938fca4 h1:Fx4N2NRMvG6/pNWEVQssszZN/CvtpSt9kcCDQR7kTJE=
-github.com/axiomesh/axiom-kit v0.0.3-0.20240222033123-91560938fca4/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
-github.com/axiomesh/axiom-p2p v0.0.3-0.20240219033917-0acc7170faa6 h1:HorC86WESgO+BC4yQTNmtAyErhG8Anx0vulZcriZuQI=
-github.com/axiomesh/axiom-p2p v0.0.3-0.20240219033917-0acc7170faa6/go.mod h1:51V14XVL9rMae7qD8UVuswbx9Fq46/4uz9FgeMs2pCo=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240227021949-cf8b87a0c90d h1:IAb621hG1bs4iDM9JQfpdEJ/e0kV/lNtPOBcSaUwuB8=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240227021949-cf8b87a0c90d/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
+github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d h1:tOWrHY3ctc6hvOltNzpae63ZFdQQrsQnsj1U6NJSuDU=
+github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d/go.mod h1:51V14XVL9rMae7qD8UVuswbx9Fq46/4uz9FgeMs2pCo=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=

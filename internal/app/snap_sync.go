@@ -157,12 +157,19 @@ func (axm *AxiomLedger) waitVerifySnapTrie(verifySnapCh chan bool) bool {
 }
 
 func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
+	var batchBlock []*types.Block
+	var batchReceipts [][]*types.Receipt
 	for _, commitData := range data.Data {
 		chainData := commitData.(*common.ChainData)
-		if err := axm.ViewLedger.ChainLedger.PersistExecutionResult(chainData.Block, chainData.Receipts); err != nil {
+		batchBlock = append(batchBlock, chainData.Block)
+		batchReceipts = append(batchReceipts, chainData.Receipts)
+	}
+	if len(batchBlock) > 0 {
+		if err := axm.ViewLedger.ChainLedger.BatchPersistExecutionResult(batchBlock, batchReceipts); err != nil {
 			return err
 		}
 	}
+
 	storeEpochStateFn := func(key string, value []byte) error {
 		return common2.StoreEpochState(axm.epochStore, key, value)
 	}
