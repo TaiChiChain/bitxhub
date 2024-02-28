@@ -145,14 +145,14 @@ func TestTxRecords_LoadMoreThanOneBatch(t *testing.T) {
 	meta := pool.GetMeta(false)
 	assert.Equal(t, uint64(TxRecordsBatchSize+1), meta.TxCount)
 	assert.Equal(t, TxRecordsBatchSize+1, pool.txStore.localTTLIndex.size(), "all tx should be in localTTLIndex")
-	assert.Equal(t, TxRecordsBatchSize+1, pool.txStore.priorityIndex.size())
+	assert.Equal(t, TxRecordsBatchSize+1, getPrioritySize(pool))
 	assert.Equal(t, uint64(TxRecordsBatchSize+1), pool.txStore.priorityNonBatchSize)
 }
 
 func TestTxRecords_Rotate(t *testing.T) {
 	// init pool and txs
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	pool.Start()
+	_ = pool.Start()
 	defer pool.Stop()
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)

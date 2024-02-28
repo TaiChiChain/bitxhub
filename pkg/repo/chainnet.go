@@ -168,6 +168,8 @@ func AriesConsensusConfig() *ConsensusConfig {
 			ToleranceNonceGap:      1000,
 			EnableLocalsPersist:    true,
 			PriceLimit:             DefaultMinGasPrice,
+			GenerateBatchType:      GenerateBatchByTime,
+			PriceBump:              10,
 		},
 		TxCache: TxCache{
 			SetSize:    50,
@@ -448,6 +450,8 @@ func TaurusConsensusConfig() *ConsensusConfig {
 			EnableLocalsPersist:    true,
 			RotateTxLocalsInterval: Duration(10 * time.Hour),
 			PriceLimit:             DefaultMinGasPrice,
+			PriceBump:              10,
+			GenerateBatchType:      GenerateBatchByTime,
 		},
 		TxCache: TxCache{
 			SetSize:    50,

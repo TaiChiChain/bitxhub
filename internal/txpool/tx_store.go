@@ -1,6 +1,7 @@
 package txpool
 
 import (
+	"math/big"
 	"sync"
 	"time"
 
@@ -28,7 +29,10 @@ type transactionStore[T any, Constraint types.TXConstraint[T]] struct {
 	parkingLotIndex *btreeIndex[T, Constraint]
 
 	// keeps track of "ready" txs
-	priorityIndex *btreeIndex[T, Constraint]
+	priorityByPrice *priorityQueue[T, Constraint]
+
+	// keeps track of "ready" txs
+	priorityByTime *btreeIndex[T, Constraint]
 
 	// cache all the batched txs which haven't executed.
 	batchedTxs map[txPointer]bool
@@ -65,10 +69,11 @@ func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNo
 		missingBatch:         make(map[string]map[uint64]string),
 		batchesCache:         make(map[string]*txpool.RequestHashBatch[T, Constraint]),
 		parkingLotIndex:      newBtreeIndex[T, Constraint](Ordered),
-		priorityIndex:        newBtreeIndex[T, Constraint](Ordered),
+		priorityByTime:       newBtreeIndex[T, Constraint](Ordered),
 		localTTLIndex:        newBtreeIndex[T, Constraint](Rebroadcast),
 		removeTTLIndex:       newBtreeIndex[T, Constraint](Remove),
 		nonceCache:           newNonceCache(f),
+		priorityByPrice:      newPriorityQueue[T, Constraint](logger),
 	}
 }
 
@@ -135,9 +140,11 @@ func (txStore *transactionStore[T, Constraint]) deletePoolTx(account string, non
 	}
 }
 
-func (txStore *transactionStore[T, Constraint]) removeTxInPool(poolTx *internalTransaction[T, Constraint]) {
+func (txStore *transactionStore[T, Constraint]) removeTxInPool(poolTx *internalTransaction[T, Constraint], enablePricePriority, isPriority bool) {
 	txStore.deletePoolTx(poolTx.getAccount(), poolTx.getNonce())
-	txStore.priorityIndex.removeKey(poolTx)
+	if !enablePricePriority && isPriority {
+		txStore.priorityByTime.removeKey(poolTx)
+	}
 	if ok := txStore.parkingLotIndex.removeKey(poolTx); ok {
 		txStore.decreaseParkingLotSize(1)
 	}
@@ -265,7 +272,7 @@ type nonceCache struct {
 	commitNonces map[string]uint64
 
 	// pendingNonces records each account's latest nonce which has been included in
-	// priority queue. Invariant: pendingNonces[account] >= commitNonces[account]
+	// priority minNonceQueue. Invariant: pendingNonces[account] >= commitNonces[account]
 	pendingNonces map[string]uint64
 
 	pendingMu       sync.RWMutex
@@ -330,4 +337,8 @@ func (tx *internalTransaction[T, Constraint]) getNonce() uint64 {
 
 func (tx *internalTransaction[T, Constraint]) getHash() string {
 	return Constraint(tx.rawTx).RbftGetTxHash()
+}
+
+func (tx *internalTransaction[T, Constraint]) getGasPrice() *big.Int {
+	return Constraint(tx.rawTx).RbftGetGasPrice()
 }

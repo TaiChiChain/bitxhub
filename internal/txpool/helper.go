@@ -44,3 +44,7 @@ func traceProcessEvent(event string, duration time.Duration) {
 	processEventDuration.With(prometheus.Labels{"event": event}).Observe(duration.Seconds())
 	processEventDuration.With(prometheus.Labels{"event": "all"}).Observe(duration.Seconds())
 }
+
+func tracePersistRecords(duration time.Duration) {
+	insertRecordDuration.Observe(duration.Seconds())
+}

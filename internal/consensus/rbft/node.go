@@ -146,7 +146,7 @@ func (n *Node) Start() error {
 	n.txsBroadcastMsgPipe = txsBroadcastMsgPipe
 
 	if err := retry.Retry(func(attempt uint) error {
-		err := n.checkQuorum()
+		err = n.checkQuorum()
 		if err != nil {
 			return err
 		}
@@ -178,7 +178,21 @@ func (n *Node) Start() error {
 	}
 
 	if txs := n.txpool.GetLocalTxs(); len(txs) > 0 {
-		go n.submitTxsFromRemote(txs)
+		for len(txs) > 0 {
+			minBatch := func(a, b int) int {
+				if a < b {
+					return a
+				}
+				return b
+			}
+			length := minBatch(len(txs), int(n.txCache.TxSetSize))
+			data := txs[:length]
+			err = n.broadcastTxs(data)
+			if err != nil {
+				return err
+			}
+			txs = txs[length:]
+		}
 	}
 
 	n.started.Store(true)
@@ -283,6 +297,20 @@ func (n *Node) listenExecutedBlockToReport() {
 	}
 }
 
+func (n *Node) broadcastTxs(txSetData [][]byte) error {
+	msg := &pb.BytesSlice{
+		Slice: txSetData,
+	}
+	data, err := msg.MarshalVT()
+	if err != nil {
+		return err
+	}
+
+	return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), lo.Map(lo.Flatten([][]rbft.NodeInfo{n.stack.EpochInfo.ValidatorSet, n.stack.EpochInfo.CandidateSet}), func(item rbft.NodeInfo, index int) string {
+		return item.P2PNodeID
+	}), data)
+}
+
 func (n *Node) listenBatchMemTxsToBroadcast() {
 	for {
 		select {
@@ -298,19 +326,7 @@ func (n *Node) listenBatchMemTxsToBroadcast() {
 			}
 
 			// broadcast to other node
-			err := func() error {
-				msg := &pb.BytesSlice{
-					Slice: requests,
-				}
-				data, err := msg.MarshalVT()
-				if err != nil {
-					return err
-				}
-
-				return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), lo.Map(lo.Flatten([][]rbft.NodeInfo{n.stack.EpochInfo.ValidatorSet, n.stack.EpochInfo.CandidateSet}), func(item rbft.NodeInfo, index int) string {
-					return item.P2PNodeID
-				}), data)
-			}()
+			err := n.broadcastTxs(requests)
 			if err != nil {
 				n.logger.Errorf("failed to broadcast txpool txs: %v", err)
 			}

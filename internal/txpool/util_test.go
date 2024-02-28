@@ -4,7 +4,9 @@ import (
 	"math"
 	"math/big"
 	"testing"
+	"time"
 
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
@@ -38,6 +40,22 @@ func mockTxPoolImpl[T any, Constraint types.TXConstraint[T]](t *testing.T) *txPo
 	return pool
 }
 
+func mockTxPoolImplWithTyp[T any, Constraint types.TXConstraint[T]](t *testing.T, typ string) *txPoolImpl[T, Constraint] {
+	ast := assert.New(t)
+	poolConf := NewMockTxPoolConfig(t)
+	poolConf.GenerateBatchType = typ
+	pool, err := newTxPoolImpl[T, Constraint](poolConf)
+	ast.Nil(err)
+	conf := txpool.ConsensusConfig{
+		SelfID: 1,
+		NotifyGenerateBatchFn: func(typ int) {
+			// do nothing
+		},
+	}
+	pool.Init(conf)
+	return pool
+}
+
 // NewMockTxPoolConfig returns the default test config
 func NewMockTxPoolConfig(t *testing.T) Config {
 	dir := t.TempDir()
@@ -58,6 +76,8 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 		RotateTxLocalsInterval: DefaultRotateTxLocalsInterval,
 		EnableLocalsPersist:    true,
 		PriceLimit:             0,
+		PriceBump:              DefaultPriceBump,
+		GenerateBatchType:      repo.GenerateBatchByTime,
 
 		ChainInfo: &txpool.ChainInfo{
 			Height:   1,
@@ -80,6 +100,35 @@ func constructTx(s *types.Signer, nonce uint64) *types.Transaction {
 	return tx
 }
 
+func constructPoolTxByGas(s *types.Signer, nonce uint64, gasPrice *big.Int) *internalTransaction[types.Transaction, *types.Transaction] {
+	inner := &types.LegacyTx{
+		Nonce:    nonce,
+		GasPrice: gasPrice,
+		Gas:      21000,
+		Value:    big.NewInt(0),
+		Data:     nil,
+	}
+	t := to.ETHAddress()
+	inner.To = &t
+	tx := &types.Transaction{
+		Inner: inner,
+		Time:  time.Now(),
+	}
+
+	if err := tx.Sign(s.Sk); err != nil {
+		panic(err)
+	}
+
+	time.Sleep(1 * time.Millisecond)
+	poolTx := &internalTransaction[types.Transaction, *types.Transaction]{
+		rawTx:       tx,
+		local:       true,
+		lifeTime:    time.Now().Unix(),
+		arrivedTime: time.Now().Unix(),
+	}
+	return poolTx
+}
+
 // nolint
 func constructTxs(s *types.Signer, count int) []*types.Transaction {
 	txs := make([]*types.Transaction, count)
@@ -91,4 +140,19 @@ func constructTxs(s *types.Signer, count int) []*types.Transaction {
 		txs[i] = tx
 	}
 	return txs
+}
+
+func constructPoolTxListByGas(s *types.Signer, count int, gasPrice *big.Int) []*internalTransaction[types.Transaction, *types.Transaction] {
+	poolTxs := make([]*internalTransaction[types.Transaction, *types.Transaction], count)
+	for i := 0; i < count; i++ {
+		poolTxs[i] = constructPoolTxByGas(s, uint64(i), gasPrice)
+	}
+	return poolTxs
+}
+
+func getPrioritySize(pool *txPoolImpl[types.Transaction, *types.Transaction]) int {
+	if pool.enablePricePriority {
+		return int(pool.txStore.priorityByPrice.size())
+	}
+	return pool.txStore.priorityByTime.size()
 }
