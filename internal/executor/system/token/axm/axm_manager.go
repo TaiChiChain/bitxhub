@@ -1,7 +1,9 @@
 package axm
 
 import (
+	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -37,10 +39,15 @@ func Init(lg ledger.StateLedger, config Config) error {
 		return err
 	}
 
-	lo.ForEach(config.InitialAccounts, func(account *InitialAccount, _ int) {
+	lo.ForEach(config.InitialAccounts, func(account *InitialAccount, index int) {
 		adminAccount := lg.GetOrCreateAccount(account.Address)
 		if err = transfer(contractAccount, adminAccount, account.Balance); err != nil {
 			return
+		}
+
+		if index%5000 == 0 {
+			time.Sleep(time.Second)
+			fmt.Println("=========transfer 5000, sleep 1s========")
 		}
 	})
 
