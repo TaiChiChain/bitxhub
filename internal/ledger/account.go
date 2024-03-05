@@ -48,7 +48,8 @@ type SimpleAccount struct {
 
 	originCode []byte
 	dirtyCode  []byte
-	ldb        storage.Storage
+	backend    storage.Storage
+	trieCache  jmt.TrieCache
 	cache      *AccountCache
 
 	blockHeight uint64
@@ -79,14 +80,14 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		pendingState: make(map[string][]byte),
 		dirtyState:   make(map[string][]byte),
 		blockHeight:  blockHeight,
-		ldb:          ldb,
+		backend:      ldb,
 		cache:        ac,
 		changer:      NewChanger(),
 		suicided:     false,
 	}
 }
 
-func NewAccount(blockHeight uint64, ldb storage.Storage, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
+func NewAccount(blockHeight uint64, backend storage.Storage, trieCache jmt.TrieCache, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
 	return &SimpleAccount{
 		logger:       loggers.Logger(loggers.Storage),
 		Addr:         addr,
@@ -94,7 +95,8 @@ func NewAccount(blockHeight uint64, ldb storage.Storage, accountCache *AccountCa
 		pendingState: make(map[string][]byte),
 		dirtyState:   make(map[string][]byte),
 		blockHeight:  blockHeight,
-		ldb:          ldb,
+		backend:      backend,
+		trieCache:    trieCache,
 		cache:        accountCache,
 		changer:      changer,
 		suicided:     false,
@@ -117,15 +119,15 @@ func (o *SimpleAccount) initStorageTrie() {
 	// new account
 	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
 		rootHash := o.Addr.ETHAddress().Hash()
-		rootNodeKey := jmt.NodeKey{
+		rootNodeKey := &types.NodeKey{
 			Version: o.blockHeight,
 			Path:    []byte{},
 			Type:    o.Addr.Bytes(),
 		}
 		nk := rootNodeKey.Encode()
-		o.ldb.Put(nk, nil)
-		o.ldb.Put(rootHash[:], nk)
-		trie, err := jmt.New(rootHash, o.ldb, o.logger)
+		o.backend.Put(nk, nil)
+		o.backend.Put(rootHash[:], nk)
+		trie, err := jmt.New(rootHash, o.backend, o.trieCache, o.logger)
 		if err != nil {
 			panic(err)
 		}
@@ -134,7 +136,7 @@ func (o *SimpleAccount) initStorageTrie() {
 		return
 	}
 
-	trie, err := jmt.New(o.originAccount.StorageRoot, o.ldb, o.logger)
+	trie, err := jmt.New(o.originAccount.StorageRoot, o.backend, o.trieCache, o.logger)
 	if err != nil {
 		panic(err)
 	}
@@ -284,12 +286,12 @@ func (o *SimpleAccount) setCodeAndHash(code []byte) {
 // Code return the contract code
 func (o *SimpleAccount) Code() []byte {
 	if o.dirtyCode != nil {
-		o.logger.Debugf("[Code] get from dirty, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.dirtyCode})
+		o.logger.Debugf("[Code] get from dirty, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.dirtyCode[:8]})
 		return o.dirtyCode
 	}
 
 	if o.originCode != nil {
-		o.logger.Debugf("[Code] get from origin, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode})
+		o.logger.Debugf("[Code] get from origin, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode[:8]})
 		return o.originCode
 	}
 
@@ -300,11 +302,11 @@ func (o *SimpleAccount) Code() []byte {
 	code, ok := o.cache.getCode(o.Addr)
 	if !ok {
 		start := time.Now()
-		code = o.ldb.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
+		code = o.backend.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
 		if o.enableExpensiveMetric {
 			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
-		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode})
+		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode[:8]})
 	}
 
 	o.originCode = code
@@ -443,7 +445,7 @@ func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
 	}
 
 	if o.originCode == nil && o.originAccount != nil && o.originAccount.CodeHash != nil {
-		o.originCode = o.ldb.Get(utils.CompositeCodeKey(o.Addr, o.originAccount.CodeHash))
+		o.originCode = o.backend.Get(utils.CompositeCodeKey(o.Addr, o.originAccount.CodeHash))
 	}
 
 	if entry.AccountChanged {

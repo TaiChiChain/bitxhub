@@ -25,7 +25,7 @@ const MinJournalHeight = 10
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	account := l.GetAccount(addr)
 	if account == nil {
-		account = NewAccount(l.blockHeight, l.cachedDB, l.accountCache, addr, l.changer, l.snapshot)
+		account = NewAccount(l.blockHeight, l.cachedDB, l.trieCache, l.accountCache, addr, l.changer, l.snapshot)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
@@ -47,7 +47,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return value
 	}
 
-	account := NewAccount(l.blockHeight, l.cachedDB, l.accountCache, address, l.changer, l.snapshot)
+	account := NewAccount(l.blockHeight, l.cachedDB, l.trieCache, l.accountCache, address, l.changer, l.snapshot)
 	account.SetEnableExpensiveMetric(l.enableExpensiveMetric)
 
 	if innerAccount, ok := l.accountCache.getInnerAccount(address); ok {
@@ -270,6 +270,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	destructSet := make(map[string]struct{})
 	accountSet := make(map[string]*types.InnerAccount)
 	storageSet := make(map[string]map[string][]byte)
+	trieJournalBatch := make(types.TrieJournalBatch, 0)
 
 	ldbBatch := l.cachedDB.NewBatch()
 
@@ -320,7 +321,9 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		}
 		// commit account's storage trie
 		if account.storageTrie != nil {
-			account.dirtyAccount.StorageRoot = account.storageTrie.Commit()
+			storageRoot, storageTrieJournal := account.storageTrie.Commit(l.repo.Config.Ledger.EnablePrune)
+			account.dirtyAccount.StorageRoot = storageRoot
+			trieJournalBatch = append(trieJournalBatch, storageTrieJournal)
 			l.logger.Debugf("[Commit-After] committing storage trie end, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
 		}
 		if l.enableExpensiveMetric {
@@ -344,23 +347,21 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 
 	// Commit world state trie.
 	// If world state is not changed in current block (which is very rarely), this is no-op.
-	stateRoot := l.accountTrie.Commit()
+	stateRoot, stateTrieJournal := l.accountTrie.Commit(l.repo.Config.Ledger.EnablePrune)
+	trieJournalBatch = append(trieJournalBatch, stateTrieJournal)
 	if l.enableExpensiveMetric {
 		accountFlushSize.Set(float64(accSize))
 	}
 	l.logger.Debugf("[Commit] after committed world state trie, StateRoot: %v", stateRoot)
 
+	if l.repo.Config.Ledger.EnablePrune {
+		l.trieCache.Update(height, trieJournalBatch)
+	}
+
 	if l.snapshot != nil {
-		// update snapshot
-		err := l.snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
+		err := l.snapshot.Update(height, journals, destructSet, accountSet, storageSet)
 		if err != nil {
 			return nil, fmt.Errorf("update snapshot error: %w", err)
-		}
-
-		// persist snapshot journals
-		err = l.snapshot.UpdateJournal(height, journals)
-		if err != nil {
-			return nil, fmt.Errorf("update snapshot journal error: %w", err)
 		}
 
 		if height > l.getJnlHeightSize() {
@@ -404,6 +405,9 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 
 	// rollback world state trie
 	if height != 0 {
+		if err := l.trieCache.Rollback(height); err != nil {
+			return err
+		}
 		l.refreshAccountTrie(stateRoot)
 	}
 
@@ -544,7 +548,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 	if lastStateRoot == nil {
 		// dummy state
 		rootHash := common.Hash{}
-		rootNodeKey := jmt.NodeKey{
+		rootNodeKey := &types.NodeKey{
 			Version: 0,
 			Path:    []byte{},
 			Type:    []byte{},
@@ -552,13 +556,14 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		nk := rootNodeKey.Encode()
 		l.cachedDB.Put(nk, nil)
 		l.cachedDB.Put(rootHash[:], nk)
-		trie, _ := jmt.New(rootHash, l.cachedDB, l.logger)
+		trie, _ := jmt.New(rootHash, l.cachedDB, l.trieCache, l.logger)
 		l.accountTrie = trie
-		l.triePreloader = newTriePreloader(l.logger, l.cachedDB, rootHash)
+		l.triePreloader = newTriePreloader(l.logger, l.cachedDB, l.trieCache, rootHash)
 		return
 	}
 
-	trie, err := jmt.New(lastStateRoot.ETHHash(), l.cachedDB, l.logger)
+	// todo check block number range
+	trie, err := jmt.New(lastStateRoot.ETHHash(), l.cachedDB, l.trieCache, l.logger)
 	if err != nil {
 		l.logger.WithFields(logrus.Fields{
 			"lastStateRoot": lastStateRoot,
@@ -568,7 +573,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		return
 	}
 	l.accountTrie = trie
-	l.triePreloader = newTriePreloader(l.logger, l.cachedDB, lastStateRoot.ETHHash())
+	l.triePreloader = newTriePreloader(l.logger, l.cachedDB, l.trieCache, lastStateRoot.ETHHash())
 }
 
 func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {

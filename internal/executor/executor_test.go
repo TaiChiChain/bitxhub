@@ -79,7 +79,7 @@ func TestGetEvm(t *testing.T) {
 	}
 	// mock block for ledger
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
+	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger, nil).AnyTimes()
 	blockHeader := &types.BlockHeader{
 		Number:         0,
 		StateRoot:      &types.Hash{},

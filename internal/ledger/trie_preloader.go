@@ -55,19 +55,21 @@ func ResetTriePreloaderMetrics() {
 // triePreloader is an trie preloader, which is preload trie node to avoid
 // huge trie loading when commit state
 type triePreloader struct {
-	logger   logrus.FieldLogger
-	db       storage.Storage // load trie node would be cached in this db
-	rootHash common.Hash
+	logger    logrus.FieldLogger
+	db        storage.Storage // load trie node would be cached in this db
+	trieCache jmt.TrieCache
+	rootHash  common.Hash
 
 	loaders map[string]*subPreloader
 }
 
-func newTriePreloader(logger logrus.FieldLogger, db storage.Storage, rootHash common.Hash) *triePreloader {
+func newTriePreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.TrieCache, rootHash common.Hash) *triePreloader {
 	return &triePreloader{
-		logger:   logger,
-		db:       db,
-		rootHash: rootHash,
-		loaders:  make(map[string]*subPreloader),
+		logger:    logger,
+		db:        db,
+		trieCache: trieCache,
+		rootHash:  rootHash,
+		loaders:   make(map[string]*subPreloader),
 	}
 }
 
@@ -89,7 +91,7 @@ func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
 	}
 	loader := tp.loaders[trieKey]
 	if loader == nil {
-		loader = newSubPreloader(tp.logger, tp.db, rootHash)
+		loader = newSubPreloader(tp.logger, tp.db, tp.trieCache, rootHash)
 		tp.loaders[trieKey] = loader
 	}
 	loader.schedule(keys)
@@ -102,10 +104,11 @@ func (tp *triePreloader) trieKey(rootHash common.Hash) string {
 // subPreloader is a trie preload goroutinue for get a single trie.
 // The subPreloader would process all requests from the same trie.
 type subPreloader struct {
-	logger   logrus.FieldLogger
-	db       storage.Storage
-	rootHash common.Hash
-	trie     *jmt.JMT
+	logger    logrus.FieldLogger
+	db        storage.Storage
+	trieCache jmt.TrieCache
+	rootHash  common.Hash
+	trie      *jmt.JMT
 
 	preloadKeys [][]byte
 	lock        sync.Mutex
@@ -117,11 +120,12 @@ type subPreloader struct {
 	cached map[string]struct{}
 }
 
-func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, rootHash common.Hash) *subPreloader {
+func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.TrieCache, rootHash common.Hash) *subPreloader {
 	sp := subPreloaderPool.Get().(*subPreloader)
 	sp.logger = logger
 	sp.db = db
 	sp.rootHash = rootHash
+	sp.trieCache = trieCache
 
 	sp.wake = make(chan struct{}, 1)
 	sp.stop = make(chan struct{})
@@ -176,7 +180,7 @@ func (sp *subPreloader) loop() {
 	defer close(sp.term)
 
 	if sp.trie == nil {
-		trie, err := jmt.New(sp.rootHash, sp.db, sp.logger)
+		trie, err := jmt.New(sp.rootHash, sp.db, sp.trieCache, sp.logger)
 		if err != nil {
 			sp.logger.Errorf("Trie preloader failed to new jmt trie, root hash: %s", sp.rootHash)
 			return

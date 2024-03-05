@@ -4,18 +4,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
-)
-
-var (
-	MinHeightStr = "minHeight"
-	MaxHeightStr = "maxHeight"
 )
 
 type BlockJournal struct {
@@ -71,21 +65,21 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
-	data := snap.diskdb.Get(utils.CompositeKey(utils.SnapshotKey, MinHeightStr))
+	data := snap.snapStorage.Get(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr))
 	if data != nil {
-		minHeight = unmarshalHeight(data)
+		minHeight = utils.UnmarshalHeight(data)
 	}
 
-	data = snap.diskdb.Get(utils.CompositeKey(utils.SnapshotKey, MaxHeightStr))
+	data = snap.snapStorage.Get(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr))
 	if data != nil {
-		maxHeight = unmarshalHeight(data)
+		maxHeight = utils.UnmarshalHeight(data)
 	}
 
 	return minHeight, maxHeight
 }
 
 func (snap *Snapshot) GetBlockJournal(height uint64) *BlockJournal {
-	data := snap.diskdb.Get(utils.CompositeKey(utils.SnapshotKey, height))
+	data := snap.snapStorage.Get(utils.CompositeKey(utils.SnapshotKey, height))
 	if data == nil {
 		return nil
 	}
@@ -96,17 +90,4 @@ func (snap *Snapshot) GetBlockJournal(height uint64) *BlockJournal {
 	}
 
 	return journal
-}
-
-func marshalHeight(height uint64) []byte {
-	return []byte(strconv.FormatUint(height, 10))
-}
-
-func unmarshalHeight(data []byte) uint64 {
-	height, err := strconv.ParseUint(string(data), 10, 64)
-	if err != nil {
-		panic(err)
-	}
-
-	return height
 }

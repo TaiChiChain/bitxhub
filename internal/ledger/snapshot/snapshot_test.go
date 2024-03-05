@@ -30,7 +30,6 @@ func TestNormalCase(t *testing.T) {
 	addr4 := types.NewAddress(LeftPadBytes([]byte{104}, 20))
 	addr5 := types.NewAddress(LeftPadBytes([]byte{105}, 20))
 
-	stateRoot := common.Hash{}
 	storageRoot1 := common.Hash{1}
 	storageRoot2 := common.Hash{2}
 	storageRoot3 := common.Hash{3}
@@ -77,7 +76,7 @@ func TestNormalCase(t *testing.T) {
 		"key3": []byte("val33"),
 	}
 
-	err = snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
+	err = snapshot.Update(1, nil, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -112,15 +111,6 @@ func TestNormalCase(t *testing.T) {
 	a5k3, err := snapshot.Storage(addr5, []byte("key3"))
 	require.Nil(t, err)
 	require.Equal(t, a5k3, []byte("val33"))
-
-	parent := snapshot.origin.Parent()
-	require.Nil(t, parent)
-
-	root := snapshot.origin.Root()
-	require.Equal(t, stateRoot, root)
-
-	avail := snapshot.origin.Available()
-	require.True(t, avail)
 }
 
 func TestStateTransit(t *testing.T) {
@@ -134,7 +124,6 @@ func TestStateTransit(t *testing.T) {
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
 
-	stateRoot := common.Hash{}
 	storageRoot1 := common.Hash{1}
 	storageRoot2 := common.Hash{2}
 
@@ -162,7 +151,7 @@ func TestStateTransit(t *testing.T) {
 		"key2": []byte("val2"),
 	}
 
-	err = snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
+	err = snapshot.Update(1, nil, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -201,7 +190,7 @@ func TestStateTransit(t *testing.T) {
 	accountSet2[addr1.String()] = account11
 	accountSet2[addr2.String()] = account22
 
-	err = snapshot.Update(stateRoot, destructSet, accountSet2, storageSet)
+	err = snapshot.Update(1, nil, destructSet, accountSet2, storageSet)
 	require.Nil(t, err)
 
 	a11, err := snapshot.Account(addr1)
@@ -225,7 +214,6 @@ func TestRollback(t *testing.T) {
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
 
-	stateRoot1 := common.Hash{}
 	emptyStorageRoot := common.Hash{}
 	storageRoot2 := common.Hash{2}
 
@@ -267,10 +255,7 @@ func TestRollback(t *testing.T) {
 		PrevStates:     nil,
 	})
 
-	err = snapshot.Update(stateRoot1, destructSet, accountSet, storageSet)
-	require.Nil(t, err)
-
-	err = snapshot.UpdateJournal(1, journal1)
+	err = snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -295,7 +280,6 @@ func TestRollback(t *testing.T) {
 
 	accountSet2 := make(map[string]*types.InnerAccount)
 	storageSet2 := make(map[string]map[string][]byte)
-	stateRoot2 := common.Hash{2}
 	storageRoot3 := common.Hash{3}
 
 	account11 := &types.InnerAccount{
@@ -337,10 +321,7 @@ func TestRollback(t *testing.T) {
 		},
 	})
 
-	err = snapshot.Update(stateRoot2, destructSet, accountSet2, storageSet2)
-	require.Nil(t, err)
-
-	err = snapshot.UpdateJournal(2, journal2)
+	err = snapshot.Update(2, journal2, destructSet, accountSet2, storageSet2)
 	require.Nil(t, err)
 
 	a11, err := snapshot.Account(addr1)
@@ -425,7 +406,6 @@ func TestRemoveJournal(t *testing.T) {
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
 
-	stateRoot1 := common.Hash{}
 	emptyStorageRoot := common.Hash{}
 	storageRoot2 := common.Hash{2}
 
@@ -467,10 +447,7 @@ func TestRemoveJournal(t *testing.T) {
 		PrevStates:     nil,
 	})
 
-	err = snapshot.Update(stateRoot1, destructSet, accountSet, storageSet)
-	require.Nil(t, err)
-
-	err = snapshot.UpdateJournal(1, journal1)
+	err = snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -495,7 +472,6 @@ func TestRemoveJournal(t *testing.T) {
 
 	accountSet2 := make(map[string]*types.InnerAccount)
 	storageSet2 := make(map[string]map[string][]byte)
-	stateRoot2 := common.Hash{2}
 	storageRoot3 := common.Hash{3}
 
 	account11 := &types.InnerAccount{
@@ -535,10 +511,7 @@ func TestRemoveJournal(t *testing.T) {
 		},
 	})
 
-	err = snapshot.Update(stateRoot2, destructSet, accountSet2, storageSet2)
-	require.Nil(t, err)
-
-	err = snapshot.UpdateJournal(2, journal2)
+	err = snapshot.Update(2, journal2, destructSet, accountSet2, storageSet2)
 	require.Nil(t, err)
 
 	// remove to higher block
@@ -570,58 +543,6 @@ func TestEmptySnapshot(t *testing.T) {
 	assert.Equal(t, uint64(0), maxHeight)
 	assert.Nil(t, snapshot.GetBlockJournal(0))
 	assert.Nil(t, snapshot.Rollback(0))
-
-	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
-	addr2 := types.NewAddress(LeftPadBytes([]byte{104}, 20))
-
-	stateRoot := common.Hash{}
-	storageRoot1 := common.Hash{1}
-
-	destructSet := make(map[string]struct{})
-	accountSet := make(map[string]*types.InnerAccount)
-	storageSet := make(map[string]map[string][]byte)
-
-	destructSet[addr1.String()] = struct{}{}
-
-	account1 := &types.InnerAccount{
-		StorageRoot: storageRoot1,
-	}
-
-	accountSet[addr1.String()] = account1
-
-	storageSet[addr2.String()] = map[string][]byte{
-		"key1": []byte("val1"),
-		"key2": []byte("val2"),
-	}
-
-	err = snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
-	require.Nil(t, err)
-
-	snapshot.origin.(*diskLayer).available = false
-
-	a1, err := snapshot.Account(addr1)
-	require.Equal(t, err, ErrSnapshotUnavailable)
-	require.Nil(t, a1)
-
-	a2k1, err := snapshot.Storage(addr2, []byte("key1"))
-	require.Equal(t, err, ErrSnapshotUnavailable)
-	require.Nil(t, a2k1)
-
-	snapshot.origin = nil
-
-	a1, err = snapshot.Account(addr1)
-	require.NotNil(t, err)
-	require.Nil(t, a1)
-	require.Contains(t, err.Error(), ErrorTargetLayerNotFound.Error())
-
-	a2k1, err = snapshot.Storage(addr2, []byte("key1"))
-	require.NotNil(t, err)
-	require.Nil(t, a2k1)
-	require.Contains(t, err.Error(), ErrorTargetLayerNotFound.Error())
-
-	err = snapshot.Update(stateRoot, destructSet, accountSet, storageSet)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), ErrorTargetLayerNotFound.Error())
 }
 
 // LeftPadBytes zero-pads slice to the left up to length l.
