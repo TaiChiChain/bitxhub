@@ -22,7 +22,7 @@ import (
 )
 
 func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync)
+	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	stack, err := NewRBFTAdaptor(testutil.MockConsensusConfig(logger, ctrl, t))
@@ -43,7 +43,7 @@ func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
 }
 
 func mockAdaptorWithStorageType(ctrl *gomock.Controller, t *testing.T, typ string) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync)
+	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	cfg := testutil.MockConsensusConfig(logger, ctrl, t)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +19,7 @@ import (
 func TestNormalCase(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	snapshot := NewSnapshot(pStateStorage, logger)
@@ -125,7 +126,7 @@ func TestNormalCase(t *testing.T) {
 func TestStateTransit(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	snapshot := NewSnapshot(pStateStorage, logger)
@@ -216,7 +217,7 @@ func TestStateTransit(t *testing.T) {
 func TestRollback(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	snapshot := NewSnapshot(pStateStorage, logger)
@@ -416,7 +417,7 @@ func TestRollback(t *testing.T) {
 func TestRemoveJournal(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	snapshot := NewSnapshot(pStateStorage, logger)
@@ -560,7 +561,7 @@ func TestRemoveJournal(t *testing.T) {
 func TestEmptySnapshot(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
 	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	snapshot := NewSnapshot(pStateStorage, logger)

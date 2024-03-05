@@ -672,7 +672,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 
 	for kvType := range testcase {
 		t.Run(kvType, func(t *testing.T) {
-			err = storagemgr.Initialize(kvType, repo.KVStorageCacheSize, repo.KVStorageSync)
+			err = storagemgr.Initialize(kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 			require.Nil(t, err)
 			ldg, err := ledger.NewLedger(createMockRepo(t))
 			require.Nil(t, err)
@@ -770,7 +770,7 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*ledger.Ledger, strin
 		rep.RepoRoot = repoRoot
 	}
 
-	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize, repo.KVStorageSync)
+	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	require.Nil(t, err)
 	rep.Config.Monitor.EnableExpensive = true
 	l, err := ledger.NewLedger(rep)

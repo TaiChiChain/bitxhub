@@ -2,10 +2,12 @@ package storagemgr
 
 import (
 	"fmt"
+	"path"
 	"runtime"
 	"sync"
 
-	pebble2 "github.com/cockroachdb/pebble"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	pebbledb "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 
 	"github.com/axiomesh/axiom-kit/storage"
@@ -38,7 +40,7 @@ type storageMgr struct {
 	lock              *sync.Mutex
 }
 
-var defaultPebbleOptions = &pebble2.Options{
+var defaultPebbleOptions = &pebbledb.Options{
 	// MemTableStopWritesThreshold is max number of the existent MemTables(including the frozen one).
 	// This manner is the same with leveldb, including a frozen memory table and another live one.
 	MemTableStopWritesThreshold: 2,
@@ -49,7 +51,7 @@ var defaultPebbleOptions = &pebble2.Options{
 	// Per-level options. Options for at least one level must be specified. The
 	// options for the last level are used for all subsequent levels.
 	// This option is the same with Ethereum.
-	Levels: []pebble2.LevelOptions{
+	Levels: []pebbledb.LevelOptions{
 		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
@@ -68,14 +70,25 @@ func (m *storageMgr) Open(typ string, p string) (storage.Storage, error) {
 	return builder(p)
 }
 
-func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool) error {
+func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableMetrics bool) error {
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string) (storage.Storage, error) {
 		return leveldb.New(p, nil)
 	}
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string) (storage.Storage, error) {
-		defaultPebbleOptions.Cache = pebble2.NewCache(int64(defaultKvCacheSize * 1024 * 1024))
+		defaultPebbleOptions.Cache = pebbledb.NewCache(int64(defaultKvCacheSize * 1024 * 1024))
 		defaultPebbleOptions.MemTableSize = defaultKvCacheSize * 1024 * 1024 / 4 // The size of single memory table
-		return pebble.New(p, defaultPebbleOptions, &pebble2.WriteOptions{Sync: sync})
+		namespace := "axiom_ledger"
+		subsystem := "ledger"
+		dataCatagory := path.Base(p)
+		var metricOpts []pebble.MetricsOption
+		if enableMetrics {
+			metricOpts = append(metricOpts,
+				pebble.WithDiskSizeGauge(namespace, subsystem, dataCatagory),
+				pebble.WithDiskWriteThroughput(namespace, subsystem, dataCatagory),
+				pebble.WithWalWriteThroughput(namespace, subsystem, dataCatagory),
+				pebble.WithEffectiveWriteThroughput(namespace, subsystem, dataCatagory))
+		}
+		return pebble.New(p, defaultPebbleOptions, &pebbledb.WriteOptions{Sync: sync}, loggers.Logger(loggers.Storage), metricOpts...)
 	}
 	_, ok := globalStorageMgr.storageBuilderMap[defaultKVType]
 	if !ok {

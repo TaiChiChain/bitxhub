@@ -18,14 +18,14 @@ func TestInitialize(t *testing.T) {
 
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
-			err := Initialize(tc.kvType, repo.KVStorageCacheSize, repo.KVStorageSync)
+			err := Initialize(tc.kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 			require.Nil(t, err)
 		})
 	}
 }
 
 func TestInitializeWrongType(t *testing.T) {
-	err := Initialize("unsupport", repo.KVStorageCacheSize, repo.KVStorageSync)
+	err := Initialize("unsupport", repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	require.NotNil(t, err)
 	require.Contains(t, err.Error(), "unknow kv type unsupport")
 }
@@ -39,10 +39,9 @@ func TestGet(t *testing.T) {
 		"leveldb": {kvType: "leveldb"},
 		"pebble":  {kvType: "pebble"},
 	}
-
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
-			err := Initialize(tc.kvType, repo.KVStorageCacheSize, repo.KVStorageSync)
+			err := Initialize(tc.kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 			require.Nil(t, err)
 
 			s, err := Open(repo.GetStoragePath(dir+tc.kvType, BlockChain))
