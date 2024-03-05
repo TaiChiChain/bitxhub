@@ -26,11 +26,12 @@ func TestAccount_GetState(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	testStorageLogger := log.NewWithModule("storage_test")
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
@@ -96,11 +97,14 @@ func TestAccount_AccountBalance(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+
+	testStorageLogger := log.NewWithModule("storage_test")
+
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
@@ -152,11 +156,12 @@ func TestAccount_setNonce(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	testStorageLogger := log.NewWithModule("storage_test")
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
@@ -219,11 +224,12 @@ func TestAccount_getAccountJournal(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	testStorageLogger := log.NewWithModule("storage_test")
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, testStorageLogger)
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {

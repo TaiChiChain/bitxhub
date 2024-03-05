@@ -6,13 +6,14 @@ require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240123063523-d0b48541230d
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240227021949-cf8b87a0c90d
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240305064727-43224cd521da
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/gammazero/workerpool v1.1.3
+	github.com/gogo/protobuf v1.3.2
 	github.com/google/btree v1.1.2
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.6
@@ -79,7 +80,6 @@ require (
 	github.com/gobwas/ws v1.1.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.3.0 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

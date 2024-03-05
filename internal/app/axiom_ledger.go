@@ -153,7 +153,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 func PrepareAxiomLedger(rep *repo.Repo) error {
 	types.InitEIP155Signer(big.NewInt(int64(rep.GenesisConfig.ChainID)))
 
-	if err := storagemgr.Initialize(rep.Config.Storage.KvType, rep.Config.Storage.KvCacheSize, rep.Config.Storage.Sync); err != nil {
+	if err := storagemgr.Initialize(rep.Config.Storage.KvType, rep.Config.Storage.KvCacheSize, rep.Config.Storage.Sync, rep.Config.Monitor.Enable); err != nil {
 		return fmt.Errorf("storagemgr initialize: %w", err)
 	}
 	if err := raiseUlimit(rep.Config.Ulimit); err != nil {
@@ -200,6 +200,9 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlock: snap.snapBlock.Clone()})
 	} else {
 		rwLdg, err = ledger.NewLedger(rep)
+		if err != nil {
+			return nil, err
+		}
 		// init genesis config
 		if rwLdg.ChainLedger.GetChainMeta().Height == 0 {
 			if err := genesis.Initialize(rep.GenesisConfig, rwLdg); err != nil {

@@ -20,6 +20,7 @@ import (
 	crypto1 "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -49,11 +50,11 @@ func TestNew001(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, logrus.New())
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
@@ -107,11 +108,11 @@ func TestNew002(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, logrus.New())
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
@@ -145,11 +146,11 @@ func TestNew003(t *testing.T) {
 	assert.Nil(t, err)
 	lSnapshotStorage, err := leveldb.New(filepath.Join(repoRoot, "lSnapshot"), nil)
 	assert.Nil(t, err)
-	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil)
+	pBlockStorage, err := pebble.New(filepath.Join(repoRoot, "pStorage"), nil, nil, logrus.New())
 	assert.Nil(t, err)
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
+	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
-	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil)
+	pSnapshotStorage, err := pebble.New(filepath.Join(repoRoot, "pSnapshot"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
@@ -3382,7 +3383,7 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 		rep.RepoRoot = repoRoot
 	}
 
-	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize, repo.KVStorageSync)
+	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	require.Nil(t, err)
 	rep.Config.Monitor.EnableExpensive = true
 	l, err := NewLedger(rep)
@@ -3443,7 +3444,7 @@ func BenchmarkStateLedgerWrite(b *testing.B) {
 	for name, tc := range testcase {
 		b.Run(name, func(b *testing.B) {
 			r, _ := repo.Default(b.TempDir())
-			storagemgr.Initialize(tc.kvType, 256, repo.KVStorageSync)
+			storagemgr.Initialize(tc.kvType, 256, repo.KVStorageSync, false)
 			l, _ := NewLedger(r)
 			benchStateLedgerWrite(b, l.StateLedger)
 		})
@@ -3461,7 +3462,7 @@ func BenchmarkStateLedgerRead(b *testing.B) {
 	for name, tc := range testcase {
 		b.Run(name, func(b *testing.B) {
 			r, _ := repo.Default(b.TempDir())
-			storagemgr.Initialize(tc.kvType, 256, repo.KVStorageSync)
+			storagemgr.Initialize(tc.kvType, 256, repo.KVStorageSync, false)
 			l, _ := NewLedger(r)
 			benchStateLedgerRead(b, l.StateLedger)
 		})
@@ -3535,12 +3536,12 @@ func randBytes(len int) []byte {
 
 func initKVStorage(path string) storage.Storage {
 	dir, _ := os.MkdirTemp(path, "")
-	s, _ := pebble.New(dir, nil, nil)
+	s, _ := pebble.New(dir, nil, nil, logrus.New())
 	return s
 }
 
 func newSnapshot(path string) *snapshot.Snapshot {
 	dir, _ := os.MkdirTemp(path, "")
-	s, _ := pebble.New(dir, nil, nil)
+	s, _ := pebble.New(dir, nil, nil, logrus.New())
 	return snapshot.NewSnapshot(s, log.NewWithModule("snapshot_test"))
 }

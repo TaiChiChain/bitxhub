@@ -10,7 +10,7 @@ import (
 )
 
 func TestCachedStorage(t *testing.T) {
-	err := Initialize(repo.KVStorageTypePebble, repo.KVStorageCacheSize, repo.KVStorageSync)
+	err := Initialize(repo.KVStorageTypePebble, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	require.Nil(t, err)
 
 	s, err := Open(repo.GetStoragePath(t.TempDir()))
