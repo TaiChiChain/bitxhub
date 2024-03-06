@@ -30,8 +30,8 @@ import (
 // Filter can be used to retrieve and filter logs.
 type Filter struct {
 	api             api.CoreAPI
-	addresses       []*types.Address
-	topics          [][]*types.Hash
+	addresses       []types.Address
+	topics          [][]types.Hash
 	block           *types.Hash // Block hash if filtering a single block
 	begin           int64
 	end             int64 // Range interval if filtering multiple blocks
@@ -44,7 +44,7 @@ type bytesBacked interface {
 
 // NewRangeFilter creates a new filter which uses a bloom filter on blocks to
 // figure out whether a particular block is interesting or not.
-func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []*types.Address, topics [][]*types.Hash, blockRangeLimit uint64) *Filter {
+func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []types.Address, topics [][]types.Hash, blockRangeLimit uint64) *Filter {
 	// Flatten the address and topic filter clauses into a single bloombits filter
 	// system. Since the bloombits are not positional, nil topics are permitted,
 	// which get flattened into a nil byte slice.
@@ -76,7 +76,7 @@ func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []*types.Addres
 
 // NewBlockFilter creates a new filter which directly inspects the contents of
 // a block to figure out whether it is interesting or not.
-func NewBlockFilter(api api.CoreAPI, block *types.Hash, addresses []*types.Address, topics [][]*types.Hash) *Filter {
+func NewBlockFilter(api api.CoreAPI, block *types.Hash, addresses []types.Address, topics [][]types.Hash) *Filter {
 	// Create a generic filter and convert it into a block filter
 	filter := newFilter(api, addresses, topics)
 	filter.block = block
@@ -85,7 +85,7 @@ func NewBlockFilter(api api.CoreAPI, block *types.Hash, addresses []*types.Addre
 
 // newFilter creates a generic filter that can either filter based on a block hash,
 // or based on range queries. The search criteria needs to be explicitly set.
-func newFilter(api api.CoreAPI, addresses []*types.Address, topics [][]*types.Hash) *Filter {
+func newFilter(api api.CoreAPI, addresses []types.Address, topics [][]types.Hash) *Filter {
 	return &Filter{
 		api:       api,
 		addresses: addresses,
@@ -197,14 +197,14 @@ func (f *Filter) getBlockReceipts(blockNum uint64) ([]*types.Receipt, error) {
 	return receipts, nil
 }
 
-func includes(addresses []*types.Address, a *types.Address) bool {
+func includes(addresses []types.Address, a *types.Address) bool {
 	// todo
 	// temporary fix for panic caused by nil addresses or a
 	if a == nil {
 		return false
 	}
 	for _, addr := range addresses {
-		if addr != nil && addr.String() == a.String() {
+		if addr.String() == a.String() {
 			return true
 		}
 	}
@@ -213,7 +213,7 @@ func includes(addresses []*types.Address, a *types.Address) bool {
 }
 
 // FilterLogs creates a slice of logs matching the given criteria.
-func FilterLogs(logs []*types.EvmLog, fromBlock, toBlock *big.Int, addresses []*types.Address, topics [][]*types.Hash) []*types.EvmLog {
+func FilterLogs(logs []*types.EvmLog, fromBlock, toBlock *big.Int, addresses []types.Address, topics [][]types.Hash) []*types.EvmLog {
 	var ret []*types.EvmLog
 Logs:
 	for _, log := range logs {
@@ -248,11 +248,11 @@ Logs:
 	return ret
 }
 
-func bloomFilter(bloom *types.Bloom, addresses []*types.Address, topics [][]*types.Hash) bool {
+func bloomFilter(bloom *types.Bloom, addresses []types.Address, topics [][]types.Hash) bool {
 	if len(addresses) > 0 {
 		var included bool
 		for _, addr := range addresses {
-			if BloomLookup(bloom, addr) {
+			if BloomLookup(bloom, &addr) {
 				included = true
 				break
 			}
@@ -265,7 +265,7 @@ func bloomFilter(bloom *types.Bloom, addresses []*types.Address, topics [][]*typ
 	for _, sub := range topics {
 		included := len(sub) == 0 // empty rule set == wildcard
 		for _, topic := range sub {
-			if BloomLookup(bloom, topic) {
+			if BloomLookup(bloom, &topic) {
 				included = true
 				break
 			}
