@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,6 +22,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
+	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -48,6 +51,11 @@ var ledgerSimpleSyncArgs = struct {
 var ledgerGenerateTrieArgs = struct {
 	TargetBlockNumber uint64
 	TargetStoragePath string
+}{}
+
+var ledgerImportAccountsArgs = struct {
+	TargetFilePath string
+	Balance        string
 }{}
 
 var ledgerCMD = &cli.Command{
@@ -163,7 +171,125 @@ var ledgerCMD = &cli.Command{
 				},
 			},
 		},
+		{
+			Name:   "import-accounts",
+			Usage:  "used after generating the genesis block, where large number of accounts with preset balances are inserted into ledger. This process aims to assist testers in initializing accounts prior to conducting tests. The file should contain one Ethereum Hexadecimal Address per line.",
+			Action: importAccounts,
+			Flags: []cli.Flag{
+				&cli.PathFlag{
+					Name:        "account-file",
+					Usage:       "get accounts from this file",
+					Required:    true,
+					Destination: &ledgerImportAccountsArgs.TargetFilePath,
+					Aliases:     []string{"path"},
+				},
+				&cli.StringFlag{
+					Name:        "balance",
+					Usage:       "add this balance for all accounts",
+					Required:    true,
+					Destination: &ledgerImportAccountsArgs.Balance,
+				},
+				passwordFlag(),
+			},
+		},
 	},
+}
+
+func importAccounts(ctx *cli.Context) error {
+	p, err := getRootPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !fileutil.Exist(ledgerImportAccountsArgs.TargetFilePath) {
+		return fmt.Errorf("target account file not exist")
+	}
+
+	rep, err := repo.Load(configGenerateArgs.Auth, p, true)
+	if err != nil {
+		return err
+	}
+
+	if err = app.PrepareAxiomLedger(rep); err != nil {
+		return err
+	}
+
+	rwLdg, err := ledger.NewLedger(rep)
+	if err != nil {
+		return err
+	}
+	// init genesis config
+	if rwLdg.ChainLedger.GetChainMeta().Height < 1 {
+		return fmt.Errorf("genesis block is needed before importing accounts from file")
+	}
+
+	return importAccountsFromFile(rep, rwLdg, ledgerImportAccountsArgs.TargetFilePath, ledgerImportAccountsArgs.Balance)
+}
+
+func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balance string) error {
+	g := r.GenesisConfig
+	currentHeight := lg.ChainLedger.GetChainMeta().Height
+	parentBlock, err := lg.ChainLedger.GetBlock(currentHeight)
+	if err != nil {
+		return err
+	}
+	lg.StateLedger.PrepareBlock(parentBlock.BlockHeader.StateRoot, nil, currentHeight+1)
+	if _, err := os.Stat(filePath); err == nil {
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to open account list file: %v", err)
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		count := 0
+		for scanner.Scan() {
+			count++
+			address := scanner.Text()
+			account := lg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(address))
+			balance, _ := new(big.Int).SetString(balance, 10)
+			account.AddBalance(balance)
+			if (count % 1000) == 0 {
+				lg.StateLedger.Finalise()
+				_, err := lg.StateLedger.Commit()
+				if err != nil {
+					return err
+				}
+				count = 0
+			}
+		}
+	} else {
+		return fmt.Errorf("account list file does not exist at path: %s", filePath)
+	}
+
+	lg.StateLedger.Finalise()
+	stateRoot, err := lg.StateLedger.Commit()
+	if err != nil {
+		return err
+	}
+
+	block := &types.Block{
+		BlockHeader: &types.BlockHeader{
+			Number:          currentHeight + 1,
+			StateRoot:       stateRoot,
+			TxRoot:          &types.Hash{},
+			ReceiptRoot:     &types.Hash{},
+			ParentHash:      parentBlock.BlockHash,
+			Timestamp:       g.Timestamp,
+			GasPrice:        int64(g.EpochInfo.FinanceParams.StartGasPrice),
+			Epoch:           g.EpochInfo.Epoch,
+			Bloom:           new(types.Bloom),
+			ProposerAccount: sys_common.ZeroAddress,
+		},
+		Transactions: []*types.Transaction{},
+	}
+	block.BlockHash = block.Hash()
+	blockData := &ledger.BlockData{
+		Block: block,
+	}
+
+	lg.PersistBlockData(blockData)
+	return nil
 }
 
 func getBlock(ctx *cli.Context) error {
