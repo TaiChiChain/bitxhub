@@ -89,11 +89,11 @@ type subscription struct {
 }
 
 type FilterQuery struct {
-	BlockHash *types.Hash      // used by eth_getLogs, return logs only from block with this hash
-	FromBlock *big.Int         // beginning of the queried range, nil means genesis block
-	ToBlock   *big.Int         // end of the range, nil means latest block
-	Addresses []*types.Address // restricts matches to events created by specific contracts
-	Topics    [][]*types.Hash
+	BlockHash *types.Hash     // used by eth_getLogs, return logs only from block with this hash
+	FromBlock *big.Int        // beginning of the queried range, nil means genesis block
+	ToBlock   *big.Int        // end of the range, nil means latest block
+	Addresses []types.Address // restricts matches to events created by specific contracts
+	Topics    [][]types.Hash
 }
 
 // EventSystem creates subscriptions, processes events and broadcasts them to the

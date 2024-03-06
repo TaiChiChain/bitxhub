@@ -667,14 +667,16 @@ func (fc *FilterCriteria) toAxmFilterQuery() FilterQuery {
 		fq.BlockHash = types.NewHash(fc.BlockHash.Bytes())
 	}
 
-	for _, addr := range fc.Addresses {
-		fq.Addresses = append(fq.Addresses, types.NewAddress(addr.Bytes()))
+	for _, ethAddr := range fc.Addresses {
+		address := types.NewAddress(ethAddr.Bytes())
+		fq.Addresses = append(fq.Addresses, *address)
 	}
 
 	for _, topicList := range fc.Topics {
-		var topics []*types.Hash
-		for _, topic := range topicList {
-			topics = append(topics, types.NewHash(topic.Bytes()))
+		var topics []types.Hash
+		for _, ethTopic := range topicList {
+			topic := types.NewHash(ethTopic.Bytes())
+			topics = append(topics, *topic)
 		}
 		fq.Topics = append(fq.Topics, topics)
 	}
