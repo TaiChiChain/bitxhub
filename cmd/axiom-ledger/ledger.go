@@ -100,6 +100,27 @@ var ledgerCMD = &cli.Command{
 			},
 		},
 		{
+			Name:   "rollback",
+			Usage:  "Rollback to the history block height",
+			Action: rollback,
+			Flags: []cli.Flag{
+				&cli.Uint64Flag{
+					Name:        "target-block-number",
+					Aliases:     []string{"b"},
+					Usage:       "rollback target block number, must be less than the current latest block height and greater than 1",
+					Destination: &ledgerSimpleRollbackArgs.TargetBlockNumber,
+					Required:    true,
+				},
+				&cli.BoolFlag{
+					Name:        "force",
+					Aliases:     []string{"f"},
+					Usage:       "disable interactive confirmation",
+					Destination: &ledgerSimpleRollbackArgs.Force,
+					Required:    false,
+				},
+			},
+		},
+		{
 			Name:   "simple-sync",
 			Usage:  "Sync to the specified block height from the target storage(by replaying transactions)",
 			Action: simpleSync,
@@ -370,6 +391,44 @@ func simpleSync(ctx *cli.Context) error {
 	}, func(n uint64) (*types.Block, error) {
 		return sourceChainLedger.GetBlock(n)
 	}, targetBlockNumber)
+}
+
+func rollback(ctx *cli.Context) error {
+	r, err := prepareRepo(ctx)
+	if err != nil {
+		return err
+	}
+
+	lg, err := ledger.NewLedger(r)
+	if err != nil {
+		return fmt.Errorf("init ledger failed: %w", err)
+	}
+
+	targetBlockNumber := ledgerSimpleRollbackArgs.TargetBlockNumber
+	if targetBlockNumber <= 1 {
+		return errors.New("target-block-number must be greater than 1")
+	}
+	chainMeta := lg.ChainLedger.GetChainMeta()
+	if targetBlockNumber >= chainMeta.Height {
+		return errors.Errorf("target-block-number %d must be less than the current latest block height %d\n", targetBlockNumber, chainMeta.Height)
+	}
+	targetBlockHash := lg.ChainLedger.GetBlockHash(targetBlockNumber).String()
+	logger := loggers.Logger(loggers.App)
+	if ledgerSimpleSyncArgs.Force {
+		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHash)
+	} else {
+		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHash)
+		if err := waitUserConfirm(); err != nil {
+			return err
+		}
+	}
+
+	if err := lg.Rollback(targetBlockNumber); err != nil {
+		return err
+	}
+
+	logger.Infof("rollback to the target height %d, hash: %s\n", targetBlockNumber, targetBlockHash)
+	return nil
 }
 
 func prepareRepo(ctx *cli.Context) (*repo.Repo, error) {
