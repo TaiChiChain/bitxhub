@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -28,7 +27,6 @@ type BrokerAPI interface {
 	GetReceipt(*types.Hash) (*types.Receipt, error)
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, error)
-	GetNativeVm() common.VirtualMachine
 	ConsensusReady() error
 
 	ChainConfig() *params.ChainConfig

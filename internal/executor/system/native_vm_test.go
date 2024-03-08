@@ -1,8 +1,11 @@
 package system
 
 import (
+	"math/big"
 	"strings"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core/vm"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/ethereum/go-ethereum/core"
@@ -21,48 +24,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-var systemContractAddrs = []string{
-	common.GovernanceContractAddr,
-	common.EpochManagerContractAddr,
-	common.WhiteListContractAddr,
-	common.AXMContractAddr,
-	common.AXCContractAddr,
-}
-
-var notSystemContractAddrs = []string{
-	"0x1000000000000000000000000000000000000000",
-	"0x0340000000000000000000000000000000000000",
-	"0x0200000000000000000000000000000000000000",
-	"0xffddd00000000000000000000000000000000000",
-}
-
 const (
 	admin1 = "0x1210000000000000000000000000000000000000"
 	admin2 = "0x1220000000000000000000000000000000000000"
 	admin3 = "0x1230000000000000000000000000000000000000"
 	admin4 = "0x1240000000000000000000000000000000000000"
 )
-
-func TestContract_IsSystemContract(t *testing.T) {
-	nvm := New()
-	for _, addr := range systemContractAddrs {
-		ok := nvm.IsSystemContract(types.NewAddressByStr(addr))
-		assert.True(t, ok)
-	}
-
-	for _, addr := range notSystemContractAddrs {
-		ok := nvm.IsSystemContract(types.NewAddressByStr(addr))
-		assert.False(t, ok)
-	}
-
-	// test nil address
-	ok := nvm.IsSystemContract(nil)
-	assert.False(t, ok)
-
-	// test empty address
-	ok = nvm.IsSystemContract(&types.Address{})
-	assert.False(t, ok)
-}
 
 func TestContractInitGenesisData(t *testing.T) {
 	t.Parallel()
@@ -276,8 +243,15 @@ func TestContractRun(t *testing.T) {
 		},
 	}
 	for _, testcase := range testcases {
-		nvm.Reset(2, stateLedger, testcase.Message.From, testcase.Message.To)
-		_, err := nvm.Run(testcase.Message.Data)
+		args := &vm.StatefulArgs{
+			StateDB: &ledger.EvmStateDBAdaptor{
+				StateLedger: stateLedger,
+			},
+			Height: big.NewInt(2),
+			From:   testcase.Message.From,
+			To:     testcase.Message.To,
+		}
+		_, err := nvm.Run(testcase.Message.Data, args)
 		if testcase.IsExpectedErr {
 			assert.NotNil(t, err)
 		} else {

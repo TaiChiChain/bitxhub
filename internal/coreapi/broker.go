@@ -13,7 +13,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
@@ -154,10 +153,6 @@ func (b *BrokerAPI) GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, err
 	}
 	txContext := core.NewEVMTxContext(mes)
 	return b.axiomLedger.BlockExecutor.NewEvmWithViewLedger(txContext, *vmConfig)
-}
-
-func (b *BrokerAPI) GetNativeVm() common.VirtualMachine {
-	return b.axiomLedger.BlockExecutor.NewViewNativeVM()
 }
 
 func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error) {

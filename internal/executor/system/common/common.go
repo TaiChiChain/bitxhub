@@ -4,11 +4,11 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	ethtype "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -47,12 +47,6 @@ type SystemContractConfig struct {
 
 type VirtualMachine interface {
 	vm.PrecompiledContract
-
-	// IsSystemContract judge if is system contract
-	IsSystemContract(addr *types.Address) bool
-
-	// Reset the state of the system contract
-	Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address)
 
 	// View return a view system contract
 	View() VirtualMachine
