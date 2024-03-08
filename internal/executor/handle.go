@@ -21,7 +21,6 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -293,36 +292,11 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	// TODO: Move to system contract
 	snapshot := statedb.Snapshot()
 
-	if exec.nvm.IsSystemContract(tx.GetTo()) {
-		usedGas := exec.nvm.RequiredGas(msg.Data)
-		if usedGas != 0 {
-			fee := new(big.Int).SetUint64(usedGas)
-			fee.Mul(fee, msg.GasPrice)
-
-			if !core.CanTransfer(evmStateDB, msg.From, fee) {
-				err = fmt.Errorf("address: %s has not enough gas to call system contract", msg.From.Hex())
-				exec.logger.Warn(err)
-			}
-
-			if err == nil {
-				result = system.RunAxiomNativeVM(exec.nvm, height, statedb, msg.Data, msg.From, msg.To)
-				if result != nil && result.UsedGas != 0 {
-					core.Transfer(evmStateDB, msg.From, exec.evm.Context.Coinbase, fee)
-				}
-
-				if result != nil && result.Err != nil {
-					// err should be revert
-					err = result.Err
-				}
-			}
-		}
-	} else {
-		// execute evm
-		gp := new(core.GasPool).AddGas(exec.gasLimit)
-		txContext := core.NewEVMTxContext(msg)
-		exec.evm.Reset(txContext, evmStateDB)
-		result, err = core.ApplyMessage(exec.evm, msg, gp)
-	}
+	// execute evm
+	gp := new(core.GasPool).AddGas(exec.gasLimit)
+	txContext := core.NewEVMTxContext(msg)
+	exec.evm.Reset(txContext, evmStateDB)
+	result, err = core.ApplyMessage(exec.evm, msg, gp)
 
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
