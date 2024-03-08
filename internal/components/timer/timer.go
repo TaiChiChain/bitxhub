@@ -12,7 +12,7 @@ import (
 const (
 	Batch             TimeoutEvent = "Batch"
 	NoTxBatch         TimeoutEvent = "NoTxBatch"
-	RemoveTx          TimeoutEvent = "removeTx"
+	RemoveTx          TimeoutEvent = "RemoveTx"
 	CleanEmptyAccount TimeoutEvent = "CleanEmptyAccount"
 	RotateTxLocals    TimeoutEvent = "RotateTxLocals"
 )
