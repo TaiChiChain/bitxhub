@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 //go:generate mockgen -destination mock_api/mock_api.go -package mock_api -source api.go -typed
@@ -34,16 +34,12 @@ type BrokerAPI interface {
 	ChainConfig() *params.ChainConfig
 	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error)
 
-	GetBlockWithoutTx(mode string, key string) (*types.Block, error)
+	GetBlockHeader(mode string, key string) (*types.BlockHeader, error)
+
+	GetBlockExtra(height uint64) (*types.BlockExtra, error)
+
 	GetBlockTxHashList(height uint64) ([]*types.Hash, error)
 	GetBlockTxList(height uint64) ([]*types.Transaction, error)
-
-	// todo：
-	// @deprecated, use GetBlockWithoutTx、GetBlockTxHashList and GetBlockTxList instead
-	//GetBlock(mode string, key string) (*types.Block, error)
-	//GetBlocks(start uint64, end uint64) ([]*types.Block, error)
-	//GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error)
-
 }
 
 type NetworkAPI interface {

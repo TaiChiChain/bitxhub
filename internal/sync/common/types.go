@@ -92,6 +92,7 @@ type syncRequestMessage interface {
 	UnmarshalVT(dAtA []byte) error
 	GetHeight() uint64
 }
+
 type CommitData interface {
 	GetParentHash() string
 	GetHash() string
@@ -114,11 +115,11 @@ type BlockData struct {
 }
 
 func (b *BlockData) GetParentHash() string {
-	return b.Block.BlockHeader.ParentHash.String()
+	return b.Block.Header.ParentHash.String()
 }
 
 func (b *BlockData) GetHash() string {
-	return b.Block.BlockHash.String()
+	return b.Block.Hash().String()
 }
 
 func (b *BlockData) GetHeight() uint64 {
@@ -126,7 +127,7 @@ func (b *BlockData) GetHeight() uint64 {
 }
 
 func (b *BlockData) GetEpoch() uint64 {
-	return b.Block.BlockHeader.Epoch
+	return b.Block.Header.Epoch
 }
 
 type ChainData struct {
@@ -135,11 +136,11 @@ type ChainData struct {
 }
 
 func (c *ChainData) GetParentHash() string {
-	return c.Block.BlockHeader.ParentHash.String()
+	return c.Block.Header.ParentHash.String()
 }
 
 func (c *ChainData) GetHash() string {
-	return c.Block.BlockHash.String()
+	return c.Block.Hash().String()
 }
 
 func (c *ChainData) GetHeight() uint64 {
@@ -147,7 +148,7 @@ func (c *ChainData) GetHeight() uint64 {
 }
 
 func (c *ChainData) GetEpoch() uint64 {
-	return c.Block.BlockHeader.Epoch
+	return c.Block.Header.Epoch
 }
 
 func (c *Chunk) FillCheckPoint(chunkMaxHeight uint64, checkpoint *pb.CheckpointState) {

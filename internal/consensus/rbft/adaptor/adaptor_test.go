@@ -120,14 +120,14 @@ func TestStateUpdate(t *testing.T) {
 		Checkpoint: &consensus.Checkpoint{
 			ExecuteState: &consensus.Checkpoint_ExecuteState{
 				Height: block2.Height(),
-				Digest: block2.BlockHash.String(),
+				Digest: block2.Hash().String(),
 			},
 		},
 	}
-	adaptor.StateUpdate(0, block2.BlockHeader.Number, block2.BlockHash.String(), []*consensus.SignedCheckpoint{quorumCkpt})
+	adaptor.StateUpdate(0, block2.Header.Number, block2.Hash().String(), []*consensus.SignedCheckpoint{quorumCkpt})
 
 	targetB := <-adaptor.BlockC
-	ast.Equal(uint64(2), targetB.Block.BlockHeader.Number)
+	ast.Equal(uint64(2), targetB.Block.Header.Number)
 
 	block3 := testutil.ConstructBlock("block3", uint64(3))
 	testutil.SetMockBlockLedger(block3, false)
@@ -135,7 +135,7 @@ func TestStateUpdate(t *testing.T) {
 	ckp := &consensus.Checkpoint{
 		ExecuteState: &consensus.Checkpoint_ExecuteState{
 			Height: block3.Height(),
-			Digest: block3.BlockHash.String(),
+			Digest: block3.Hash().String(),
 		},
 	}
 	signCkp := &consensus.SignedCheckpoint{
@@ -159,7 +159,7 @@ func TestStateUpdate(t *testing.T) {
 
 		adaptor.Cancel()
 		time.Sleep(100 * time.Millisecond)
-		adaptor.StateUpdate(0, block5.BlockHeader.Number, block5.BlockHash.String(),
+		adaptor.StateUpdate(0, block5.Header.Number, block5.Hash().String(),
 			[]*consensus.SignedCheckpoint{signCkp})
 	})
 }
@@ -179,7 +179,7 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 	ckp := &consensus.Checkpoint{
 		ExecuteState: &consensus.Checkpoint_ExecuteState{
 			Height: block3.Height(),
-			Digest: block3.BlockHash.String(),
+			Digest: block3.Hash().String(),
 		},
 	}
 	signCkp := &consensus.SignedCheckpoint{
@@ -199,16 +199,16 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 		Validators: peerSet,
 	}
 
-	adaptor.StateUpdate(0, block3.BlockHeader.Number, block3.BlockHash.String(),
+	adaptor.StateUpdate(0, block3.Header.Number, block3.Hash().String(),
 		[]*consensus.SignedCheckpoint{signCkp}, epochChange)
 
 	target2 := <-adaptor.BlockC
-	ast.Equal(uint64(2), target2.Block.BlockHeader.Number)
-	ast.Equal(block2.BlockHash.String(), target2.Block.BlockHash.String())
+	ast.Equal(uint64(2), target2.Block.Header.Number)
+	ast.Equal(block2.Hash().String(), target2.Block.Hash().String())
 
 	target3 := <-adaptor.BlockC
-	ast.Equal(uint64(3), target3.Block.BlockHeader.Number)
-	ast.Equal(block3.BlockHash.String(), target3.Block.BlockHash.String())
+	ast.Equal(uint64(3), target3.Block.Header.Number)
+	ast.Equal(block3.Hash().String(), target3.Block.Hash().String())
 }
 
 func TestStateUpdateWithRollback(t *testing.T) {
@@ -229,7 +229,7 @@ func TestStateUpdateWithRollback(t *testing.T) {
 	ckp := &consensus.Checkpoint{
 		ExecuteState: &consensus.Checkpoint_ExecuteState{
 			Height: block3.Height(),
-			Digest: block3.BlockHash.String(),
+			Digest: block3.Hash().String(),
 		},
 	}
 	signCkp := &consensus.SignedCheckpoint{
@@ -245,24 +245,24 @@ func TestStateUpdateWithRollback(t *testing.T) {
 	})
 
 	block4 := testutil.ConstructBlock("block4", uint64(4))
-	testutil.SetMockChainMeta(&types.ChainMeta{Height: uint64(4), BlockHash: block4.BlockHash})
+	testutil.SetMockChainMeta(&types.ChainMeta{Height: uint64(4), BlockHash: block4.Hash()})
 	defer testutil.ResetMockChainMeta()
 
 	testutil.SetMockBlockLedger(block3, true)
 	defer testutil.ResetMockBlockLedger()
-	adaptor.StateUpdate(2, block3.BlockHeader.Number, block3.BlockHash.String(),
+	adaptor.StateUpdate(2, block3.Header.Number, block3.Hash().String(),
 		[]*consensus.SignedCheckpoint{signCkp}, nil)
 
 	wrongBlock3 := testutil.ConstructBlock("wrong_block3", uint64(3))
 	testutil.SetMockBlockLedger(wrongBlock3, true)
 	defer testutil.ResetMockBlockLedger()
 
-	adaptor.StateUpdate(2, block3.BlockHeader.Number, block3.BlockHash.String(),
+	adaptor.StateUpdate(2, block3.Header.Number, block3.Hash().String(),
 		[]*consensus.SignedCheckpoint{signCkp}, nil)
 
 	target := <-adaptor.BlockC
-	ast.Equal(uint64(3), target.Block.BlockHeader.Number, "low watermark is 2, we should rollback to 2, and then sync to 3")
-	ast.Equal(block3.BlockHash.String(), target.Block.BlockHash.String())
+	ast.Equal(uint64(3), target.Block.Header.Number, "low watermark is 2, we should rollback to 2, and then sync to 3")
+	ast.Equal(block3.Hash().String(), target.Block.Hash().String())
 }
 
 // refactor this unit test
@@ -317,13 +317,13 @@ func TestRBFTAdaptor_PostCommitEvent(t *testing.T) {
 	commitC := adaptor.GetCommitChannel()
 	adaptor.PostCommitEvent(&common.CommitEvent{
 		Block: &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 1,
 			},
 		},
 	})
 	commitEvent := <-commitC
-	ast.Equal(uint64(1), commitEvent.Block.BlockHeader.Number)
+	ast.Equal(uint64(1), commitEvent.Block.Header.Number)
 }
 
 func TestLedger(t *testing.T) {

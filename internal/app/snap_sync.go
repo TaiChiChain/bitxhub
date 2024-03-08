@@ -1,8 +1,11 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -12,11 +15,10 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/sirupsen/logrus"
 )
 
 type snapMeta struct {
-	snapBlock        *types.Block
+	snapBlockHeader  *types.BlockHeader
 	snapPersistEpoch uint64
 	snapPeers        []string
 }
@@ -28,7 +30,7 @@ func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
 	}
 
 	snapPersistedEpoch := meta.EpochInfo.Epoch - 1
-	if meta.EpochInfo.EpochPeriod+meta.EpochInfo.StartBlock-1 == meta.Block.Height() {
+	if meta.EpochInfo.EpochPeriod+meta.EpochInfo.StartBlock-1 == meta.BlockHeader.Number {
 		snapPersistedEpoch = meta.EpochInfo.Epoch
 	}
 
@@ -42,7 +44,7 @@ func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
 	}
 
 	return &snapMeta{
-		snapBlock:        meta.Block,
+		snapBlockHeader:  meta.BlockHeader,
 		snapPeers:        peers,
 		snapPersistEpoch: snapPersistedEpoch,
 	}, nil
@@ -58,17 +60,17 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 	var startEpcNum uint64 = 1
 
 	if latestHeight != 0 {
-		block, err := axm.ViewLedger.ChainLedger.GetBlock(latestHeight)
+		blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
 		if err != nil {
-			return nil, nil, fmt.Errorf("get latest block err: %w", err)
+			return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
 		}
-		blockEpc := block.BlockHeader.Epoch
+		blockEpc := blockHeader.Epoch
 		info, err := base.GetEpochInfo(axm.ViewLedger.StateLedger, blockEpc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get epoch info err: %w", err)
 		}
 		if info.StartBlock+info.EpochPeriod-1 == latestHeight {
-			// if the last block in this epoch had been persisted, start from the next epoch
+			// if the last blockHeader in this epoch had been persisted, start from the next epoch
 			startEpcNum = info.Epoch + 1
 		} else {
 			startEpcNum = info.Epoch
@@ -93,8 +95,8 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 		Checkpoint: &consensus.Checkpoint{
 			Epoch: axm.snapMeta.snapPersistEpoch,
 			ExecuteState: &consensus.Checkpoint_ExecuteState{
-				Height: axm.snapMeta.snapBlock.Height(),
-				Digest: axm.snapMeta.snapBlock.BlockHash.String(),
+				Height: axm.snapMeta.snapBlockHeader.Number,
+				Digest: axm.snapMeta.snapBlockHeader.Hash().String(),
 			},
 		},
 	}
@@ -144,7 +146,7 @@ func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.Si
 				}).Info("snap sync task done")
 
 				if !axm.waitVerifySnapTrie(verifySnapCh) {
-					return fmt.Errorf("verify snap trie failed")
+					return errors.New("verify snap trie failed")
 				}
 				return nil
 			}
@@ -183,7 +185,6 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 
 func (axm *AxiomLedger) genSnapSyncParams(peers []string, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
-
 	latestBlockHash := axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
 	return &common.SyncParams{
 		Peers:            peers,
@@ -194,5 +195,4 @@ func (axm *AxiomLedger) genSnapSyncParams(peers []string, startHeight, targetHei
 		QuorumCheckpoint: quorumCkpt,
 		EpochChanges:     epochChanges,
 	}
-
 }

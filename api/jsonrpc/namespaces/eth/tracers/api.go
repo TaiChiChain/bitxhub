@@ -95,21 +95,25 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	block, err := api.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
+	blockHeader, err := api.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
 	if err != nil {
 		return nil, err
 	}
-	blockTxList, err := api.api.Broker().GetBlockTxList(block.Height())
+	blockTxList, err := api.api.Broker().GetBlockTxList(blockHeader.Number)
 	if err != nil {
 		return nil, err
 	}
-	block.Transactions = blockTxList
+
+	block := &types.Block{
+		Header:       blockHeader,
+		Transactions: blockTxList,
+	}
 	msg, vmctx, statedb, err := api.api.Broker().StateAtTransaction(block, int(meta.Index), reexec)
 	if err != nil {
 		return nil, err
 	}
 	txctx := &tracers.Context{
-		BlockHash:   block.BlockHash.ETHHash(),
+		BlockHash:   block.Hash().ETHHash(),
 		BlockNumber: new(big.Int).SetUint64(block.Height()),
 		TxIndex:     int(meta.Index),
 		TxHash:      hash,
@@ -162,20 +166,20 @@ func (api *TracerAPI) traceTx(message *core.Message, txctx *tracers.Context, vmc
 	return tracer.GetResult()
 }
 
-func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, config *TraceCallConfig) (interface{}, error) {
+func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, config *TraceCallConfig) (any, error) {
 	// Try to retrieve the specified block
 	var (
-		err   error
-		block *types.Block
+		err         error
+		blockHeader *types.BlockHeader
 	)
 	if hash, ok := blockNrOrHash.Hash(); ok {
-		block, err = api.api.Broker().GetBlockWithoutTx("HASH", hash.String())
+		blockHeader, err = api.api.Broker().GetBlockHeader("HASH", hash.String())
 	} else if blockNum, ok := blockNrOrHash.Number(); ok {
 		if blockNum == rpctypes.PendingBlockNumber || blockNum == rpctypes.LatestBlockNumber {
 			meta, _ := api.api.Chain().Meta()
 			blockNum = rpctypes.BlockNumber(meta.Height)
 		}
-		block, err = api.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", blockNum))
+		blockHeader, err = api.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", blockNum))
 	} else {
 		return nil, errors.New("invalid arguments; neither block nor hash specified")
 	}
@@ -183,9 +187,9 @@ func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.Blo
 		return nil, err
 	}
 
-	statedb := api.api.Broker().GetViewStateLedger().NewViewWithoutCache(block.BlockHeader, false)
+	statedb := api.api.Broker().GetViewStateLedger().NewViewWithoutCache(blockHeader, false)
 
-	vmctx := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, nil)
+	vmctx := executor.NewEVMBlockContextAdaptor(blockHeader.Number, uint64(blockHeader.Timestamp), blockHeader.ProposerAccount, nil)
 	// Apply the customization rules if required.
 	if config != nil {
 		if err := config.StateOverrides.Apply(statedb); err != nil {

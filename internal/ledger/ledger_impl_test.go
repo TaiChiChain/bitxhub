@@ -304,11 +304,10 @@ func TestChainLedger_Commit(t *testing.T) {
 			// Extra Test
 			hash := types.NewHashByStr("0xe9FC370DD36C9BD5f67cCfbc031C909F53A3d8bC7084C01362c55f2D42bA841c")
 			revid := lg.StateLedger.(*StateLedgerImpl).Snapshot()
-			lg.StateLedger.(*StateLedgerImpl).logs.thash = hash
 			lg.StateLedger.(*StateLedgerImpl).AddLog(&types.EvmLog{
-				TransactionHash: lg.StateLedger.(*StateLedgerImpl).logs.thash,
+				TransactionHash: hash,
 			})
-			lg.StateLedger.(*StateLedgerImpl).GetLogs(*lg.StateLedger.(*StateLedgerImpl).logs.thash, 1, hash)
+			lg.StateLedger.(*StateLedgerImpl).GetLogs(*hash, 1)
 			lg.StateLedger.(*StateLedgerImpl).Logs()
 			lg.StateLedger.(*StateLedgerImpl).GetCodeHash(account)
 			lg.StateLedger.(*StateLedgerImpl).GetCodeSize(account)
@@ -335,7 +334,7 @@ func TestChainLedger_Commit(t *testing.T) {
 			lg.StateLedger.(*StateLedgerImpl).RevertToSnapshot(revid)
 			lg.StateLedger.(*StateLedgerImpl).ClearChangerAndRefund()
 
-			lg.ChainLedger.CloseBlockfile()
+			lg.ChainLedger.(*ChainLedgerImpl).CloseBlockfile()
 
 			// load ChainLedgerImpl from db, rollback to height 0 since no chain meta stored
 			ldg, _ := initLedger(t, repoRoot, tc.kvType)
@@ -452,7 +451,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 			addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 
-			ledger.StateLedger.PrepareBlock(nil, nil, 1)
+			ledger.StateLedger.PrepareBlock(nil, 1)
 			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
 			stateLedger.Finalise()
 			stateRoot1, err := stateLedger.Commit()
@@ -460,7 +459,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.NotNil(t, stateRoot1)
 			ledger.PersistBlockData(genBlockData(1, stateRoot1))
 
-			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
+			ledger.StateLedger.PrepareBlock(stateRoot1, 2)
 			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
 			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
 
@@ -474,7 +473,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.Nil(t, err)
 			ledger.PersistBlockData(genBlockData(2, stateRoot2))
 
-			ledger.StateLedger.PrepareBlock(stateRoot2, nil, 3)
+			ledger.StateLedger.PrepareBlock(stateRoot2, 3)
 			account0 := ledger.StateLedger.GetAccount(addr0)
 			assert.Equal(t, uint64(2), account0.GetBalance().Uint64())
 
@@ -506,15 +505,11 @@ func TestChainLedger_Rollback(t *testing.T) {
 			err = ledger.Rollback(4)
 			assert.True(t, errors.Is(err, ErrNotFound))
 
-			hash := ledger.ChainLedger.GetBlockHash(3)
-			assert.NotNil(t, hash)
+			_, err = ledger.ChainLedger.GetBlockHeader(3)
+			assert.Nil(t, err)
 
-			hash = ledger.ChainLedger.GetBlockHash(100)
-			assert.NotNil(t, hash)
-
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Delete(utils.CompositeKey(utils.BlockHeightKey, 3))
-			hash = ledger.ChainLedger.GetBlockHash(3)
-			assert.NotNil(t, hash)
+			_, err = ledger.ChainLedger.GetBlockHeader(100)
+			assert.NotNil(t, err)
 
 			num, err := ledger.ChainLedger.GetTransactionCount(0)
 			assert.NotNil(t, err)
@@ -543,7 +538,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			block3, err := ledger.ChainLedger.GetBlock(3)
 			assert.Nil(t, err)
 			assert.NotNil(t, block3)
-			assert.Equal(t, stateRoot3, block3.BlockHeader.StateRoot)
+			assert.Equal(t, stateRoot3, block3.Header.StateRoot)
 			assert.Equal(t, uint64(3), ledger.ChainLedger.GetChainMeta().Height)
 			assert.Equal(t, codeHash1, account0.CodeHash())
 			assert.Equal(t, code1[:], account0.Code())
@@ -557,7 +552,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.Nil(t, err)
 			assert.NotNil(t, block2)
 			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
-			assert.Equal(t, stateRoot2.String(), block2.BlockHeader.StateRoot.String())
+			assert.Equal(t, stateRoot2.String(), block2.Header.StateRoot.String())
 
 			account0 = ledger.StateLedger.GetAccount(addr0)
 			assert.Equal(t, uint64(2), account0.GetBalance().Uint64())
@@ -572,7 +567,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 			assert.Nil(t, account1)
 
 			ledger.ChainLedger.GetChainMeta()
-			ledger.ChainLedger.CloseBlockfile()
+			ledger.ChainLedger.(*ChainLedgerImpl).CloseBlockfile()
 
 			ledger, _ = initLedger(t, repoRoot, tc.kvType)
 
@@ -764,7 +759,7 @@ func TestChainLedger_AddState(t *testing.T) {
 	}
 }
 
-func TestGetBlockWithOutTxByNumber(t *testing.T) {
+func TestGetBlockHeaderAndExtra(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
@@ -774,7 +769,9 @@ func TestGetBlockWithOutTxByNumber(t *testing.T) {
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
-			_, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(1)
+			_, err := ledger.ChainLedger.GetBlockHeader(1)
+			assert.True(t, errors.Is(err, ErrNotFound))
+			_, err = ledger.ChainLedger.GetBlockExtra(1)
 			assert.True(t, errors.Is(err, ErrNotFound))
 
 			ledger, _ = initLedger(t, "", tc.kvType)
@@ -783,7 +780,7 @@ func TestGetBlockWithOutTxByNumber(t *testing.T) {
 			// create an addr0
 			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 
-			ledger.StateLedger.PrepareBlock(nil, nil, 1)
+			ledger.StateLedger.PrepareBlock(nil, 1)
 			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
 			stateLedger.Finalise()
 			stateRoot1, err := stateLedger.Commit()
@@ -791,7 +788,7 @@ func TestGetBlockWithOutTxByNumber(t *testing.T) {
 			assert.NotNil(t, stateRoot1)
 			ledger.PersistBlockData(genBlockData(1, stateRoot1))
 
-			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
+			ledger.StateLedger.PrepareBlock(stateRoot1, 2)
 			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
 			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
 
@@ -803,66 +800,20 @@ func TestGetBlockWithOutTxByNumber(t *testing.T) {
 			assert.Nil(t, err)
 			ledger.PersistBlockData(genBlockData(2, stateRoot2))
 
-			block, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(2)
+			blockHeader, err := ledger.ChainLedger.GetBlockHeader(2)
 			assert.Nil(t, err)
-			assert.NotNil(t, block)
+			assert.NotNil(t, blockHeader)
 			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
+			assert.Equal(t, uint64(2), blockHeader.Number)
 
-		})
-	}
-}
-
-func TestGetBlockWithOutTxByHash(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			ledger, _ := initLedger(t, "", tc.kvType)
-			_, err := ledger.ChainLedger.GetBlockWithOutTxByHash(types.NewHash([]byte("1")))
-			assert.True(t, errors.Is(err, ErrNotFound))
-
-			ledger, _ = initLedger(t, "", tc.kvType)
-			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-
-			// create an addr0
-			addr0 := types.NewAddress(LeftPadBytes([]byte{100}, 20))
-
-			ledger.StateLedger.PrepareBlock(nil, nil, 1)
-			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(1))
-			stateLedger.Finalise()
-			stateRoot1, err := stateLedger.Commit()
+			blockExtra, err := ledger.ChainLedger.GetBlockExtra(2)
 			assert.Nil(t, err)
-			assert.NotNil(t, stateRoot1)
-			ledger.PersistBlockData(genBlockData(1, stateRoot1))
+			assert.NotNil(t, blockExtra)
+			assert.NotZero(t, blockExtra.Size)
 
-			ledger.StateLedger.PrepareBlock(stateRoot1, nil, 2)
-			ledger.StateLedger.SetBalance(addr0, new(big.Int).SetInt64(2))
-			ledger.StateLedger.SetState(addr0, []byte("a"), []byte("2"))
-
-			code := sha256.Sum256([]byte("code"))
-			ledger.StateLedger.SetCode(addr0, code[:])
-			ledger.StateLedger.Finalise()
-
-			stateRoot2, err := stateLedger.Commit()
+			number, err := ledger.ChainLedger.GetBlockNumberByHash(blockHeader.Hash())
 			assert.Nil(t, err)
-			ledger.PersistBlockData(genBlockData(2, stateRoot2))
-
-			block, err := ledger.ChainLedger.GetBlockWithOutTxByNumber(2)
-			assert.Nil(t, err)
-			assert.NotNil(t, block)
-			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
-			key := utils.CompositeKey(utils.BlockHashKey, block.BlockHash.String())
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(key, []byte("2"))
-
-			block2, err := ledger.ChainLedger.GetBlockWithOutTxByHash(block.BlockHash)
-			assert.Nil(t, err)
-			assert.NotNil(t, block2)
-			assert.Equal(t, uint64(2), ledger.ChainLedger.GetChainMeta().Height)
-
+			assert.Equal(t, blockHeader.Number, number)
 		})
 	}
 }
@@ -877,11 +828,23 @@ func TestGetBlockTxHashListByNumber(t *testing.T) {
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
-			_, err := ledger.ChainLedger.GetBlockTxHashListByNumber(1)
+			_, err := ledger.ChainLedger.GetBlockTxHashList(1)
 			assert.NotNil(t, err)
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockTxSetKey, 1), []byte("1"))
-			_, err = ledger.ChainLedger.GetBlockTxHashListByNumber(1)
+			_, err = ledger.ChainLedger.GetBlockTxHashList(1)
 			assert.NotNil(t, err)
+
+			txHashes := []*types.Hash{
+				{},
+			}
+			txHashesRaw, err := json.Marshal(txHashes)
+			require.Nil(t, err)
+			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockTxSetKey, 2), txHashesRaw)
+			ledger.ChainLedger.(*ChainLedgerImpl).chainMeta.Height = 2
+			txHashesRes, err := ledger.ChainLedger.GetBlockTxHashList(2)
+			assert.Nil(t, err)
+			assert.Equal(t, len(txHashes), len(txHashesRes))
+			assert.Equal(t, txHashes[0].String(), txHashesRes[0].String())
 		})
 	}
 }
@@ -896,36 +859,12 @@ func TestGetBlockTxListByNumber(t *testing.T) {
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
 			ledger, _ := initLedger(t, "", tc.kvType)
-			_, err := ledger.ChainLedger.GetBlockTxListByNumber(1)
+			_, err := ledger.ChainLedger.GetBlockTxList(1)
 			assert.NotNil(t, err)
-			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"), []byte("1"))
 			require.Nil(t, err)
-			_, err = ledger.ChainLedger.GetBlockTxListByNumber(1)
+			_, err = ledger.ChainLedger.GetBlockTxList(1)
 			assert.NotNil(t, err)
-		})
-	}
-}
-
-func TestGetBlockByHash(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			ledger, _ := initLedger(t, "", tc.kvType)
-			_, err := ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
-			assert.True(t, errors.Is(err, ErrNotFound))
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockHashKey, types.NewHash([]byte("1")).String()), []byte("1"))
-			_, err = ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
-			assert.NotNil(t, err)
-
-			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.BlockHashKey, types.NewHash([]byte("1")).String()), []byte("?"))
-			_, err = ledger.ChainLedger.GetBlockByHash(types.NewHash([]byte("1")))
-			assert.NotNil(t, err)
-			assert.Contains(t, err.Error(), "wrong height,")
 		})
 	}
 }
@@ -945,7 +884,7 @@ func TestGetTransaction(t *testing.T) {
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
-			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"), []byte("1"))
 			require.Nil(t, err)
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -973,7 +912,7 @@ func TestGetTransaction1(t *testing.T) {
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), metaBytes)
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
-			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"), []byte("1"))
 			require.Nil(t, err)
 			_, err = ledger.ChainLedger.GetTransaction(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -996,7 +935,7 @@ func TestGetTransactionMeta(t *testing.T) {
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), []byte("1"))
 			_, err = ledger.ChainLedger.GetTransactionMeta(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
-			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"), []byte("1"))
 			require.Nil(t, err)
 			_, err = ledger.ChainLedger.GetTransactionMeta(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -1019,13 +958,13 @@ func TestGetReceipt(t *testing.T) {
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), []byte("0"))
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
-			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"), []byte("1"))
 			require.Nil(t, err)
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
-			_, err = ledger.ChainLedger.GetReceiptsByHeight(0)
+			_, err = ledger.ChainLedger.GetBlockReceipts(0)
 			assert.Contains(t, err.Error(), "get receipts with height 0 from blockfile failed")
-			_, err = ledger.ChainLedger.GetReceiptsByHeight(1)
+			_, err = ledger.ChainLedger.GetBlockReceipts(1)
 			assert.Contains(t, err.Error(), "EOF")
 		})
 	}
@@ -1051,7 +990,7 @@ func TestGetReceipt1(t *testing.T) {
 			ledger.ChainLedger.(*ChainLedgerImpl).blockchainStore.Put(utils.CompositeKey(utils.TransactionMetaKey, types.NewHash([]byte("1")).String()), metaBytes)
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
-			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"))
+			err = ledger.ChainLedger.(*ChainLedgerImpl).bf.AppendBlock(0, []byte("1"), []byte("1"), []byte("1"), []byte("1"), []byte("1"))
 			require.Nil(t, err)
 			_, err = ledger.ChainLedger.GetReceipt(types.NewHash([]byte("1")))
 			assert.NotNil(t, err)
@@ -1075,13 +1014,12 @@ func TestPrepare(t *testing.T) {
 			require.Nil(t, err)
 			transactions = append(transactions, transaction)
 			block := &types.Block{
-				BlockHeader: &types.BlockHeader{
+				Header: &types.BlockHeader{
 					Number: uint64(0),
 				},
-				BlockHash:    types.NewHash([]byte{1}),
 				Transactions: transactions,
 			}
-			_, err = ledger.ChainLedger.(*ChainLedgerImpl).prepareBlock(batch, block)
+			_, _, err = ledger.ChainLedger.(*ChainLedgerImpl).prepareBlock(batch, block)
 			require.Nil(t, err)
 			var receipts []*types.Receipt
 			receipt := &types.Receipt{
@@ -1182,12 +1120,12 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 
 	// check state ledger in block 1
 	block1 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    1,
 			StateRoot: stateRoot1,
 		},
 	}
-	lg1 := sl.NewView(block1, false)
+	lg1 := sl.NewView(block1.Header, false)
 	lg1.(*StateLedgerImpl).accountCache.clear()
 	assert.Equal(t, uint64(101), lg1.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(201), lg1.GetBalance(account2).Uint64())
@@ -1198,12 +1136,12 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 
 	// check state ledger in block 2
 	block2 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    2,
 			StateRoot: stateRoot2,
 		},
 	}
-	lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+	lg2 := sl.NewViewWithoutCache(block2.Header, false)
 	assert.Equal(t, uint64(102), lg2.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(201), lg2.GetBalance(account2).Uint64())
 	assert.Equal(t, uint64(302), lg2.GetBalance(account3).Uint64())
@@ -1213,12 +1151,12 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 
 	// check state ledger in block 3
 	block3 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    3,
 			StateRoot: stateRoot3,
 		},
 	}
-	lg3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
+	lg3 := sl.NewViewWithoutCache(block3.Header, false)
 	assert.Equal(t, uint64(103), lg3.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(203), lg3.GetBalance(account2).Uint64())
 	assert.Equal(t, uint64(302), lg3.GetBalance(account3).Uint64())
@@ -1228,12 +1166,12 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 
 	// check state ledger in block 4
 	block4 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    4,
 			StateRoot: stateRoot4,
 		},
 	}
-	lg4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
+	lg4 := sl.NewViewWithoutCache(block4.Header, false)
 	assert.Equal(t, uint64(103), lg4.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(203), lg4.GetBalance(account2).Uint64())
 	assert.Equal(t, uint64(302), lg4.GetBalance(account3).Uint64())
@@ -1243,12 +1181,12 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 
 	// check state ledger in block 5
 	block5 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    5,
 			StateRoot: stateRoot5,
 		},
 	}
-	lg5 := sl.NewView(block5, true)
+	lg5 := sl.NewView(block5.Header, true)
 	lg5.(*StateLedgerImpl).accountCache.clear()
 	assert.Equal(t, uint64(103), lg5.GetBalance(account1).Uint64())
 	assert.Equal(t, uint64(203), lg5.GetBalance(account2).Uint64())
@@ -1345,12 +1283,12 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 
 	// check state ledger in block 1
 	block1 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    1,
 			StateRoot: stateRoot1,
 		},
 	}
-	lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
+	lg1 := sl.NewViewWithoutCache(block1.Header, false)
 	exist, a1k1 := lg1.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val101"), a1k1)
@@ -1368,12 +1306,12 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 
 	// check state ledger in block 2
 	block2 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    2,
 			StateRoot: stateRoot2,
 		},
 	}
-	lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+	lg2 := sl.NewViewWithoutCache(block2.Header, false)
 	exist, a1k1 = lg2.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1011"), a1k1)
@@ -1395,12 +1333,12 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 
 	// check state ledger in block 3
 	block3 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    3,
 			StateRoot: stateRoot3,
 		},
 	}
-	lg3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
+	lg3 := sl.NewViewWithoutCache(block3.Header, false)
 	exist, a1k1 = lg3.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1013"), a1k1)
@@ -1419,12 +1357,12 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 
 	// check state ledger in block 4
 	block4 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    4,
 			StateRoot: stateRoot4,
 		},
 	}
-	lg4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
+	lg4 := sl.NewViewWithoutCache(block4.Header, false)
 	exist, a1k1 = lg4.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1013"), a1k1)
@@ -1443,12 +1381,12 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 
 	// check state ledger in block 5
 	block5 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    5,
 			StateRoot: stateRoot5,
 		},
 	}
-	lg5 := sl.NewViewWithoutCache(block5.BlockHeader, false)
+	lg5 := sl.NewViewWithoutCache(block5.Header, false)
 	exist, a1k1 = lg5.GetState(account1, []byte("key1"))
 	assert.True(t, exist)
 	assert.Equal(t, []byte("val1015"), a1k1)
@@ -1518,12 +1456,12 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 
 	// check state ledger in block 1
 	block1 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    1,
 			StateRoot: stateRoot1,
 		},
 	}
-	lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
+	lg1 := sl.NewViewWithoutCache(block1.Header, false)
 	assert.Equal(t, uint64(1), lg1.GetNonce(eoaAccount))
 	exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
 	assert.True(t, exist)
@@ -1532,12 +1470,12 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 
 	// check state ledger in block 2
 	block2 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    2,
 			StateRoot: stateRoot2,
 		},
 	}
-	lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+	lg2 := sl.NewViewWithoutCache(block2.Header, false)
 	assert.Equal(t, uint64(1), lg2.GetNonce(eoaAccount))
 	exist, a2k1 = lg2.GetState(contractAccount, []byte("key1"))
 	assert.True(t, exist)
@@ -1546,12 +1484,12 @@ func TestStateLedger_ContractCodeHistory(t *testing.T) {
 
 	// check state ledger in block 3
 	block3 := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:    3,
 			StateRoot: stateRoot3,
 		},
 	}
-	lg3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
+	lg3 := sl.NewViewWithoutCache(block3.Header, false)
 	assert.Equal(t, uint64(2), lg3.GetNonce(eoaAccount))
 	exist, a2k1 = lg3.GetState(contractAccount, []byte("key1"))
 	assert.True(t, exist)
@@ -2192,7 +2130,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 1", func(t *testing.T) {
 		// iterate trie of block 1
 		block1 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    1,
 				StateRoot: stateRoot1,
 				Epoch:     1,
@@ -2200,16 +2138,16 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s1 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC1 := make(chan error)
-		go sl.IterateTrie(block1, s1, errC1)
+		go sl.IterateTrie(block1.Header, s1, errC1)
 		err, ok := <-errC1
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 1
-		sl1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
+		sl1 := sl.NewViewWithoutCache(block1.Header, false)
 		sl1.(*StateLedgerImpl).cachedDB = s1
-		sl1 = sl1.NewViewWithoutCache(block1.BlockHeader, false)
-		verify, err := sl1.VerifyTrie(block1)
+		sl1 = sl1.NewViewWithoutCache(block1.Header, false)
+		verify, err := sl1.VerifyTrie(block1.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(101), sl1.GetBalance(account1).Uint64())
@@ -2220,31 +2158,31 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Equal(t, uint64(0), sl1.GetNonce(account3))
 		meta, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block1.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
-		assert.Equal(t, block1.BlockHeader.Epoch, meta.EpochInfo.Epoch)
+		assert.Equal(t, block1.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
+		assert.Equal(t, block1.Header.Epoch, meta.EpochInfo.Epoch)
 		assert.Equal(t, "P2PNodeID-1", meta.EpochInfo.ValidatorSet[0].P2PNodeID)
 	})
 
 	t.Run("test iterate and verify trie of block 2", func(t *testing.T) {
 		// iterate trie of block 2
 		block2 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    2,
 				StateRoot: stateRoot2,
 			},
 		}
 		s2 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC2 := make(chan error)
-		go sl.IterateTrie(block2, s2, errC2)
+		go sl.IterateTrie(block2.Header, s2, errC2)
 		err, ok := <-errC2
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 2
-		sl2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+		sl2 := sl.NewViewWithoutCache(block2.Header, false)
 		sl2.(*StateLedgerImpl).cachedDB = s2
-		sl2 = sl2.NewViewWithoutCache(block2.BlockHeader, false)
-		verify, err := sl2.VerifyTrie(block2)
+		sl2 = sl2.NewViewWithoutCache(block2.Header, false)
+		verify, err := sl2.VerifyTrie(block2.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(102), sl2.GetBalance(account1).Uint64())
@@ -2255,28 +2193,28 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Equal(t, uint64(32), sl2.GetNonce(account3))
 		meta, err := sl2.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block2.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block2.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 
 	t.Run("test iterate and verify trie of block 3", func(t *testing.T) {
 		// iterate trie of block 3
 		block3 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    3,
 				StateRoot: stateRoot3,
 			},
 		}
 		s3 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC3 := make(chan error)
-		go sl.IterateTrie(block3, s3, errC3)
+		go sl.IterateTrie(block3.Header, s3, errC3)
 		err, ok := <-errC3
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 3
-		sl3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
+		sl3 := sl.NewViewWithoutCache(block3.Header, false)
 		sl3.(*StateLedgerImpl).cachedDB = s3
-		verify, err := sl3.VerifyTrie(block3)
+		verify, err := sl3.VerifyTrie(block3.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(103), sl3.GetBalance(account1).Uint64())
@@ -2287,10 +2225,10 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Equal(t, uint64(32), sl3.GetNonce(account3))
 		meta, err := sl3.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block3.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block3.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 		// change block3 stateRoot
-		block3.BlockHeader.StateRoot = types.NewHashByStr("0x1234")
-		verify, err = sl3.VerifyTrie(block3)
+		block3.Header.StateRoot = types.NewHashByStr("0x1234")
+		verify, err = sl3.VerifyTrie(block3.Header)
 		assert.False(t, verify)
 		assert.NotNil(t, err)
 	})
@@ -2298,23 +2236,23 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 4", func(t *testing.T) {
 		// iterate trie of block 4
 		block4 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    4,
 				StateRoot: stateRoot4,
 			},
 		}
 		s4 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC4 := make(chan error)
-		go sl.IterateTrie(block4, s4, errC4)
+		go sl.IterateTrie(block4.Header, s4, errC4)
 		err, ok := <-errC4
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 4
-		sl4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
+		sl4 := sl.NewViewWithoutCache(block4.Header, false)
 		sl4.(*StateLedgerImpl).cachedDB = s4
-		sl4 = sl4.NewViewWithoutCache(block4.BlockHeader, false)
-		verify, err := sl4.VerifyTrie(block4)
+		sl4 = sl4.NewViewWithoutCache(block4.Header, false)
+		verify, err := sl4.VerifyTrie(block4.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(103), sl4.GetBalance(account1).Uint64())
@@ -2325,28 +2263,28 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Equal(t, uint64(32), sl4.GetNonce(account3))
 		meta, err := sl4.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block4.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block4.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 
 	t.Run("test iterate and verify trie of block 5", func(t *testing.T) {
 		// iterate trie of block 5
 		block5 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    5,
 				StateRoot: stateRoot5,
 			},
 		}
 		s5 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC5 := make(chan error)
-		go sl.IterateTrie(block5, s5, errC5)
+		go sl.IterateTrie(block5.Header, s5, errC5)
 		err, ok := <-errC5
 		assert.True(t, ok)
 		assert.Nil(t, err)
 		// check state ledger in block 5
-		sl5 := sl.NewViewWithoutCache(block5.BlockHeader, false)
+		sl5 := sl.NewViewWithoutCache(block5.Header, false)
 		sl5.(*StateLedgerImpl).cachedDB = s5
-		sl5 = sl5.NewViewWithoutCache(block5.BlockHeader, false)
-		verify, err := sl5.VerifyTrie(block5)
+		sl5 = sl5.NewViewWithoutCache(block5.Header, false)
+		verify, err := sl5.VerifyTrie(block5.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(103), sl5.GetBalance(account1).Uint64())
@@ -2357,13 +2295,13 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Equal(t, uint64(35), sl5.GetNonce(account3))
 		meta, err := sl5.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block5.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block5.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 
 	t.Run("test iterate and verify trie error", func(t *testing.T) {
 		// iterate trie of block 5
 		block5 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    5,
 				StateRoot: stateRoot5,
 			},
@@ -2373,7 +2311,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		sl.getEpochInfoFunc = func(epoch uint64) (*rbft.EpochInfo, error) {
 			return nil, errors.Errorf("getEpochInfoFunc error test")
 		}
-		go sl.IterateTrie(block5, s5, errC5)
+		go sl.IterateTrie(block5.Header, s5, errC5)
 		err, ok := <-errC5
 		assert.True(t, ok)
 		assert.NotNil(t, err)
@@ -2463,7 +2401,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 1", func(t *testing.T) {
 		// iterate trie of block 1
 		block1 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    1,
 				StateRoot: stateRoot1,
 				Epoch:     1,
@@ -2471,16 +2409,16 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		}
 		s1 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC1 := make(chan error)
-		go sl.IterateTrie(block1, s1, errC1)
+		go sl.IterateTrie(block1.Header, s1, errC1)
 		err, ok := <-errC1
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 1
-		sl1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
+		sl1 := sl.NewViewWithoutCache(block1.Header, false)
 		sl1.(*StateLedgerImpl).cachedDB = s1
-		sl1 = sl1.NewViewWithoutCache(block1.BlockHeader, false)
-		verify, err := sl1.VerifyTrie(block1)
+		sl1 = sl1.NewViewWithoutCache(block1.Header, false)
+		verify, err := sl1.VerifyTrie(block1.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		exist, val := sl1.GetState(account1, []byte("k1"))
@@ -2497,31 +2435,31 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Equal(t, []byte("v1"), val)
 		meta, err := sl1.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block1.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
-		assert.Equal(t, block1.BlockHeader.Epoch, meta.EpochInfo.Epoch)
+		assert.Equal(t, block1.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
+		assert.Equal(t, block1.Header.Epoch, meta.EpochInfo.Epoch)
 		assert.Equal(t, "P2PNodeID-1", meta.EpochInfo.ValidatorSet[0].P2PNodeID)
 	})
 
 	t.Run("test iterate and verify trie of block 2", func(t *testing.T) {
 		// iterate trie of block 2
 		block2 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    2,
 				StateRoot: stateRoot2,
 			},
 		}
 		s2 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC2 := make(chan error)
-		go sl.IterateTrie(block2, s2, errC2)
+		go sl.IterateTrie(block2.Header, s2, errC2)
 		err, ok := <-errC2
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 2
-		sl2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+		sl2 := sl.NewViewWithoutCache(block2.Header, false)
 		sl2.(*StateLedgerImpl).cachedDB = s2
-		sl2 = sl2.NewViewWithoutCache(block2.BlockHeader, false)
-		verify, err := sl2.VerifyTrie(block2)
+		sl2 = sl2.NewViewWithoutCache(block2.Header, false)
+		verify, err := sl2.VerifyTrie(block2.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		exist, val := sl2.GetState(account1, []byte("k1"))
@@ -2541,28 +2479,28 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Equal(t, []byte("v1"), val)
 		meta, err := sl2.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block2.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block2.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 
 	t.Run("test iterate and verify trie of block 3", func(t *testing.T) {
 		// iterate trie of block 3
 		block3 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    3,
 				StateRoot: stateRoot3,
 			},
 		}
 		s3 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC3 := make(chan error)
-		go sl.IterateTrie(block3, s3, errC3)
+		go sl.IterateTrie(block3.Header, s3, errC3)
 		err, ok := <-errC3
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 3
-		sl3 := sl.NewViewWithoutCache(block3.BlockHeader, false)
+		sl3 := sl.NewViewWithoutCache(block3.Header, false)
 		sl3.(*StateLedgerImpl).cachedDB = s3
-		verify, err := sl3.VerifyTrie(block3)
+		verify, err := sl3.VerifyTrie(block3.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		exist, val := sl3.GetState(account1, []byte("k1"))
@@ -2585,29 +2523,29 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Equal(t, []byte("v22"), val)
 		meta, err := sl3.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block3.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block3.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 
 	t.Run("test iterate and verify trie of block 4", func(t *testing.T) {
 		// iterate trie of block 4
 		block4 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    4,
 				StateRoot: stateRoot4,
 			},
 		}
 		s4 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC4 := make(chan error)
-		go sl.IterateTrie(block4, s4, errC4)
+		go sl.IterateTrie(block4.Header, s4, errC4)
 		err, ok := <-errC4
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 4
-		sl4 := sl.NewViewWithoutCache(block4.BlockHeader, false)
+		sl4 := sl.NewViewWithoutCache(block4.Header, false)
 		sl4.(*StateLedgerImpl).cachedDB = s4
-		sl4 = sl4.NewViewWithoutCache(block4.BlockHeader, false)
-		verify, err := sl4.VerifyTrie(block4)
+		sl4 = sl4.NewViewWithoutCache(block4.Header, false)
+		verify, err := sl4.VerifyTrie(block4.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		exist, val := sl4.GetState(account1, []byte("k1"))
@@ -2630,29 +2568,29 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Equal(t, []byte("v22"), val)
 		meta, err := sl4.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block4.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block4.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 
 	t.Run("test iterate and verify trie of block 5", func(t *testing.T) {
 		// iterate trie of block 5
 		block5 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    5,
 				StateRoot: stateRoot5,
 			},
 		}
 		s5 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC5 := make(chan error)
-		go sl.IterateTrie(block5, s5, errC5)
+		go sl.IterateTrie(block5.Header, s5, errC5)
 		err, ok := <-errC5
 		assert.True(t, ok)
 		assert.Nil(t, err)
 
 		// check state ledger in block 5
-		sl5 := sl.NewViewWithoutCache(block5.BlockHeader, false)
+		sl5 := sl.NewViewWithoutCache(block5.Header, false)
 		sl5.(*StateLedgerImpl).cachedDB = s5
-		sl5 = sl5.NewViewWithoutCache(block5.BlockHeader, false)
-		verify, err := sl5.VerifyTrie(block5)
+		sl5 = sl5.NewViewWithoutCache(block5.Header, false)
+		verify, err := sl5.VerifyTrie(block5.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
 		exist, val := sl5.GetState(account1, []byte("k1"))
@@ -2678,7 +2616,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Equal(t, []byte("code2"), val)
 		meta, err := sl5.(*StateLedgerImpl).GetTrieSnapshotMeta()
 		assert.Nil(t, err)
-		assert.Equal(t, block5.BlockHeader.StateRoot.String(), meta.Block.BlockHeader.StateRoot.String())
+		assert.Equal(t, block5.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
 }
 
@@ -2690,7 +2628,7 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	require.Nil(t, meta)
 	require.Equal(t, err, ErrNotFound)
 
-	sl.cachedDB.Put([]byte(utils.TrieBlockKey), []byte{1})
+	sl.cachedDB.Put([]byte(utils.TrieBlockHeaderKey), []byte{1})
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2700,16 +2638,14 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	require.Nil(t, meta)
 	require.NotNil(t, err)
 
-	block := &types.Block{
-		BlockHeader: &types.BlockHeader{
-			Number: 1,
-			Epoch:  1,
-		},
+	blockHeader := &types.BlockHeader{
+		Number: 1,
+		Epoch:  1,
 	}
-	blockData, err := block.Marshal()
+	blockHeaderData, err := blockHeader.Marshal()
 	require.Nil(t, err)
-	require.NotNil(t, blockData)
-	sl.cachedDB.Put([]byte(utils.TrieBlockKey), blockData)
+	require.NotNil(t, blockHeaderData)
+	sl.cachedDB.Put([]byte(utils.TrieBlockHeaderKey), blockHeaderData)
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2728,9 +2664,9 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	sl.cachedDB.Put([]byte(utils.TrieNodeInfoKey), epochData)
 
 	meta, err = sl.GetTrieSnapshotMeta()
-	require.NotNil(t, meta)
 	require.Nil(t, err)
-	require.Equal(t, block.BlockHeader.Epoch, meta.Block.BlockHeader.Epoch)
+	require.NotNil(t, meta)
+	require.Equal(t, blockHeader.Epoch, meta.BlockHeader.Epoch)
 	require.Equal(t, epochInfo.Epoch, meta.EpochInfo.Epoch)
 }
 
@@ -2798,7 +2734,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 1", func(t *testing.T) {
 		// iterate trie of block 1
 		block1 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    1,
 				StateRoot: stateRoot1,
 			},
@@ -2806,7 +2742,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		snap := newSnapshot(t.TempDir())
 		sl.snapshot = snap
 		errC1 := make(chan error)
-		go sl.GenerateSnapshot(block1, errC1)
+		go sl.GenerateSnapshot(block1.Header, errC1)
 		err, ok := <-errC1
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2824,7 +2760,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 2", func(t *testing.T) {
 		// iterate trie of block 2
 		block2 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    2,
 				StateRoot: stateRoot2,
 			},
@@ -2832,7 +2768,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		snap := newSnapshot(t.TempDir())
 		sl.snapshot = snap
 		errC := make(chan error)
-		go sl.GenerateSnapshot(block2, errC)
+		go sl.GenerateSnapshot(block2.Header, errC)
 		err, ok := <-errC
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2857,7 +2793,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 3", func(t *testing.T) {
 		// iterate trie of block 3
 		block3 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    3,
 				StateRoot: stateRoot3,
 			},
@@ -2865,7 +2801,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		snap := newSnapshot(t.TempDir())
 		sl.snapshot = snap
 		errC := make(chan error)
-		go sl.GenerateSnapshot(block3, errC)
+		go sl.GenerateSnapshot(block3.Header, errC)
 		err, ok := <-errC
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2890,7 +2826,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 	t.Run("test iterate and verify trie of block 4", func(t *testing.T) {
 		// iterate trie of block 4
 		block4 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    4,
 				StateRoot: stateRoot4,
 			},
@@ -2898,7 +2834,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		snap := newSnapshot(t.TempDir())
 		sl.snapshot = snap
 		errC := make(chan error)
-		go sl.GenerateSnapshot(block4, errC)
+		go sl.GenerateSnapshot(block4.Header, errC)
 		err, ok := <-errC
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2965,12 +2901,12 @@ func TestStateLedger_TrieProof(t *testing.T) {
 	t.Run("prove block1", func(t *testing.T) {
 		// check state ledger in block 1
 		block1 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    1,
 				StateRoot: stateRoot1,
 			},
 		}
-		lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
+		lg1 := sl.NewViewWithoutCache(block1.Header, false)
 		acc3 := lg1.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 		assert.NotEqual(t, "", acc3.String())
@@ -3005,12 +2941,12 @@ func TestStateLedger_TrieProof(t *testing.T) {
 	t.Run("prove block2", func(t *testing.T) {
 		// check state ledger in block 2
 		block2 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    2,
 				StateRoot: stateRoot2,
 			},
 		}
-		lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+		lg2 := sl.NewViewWithoutCache(block2.Header, false)
 		acc3 := lg2.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 		// prove account1 in block2
@@ -3084,12 +3020,12 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 
 	t.Run("prove block1", func(t *testing.T) {
 		block1 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    1,
 				StateRoot: stateRoot1,
 			},
 		}
-		lg1 := sl.NewViewWithoutCache(block1.BlockHeader, false)
+		lg1 := sl.NewViewWithoutCache(block1.Header, false)
 		acc3 := lg1.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 
@@ -3124,12 +3060,12 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 
 	t.Run("prove block2", func(t *testing.T) {
 		block2 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    2,
 				StateRoot: stateRoot2,
 			},
 		}
-		lg2 := sl.NewViewWithoutCache(block2.BlockHeader, false)
+		lg2 := sl.NewViewWithoutCache(block2.Header, false)
 		acc3 := lg2.GetOrCreateAccount(account3)
 		assert.NotNil(t, acc3)
 
@@ -3204,21 +3140,20 @@ func TestLedger_NewView(t *testing.T) {
 	t.Run("new view ledger success", func(t *testing.T) {
 		// check state ledger in block 1
 		block1 := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    1,
 				StateRoot: stateRoot1,
 			},
-			BlockHash: stateRoot1,
 		}
-		lg.ChainLedger.PersistExecutionResult(block1, []*types.Receipt{})
+		err = lg.ChainLedger.PersistExecutionResult(block1, []*types.Receipt{})
+		assert.Nil(t, err)
 		lg.ChainLedger.UpdateChainMeta(&types.ChainMeta{Height: 1})
-		lg1 := lg.NewView().StateLedger.NewViewWithoutCache(block1.BlockHeader, false)
+		lg1 := lg.NewView().StateLedger.NewViewWithoutCache(block1.Header, false)
 		exist, a2k1 := lg1.GetState(contractAccount, []byte("key1"))
 		assert.True(t, exist)
 		assert.Equal(t, []byte("val1"), a2k1)
 		assert.Equal(t, code1[:], lg1.GetCode(contractAccount))
 	})
-
 }
 
 type mockAccountResult struct {
@@ -3349,22 +3284,12 @@ func mockGetProof(address common.Address, storageKeys []string, stateLedger Stat
 }
 
 func genBlockData(height uint64, stateRoot *types.Hash) *BlockData {
-	block := &types.Block{
-		BlockHeader: &types.BlockHeader{
-			Number:    height,
-			StateRoot: stateRoot,
-		},
-		Transactions: []*types.Transaction{},
-	}
-
-	block.BlockHash = block.Hash()
 	return &BlockData{
 		Block: &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number:    height,
 				StateRoot: stateRoot,
 			},
-			BlockHash:    types.NewHash([]byte{1}),
 			Transactions: []*types.Transaction{},
 		},
 		Receipts: nil,
@@ -3423,14 +3348,6 @@ func RightPadBytes(slice []byte, l int) []byte {
 	copy(padded, slice)
 
 	return padded
-}
-
-func TestEvmLogs(t *testing.T) {
-	logs := NewEvmLogs()
-	hash := types.NewHashByStr("0xe9FC370DD36C9BD5f67cCfbc031C909F53A3d8bC7084C01362c55f2D42bA841c")
-	logs.SetBHash(hash)
-	logs.SetTHash(hash)
-	logs.SetIndex(1)
 }
 
 func BenchmarkStateLedgerWrite(b *testing.B) {

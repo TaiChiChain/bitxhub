@@ -18,9 +18,9 @@ func (gas *GasAPI) GetCurrentGasPrice(blockHeight uint64) (uint64, error) {
 	if blockHeight != 1 {
 		blockHeight--
 	}
-	block, err := gas.axiomLedger.ViewLedger.ChainLedger.GetBlock(blockHeight)
+	blockHeader, err := gas.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(blockHeight)
 	if err != nil {
 		return 0, err
 	}
-	return uint64(block.BlockHeader.GasPrice), nil
+	return uint64(blockHeader.GasPrice), nil
 }

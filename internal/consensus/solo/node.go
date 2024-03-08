@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/gogo/protobuf/sortkeys"
@@ -15,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
@@ -432,7 +432,7 @@ func (n *Node) listenReadyBlock() {
 			n.logger.Infof("======== Call execute, height=%d", n.lastExec+1)
 
 			block := &types.Block{
-				BlockHeader: &types.BlockHeader{
+				Header: &types.BlockHeader{
 					Epoch:           1,
 					Number:          n.lastExec + 1,
 					Timestamp:       e.Timestamp / int64(time.Second),

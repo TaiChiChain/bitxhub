@@ -117,9 +117,20 @@ func TestNewNode(t *testing.T) {
 				BlockHash: types.NewHashByStr("0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7"),
 			}
 		},
-		GetBlockFunc: func(height uint64) (*types.Block, error) {
-			return &types.Block{
-				BlockHash: types.NewHashByStr("0xbc6345850f22122cd8ece82f29b88cb2dee49af1ae854891e30d121e788524b7"),
+		GetBlockHeaderFunc: func(height uint64) (*types.BlockHeader, error) {
+			return &types.BlockHeader{
+				Number:         0,
+				StateRoot:      &types.Hash{},
+				TxRoot:         &types.Hash{},
+				ReceiptRoot:    &types.Hash{},
+				ParentHash:     &types.Hash{},
+				Timestamp:      0,
+				Epoch:          0,
+				Bloom:          &types.Bloom{},
+				GasPrice:       0,
+				GasUsed:        0,
+				ProposerNodeID: 0,
+				Extra:          nil,
 			}, nil
 		},
 		GetAccountBalance: nil,
@@ -263,7 +274,7 @@ func TestStop(t *testing.T) {
 	}
 	block := <-node.Commit()
 	ast.Equal(uint64(2), block.Block.Height())
-	ast.Equal(now.Unix(), block.Block.BlockHeader.Timestamp, "convert nano to second")
+	ast.Equal(now.Unix(), block.Block.Header.Timestamp, "convert nano to second")
 
 	// test stop
 	node.Stop()
@@ -306,13 +317,13 @@ func TestReportState(t *testing.T) {
 	block := testutil.ConstructBlock("blockHash", uint64(20))
 	node.stack.StateUpdating = true
 	node.stack.StateUpdateHeight = 20
-	node.ReportState(uint64(10), block.BlockHash, nil, nil, false)
+	node.ReportState(uint64(10), block.Hash(), nil, nil, false)
 	ast.Equal(true, node.stack.StateUpdating)
 
-	node.ReportState(uint64(20), block.BlockHash, nil, nil, false)
+	node.ReportState(uint64(20), block.Hash(), nil, nil, false)
 	ast.Equal(false, node.stack.StateUpdating)
 
-	node.ReportState(uint64(21), block.BlockHash, nil, nil, false)
+	node.ReportState(uint64(21), block.Hash(), nil, nil, false)
 	ast.Equal(false, node.stack.StateUpdating)
 
 	t.Run("ReportStateUpdating with checkpoint", func(t *testing.T) {
@@ -325,10 +336,10 @@ func TestReportState(t *testing.T) {
 		ckp := &consensus.Checkpoint{
 			ExecuteState: &consensus.Checkpoint_ExecuteState{
 				Height: 30,
-				Digest: block30.BlockHash.String(),
+				Digest: block30.Hash().String(),
 			},
 		}
-		node.ReportState(uint64(30), block.BlockHash, nil, ckp, false)
+		node.ReportState(uint64(30), block.Hash(), nil, ckp, false)
 		ast.Equal(false, node.stack.StateUpdating)
 	})
 }

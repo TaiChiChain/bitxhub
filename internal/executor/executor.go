@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/big"
 	"sync"
-	"time"
 
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
@@ -19,7 +19,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
@@ -133,39 +132,6 @@ func (exec *BlockExecutor) SubscribeBlockEventForRemote(ch chan<- events.Execute
 
 func (exec *BlockExecutor) SubscribeLogsEvent(ch chan<- []*types.EvmLog) event.Subscription {
 	return exec.logsFeed.Subscribe(ch)
-}
-
-func (exec *BlockExecutor) ApplyReadonlyTransactions(txs []*types.Transaction) []*types.Receipt {
-	current := time.Now()
-	receipts := make([]*types.Receipt, 0, len(txs))
-
-	exec.lock.Lock()
-	defer exec.lock.Unlock()
-
-	meta := exec.ledger.ChainLedger.GetChainMeta()
-	block, err := exec.ledger.ChainLedger.GetBlock(meta.Height)
-	if err != nil {
-		exec.logger.Errorf("fail to get block at %d: %v", meta.Height, err.Error())
-		return nil
-	}
-
-	exec.ledger.StateLedger.PrepareBlock(block.BlockHeader.StateRoot, meta.BlockHash, meta.Height)
-	exec.evm = newEvm(meta.Height, uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, "")
-	for i, tx := range txs {
-		exec.ledger.StateLedger.SetTxContext(tx.GetHash(), i)
-		receipt := exec.applyTransaction(i, tx, meta.Height)
-
-		receipts = append(receipts, receipt)
-		// clear potential write to ledger
-		exec.ledger.StateLedger.Clear()
-	}
-
-	exec.logger.WithFields(logrus.Fields{
-		"time":  time.Since(current),
-		"count": len(txs),
-	}).Debug("Apply readonly transactions elapsed")
-
-	return receipts
 }
 
 func (exec *BlockExecutor) listenExecuteEvent() {

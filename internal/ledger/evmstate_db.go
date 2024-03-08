@@ -3,11 +3,12 @@ package ledger
 import (
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/common"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 func (esa EvmStateDBAdaptor) CreateAccount(address common.Address) {
@@ -224,28 +225,14 @@ func (esa EvmStateDBAdaptor) PrepareEVMAccessList(sender common.Address, dest *c
 }
 
 type evmLogs struct {
-	logs         map[types.Hash][]*types.EvmLog
-	logSize      uint
-	thash, bhash *types.Hash
-	txIndex      int
+	logs    map[types.Hash][]*types.EvmLog
+	logSize uint
 }
 
-func NewEvmLogs() *evmLogs {
+func newEvmLogs() *evmLogs {
 	return &evmLogs{
 		logs: make(map[types.Hash][]*types.EvmLog),
 	}
-}
-
-func (s *evmLogs) SetBHash(hash *types.Hash) {
-	s.bhash = hash
-}
-
-func (s *evmLogs) SetTHash(hash *types.Hash) {
-	s.thash = hash
-}
-
-func (s *evmLogs) SetIndex(i int) {
-	s.txIndex = i
 }
 
 type EvmReceipts []*types.Receipt

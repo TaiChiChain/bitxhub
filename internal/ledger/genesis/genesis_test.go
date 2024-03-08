@@ -39,7 +39,7 @@ func TestInitialize(t *testing.T) {
 		}
 		return account
 	}).AnyTimes()
-	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().Finalise().AnyTimes()
 	stateLedger.EXPECT().Commit().AnyTimes()

@@ -10,12 +10,10 @@ import (
 
 const (
 	BlockHashKey       = "block-hash-"
-	BlockHeightKey     = "block-height-"
 	BlockTxSetKey      = "block-tx-set-"
-	InterChainMetaKey  = "interchain-meta-"
 	TransactionMetaKey = "tx-meta-"
 	ChainMetaKey       = "chain-meta"
-	TrieBlockKey       = "trie-block-"
+	TrieBlockHeaderKey = "trie-block-"
 	TrieNodeInfoKey    = "trie-nodeInfo-"
 	SnapshotKey        = "snap-"
 )

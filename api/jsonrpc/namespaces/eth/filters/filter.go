@@ -79,14 +79,14 @@ func newFilter(api api.CoreAPI, addresses []types.Address, topics [][]types.Hash
 func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 	// If we're doing singleton block filtering, execute and return
 	if f.block != nil {
-		block, err := f.api.Broker().GetBlockWithoutTx("HASH", f.block.String())
+		blockHeader, err := f.api.Broker().GetBlockHeader("HASH", f.block.String())
 		if err != nil {
 			return nil, err
 		}
-		if block == nil {
+		if blockHeader == nil {
 			return nil, errors.New("unknown block")
 		}
-		return f.blockLogs(ctx, block.BlockHeader)
+		return f.blockLogs(ctx, blockHeader)
 	}
 	// Figure out the limits of the filter range
 	meta, err := f.api.Chain().Meta()
@@ -115,12 +115,12 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.EvmLog, error) {
 	var logs []*types.EvmLog
 	for ; f.begin <= int64(end); f.begin++ {
-		block, err := f.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", f.begin))
-		if block == nil || err != nil {
+		blockHeader, err := f.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", f.begin))
+		if blockHeader == nil || err != nil {
 			return logs, err
 		}
 
-		found, err := f.blockLogs(ctx, block.BlockHeader)
+		found, err := f.blockLogs(ctx, blockHeader)
 		if err != nil {
 			return logs, err
 		}

@@ -67,14 +67,14 @@ func (api *TransactionAPI) GetBlockTransactionCountByHash(hash common.Hash) *hex
 
 	api.logger.Debugf("eth_getBlockTransactionCountByHash, hash: %s", hash.String())
 
-	block, err := api.api.Broker().GetBlockWithoutTx("HASH", hash.String())
+	block, err := api.api.Broker().GetBlockHeader("HASH", hash.String())
 	if err != nil {
 		api.logger.Debugf("eth api GetBlockTransactionCountByHash err:%s", err)
 		queryFailedCounter.Inc()
 		return nil
 	}
 
-	blockTxHashList, err := api.api.Broker().GetBlockTxHashList(block.Height())
+	blockTxHashList, err := api.api.Broker().GetBlockTxHashList(block.Number)
 	if err != nil {
 		queryFailedCounter.Inc()
 		api.logger.Debugf("eth api GetBlockTransactionCountByNumber err:%s", err)
@@ -333,12 +333,12 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 }
 
 func getTxByBlockInfoAndIndex(api api.CoreAPI, mode string, key string, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
-	block, err := api.Broker().GetBlockWithoutTx(mode, key)
+	block, err := api.Broker().GetBlockHeader(mode, key)
 	if err != nil {
 		return nil, err
 	}
 
-	blockTxHashList, err := api.Broker().GetBlockTxHashList(block.Height())
+	blockTxHashList, err := api.Broker().GetBlockTxHashList(block.Number)
 	if err != nil {
 		return nil, err
 	}

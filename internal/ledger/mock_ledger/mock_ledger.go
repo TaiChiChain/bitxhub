@@ -44,11 +44,6 @@ func (m *MockChainLedger) EXPECT() *MockChainLedgerMockRecorder {
 	return m.recorder
 }
 
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockChainLedger) ISGOMOCK() struct{} {
-	return struct{}{}
-}
-
 // BatchPersistExecutionResult mocks base method.
 func (m *MockChainLedger) BatchPersistExecutionResult(batchBlock []*types.Block, BatchReceipts [][]*types.Receipt) error {
 	m.ctrl.T.Helper()
@@ -123,42 +118,6 @@ func (c *MockChainLedgerCloseCall) DoAndReturn(f func()) *MockChainLedgerCloseCa
 	return c
 }
 
-// CloseBlockfile mocks base method.
-func (m *MockChainLedger) CloseBlockfile() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CloseBlockfile")
-}
-
-// CloseBlockfile indicates an expected call of CloseBlockfile.
-func (mr *MockChainLedgerMockRecorder) CloseBlockfile() *MockChainLedgerCloseBlockfileCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseBlockfile", reflect.TypeOf((*MockChainLedger)(nil).CloseBlockfile))
-	return &MockChainLedgerCloseBlockfileCall{Call: call}
-}
-
-// MockChainLedgerCloseBlockfileCall wrap *gomock.Call
-type MockChainLedgerCloseBlockfileCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerCloseBlockfileCall) Return() *MockChainLedgerCloseBlockfileCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerCloseBlockfileCall) Do(f func()) *MockChainLedgerCloseBlockfileCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerCloseBlockfileCall) DoAndReturn(f func()) *MockChainLedgerCloseBlockfileCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetBlock mocks base method.
 func (m *MockChainLedger) GetBlock(height uint64) (*types.Block, error) {
 	m.ctrl.T.Helper()
@@ -198,235 +157,236 @@ func (c *MockChainLedgerGetBlockCall) DoAndReturn(f func(uint64) (*types.Block, 
 	return c
 }
 
-// GetBlockByHash mocks base method.
-func (m *MockChainLedger) GetBlockByHash(hash *types.Hash) (*types.Block, error) {
+// GetBlockExtra mocks base method.
+func (m *MockChainLedger) GetBlockExtra(height uint64) (*types.BlockExtra, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockByHash", hash)
-	ret0, _ := ret[0].(*types.Block)
+	ret := m.ctrl.Call(m, "GetBlockExtra", height)
+	ret0, _ := ret[0].(*types.BlockExtra)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlockByHash indicates an expected call of GetBlockByHash.
-func (mr *MockChainLedgerMockRecorder) GetBlockByHash(hash any) *MockChainLedgerGetBlockByHashCall {
+// GetBlockExtra indicates an expected call of GetBlockExtra.
+func (mr *MockChainLedgerMockRecorder) GetBlockExtra(height any) *MockChainLedgerGetBlockExtraCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockByHash", reflect.TypeOf((*MockChainLedger)(nil).GetBlockByHash), hash)
-	return &MockChainLedgerGetBlockByHashCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockExtra", reflect.TypeOf((*MockChainLedger)(nil).GetBlockExtra), height)
+	return &MockChainLedgerGetBlockExtraCall{Call: call}
 }
 
-// MockChainLedgerGetBlockByHashCall wrap *gomock.Call
-type MockChainLedgerGetBlockByHashCall struct {
+// MockChainLedgerGetBlockExtraCall wrap *gomock.Call
+type MockChainLedgerGetBlockExtraCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetBlockByHashCall) Return(arg0 *types.Block, arg1 error) *MockChainLedgerGetBlockByHashCall {
+func (c *MockChainLedgerGetBlockExtraCall) Return(arg0 *types.BlockExtra, arg1 error) *MockChainLedgerGetBlockExtraCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetBlockByHashCall) Do(f func(*types.Hash) (*types.Block, error)) *MockChainLedgerGetBlockByHashCall {
+func (c *MockChainLedgerGetBlockExtraCall) Do(f func(uint64) (*types.BlockExtra, error)) *MockChainLedgerGetBlockExtraCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetBlockByHashCall) DoAndReturn(f func(*types.Hash) (*types.Block, error)) *MockChainLedgerGetBlockByHashCall {
+func (c *MockChainLedgerGetBlockExtraCall) DoAndReturn(f func(uint64) (*types.BlockExtra, error)) *MockChainLedgerGetBlockExtraCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetBlockHash mocks base method.
-func (m *MockChainLedger) GetBlockHash(height uint64) *types.Hash {
+// GetBlockHeader mocks base method.
+func (m *MockChainLedger) GetBlockHeader(height uint64) (*types.BlockHeader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockHash", height)
-	ret0, _ := ret[0].(*types.Hash)
-	return ret0
+	ret := m.ctrl.Call(m, "GetBlockHeader", height)
+	ret0, _ := ret[0].(*types.BlockHeader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// GetBlockHash indicates an expected call of GetBlockHash.
-func (mr *MockChainLedgerMockRecorder) GetBlockHash(height any) *MockChainLedgerGetBlockHashCall {
+// GetBlockHeader indicates an expected call of GetBlockHeader.
+func (mr *MockChainLedgerMockRecorder) GetBlockHeader(height any) *MockChainLedgerGetBlockHeaderCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHash", reflect.TypeOf((*MockChainLedger)(nil).GetBlockHash), height)
-	return &MockChainLedgerGetBlockHashCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeader", reflect.TypeOf((*MockChainLedger)(nil).GetBlockHeader), height)
+	return &MockChainLedgerGetBlockHeaderCall{Call: call}
 }
 
-// MockChainLedgerGetBlockHashCall wrap *gomock.Call
-type MockChainLedgerGetBlockHashCall struct {
+// MockChainLedgerGetBlockHeaderCall wrap *gomock.Call
+type MockChainLedgerGetBlockHeaderCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetBlockHashCall) Return(arg0 *types.Hash) *MockChainLedgerGetBlockHashCall {
-	c.Call = c.Call.Return(arg0)
+func (c *MockChainLedgerGetBlockHeaderCall) Return(arg0 *types.BlockHeader, arg1 error) *MockChainLedgerGetBlockHeaderCall {
+	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetBlockHashCall) Do(f func(uint64) *types.Hash) *MockChainLedgerGetBlockHashCall {
+func (c *MockChainLedgerGetBlockHeaderCall) Do(f func(uint64) (*types.BlockHeader, error)) *MockChainLedgerGetBlockHeaderCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetBlockHashCall) DoAndReturn(f func(uint64) *types.Hash) *MockChainLedgerGetBlockHashCall {
+func (c *MockChainLedgerGetBlockHeaderCall) DoAndReturn(f func(uint64) (*types.BlockHeader, error)) *MockChainLedgerGetBlockHeaderCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetBlockTxHashListByNumber mocks base method.
-func (m *MockChainLedger) GetBlockTxHashListByNumber(height uint64) ([]*types.Hash, error) {
+// GetBlockNumberByHash mocks base method.
+func (m *MockChainLedger) GetBlockNumberByHash(hash *types.Hash) (uint64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockTxHashListByNumber", height)
+	ret := m.ctrl.Call(m, "GetBlockNumberByHash", hash)
+	ret0, _ := ret[0].(uint64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBlockNumberByHash indicates an expected call of GetBlockNumberByHash.
+func (mr *MockChainLedgerMockRecorder) GetBlockNumberByHash(hash any) *MockChainLedgerGetBlockNumberByHashCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockNumberByHash", reflect.TypeOf((*MockChainLedger)(nil).GetBlockNumberByHash), hash)
+	return &MockChainLedgerGetBlockNumberByHashCall{Call: call}
+}
+
+// MockChainLedgerGetBlockNumberByHashCall wrap *gomock.Call
+type MockChainLedgerGetBlockNumberByHashCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockChainLedgerGetBlockNumberByHashCall) Return(arg0 uint64, arg1 error) *MockChainLedgerGetBlockNumberByHashCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockChainLedgerGetBlockNumberByHashCall) Do(f func(*types.Hash) (uint64, error)) *MockChainLedgerGetBlockNumberByHashCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockChainLedgerGetBlockNumberByHashCall) DoAndReturn(f func(*types.Hash) (uint64, error)) *MockChainLedgerGetBlockNumberByHashCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetBlockReceipts mocks base method.
+func (m *MockChainLedger) GetBlockReceipts(height uint64) ([]*types.Receipt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockReceipts", height)
+	ret0, _ := ret[0].([]*types.Receipt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBlockReceipts indicates an expected call of GetBlockReceipts.
+func (mr *MockChainLedgerMockRecorder) GetBlockReceipts(height any) *MockChainLedgerGetBlockReceiptsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockReceipts", reflect.TypeOf((*MockChainLedger)(nil).GetBlockReceipts), height)
+	return &MockChainLedgerGetBlockReceiptsCall{Call: call}
+}
+
+// MockChainLedgerGetBlockReceiptsCall wrap *gomock.Call
+type MockChainLedgerGetBlockReceiptsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockChainLedgerGetBlockReceiptsCall) Return(arg0 []*types.Receipt, arg1 error) *MockChainLedgerGetBlockReceiptsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockChainLedgerGetBlockReceiptsCall) Do(f func(uint64) ([]*types.Receipt, error)) *MockChainLedgerGetBlockReceiptsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockChainLedgerGetBlockReceiptsCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *MockChainLedgerGetBlockReceiptsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetBlockTxHashList mocks base method.
+func (m *MockChainLedger) GetBlockTxHashList(height uint64) ([]*types.Hash, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockTxHashList", height)
 	ret0, _ := ret[0].([]*types.Hash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlockTxHashListByNumber indicates an expected call of GetBlockTxHashListByNumber.
-func (mr *MockChainLedgerMockRecorder) GetBlockTxHashListByNumber(height any) *MockChainLedgerGetBlockTxHashListByNumberCall {
+// GetBlockTxHashList indicates an expected call of GetBlockTxHashList.
+func (mr *MockChainLedgerMockRecorder) GetBlockTxHashList(height any) *MockChainLedgerGetBlockTxHashListCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxHashListByNumber", reflect.TypeOf((*MockChainLedger)(nil).GetBlockTxHashListByNumber), height)
-	return &MockChainLedgerGetBlockTxHashListByNumberCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxHashList", reflect.TypeOf((*MockChainLedger)(nil).GetBlockTxHashList), height)
+	return &MockChainLedgerGetBlockTxHashListCall{Call: call}
 }
 
-// MockChainLedgerGetBlockTxHashListByNumberCall wrap *gomock.Call
-type MockChainLedgerGetBlockTxHashListByNumberCall struct {
+// MockChainLedgerGetBlockTxHashListCall wrap *gomock.Call
+type MockChainLedgerGetBlockTxHashListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetBlockTxHashListByNumberCall) Return(arg0 []*types.Hash, arg1 error) *MockChainLedgerGetBlockTxHashListByNumberCall {
+func (c *MockChainLedgerGetBlockTxHashListCall) Return(arg0 []*types.Hash, arg1 error) *MockChainLedgerGetBlockTxHashListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetBlockTxHashListByNumberCall) Do(f func(uint64) ([]*types.Hash, error)) *MockChainLedgerGetBlockTxHashListByNumberCall {
+func (c *MockChainLedgerGetBlockTxHashListCall) Do(f func(uint64) ([]*types.Hash, error)) *MockChainLedgerGetBlockTxHashListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetBlockTxHashListByNumberCall) DoAndReturn(f func(uint64) ([]*types.Hash, error)) *MockChainLedgerGetBlockTxHashListByNumberCall {
+func (c *MockChainLedgerGetBlockTxHashListCall) DoAndReturn(f func(uint64) ([]*types.Hash, error)) *MockChainLedgerGetBlockTxHashListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetBlockTxListByNumber mocks base method.
-func (m *MockChainLedger) GetBlockTxListByNumber(height uint64) ([]*types.Transaction, error) {
+// GetBlockTxList mocks base method.
+func (m *MockChainLedger) GetBlockTxList(height uint64) ([]*types.Transaction, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockTxListByNumber", height)
+	ret := m.ctrl.Call(m, "GetBlockTxList", height)
 	ret0, _ := ret[0].([]*types.Transaction)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlockTxListByNumber indicates an expected call of GetBlockTxListByNumber.
-func (mr *MockChainLedgerMockRecorder) GetBlockTxListByNumber(height any) *MockChainLedgerGetBlockTxListByNumberCall {
+// GetBlockTxList indicates an expected call of GetBlockTxList.
+func (mr *MockChainLedgerMockRecorder) GetBlockTxList(height any) *MockChainLedgerGetBlockTxListCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxListByNumber", reflect.TypeOf((*MockChainLedger)(nil).GetBlockTxListByNumber), height)
-	return &MockChainLedgerGetBlockTxListByNumberCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxList", reflect.TypeOf((*MockChainLedger)(nil).GetBlockTxList), height)
+	return &MockChainLedgerGetBlockTxListCall{Call: call}
 }
 
-// MockChainLedgerGetBlockTxListByNumberCall wrap *gomock.Call
-type MockChainLedgerGetBlockTxListByNumberCall struct {
+// MockChainLedgerGetBlockTxListCall wrap *gomock.Call
+type MockChainLedgerGetBlockTxListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetBlockTxListByNumberCall) Return(arg0 []*types.Transaction, arg1 error) *MockChainLedgerGetBlockTxListByNumberCall {
+func (c *MockChainLedgerGetBlockTxListCall) Return(arg0 []*types.Transaction, arg1 error) *MockChainLedgerGetBlockTxListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetBlockTxListByNumberCall) Do(f func(uint64) ([]*types.Transaction, error)) *MockChainLedgerGetBlockTxListByNumberCall {
+func (c *MockChainLedgerGetBlockTxListCall) Do(f func(uint64) ([]*types.Transaction, error)) *MockChainLedgerGetBlockTxListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetBlockTxListByNumberCall) DoAndReturn(f func(uint64) ([]*types.Transaction, error)) *MockChainLedgerGetBlockTxListByNumberCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetBlockWithOutTxByHash mocks base method.
-func (m *MockChainLedger) GetBlockWithOutTxByHash(hash *types.Hash) (*types.Block, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockWithOutTxByHash", hash)
-	ret0, _ := ret[0].(*types.Block)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBlockWithOutTxByHash indicates an expected call of GetBlockWithOutTxByHash.
-func (mr *MockChainLedgerMockRecorder) GetBlockWithOutTxByHash(hash any) *MockChainLedgerGetBlockWithOutTxByHashCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockWithOutTxByHash", reflect.TypeOf((*MockChainLedger)(nil).GetBlockWithOutTxByHash), hash)
-	return &MockChainLedgerGetBlockWithOutTxByHashCall{Call: call}
-}
-
-// MockChainLedgerGetBlockWithOutTxByHashCall wrap *gomock.Call
-type MockChainLedgerGetBlockWithOutTxByHashCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetBlockWithOutTxByHashCall) Return(arg0 *types.Block, arg1 error) *MockChainLedgerGetBlockWithOutTxByHashCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetBlockWithOutTxByHashCall) Do(f func(*types.Hash) (*types.Block, error)) *MockChainLedgerGetBlockWithOutTxByHashCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetBlockWithOutTxByHashCall) DoAndReturn(f func(*types.Hash) (*types.Block, error)) *MockChainLedgerGetBlockWithOutTxByHashCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetBlockWithOutTxByNumber mocks base method.
-func (m *MockChainLedger) GetBlockWithOutTxByNumber(height uint64) (*types.Block, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockWithOutTxByNumber", height)
-	ret0, _ := ret[0].(*types.Block)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBlockWithOutTxByNumber indicates an expected call of GetBlockWithOutTxByNumber.
-func (mr *MockChainLedgerMockRecorder) GetBlockWithOutTxByNumber(height any) *MockChainLedgerGetBlockWithOutTxByNumberCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockWithOutTxByNumber", reflect.TypeOf((*MockChainLedger)(nil).GetBlockWithOutTxByNumber), height)
-	return &MockChainLedgerGetBlockWithOutTxByNumberCall{Call: call}
-}
-
-// MockChainLedgerGetBlockWithOutTxByNumberCall wrap *gomock.Call
-type MockChainLedgerGetBlockWithOutTxByNumberCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetBlockWithOutTxByNumberCall) Return(arg0 *types.Block, arg1 error) *MockChainLedgerGetBlockWithOutTxByNumberCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetBlockWithOutTxByNumberCall) Do(f func(uint64) (*types.Block, error)) *MockChainLedgerGetBlockWithOutTxByNumberCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetBlockWithOutTxByNumberCall) DoAndReturn(f func(uint64) (*types.Block, error)) *MockChainLedgerGetBlockWithOutTxByNumberCall {
+func (c *MockChainLedgerGetBlockTxListCall) DoAndReturn(f func(uint64) ([]*types.Transaction, error)) *MockChainLedgerGetBlockTxListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -504,45 +464,6 @@ func (c *MockChainLedgerGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, 
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockChainLedgerGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *MockChainLedgerGetReceiptCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetReceiptsByHeight mocks base method.
-func (m *MockChainLedger) GetReceiptsByHeight(height uint64) ([]*types.Receipt, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReceiptsByHeight", height)
-	ret0, _ := ret[0].([]*types.Receipt)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetReceiptsByHeight indicates an expected call of GetReceiptsByHeight.
-func (mr *MockChainLedgerMockRecorder) GetReceiptsByHeight(height any) *MockChainLedgerGetReceiptsByHeightCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReceiptsByHeight", reflect.TypeOf((*MockChainLedger)(nil).GetReceiptsByHeight), height)
-	return &MockChainLedgerGetReceiptsByHeightCall{Call: call}
-}
-
-// MockChainLedgerGetReceiptsByHeightCall wrap *gomock.Call
-type MockChainLedgerGetReceiptsByHeightCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockChainLedgerGetReceiptsByHeightCall) Return(arg0 []*types.Receipt, arg1 error) *MockChainLedgerGetReceiptsByHeightCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockChainLedgerGetReceiptsByHeightCall) Do(f func(uint64) ([]*types.Receipt, error)) *MockChainLedgerGetReceiptsByHeightCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockChainLedgerGetReceiptsByHeightCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *MockChainLedgerGetReceiptsByHeightCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -836,11 +757,6 @@ func NewMockStateLedger(ctrl *gomock.Controller) *MockStateLedger {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStateLedger) EXPECT() *MockStateLedgerMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockStateLedger) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddAddressToAccessList mocks base method.
@@ -1357,15 +1273,15 @@ func (c *MockStateLedgerFinaliseCall) DoAndReturn(f func()) *MockStateLedgerFina
 }
 
 // GenerateSnapshot mocks base method.
-func (m *MockStateLedger) GenerateSnapshot(block *types.Block, errC chan error) {
+func (m *MockStateLedger) GenerateSnapshot(blockHeader *types.BlockHeader, errC chan error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "GenerateSnapshot", block, errC)
+	m.ctrl.Call(m, "GenerateSnapshot", blockHeader, errC)
 }
 
 // GenerateSnapshot indicates an expected call of GenerateSnapshot.
-func (mr *MockStateLedgerMockRecorder) GenerateSnapshot(block, errC any) *MockStateLedgerGenerateSnapshotCall {
+func (mr *MockStateLedgerMockRecorder) GenerateSnapshot(blockHeader, errC any) *MockStateLedgerGenerateSnapshotCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSnapshot", reflect.TypeOf((*MockStateLedger)(nil).GenerateSnapshot), block, errC)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSnapshot", reflect.TypeOf((*MockStateLedger)(nil).GenerateSnapshot), blockHeader, errC)
 	return &MockStateLedgerGenerateSnapshotCall{Call: call}
 }
 
@@ -1381,13 +1297,13 @@ func (c *MockStateLedgerGenerateSnapshotCall) Return() *MockStateLedgerGenerateS
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerGenerateSnapshotCall) Do(f func(*types.Block, chan error)) *MockStateLedgerGenerateSnapshotCall {
+func (c *MockStateLedgerGenerateSnapshotCall) Do(f func(*types.BlockHeader, chan error)) *MockStateLedgerGenerateSnapshotCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerGenerateSnapshotCall) DoAndReturn(f func(*types.Block, chan error)) *MockStateLedgerGenerateSnapshotCall {
+func (c *MockStateLedgerGenerateSnapshotCall) DoAndReturn(f func(*types.BlockHeader, chan error)) *MockStateLedgerGenerateSnapshotCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1621,17 +1537,17 @@ func (c *MockStateLedgerGetCommittedStateCall) DoAndReturn(f func(*types.Address
 }
 
 // GetLogs mocks base method.
-func (m *MockStateLedger) GetLogs(arg0 types.Hash, arg1 uint64, arg2 *types.Hash) []*types.EvmLog {
+func (m *MockStateLedger) GetLogs(txHash types.Hash, height uint64) []*types.EvmLog {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLogs", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetLogs", txHash, height)
 	ret0, _ := ret[0].([]*types.EvmLog)
 	return ret0
 }
 
 // GetLogs indicates an expected call of GetLogs.
-func (mr *MockStateLedgerMockRecorder) GetLogs(arg0, arg1, arg2 any) *MockStateLedgerGetLogsCall {
+func (mr *MockStateLedgerMockRecorder) GetLogs(txHash, height any) *MockStateLedgerGetLogsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogs", reflect.TypeOf((*MockStateLedger)(nil).GetLogs), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogs", reflect.TypeOf((*MockStateLedger)(nil).GetLogs), txHash, height)
 	return &MockStateLedgerGetLogsCall{Call: call}
 }
 
@@ -1647,13 +1563,13 @@ func (c *MockStateLedgerGetLogsCall) Return(arg0 []*types.EvmLog) *MockStateLedg
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerGetLogsCall) Do(f func(types.Hash, uint64, *types.Hash) []*types.EvmLog) *MockStateLedgerGetLogsCall {
+func (c *MockStateLedgerGetLogsCall) Do(f func(types.Hash, uint64) []*types.EvmLog) *MockStateLedgerGetLogsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerGetLogsCall) DoAndReturn(f func(types.Hash, uint64, *types.Hash) []*types.EvmLog) *MockStateLedgerGetLogsCall {
+func (c *MockStateLedgerGetLogsCall) DoAndReturn(f func(types.Hash, uint64) []*types.EvmLog) *MockStateLedgerGetLogsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1889,15 +1805,15 @@ func (c *MockStateLedgerHasSuicideCall) DoAndReturn(f func(*types.Address) bool)
 }
 
 // IterateTrie mocks base method.
-func (m *MockStateLedger) IterateTrie(block *types.Block, kv storage.Storage, errC chan error) {
+func (m *MockStateLedger) IterateTrie(blockHeader *types.BlockHeader, kv storage.Storage, errC chan error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "IterateTrie", block, kv, errC)
+	m.ctrl.Call(m, "IterateTrie", blockHeader, kv, errC)
 }
 
 // IterateTrie indicates an expected call of IterateTrie.
-func (mr *MockStateLedgerMockRecorder) IterateTrie(block, kv, errC any) *MockStateLedgerIterateTrieCall {
+func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, kv, errC any) *MockStateLedgerIterateTrieCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), block, kv, errC)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), blockHeader, kv, errC)
 	return &MockStateLedgerIterateTrieCall{Call: call}
 }
 
@@ -1913,29 +1829,29 @@ func (c *MockStateLedgerIterateTrieCall) Return() *MockStateLedgerIterateTrieCal
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.Block, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.Block, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // NewView mocks base method.
-func (m *MockStateLedger) NewView(block *types.Block, enableSnapshot bool) ledger.StateLedger {
+func (m *MockStateLedger) NewView(blockHeader *types.BlockHeader, enableSnapshot bool) ledger.StateLedger {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewView", block, enableSnapshot)
+	ret := m.ctrl.Call(m, "NewView", blockHeader, enableSnapshot)
 	ret0, _ := ret[0].(ledger.StateLedger)
 	return ret0
 }
 
 // NewView indicates an expected call of NewView.
-func (mr *MockStateLedgerMockRecorder) NewView(block, enableSnapshot any) *MockStateLedgerNewViewCall {
+func (mr *MockStateLedgerMockRecorder) NewView(blockHeader, enableSnapshot any) *MockStateLedgerNewViewCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewView", reflect.TypeOf((*MockStateLedger)(nil).NewView), block, enableSnapshot)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewView", reflect.TypeOf((*MockStateLedger)(nil).NewView), blockHeader, enableSnapshot)
 	return &MockStateLedgerNewViewCall{Call: call}
 }
 
@@ -1951,13 +1867,13 @@ func (c *MockStateLedgerNewViewCall) Return(arg0 ledger.StateLedger) *MockStateL
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerNewViewCall) Do(f func(*types.Block, bool) ledger.StateLedger) *MockStateLedgerNewViewCall {
+func (c *MockStateLedgerNewViewCall) Do(f func(*types.BlockHeader, bool) ledger.StateLedger) *MockStateLedgerNewViewCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerNewViewCall) DoAndReturn(f func(*types.Block, bool) ledger.StateLedger) *MockStateLedgerNewViewCall {
+func (c *MockStateLedgerNewViewCall) DoAndReturn(f func(*types.BlockHeader, bool) ledger.StateLedger) *MockStateLedgerNewViewCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2001,15 +1917,15 @@ func (c *MockStateLedgerNewViewWithoutCacheCall) DoAndReturn(f func(*types.Block
 }
 
 // PrepareBlock mocks base method.
-func (m *MockStateLedger) PrepareBlock(arg0, arg1 *types.Hash, arg2 uint64) {
+func (m *MockStateLedger) PrepareBlock(lastStateRoot *types.Hash, currentExecutingHeight uint64) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "PrepareBlock", arg0, arg1, arg2)
+	m.ctrl.Call(m, "PrepareBlock", lastStateRoot, currentExecutingHeight)
 }
 
 // PrepareBlock indicates an expected call of PrepareBlock.
-func (mr *MockStateLedgerMockRecorder) PrepareBlock(arg0, arg1, arg2 any) *MockStateLedgerPrepareBlockCall {
+func (mr *MockStateLedgerMockRecorder) PrepareBlock(lastStateRoot, currentExecutingHeight any) *MockStateLedgerPrepareBlockCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBlock", reflect.TypeOf((*MockStateLedger)(nil).PrepareBlock), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBlock", reflect.TypeOf((*MockStateLedger)(nil).PrepareBlock), lastStateRoot, currentExecutingHeight)
 	return &MockStateLedgerPrepareBlockCall{Call: call}
 }
 
@@ -2025,13 +1941,13 @@ func (c *MockStateLedgerPrepareBlockCall) Return() *MockStateLedgerPrepareBlockC
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerPrepareBlockCall) Do(f func(*types.Hash, *types.Hash, uint64)) *MockStateLedgerPrepareBlockCall {
+func (c *MockStateLedgerPrepareBlockCall) Do(f func(*types.Hash, uint64)) *MockStateLedgerPrepareBlockCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerPrepareBlockCall) DoAndReturn(f func(*types.Hash, *types.Hash, uint64)) *MockStateLedgerPrepareBlockCall {
+func (c *MockStateLedgerPrepareBlockCall) DoAndReturn(f func(*types.Hash, uint64)) *MockStateLedgerPrepareBlockCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2517,18 +2433,18 @@ func (c *MockStateLedgerSuicideCall) DoAndReturn(f func(*types.Address) bool) *M
 }
 
 // VerifyTrie mocks base method.
-func (m *MockStateLedger) VerifyTrie(block *types.Block) (bool, error) {
+func (m *MockStateLedger) VerifyTrie(blockHeader *types.BlockHeader) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "VerifyTrie", block)
+	ret := m.ctrl.Call(m, "VerifyTrie", blockHeader)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // VerifyTrie indicates an expected call of VerifyTrie.
-func (mr *MockStateLedgerMockRecorder) VerifyTrie(block any) *MockStateLedgerVerifyTrieCall {
+func (mr *MockStateLedgerMockRecorder) VerifyTrie(blockHeader any) *MockStateLedgerVerifyTrieCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyTrie", reflect.TypeOf((*MockStateLedger)(nil).VerifyTrie), block)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyTrie", reflect.TypeOf((*MockStateLedger)(nil).VerifyTrie), blockHeader)
 	return &MockStateLedgerVerifyTrieCall{Call: call}
 }
 
@@ -2544,13 +2460,13 @@ func (c *MockStateLedgerVerifyTrieCall) Return(arg0 bool, arg1 error) *MockState
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerVerifyTrieCall) Do(f func(*types.Block) (bool, error)) *MockStateLedgerVerifyTrieCall {
+func (c *MockStateLedgerVerifyTrieCall) Do(f func(*types.BlockHeader) (bool, error)) *MockStateLedgerVerifyTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerVerifyTrieCall) DoAndReturn(f func(*types.Block) (bool, error)) *MockStateLedgerVerifyTrieCall {
+func (c *MockStateLedgerVerifyTrieCall) DoAndReturn(f func(*types.BlockHeader) (bool, error)) *MockStateLedgerVerifyTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2614,11 +2530,6 @@ func NewMockStateAccessor(ctrl *gomock.Controller) *MockStateAccessor {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStateAccessor) EXPECT() *MockStateAccessorMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockStateAccessor) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddAddressToAccessList mocks base method.
@@ -3833,11 +3744,6 @@ func NewMockIAccount(ctrl *gomock.Controller) *MockIAccount {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIAccount) EXPECT() *MockIAccountMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockIAccount) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddBalance mocks base method.

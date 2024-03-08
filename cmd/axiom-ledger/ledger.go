@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -36,9 +37,14 @@ var ledgerGetBlockArgs = struct {
 	Full   bool
 }{}
 
+var ledgerGetTxArgs = struct {
+	Hash string
+}{}
+
 var ledgerSimpleRollbackArgs = struct {
 	TargetBlockNumber uint64
 	Force             bool
+	DisableBackup     bool
 }{}
 
 var ledgerSimpleSyncArgs = struct {
@@ -90,6 +96,19 @@ var ledgerCMD = &cli.Command{
 			},
 		},
 		{
+			Name:   "tx",
+			Usage:  "Get tx info by hash",
+			Action: getTx,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "hash",
+					Usage:       "tx hash",
+					Destination: &ledgerGetTxArgs.Hash,
+					Required:    true,
+				},
+			},
+		},
+		{
 			Name:   "chain-meta",
 			Usage:  "Get latest chain meta info",
 			Action: getLatestChainMeta,
@@ -111,6 +130,13 @@ var ledgerCMD = &cli.Command{
 					Aliases:     []string{"f"},
 					Usage:       "disable interactive confirmation and remove existing rollback storage directory of the same height",
 					Destination: &ledgerSimpleRollbackArgs.Force,
+					Required:    false,
+				},
+				&cli.BoolFlag{
+					Name:        "disable-backup",
+					Aliases:     []string{"db"},
+					Usage:       "disable backup original ledger folder",
+					Destination: &ledgerSimpleRollbackArgs.DisableBackup,
 					Required:    false,
 				},
 			},
@@ -202,7 +228,7 @@ func importAccounts(ctx *cli.Context) error {
 	}
 
 	if !fileutil.Exist(ledgerImportAccountsArgs.TargetFilePath) {
-		return fmt.Errorf("target account file not exist")
+		return errors.New("target account file not exist")
 	}
 
 	rep, err := repo.Load(configGenerateArgs.Auth, p, true)
@@ -220,7 +246,7 @@ func importAccounts(ctx *cli.Context) error {
 	}
 	// init genesis config
 	if rwLdg.ChainLedger.GetChainMeta().Height < 1 {
-		return fmt.Errorf("genesis block is needed before importing accounts from file")
+		return errors.New("genesis block is needed before importing accounts from file")
 	}
 
 	return importAccountsFromFile(rep, rwLdg, ledgerImportAccountsArgs.TargetFilePath, ledgerImportAccountsArgs.Balance)
@@ -229,11 +255,11 @@ func importAccounts(ctx *cli.Context) error {
 func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balance string) error {
 	g := r.GenesisConfig
 	currentHeight := lg.ChainLedger.GetChainMeta().Height
-	parentBlock, err := lg.ChainLedger.GetBlock(currentHeight)
+	parentBlockHeader, err := lg.ChainLedger.GetBlockHeader(currentHeight)
 	if err != nil {
 		return err
 	}
-	lg.StateLedger.PrepareBlock(parentBlock.BlockHeader.StateRoot, nil, currentHeight+1)
+	lg.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, currentHeight+1)
 	if _, err := os.Stat(filePath); err == nil {
 		file, err := os.Open(filePath)
 		if err != nil {
@@ -269,12 +295,12 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 	}
 
 	block := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:          currentHeight + 1,
 			StateRoot:       stateRoot,
 			TxRoot:          &types.Hash{},
 			ReceiptRoot:     &types.Hash{},
-			ParentHash:      parentBlock.BlockHash,
+			ParentHash:      parentBlockHeader.Hash(),
 			Timestamp:       g.Timestamp,
 			GasPrice:        int64(g.EpochInfo.FinanceParams.StartGasPrice),
 			Epoch:           g.EpochInfo.Epoch,
@@ -283,7 +309,6 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 		},
 		Transactions: []*types.Transaction{},
 	}
-	block.BlockHash = block.Hash()
 	blockData := &ledger.BlockData{
 		Block: block,
 	}
@@ -303,50 +328,105 @@ func getBlock(ctx *cli.Context) error {
 		return fmt.Errorf("init chain ledger failed: %w", err)
 	}
 
-	var block *types.Block
-
+	var blockHeader *types.BlockHeader
 	if ctx.IsSet("number") {
-		block, err = chainLedger.GetBlock(ledgerGetBlockArgs.Number)
+		blockHeader, err = chainLedger.GetBlockHeader(ledgerGetBlockArgs.Number)
 		if err != nil {
 			return err
 		}
 	} else {
+		var blockNumber uint64
 		if ctx.IsSet("hash") {
-			block, err = chainLedger.GetBlockByHash(types.NewHashByStr(ledgerGetBlockArgs.Hash))
+			blockNumber, err = chainLedger.GetBlockNumberByHash(types.NewHashByStr(ledgerGetBlockArgs.Hash))
 			if err != nil {
 				return err
 			}
 		} else {
-			block, err = chainLedger.GetBlock(chainLedger.GetChainMeta().Height)
-			if err != nil {
-				return err
-			}
+			blockNumber = chainLedger.GetChainMeta().Height
+		}
+		blockHeader, err = chainLedger.GetBlockHeader(blockNumber)
+		if err != nil {
+			return err
 		}
 	}
 
-	bloom, _ := block.BlockHeader.Bloom.ETHBloom().MarshalText()
+	bloom, _ := blockHeader.Bloom.ETHBloom().MarshalText()
 	blockInfo := map[string]any{
-		"number":           block.BlockHeader.Number,
-		"hash":             block.Hash().String(),
-		"state_root":       block.BlockHeader.StateRoot.String(),
-		"tx_root":          block.BlockHeader.TxRoot.String(),
-		"receipt_root":     block.BlockHeader.ReceiptRoot.String(),
-		"parent_hash":      block.BlockHeader.ParentHash.String(),
-		"timestamp":        block.BlockHeader.Timestamp,
-		"epoch":            block.BlockHeader.Epoch,
+		"number":           blockHeader.Number,
+		"hash":             blockHeader.Hash().String(),
+		"state_root":       blockHeader.StateRoot.String(),
+		"tx_root":          blockHeader.TxRoot.String(),
+		"receipt_root":     blockHeader.ReceiptRoot.String(),
+		"parent_hash":      blockHeader.ParentHash.String(),
+		"timestamp":        blockHeader.Timestamp,
+		"epoch":            blockHeader.Epoch,
 		"bloom":            string(bloom),
-		"gas_price":        block.BlockHeader.GasPrice,
-		"proposer_account": block.BlockHeader.ProposerAccount,
-		"tx_count":         len(block.Transactions),
+		"gas_price":        blockHeader.GasPrice,
+		"proposer_account": blockHeader.ProposerAccount,
 	}
 
 	if ledgerGetBlockArgs.Full {
-		blockInfo["transactions"] = lo.Map(block.Transactions, func(item *types.Transaction, index int) string {
+		txs, err := chainLedger.GetBlockTxList(blockHeader.Number)
+		if err != nil {
+			return err
+		}
+
+		blockInfo["transactions"] = lo.Map(txs, func(item *types.Transaction, index int) string {
 			return item.GetHash().String()
 		})
+		blockInfo["tx_count"] = len(txs)
+	} else {
+		txs, err := chainLedger.GetBlockTxHashList(blockHeader.Number)
+		if err != nil {
+			return err
+		}
+		blockInfo["transactions"] = txs
+		blockInfo["tx_count"] = len(txs)
 	}
 
 	return pretty(blockInfo)
+}
+
+func getTx(ctx *cli.Context) error {
+	rep, err := prepareRepo(ctx)
+	if err != nil {
+		return err
+	}
+
+	chainLedger, err := ledger.NewChainLedger(rep, "")
+	if err != nil {
+		return fmt.Errorf("init chain ledger failed: %w", err)
+	}
+
+	tx, err := chainLedger.GetTransaction(types.NewHashByStr(ledgerGetTxArgs.Hash))
+	if err != nil {
+		return err
+	}
+
+	to := "0x0000000000000000000000000000000000000000"
+	if tx.GetTo() != nil {
+		to = tx.GetTo().String()
+	}
+	from := "0x0000000000000000000000000000000000000000"
+	if tx.GetFrom() != nil {
+		to = tx.GetFrom().String()
+	}
+	v, r, s := tx.GetRawSignature()
+	txInfo := map[string]any{
+		"type":      tx.GetType(),
+		"from":      from,
+		"gas":       tx.GetGas(),
+		"gas_price": tx.GetGasPrice(),
+		"hash":      tx.GetHash().String(),
+		"input":     hexutil.Bytes(tx.GetPayload()),
+		"nonce":     tx.GetNonce(),
+		"to":        to,
+		"value":     (*hexutil.Big)(tx.GetValue()),
+		"v":         (*hexutil.Big)(v),
+		"r":         (*hexutil.Big)(r),
+		"s":         (*hexutil.Big)(s),
+	}
+	return pretty(txInfo)
 }
 
 func getLatestChainMeta(ctx *cli.Context) error {
@@ -407,7 +487,7 @@ func fetchAndExecuteBlocks(ctx context.Context, r *repo.Repo, targetLedger *ledg
 			}
 			var originBlockHash string
 			if b.Block.Height()%10 == 0 || b.Block.Height() == targetBlockNumber {
-				originBlockHash = b.Block.BlockHeader.Hash().String()
+				originBlockHash = b.Block.Hash().String()
 			}
 
 			e.ExecuteBlock(b)
@@ -436,6 +516,10 @@ func rollback(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("init chain ledger failed: %w", err)
 	}
+	originStateLedger, err := ledger.NewStateLedger(r, "")
+	if err != nil {
+		return fmt.Errorf("init state ledger failed: %w", err)
+	}
 
 	// check if target height is legal
 	targetBlockNumber := ledgerSimpleRollbackArgs.TargetBlockNumber
@@ -449,25 +533,59 @@ func rollback(ctx *cli.Context) error {
 
 	rollbackDir := path.Join(r.RepoRoot, fmt.Sprintf("storage-rollback-%d", targetBlockNumber))
 	force := ledgerSimpleRollbackArgs.Force
-	if fileutil.Exist(rollbackDir) {
-		if !force {
-			return errors.Errorf("rollback dir %s already exists\n", rollbackDir)
-		}
-		if err := os.RemoveAll(rollbackDir); err != nil {
-			return err
+	if !ledgerSimpleRollbackArgs.DisableBackup {
+		if fileutil.Exist(rollbackDir) {
+			if !force {
+				return errors.Errorf("rollback dir %s already exists\n", rollbackDir)
+			}
+			if err := os.RemoveAll(rollbackDir); err != nil {
+				return err
+			}
 		}
 	}
-	targetBlock, err := originChainLedger.GetBlock(targetBlockNumber)
+
+	targetBlockHeader, err := originChainLedger.GetBlockHeader(targetBlockNumber)
 	if err != nil {
 		return fmt.Errorf("get target block failed: %w", err)
 	}
 	if force {
-		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlock.Hash(), rollbackDir)
+		if !ledgerSimpleRollbackArgs.DisableBackup {
+			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash(), rollbackDir)
+		} else {
+			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash())
+		}
 	} else {
-		logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlock.Hash(), rollbackDir)
+		if !ledgerSimpleRollbackArgs.DisableBackup {
+			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash(), rollbackDir)
+		} else {
+			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash())
+		}
 		if err := waitUserConfirm(); err != nil {
 			return err
 		}
+	}
+
+	// rollback directly on the original ledger
+	if ledgerSimpleRollbackArgs.DisableBackup {
+		if err := originChainLedger.RollbackBlockChain(targetBlockNumber); err != nil {
+			return errors.Errorf("rollback chain ledger error: %v", err.Error())
+		}
+
+		if err := originStateLedger.RollbackState(targetBlockNumber, targetBlockHeader.StateRoot); err != nil {
+			return fmt.Errorf("rollback state ledger failed: %w", err)
+		}
+
+		logger.Info("rollback chain ledger and state ledger success")
+
+		// wait for generating snapshot of target block
+		errC := make(chan error)
+		go originStateLedger.GenerateSnapshot(targetBlockHeader, errC)
+		err = <-errC
+		if err != nil {
+			return fmt.Errorf("generate snapshot failed: %w", err)
+		}
+
+		return nil
 	}
 
 	// copy blockchain dir
@@ -514,13 +632,13 @@ func rollback(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("init rollback state ledger failed: %w", err)
 	}
-	if err := rollbackStateLedger.RollbackState(targetBlockNumber, targetBlock.BlockHeader.StateRoot); err != nil {
+	if err := rollbackStateLedger.RollbackState(targetBlockNumber, targetBlockHeader.StateRoot); err != nil {
 		return fmt.Errorf("rollback state ledger failed: %w", err)
 	}
 
 	// wait for generating snapshot of target block
 	errC := make(chan error)
-	go rollbackStateLedger.GenerateSnapshot(targetBlock, errC)
+	go rollbackStateLedger.GenerateSnapshot(targetBlockHeader, errC)
 	err = <-errC
 	if err != nil {
 		return fmt.Errorf("generate snapshot failed: %w", err)
@@ -551,7 +669,12 @@ func simpleSync(ctx *cli.Context) error {
 	if targetBlockNumber > sourceChainMeta.Height || targetBlockNumber <= targetChainMeta.Height {
 		return errors.Errorf("target-block-number %d must be less than or equal to the source-storage latest block height %d and greater than the target-storage latest block height %d\n", targetBlockNumber, sourceChainMeta.Height, targetChainMeta.Height)
 	}
-	targetBlockHash := targetChainLedger.GetBlockHash(targetBlockNumber).String()
+
+	targetBlockHeader, err := targetChainLedger.GetBlockHeader(targetBlockNumber)
+	if err != nil {
+		return errors.Errorf("get target block header failed: %v", err)
+	}
+	targetBlockHash := targetBlockHeader.Hash()
 	logger := loggers.Logger(loggers.App)
 	if ledgerSimpleSyncArgs.Force {
 		logger.Infof("target storage current chain meta info height: %d, hash: %s, will sync to the target height %d, hash: %s, target storage dir: %s, source storage dir: %s\n", targetChainMeta.Height, targetChainMeta.BlockHash, targetBlockNumber, targetBlockHash, ledgerSimpleSyncArgs.TargetStorage, ledgerSimpleSyncArgs.SourceStorage)
@@ -588,7 +711,7 @@ func generateTrie(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("init chain ledger failed: %w", err)
 	}
-	block, err := chainLedger.GetBlock(ledgerGenerateTrieArgs.TargetBlockNumber)
+	blockHeader, err := chainLedger.GetBlockHeader(ledgerGenerateTrieArgs.TargetBlockNumber)
 	if err != nil {
 		return fmt.Errorf("get block failed: %w", err)
 	}
@@ -606,7 +729,7 @@ func generateTrie(ctx *cli.Context) error {
 	originStateLedger.(*ledger.StateLedgerImpl).WithGetEpochInfoFunc(base.GetEpochInfo)
 
 	errC := make(chan error)
-	go originStateLedger.IterateTrie(block, targetStateStorage, errC)
+	go originStateLedger.IterateTrie(blockHeader, targetStateStorage, errC)
 	err = <-errC
 
 	logger.Infof("success generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)

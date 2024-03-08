@@ -15,11 +15,6 @@ import (
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/sync/common"
-	"github.com/axiomesh/axiom-ledger/internal/sync/full_sync"
-	"github.com/axiomesh/axiom-ledger/internal/sync/snap_sync"
-	network2 "github.com/axiomesh/axiom-p2p"
 	"github.com/gammazero/workerpool"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -27,8 +22,13 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/network"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
+	"github.com/axiomesh/axiom-ledger/internal/sync/full_sync"
+	"github.com/axiomesh/axiom-ledger/internal/sync/snap_sync"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	network2 "github.com/axiomesh/axiom-p2p"
 )
 
 var _ common.Sync = (*SyncManager)(nil)
@@ -49,12 +49,13 @@ type SyncManager struct {
 	requesters         sync.Map            // requester map
 	requesterLen       atomic.Int64        // requester length
 
-	quorumCheckpoint  *consensus.SignedCheckpoint // latest checkpoint from remote
-	epochChanges      []*consensus.EpochChange    // every epoch change which the node behind
-	getChainMetaFunc  func() *types.ChainMeta
-	getBlockFunc      func(height uint64) (*types.Block, error)
-	getReceiptsFunc   func(height uint64) ([]*types.Receipt, error)
-	getEpochStateFunc func(key []byte) []byte
+	quorumCheckpoint   *consensus.SignedCheckpoint // latest checkpoint from remote
+	epochChanges       []*consensus.EpochChange    // every epoch change which the node behind
+	getChainMetaFunc   func() *types.ChainMeta
+	getBlockFunc       func(height uint64) (*types.Block, error)
+	getBlockHeaderFunc func(height uint64) (*types.BlockHeader, error)
+	getReceiptsFunc    func(height uint64) ([]*types.Receipt, error)
+	getEpochStateFunc  func(key []byte) []byte
 
 	network               network.Network
 	chainDataRequestPipe  network.Pipe
@@ -82,24 +83,25 @@ type SyncManager struct {
 	logger logrus.FieldLogger
 }
 
-func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.ChainMeta, fn func(height uint64) (*types.Block, error),
+func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.ChainMeta, getBlockFn func(height uint64) (*types.Block, error), getBlockHeaderFun func(height uint64) (*types.BlockHeader, error),
 	receiptFn func(height uint64) ([]*types.Receipt, error), getEpochStateFunc func(key []byte) []byte, network network.Network, cnf repo.Sync) (*SyncManager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	syncMgr := &SyncManager{
-		mode:              common.SyncModeFull,
-		modeConstructor:   newModeConstructor(common.SyncModeFull, common.WithContext(ctx)),
-		logger:            logger,
-		invalidRequestCh:  make(chan *common.InvalidMsg, cnf.ConcurrencyLimit),
-		recvStateCh:       make(chan *common.WrapperStateResp, cnf.ConcurrencyLimit),
-		validChunkTaskCh:  make(chan struct{}, 1),
-		quitStateCh:       make(chan error, 1),
-		requesterCh:       make(chan struct{}, cnf.ConcurrencyLimit),
-		getChainMetaFunc:  getChainMetaFn,
-		getBlockFunc:      fn,
-		getReceiptsFunc:   receiptFn,
-		getEpochStateFunc: getEpochStateFunc,
-		network:           network,
-		conf:              cnf,
+		mode:               common.SyncModeFull,
+		modeConstructor:    newModeConstructor(common.SyncModeFull, common.WithContext(ctx)),
+		logger:             logger,
+		invalidRequestCh:   make(chan *common.InvalidMsg, cnf.ConcurrencyLimit),
+		recvStateCh:        make(chan *common.WrapperStateResp, cnf.ConcurrencyLimit),
+		validChunkTaskCh:   make(chan struct{}, 1),
+		quitStateCh:        make(chan error, 1),
+		requesterCh:        make(chan struct{}, cnf.ConcurrencyLimit),
+		getChainMetaFunc:   getChainMetaFn,
+		getBlockFunc:       getBlockFn,
+		getBlockHeaderFunc: getBlockHeaderFun,
+		getReceiptsFunc:    receiptFn,
+		getEpochStateFunc:  getEpochStateFunc,
+		network:            network,
+		conf:               cnf,
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -158,6 +160,7 @@ func (sm *SyncManager) produceRequester(count uint64) {
 		sm.requesterCh <- struct{}{}
 	}
 }
+
 func (sm *SyncManager) consumeRequester() chan struct{} {
 	return sm.requesterCh
 }
@@ -1046,6 +1049,7 @@ func (sm *SyncManager) Start() {
 	sm.modeConstructor.Start()
 	sm.started.Store(true)
 }
+
 func (sm *SyncManager) makeRequesters(height uint64) {
 	peerID := sm.pickPeer(height)
 	var pipe network.Pipe

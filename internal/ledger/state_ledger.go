@@ -69,13 +69,13 @@ type StateLedgerImpl struct {
 }
 
 type SnapshotMeta struct {
-	Block     *types.Block
-	EpochInfo *rbft.EpochInfo
+	BlockHeader *types.BlockHeader
+	EpochInfo   *rbft.EpochInfo
 }
 
 // NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
-func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) StateLedger {
-	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot)
+func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger {
+	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
 	// TODO(zqr): multi snapshot layers can also support view ledger
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
@@ -86,13 +86,13 @@ func (l *StateLedgerImpl) NewView(block *types.Block, enableSnapshot bool) State
 		preimages:             make(map[types.Hash][]byte),
 		changer:               NewChanger(),
 		accessList:            NewAccessList(),
-		logs:                  NewEvmLogs(),
+		logs:                  newEvmLogs(),
 		enableExpensiveMetric: l.enableExpensiveMetric,
 	}
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
 	}
-	lg.refreshAccountTrie(block.BlockHeader.StateRoot)
+	lg.refreshAccountTrie(blockHeader.StateRoot)
 	return lg
 }
 
@@ -110,7 +110,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 		preimages:             make(map[types.Hash][]byte),
 		changer:               NewChanger(),
 		accessList:            NewAccessList(),
-		logs:                  NewEvmLogs(),
+		logs:                  newEvmLogs(),
 		enableExpensiveMetric: l.enableExpensiveMetric,
 	}
 	if enableSnapshot {
@@ -142,9 +142,9 @@ func (l *StateLedgerImpl) Finalise() {
 }
 
 // todo make arguments configurable
-func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, errC chan error) {
-	stateRoot := block.BlockHeader.StateRoot.ETHHash()
-	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", block.BlockHash, stateRoot)
+func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, kv storage.Storage, errC chan error) {
+	stateRoot := blockHeader.StateRoot.ETHHash()
+	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", blockHeader.Hash(), stateRoot)
 
 	queue := []common.Hash{stateRoot}
 	batch := kv.NewBatch()
@@ -190,14 +190,14 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
 	}
 
-	blockData, err := block.Marshal()
+	blockData, err := blockHeader.Marshal()
 	if err != nil {
 		errC <- err
 		return
 	}
-	batch.Put([]byte(utils.TrieBlockKey), blockData)
+	batch.Put([]byte(utils.TrieBlockHeaderKey), blockData)
 
-	epochInfo, err := l.getEpochInfoFunc(block.BlockHeader.Epoch)
+	epochInfo, err := l.getEpochInfoFunc(blockHeader.Epoch)
 	if err != nil {
 		l.logger.Errorf("l.getEpochInfoFunc error:%v\n", err.Error())
 		errC <- err
@@ -216,13 +216,13 @@ func (l *StateLedgerImpl) IterateTrie(block *types.Block, kv storage.Storage, er
 }
 
 func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
-	rawBlock := l.cachedDB.Get([]byte(utils.TrieBlockKey))
+	rawBlock := l.cachedDB.Get([]byte(utils.TrieBlockHeaderKey))
 	rawEpochInfo := l.cachedDB.Get([]byte(utils.TrieNodeInfoKey))
 	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 {
 		return nil, ErrNotFound
 	}
-	block := &types.Block{}
-	err := block.Unmarshal(rawBlock)
+	blockHeader := &types.BlockHeader{}
+	err := blockHeader.Unmarshal(rawBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -233,15 +233,15 @@ func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
 	}
 
 	meta := &SnapshotMeta{
-		Block:     block,
-		EpochInfo: epochInfo,
+		BlockHeader: blockHeader,
+		EpochInfo:   epochInfo,
 	}
 	return meta, nil
 }
 
-func (l *StateLedgerImpl) GenerateSnapshot(block *types.Block, errC chan error) {
-	stateRoot := block.BlockHeader.StateRoot.ETHHash()
-	l.logger.Infof("[GenerateSnapshot] blockNum: %v, blockhash: %v, rootHash: %v", block.Height(), block.BlockHash, stateRoot)
+func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC chan error) {
+	stateRoot := blockHeader.StateRoot.ETHHash()
+	l.logger.Infof("[GenerateSnapshot] blockNum: %v, blockhash: %v, rootHash: %v", blockHeader.Number, blockHeader.Hash(), stateRoot)
 
 	queue := []common.Hash{stateRoot}
 	batch := l.snapshot.Batch()
@@ -289,10 +289,10 @@ func (l *StateLedgerImpl) GenerateSnapshot(block *types.Block, errC chan error) 
 	errC <- nil
 }
 
-func (l *StateLedgerImpl) VerifyTrie(block *types.Block) (bool, error) {
-	l.logger.Infof("[VerifyTrie] start verifying blockNumber: %v, rootHash: %v", block.BlockHeader.Number, block.BlockHeader.StateRoot.String())
+func (l *StateLedgerImpl) VerifyTrie(blockHeader *types.BlockHeader) (bool, error) {
+	l.logger.Infof("[VerifyTrie] start verifying blockNumber: %v, rootHash: %v", blockHeader.Number, blockHeader.StateRoot.String())
 	defer l.logger.Infof("[VerifyTrie] finish VerifyTrie")
-	return jmt.VerifyTrie(block.BlockHeader.StateRoot.ETHHash(), l.cachedDB)
+	return jmt.VerifyTrie(blockHeader.StateRoot.ETHHash(), l.cachedDB)
 }
 
 func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error) {
@@ -326,7 +326,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 		preimages:             make(map[types.Hash][]byte),
 		changer:               NewChanger(),
 		accessList:            NewAccessList(),
-		logs:                  NewEvmLogs(),
+		logs:                  newEvmLogs(),
 		enableExpensiveMetric: rep.Config.Monitor.EnableExpensive,
 	}
 

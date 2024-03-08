@@ -336,119 +336,158 @@ func (c *MockBrokerAPIConsensusReadyCall) DoAndReturn(f func() error) *MockBroke
 	return c
 }
 
-// GetBlock mocks base method.
-func (m *MockBrokerAPI) GetBlock(mode, key string) (*types.Block, error) {
+// GetBlockExtra mocks base method.
+func (m *MockBrokerAPI) GetBlockExtra(height uint64) (*types.BlockExtra, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlock", mode, key)
-	ret0, _ := ret[0].(*types.Block)
+	ret := m.ctrl.Call(m, "GetBlockExtra", height)
+	ret0, _ := ret[0].(*types.BlockExtra)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlock indicates an expected call of GetBlock.
-func (mr *MockBrokerAPIMockRecorder) GetBlock(mode, key any) *MockBrokerAPIGetBlockCall {
+// GetBlockExtra indicates an expected call of GetBlockExtra.
+func (mr *MockBrokerAPIMockRecorder) GetBlockExtra(height any) *MockBrokerAPIGetBlockExtraCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlock", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlock), mode, key)
-	return &MockBrokerAPIGetBlockCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockExtra", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockExtra), height)
+	return &MockBrokerAPIGetBlockExtraCall{Call: call}
 }
 
-// MockBrokerAPIGetBlockCall wrap *gomock.Call
-type MockBrokerAPIGetBlockCall struct {
+// MockBrokerAPIGetBlockExtraCall wrap *gomock.Call
+type MockBrokerAPIGetBlockExtraCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockBrokerAPIGetBlockCall) Return(arg0 *types.Block, arg1 error) *MockBrokerAPIGetBlockCall {
+func (c *MockBrokerAPIGetBlockExtraCall) Return(arg0 *types.BlockExtra, arg1 error) *MockBrokerAPIGetBlockExtraCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockBrokerAPIGetBlockCall) Do(f func(string, string) (*types.Block, error)) *MockBrokerAPIGetBlockCall {
+func (c *MockBrokerAPIGetBlockExtraCall) Do(f func(uint64) (*types.BlockExtra, error)) *MockBrokerAPIGetBlockExtraCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBrokerAPIGetBlockCall) DoAndReturn(f func(string, string) (*types.Block, error)) *MockBrokerAPIGetBlockCall {
+func (c *MockBrokerAPIGetBlockExtraCall) DoAndReturn(f func(uint64) (*types.BlockExtra, error)) *MockBrokerAPIGetBlockExtraCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetBlockHeaders mocks base method.
-func (m *MockBrokerAPI) GetBlockHeaders(start, end uint64) ([]*types.BlockHeader, error) {
+// GetBlockHeader mocks base method.
+func (m *MockBrokerAPI) GetBlockHeader(mode, key string) (*types.BlockHeader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockHeaders", start, end)
-	ret0, _ := ret[0].([]*types.BlockHeader)
+	ret := m.ctrl.Call(m, "GetBlockHeader", mode, key)
+	ret0, _ := ret[0].(*types.BlockHeader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlockHeaders indicates an expected call of GetBlockHeaders.
-func (mr *MockBrokerAPIMockRecorder) GetBlockHeaders(start, end any) *MockBrokerAPIGetBlockHeadersCall {
+// GetBlockHeader indicates an expected call of GetBlockHeader.
+func (mr *MockBrokerAPIMockRecorder) GetBlockHeader(mode, key any) *MockBrokerAPIGetBlockHeaderCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeaders", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockHeaders), start, end)
-	return &MockBrokerAPIGetBlockHeadersCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeader", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockHeader), mode, key)
+	return &MockBrokerAPIGetBlockHeaderCall{Call: call}
 }
 
-// MockBrokerAPIGetBlockHeadersCall wrap *gomock.Call
-type MockBrokerAPIGetBlockHeadersCall struct {
+// MockBrokerAPIGetBlockHeaderCall wrap *gomock.Call
+type MockBrokerAPIGetBlockHeaderCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockBrokerAPIGetBlockHeadersCall) Return(arg0 []*types.BlockHeader, arg1 error) *MockBrokerAPIGetBlockHeadersCall {
+func (c *MockBrokerAPIGetBlockHeaderCall) Return(arg0 *types.BlockHeader, arg1 error) *MockBrokerAPIGetBlockHeaderCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockBrokerAPIGetBlockHeadersCall) Do(f func(uint64, uint64) ([]*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeadersCall {
+func (c *MockBrokerAPIGetBlockHeaderCall) Do(f func(string, string) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBrokerAPIGetBlockHeadersCall) DoAndReturn(f func(uint64, uint64) ([]*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeadersCall {
+func (c *MockBrokerAPIGetBlockHeaderCall) DoAndReturn(f func(string, string) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// GetBlocks mocks base method.
-func (m *MockBrokerAPI) GetBlocks(start, end uint64) ([]*types.Block, error) {
+// GetBlockTxHashList mocks base method.
+func (m *MockBrokerAPI) GetBlockTxHashList(height uint64) ([]*types.Hash, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlocks", start, end)
-	ret0, _ := ret[0].([]*types.Block)
+	ret := m.ctrl.Call(m, "GetBlockTxHashList", height)
+	ret0, _ := ret[0].([]*types.Hash)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlocks indicates an expected call of GetBlocks.
-func (mr *MockBrokerAPIMockRecorder) GetBlocks(start, end any) *MockBrokerAPIGetBlocksCall {
+// GetBlockTxHashList indicates an expected call of GetBlockTxHashList.
+func (mr *MockBrokerAPIMockRecorder) GetBlockTxHashList(height any) *MockBrokerAPIGetBlockTxHashListCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlocks", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlocks), start, end)
-	return &MockBrokerAPIGetBlocksCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxHashList", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockTxHashList), height)
+	return &MockBrokerAPIGetBlockTxHashListCall{Call: call}
 }
 
-// MockBrokerAPIGetBlocksCall wrap *gomock.Call
-type MockBrokerAPIGetBlocksCall struct {
+// MockBrokerAPIGetBlockTxHashListCall wrap *gomock.Call
+type MockBrokerAPIGetBlockTxHashListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockBrokerAPIGetBlocksCall) Return(arg0 []*types.Block, arg1 error) *MockBrokerAPIGetBlocksCall {
+func (c *MockBrokerAPIGetBlockTxHashListCall) Return(arg0 []*types.Hash, arg1 error) *MockBrokerAPIGetBlockTxHashListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockBrokerAPIGetBlocksCall) Do(f func(uint64, uint64) ([]*types.Block, error)) *MockBrokerAPIGetBlocksCall {
+func (c *MockBrokerAPIGetBlockTxHashListCall) Do(f func(uint64) ([]*types.Hash, error)) *MockBrokerAPIGetBlockTxHashListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBrokerAPIGetBlocksCall) DoAndReturn(f func(uint64, uint64) ([]*types.Block, error)) *MockBrokerAPIGetBlocksCall {
+func (c *MockBrokerAPIGetBlockTxHashListCall) DoAndReturn(f func(uint64) ([]*types.Hash, error)) *MockBrokerAPIGetBlockTxHashListCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetBlockTxList mocks base method.
+func (m *MockBrokerAPI) GetBlockTxList(height uint64) ([]*types.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockTxList", height)
+	ret0, _ := ret[0].([]*types.Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBlockTxList indicates an expected call of GetBlockTxList.
+func (mr *MockBrokerAPIMockRecorder) GetBlockTxList(height any) *MockBrokerAPIGetBlockTxListCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxList", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockTxList), height)
+	return &MockBrokerAPIGetBlockTxListCall{Call: call}
+}
+
+// MockBrokerAPIGetBlockTxListCall wrap *gomock.Call
+type MockBrokerAPIGetBlockTxListCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockBrokerAPIGetBlockTxListCall) Return(arg0 []*types.Transaction, arg1 error) *MockBrokerAPIGetBlockTxListCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockBrokerAPIGetBlockTxListCall) Do(f func(uint64) ([]*types.Transaction, error)) *MockBrokerAPIGetBlockTxListCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockBrokerAPIGetBlockTxListCall) DoAndReturn(f func(uint64) ([]*types.Transaction, error)) *MockBrokerAPIGetBlockTxListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

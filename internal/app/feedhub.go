@@ -3,10 +3,10 @@ package app
 import (
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-kit/txpool"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
@@ -41,12 +41,12 @@ func (axm *AxiomLedger) listenWaitReportBlock() {
 }
 
 func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool) {
-	axm.Consensus.ReportState(ev.Block.BlockHeader.Number, ev.Block.BlockHash, ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs)
+	axm.Consensus.ReportState(ev.Block.Header.Number, ev.Block.Hash(), ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs)
 
 	// update txpool chain info
 	newChainInfo := &txpool.ChainInfo{
 		Height:   ev.Block.Height(),
-		GasPrice: new(big.Int).SetInt64(ev.Block.BlockHeader.GasPrice),
+		GasPrice: new(big.Int).SetInt64(ev.Block.Header.GasPrice),
 	}
 
 	if common.NeedChangeEpoch(ev.Block.Height(), axm.Repo.EpochInfo) {
@@ -66,7 +66,7 @@ func (axm *AxiomLedger) listenWaitExecuteBlock() {
 		select {
 		case commitEvent := <-axm.Consensus.Commit():
 			axm.logger.WithFields(logrus.Fields{
-				"height": commitEvent.Block.BlockHeader.Number,
+				"height": commitEvent.Block.Header.Number,
 				"count":  len(commitEvent.Block.Transactions),
 			}).Info("Generated block")
 			axm.BlockExecutor.AsyncExecuteBlock(commitEvent)

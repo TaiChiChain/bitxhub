@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -19,6 +18,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -100,7 +100,7 @@ func TestNode_Start(t *testing.T) {
 	solo.notifyGenerateBatch(txpool.GenBatchSizeEvent)
 
 	commitEvent := <-solo.Commit()
-	require.Equal(t, uint64(2), commitEvent.Block.BlockHeader.Number)
+	require.Equal(t, uint64(2), commitEvent.Block.Header.Number)
 	require.Equal(t, 1, len(commitEvent.Block.Transactions))
 	blockHash := commitEvent.Block.Hash()
 
@@ -123,12 +123,12 @@ func TestTimedBlock(t *testing.T) {
 	event1 := <-node.commitC
 	ast.NotNil(event1)
 	ast.Equal(len(event1.Block.Transactions), 0)
-	ast.Equal(event1.Block.BlockHeader.Number, uint64(1))
+	ast.Equal(event1.Block.Header.Number, uint64(1))
 
 	event2 := <-node.commitC
 	ast.NotNil(event2)
 	ast.Equal(len(event2.Block.Transactions), 0)
-	ast.Equal(event2.Block.BlockHeader.Number, uint64(2))
+	ast.Equal(event2.Block.Header.Number, uint64(2))
 }
 
 func TestNode_ReportState(t *testing.T) {
@@ -164,7 +164,7 @@ func TestNode_ReportState(t *testing.T) {
 			time.Sleep(batchTimeout + 10*time.Millisecond)
 		}
 
-		//test pool full
+		// test pool full
 		ast.Equal(10, len(node.batchDigestM))
 		tx11, err := types.GenerateTransactionWithSigner(uint64(11),
 			types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), big.NewInt(0), nil, signer)

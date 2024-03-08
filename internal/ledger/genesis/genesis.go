@@ -26,7 +26,7 @@ func initializeGenesisConfig(genesis *repo.GenesisConfig, lg ledger.StateLedger)
 // Initialize initialize block
 func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 	dummyRootHash := common2.Hash{}
-	lg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), nil, 1)
+	lg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), 1)
 
 	if err := initializeGenesisConfig(genesis, lg.StateLedger); err != nil {
 		return err
@@ -44,25 +44,24 @@ func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 	}
 
 	block := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:          1,
 			StateRoot:       stateRoot,
 			TxRoot:          &types.Hash{},
 			ReceiptRoot:     &types.Hash{},
 			ParentHash:      &types.Hash{},
 			Timestamp:       genesis.Timestamp,
-			GasPrice:        int64(genesis.EpochInfo.FinanceParams.StartGasPrice),
 			Epoch:           genesis.EpochInfo.Epoch,
 			Bloom:           new(types.Bloom),
+			GasPrice:        int64(genesis.EpochInfo.FinanceParams.StartGasPrice),
 			ProposerAccount: common.ZeroAddress,
 		},
 		Transactions: []*types.Transaction{},
 	}
-	block.BlockHash = block.Hash()
 	blockData := &ledger.BlockData{
 		Block: block,
 	}
-
+	block.Header.CalculateHash()
 	lg.PersistBlockData(blockData)
 
 	return nil

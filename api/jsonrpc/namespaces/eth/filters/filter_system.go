@@ -360,7 +360,7 @@ func (es *EventSystem) handleTxsEvent(filters filterIndex, ev []*types.Transacti
 
 func (es *EventSystem) handleChainEvent(filters filterIndex, ev events2.ExecutedEvent) {
 	for _, f := range filters[BlocksSubscription] {
-		f.headers <- ev.Block.BlockHeader
+		f.headers <- ev.Block.Header
 	}
 }
 

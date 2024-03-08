@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/ethereum/go-ethereum/event"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/pkg/errors"
@@ -18,6 +17,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	p2p "github.com/axiomesh/axiom-p2p"
 )
@@ -43,7 +43,7 @@ type RBFTAdaptor struct {
 	BlockC                chan *common.CommitEvent
 	logger                logrus.FieldLogger
 	getChainMetaFunc      func() *types.ChainMeta
-	getBlockFunc          func(uint64) (*types.Block, error)
+	getBlockHeaderFunc    func(uint64) (*types.BlockHeader, error)
 	StateUpdating         bool
 	StateUpdateHeight     uint64
 
@@ -103,7 +103,7 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 		quitSync:              make(chan struct{}, 1),
 		logger:                config.Logger,
 		getChainMetaFunc:      config.GetChainMetaFunc,
-		getBlockFunc:          config.GetBlockFunc,
+		getBlockHeaderFunc:    config.GetBlockHeaderFunc,
 		config:                config,
 
 		sync: config.BlockSync,

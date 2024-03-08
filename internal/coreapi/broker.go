@@ -7,6 +7,7 @@ import (
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 type BrokerAPI CoreAPI
@@ -54,86 +54,39 @@ func (b *BrokerAPI) GetReceipt(hash *types.Hash) (*types.Receipt, error) {
 	return b.axiomLedger.ViewLedger.ChainLedger.GetReceipt(hash)
 }
 
-func (b *BrokerAPI) GetBlock(mode string, value string) (*types.Block, error) {
-	switch mode {
-	case "HEIGHT":
-		height, err := strconv.ParseUint(value, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("wrong block number: %s", value)
-		}
-		return b.axiomLedger.ViewLedger.ChainLedger.GetBlock(height)
-	case "HASH":
-		hash := types.NewHashByStr(value)
-		if hash == nil {
-			return nil, errors.New("invalid format of block hash for querying block")
-		}
-		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockByHash(hash)
-	default:
-		return nil, fmt.Errorf("wrong args about getting block: %s", mode)
-	}
-}
-
-func (b *BrokerAPI) GetBlockWithoutTx(mode string, key string) (*types.Block, error) {
+func (b *BrokerAPI) GetBlockHeader(mode string, key string) (*types.BlockHeader, error) {
 	switch mode {
 	case "HEIGHT":
 		height, err := strconv.ParseUint(key, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("wrong block number: %s", key)
 		}
-		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockWithOutTxByNumber(height)
+		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(height)
 	case "HASH":
 		hash := types.NewHashByStr(key)
 		if hash == nil {
 			return nil, errors.New("invalid format of block hash for querying block")
 		}
-		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockWithOutTxByHash(hash)
+		number, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockNumberByHash(hash)
+		if err != nil {
+			return nil, err
+		}
+		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(number)
 	default:
 		return nil, fmt.Errorf("wrong args about getting block: %s", mode)
 	}
 }
 
+func (b *BrokerAPI) GetBlockExtra(height uint64) (*types.BlockExtra, error) {
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockExtra(height)
+}
+
 func (b *BrokerAPI) GetBlockTxHashList(height uint64) ([]*types.Hash, error) {
-	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxHashListByNumber(height)
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxHashList(height)
 }
 
 func (b *BrokerAPI) GetBlockTxList(height uint64) ([]*types.Transaction, error) {
-	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxListByNumber(height)
-}
-
-func (b *BrokerAPI) GetBlocks(start uint64, end uint64) ([]*types.Block, error) {
-	meta := b.axiomLedger.ViewLedger.ChainLedger.GetChainMeta()
-
-	var blocks []*types.Block
-	if meta.Height < end {
-		end = meta.Height
-	}
-	for i := start; i > 0 && i <= end; i++ {
-		b, err := b.GetBlock("HEIGHT", strconv.Itoa(int(i)))
-		if err != nil {
-			continue
-		}
-		blocks = append(blocks, b)
-	}
-
-	return blocks, nil
-}
-
-func (b *BrokerAPI) GetBlockHeaders(start uint64, end uint64) ([]*types.BlockHeader, error) {
-	meta := b.axiomLedger.ViewLedger.ChainLedger.GetChainMeta()
-
-	var blockHeaders []*types.BlockHeader
-	if meta.Height < end {
-		end = meta.Height
-	}
-	for i := start; i > 0 && i <= end; i++ {
-		b, err := b.GetBlock("HEIGHT", strconv.Itoa(int(i)))
-		if err != nil {
-			continue
-		}
-		blockHeaders = append(blockHeaders, b.BlockHeader)
-	}
-
-	return blockHeaders, nil
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxList(height)
 }
 
 func (b *BrokerAPI) ConsensusReady() error {
@@ -161,15 +114,20 @@ func (b *BrokerAPI) GetNativeVm() common.VirtualMachine {
 }
 
 func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error) {
-	if block.Height() == 1 {
+	if block.Height() == b.axiomLedger.Repo.GenesisConfig.EpochInfo.StartBlock {
 		return nil, vm.BlockContext{}, nil, errors.New("no transaction in genesis")
 	}
-	parent, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockByHash(block.BlockHeader.ParentHash)
-	if err != nil || parent == nil {
-		return nil, vm.BlockContext{}, nil, fmt.Errorf("parent %#x not found", block.BlockHeader.ParentHash)
+
+	parentNumber, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockNumberByHash(block.Header.ParentHash)
+	if err != nil {
+		return nil, vm.BlockContext{}, nil, err
+	}
+	parentHeader, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(parentNumber)
+	if err != nil || parentHeader == nil {
+		return nil, vm.BlockContext{}, nil, fmt.Errorf("parent %#x not found", block.Header.ParentHash)
 	}
 
-	statedb := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parent.BlockHeader, false)
+	statedb := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parentHeader, false)
 	if txIndex == 0 && len(block.Transactions) == 0 {
 		return nil, vm.BlockContext{}, &statedb, nil
 	}
@@ -179,7 +137,7 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 		msg := executor.TransactionToMessage(tx)
 		txContext := core.NewEVMTxContext(msg)
 
-		context := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(block))
+		context := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.Header.Timestamp), block.Header.ProposerAccount, getBlockHashFunc(block))
 		if idx == txIndex {
 			return msg, context, &statedb, nil
 		}
@@ -203,7 +161,7 @@ func (b *BrokerAPI) ChainConfig() *params.ChainConfig {
 
 func getBlockHashFunc(block *types.Block) vm.GetHashFunc {
 	return func(n uint64) ethcommon.Hash {
-		hash := block.BlockHash
+		hash := block.Hash()
 		if hash == nil {
 			return ethcommon.Hash{}
 		}

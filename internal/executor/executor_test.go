@@ -1,78 +1,36 @@
 package executor
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	common2 "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 const (
-	srcMethod   = "did:axiom-ledger:addr1:."
-	dstMethod   = "did:axiom-ledger:addr2:."
 	from        = "0x3f9d18f7c3a6e5e4c0b877fe3e688ab08840b997"
 	minGasPrice = 1000000000000
 )
-
-var proposeABI = `[{
-	"inputs": [
-	  {
-		"internalType": "enum ProposalType",
-		"name": "proposalType",
-		"type": "uint8"
-	  },
-	  {
-		"internalType": "string",
-		"name": "title",
-		"type": "string"
-	  },
-	  {
-		"internalType": "string",
-		"name": "desc",
-		"type": "string"
-	  },
-	  {
-		"internalType": "uint64",
-		"name": "blockNumber",
-		"type": "uint64"
-	  },
-	  {
-		"internalType": "bytes",
-		"name": "extra",
-		"type": "bytes"
-	  }
-	],
-	"name": "propose",
-	"outputs": [],
-	"stateMutability": "nonpayable",
-	"type": "function"
-  }]`
 
 func TestNew(t *testing.T) {
 	r, err := repo.Default(t.TempDir())
@@ -121,9 +79,22 @@ func TestGetEvm(t *testing.T) {
 	}
 	// mock block for ledger
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(mockBlock(1, nil), nil).Times(2)
 	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
-	chainLedger.EXPECT().GetBlockHash(gomock.Any()).Return(&types.Hash{}).AnyTimes()
+	blockHeader := &types.BlockHeader{
+		Number:         0,
+		StateRoot:      &types.Hash{},
+		TxRoot:         &types.Hash{},
+		ReceiptRoot:    &types.Hash{},
+		ParentHash:     &types.Hash{},
+		Timestamp:      0,
+		Epoch:          0,
+		Bloom:          &types.Bloom{},
+		GasPrice:       0,
+		GasUsed:        0,
+		ProposerNodeID: 0,
+		Extra:          nil,
+	}
+	chainLedger.EXPECT().GetBlockHeader(gomock.Any()).Return(blockHeader, nil).Times(3)
 
 	executor, err := New(r, mockLedger)
 	assert.Nil(t, err)
@@ -135,9 +106,9 @@ func TestGetEvm(t *testing.T) {
 	assert.Nil(t, err)
 
 	h := evm.Context.GetHash(0)
-	assert.Equal(t, "0x0000000000000000000000000000000000000000000000000000000000000000", h.String())
+	assert.Equal(t, blockHeader.Hash().String(), h.String())
 
-	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(nil, errors.New("get block error")).Times(1)
+	chainLedger.EXPECT().GetBlockHeader(gomock.Any()).Return(nil, errors.New("get block error")).Times(1)
 	evmErr, err := executor.NewEvmWithViewLedger(txCtx, vm.Config{NoBaseFee: true})
 	assert.Nil(t, evmErr)
 	assert.NotNil(t, err)
@@ -157,7 +128,7 @@ func TestGetLogsForReceipt(t *testing.T) {
 			BlockNumber: 0,
 		}},
 	}}
-	executor.getLogsForReceipt(receipts, &types.Hash{})
+	executor.updateLogsBlockHash(receipts, &types.Hash{})
 }
 
 func TestGetChainConfig(t *testing.T) {
@@ -184,7 +155,20 @@ func TestGetBlockHashFunc(t *testing.T) {
 		BlockHash: types.NewHashByStr(from),
 	}
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-	chainLedger.EXPECT().GetBlockHash(gomock.Any()).Return(nil)
+	chainLedger.EXPECT().GetBlockHeader(gomock.Any()).Return(&types.BlockHeader{
+		Number:         0,
+		StateRoot:      &types.Hash{},
+		TxRoot:         &types.Hash{},
+		ReceiptRoot:    &types.Hash{},
+		ParentHash:     &types.Hash{},
+		Timestamp:      0,
+		Epoch:          0,
+		Bloom:          &types.Bloom{},
+		GasPrice:       0,
+		GasUsed:        0,
+		ProposerNodeID: 0,
+		Extra:          nil,
+	}, nil).AnyTimes()
 
 	executor, _ := New(r, mockLedger)
 
@@ -202,11 +186,10 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	assert.Nil(t, err)
 
 	genesisBlock := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:   1,
 			GasPrice: minGasPrice * 5,
 		},
-		BlockHash: types.NewHash([]byte(from)),
 	}
 
 	err = base.InitEpochInfo(mockLedger.StateLedger, r.GenesisConfig.EpochInfo)
@@ -219,7 +202,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 	stateRoot, err := mockLedger.StateLedger.Commit()
 	assert.Nil(t, err)
-	genesisBlock.BlockHeader.StateRoot = stateRoot
+	genesisBlock.Header.StateRoot = stateRoot
 	mockLedger.PersistBlockData(&ledger.BlockData{Block: genesisBlock})
 
 	exec, err := New(r, mockLedger)
@@ -254,7 +237,8 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	exec.AsyncExecuteBlock(commitEvent2)
 
 	blockRes1 := <-ch
-	assert.EqualValues(t, 2, blockRes1.Block.BlockHeader.Number)
+
+	assert.EqualValues(t, 2, blockRes1.Block.Header.Number)
 	assert.Equal(t, 0, len(blockRes1.Block.Transactions))
 	assert.Equal(t, 0, len(blockRes1.TxPointerList))
 
@@ -262,7 +246,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	assert.Equal(t, blockRes1, remoteBlockRes1)
 
 	blockRes2 := <-ch
-	assert.EqualValues(t, 3, blockRes2.Block.BlockHeader.Number)
+	assert.EqualValues(t, 3, blockRes2.Block.Header.Number)
 	assert.Equal(t, 2, len(blockRes2.Block.Transactions))
 	assert.Equal(t, 2, len(blockRes2.TxPointerList))
 
@@ -282,10 +266,10 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 		exec.AsyncExecuteBlock(rollbackCommitEvent)
 
 		blockRes := <-ch
-		assert.EqualValues(t, 2, blockRes.Block.BlockHeader.Number)
+		assert.EqualValues(t, 2, blockRes.Block.Header.Number)
 		assert.Equal(t, len(txs), len(blockRes.Block.Transactions))
-		assert.Equal(t, genesisBlock.BlockHash.String(), blockRes.Block.BlockHeader.ParentHash.String())
-		assert.NotEqual(t, oldBlock.BlockHash.String(), blockRes.Block.BlockHash.String())
+		assert.Equal(t, genesisBlock.Hash().String(), blockRes.Block.Header.ParentHash.String())
+		assert.NotEqual(t, oldBlock.Hash().String(), blockRes.Block.Hash().String())
 
 		remoteBlockRes := <-remoteCh
 		assert.Equal(t, blockRes, remoteBlockRes)
@@ -337,276 +321,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	assert.Nil(t, exec.Stop())
 }
 
-func TestBlockExecutor_ApplyReadonlyTransactions(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
-	mockCtl := gomock.NewController(t)
-	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	mockLedger := &ledger.Ledger{
-		ChainLedger: chainLedger,
-		StateLedger: stateLedger,
-	}
-
-	// mock data for ledger
-	chainMeta := &types.ChainMeta{
-		Height:    1,
-		GasPrice:  big.NewInt(minGasPrice),
-		BlockHash: types.NewHashByStr(from),
-	}
-
-	id := fmt.Sprintf("%s-%s-%d", srcMethod, dstMethod, 1)
-
-	hash := types.NewHash([]byte{1})
-	val, err := json.Marshal(hash)
-	assert.Nil(t, err)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateRoot := &types.Hash{}
-
-	contractAddr := types.NewAddressByStr("0xdac17f958d2ee523a2206206994597c13d831ec7")
-	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-	stateLedger.EXPECT().Commit().Return(stateRoot, nil).AnyTimes()
-	stateLedger.EXPECT().Clear().AnyTimes()
-	stateLedger.EXPECT().GetState(contractAddr, []byte(fmt.Sprintf("index-tx-%s", id))).Return(true, val).AnyTimes()
-	chainLedger.EXPECT().PersistExecutionResult(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
-	stateLedger.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Finalise().AnyTimes()
-	stateLedger.EXPECT().Snapshot().Return(1).AnyTimes()
-	stateLedger.EXPECT().RevertToSnapshot(1).AnyTimes()
-	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
-	chainLedger.EXPECT().LoadChainMeta().Return(chainMeta, nil).AnyTimes()
-	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(mockBlock(10, nil), nil).AnyTimes()
-	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetRefund().AnyTimes()
-	stateLedger.EXPECT().GetCode(gomock.Any()).AnyTimes()
-
-	signer, err := types.GenerateSigner()
-	assert.Nil(t, err)
-	err = governance.InitCouncilMembers(stateLedger, []*repo.Admin{
-		{
-			Address: signer.Addr.String(),
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: "0x1220000000000000000000000000000000000000",
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: "0x1230000000000000000000000000000000000000",
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: "0x1240000000000000000000000000000000000000",
-			Weight:  1,
-			Name:    "444",
-		},
-	})
-	assert.Nil(t, err)
-	err = governance.InitNodeMembers(stateLedger, []*repo.NodeName{
-		{
-			Name: "S2luZw==",
-			ID:   1,
-		},
-	}, &rbft.EpochInfo{
-		ValidatorSet: []rbft.NodeInfo{
-			{
-				ID:             1,
-				AccountAddress: "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
-				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-	})
-	assert.Nil(t, err)
-
-	exec, err := New(r, mockLedger)
-	assert.Nil(t, err)
-
-	rawTx := "0xf86c8085147d35700082520894f927bb571eaab8c9a361ab405c9e4891c5024380880de0b6b3a76400008025a00b8e3b66c1e7ae870802e3ef75f1ec741f19501774bd5083920ce181c2140b99a0040c122b7ebfb3d33813927246cbbad1c6bf210474f5d28053990abff0fd4f53"
-	tx4 := &types.Transaction{}
-	err = tx4.Unmarshal(hexutil.Decode(rawTx))
-	assert.Nil(t, err)
-
-	var txs3 []*types.Transaction
-	tx5, _, err := types.GenerateTransactionAndSigner(uint64(0), types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), big.NewInt(1), nil)
-	assert.Nil(t, err)
-	// test system contract
-	data := generateNodeAddProposeData(t, NodeExtraArgs{
-		Nodes: []*NodeMember{
-			{
-				NodeId: "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-	})
-	assert.Nil(t, err)
-	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.GovernanceContractAddr), big.NewInt(0), data, signer)
-	assert.Nil(t, err)
-
-	txs3 = append(txs3, tx4, tx5, tx6)
-	res := exec.ApplyReadonlyTransactions(txs3)
-	assert.Equal(t, 3, len(res))
-	assert.Equal(t, types.ReceiptSUCCESS, res[0].Status)
-	assert.Equal(t, types.ReceiptSUCCESS, res[1].Status)
-	assert.Equal(t, types.ReceiptSUCCESS, res[2].Status)
-}
-
-func TestBlockExecutor_ApplyReadonlyTransactionsWithError(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
-	mockCtl := gomock.NewController(t)
-	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	mockLedger := &ledger.Ledger{
-		ChainLedger: chainLedger,
-		StateLedger: stateLedger,
-	}
-
-	// mock data for ledger
-	chainMeta := &types.ChainMeta{
-		Height:    1,
-		GasPrice:  big.NewInt(minGasPrice),
-		BlockHash: types.NewHashByStr(from),
-	}
-
-	id := fmt.Sprintf("%s-%s-%d", srcMethod, dstMethod, 1)
-
-	hash := types.NewHash([]byte{1})
-	val, err := json.Marshal(hash)
-	assert.Nil(t, err)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	contractAddr := types.NewAddressByStr("0xdac17f958d2ee523a2206206994597c13d831ec7")
-	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-	stateLedger.EXPECT().Commit().Return(nil, nil).AnyTimes()
-	stateLedger.EXPECT().Clear().AnyTimes()
-	stateLedger.EXPECT().GetState(contractAddr, []byte(fmt.Sprintf("index-tx-%s", id))).Return(true, val).AnyTimes()
-	chainLedger.EXPECT().PersistExecutionResult(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
-	stateLedger.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Finalise().AnyTimes()
-	stateLedger.EXPECT().Snapshot().Return(1).AnyTimes()
-	stateLedger.EXPECT().RevertToSnapshot(1).AnyTimes()
-	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(nil, errors.New("block not found")).AnyTimes()
-	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetRefund().AnyTimes()
-
-	signer, err := types.GenerateSigner()
-	assert.Nil(t, err)
-	err = governance.InitCouncilMembers(stateLedger, []*repo.Admin{
-		{
-			Address: signer.Addr.String(),
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: "0x1220000000000000000000000000000000000000",
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: "0x1230000000000000000000000000000000000000",
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: "0x1240000000000000000000000000000000000000",
-			Weight:  1,
-			Name:    "444",
-		},
-	})
-	assert.Nil(t, err)
-	err = governance.InitNodeMembers(stateLedger, []*repo.NodeName{
-		{
-			Name: "S2luZw==",
-			ID:   1,
-		},
-	}, &rbft.EpochInfo{
-		ValidatorSet: []rbft.NodeInfo{
-			{
-				ID:             1,
-				AccountAddress: "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
-				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-	})
-	assert.Nil(t, err)
-
-	exec, err := New(r, mockLedger)
-	assert.Nil(t, err)
-
-	rawTx := "0xf86c8085147d35700082520894f927bb571eaab8c9a361ab405c9e4891c5024380880de0b6b3a76400008025a00b8e3b66c1e7ae870802e3ef75f1ec741f19501774bd5083920ce181c2140b99a0040c122b7ebfb3d33813927246cbbad1c6bf210474f5d28053990abff0fd4f53"
-	tx4 := &types.Transaction{}
-	err = tx4.Unmarshal(hexutil.Decode(rawTx))
-	assert.Nil(t, err)
-
-	var txs3 []*types.Transaction
-	tx5, _, err := types.GenerateTransactionAndSigner(uint64(0), types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), big.NewInt(1), nil)
-	assert.Nil(t, err)
-	// test system contract
-	data := generateNodeAddProposeData(t, NodeExtraArgs{
-		Nodes: []*NodeMember{
-			{
-				NodeId: "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-	})
-	assert.Nil(t, err)
-	tx6, err := types.GenerateTransactionWithSigner(uint64(1), types.NewAddressByStr(common.GovernanceContractAddr), big.NewInt(0), data, signer)
-	assert.Nil(t, err)
-
-	txs3 = append(txs3, tx4, tx5, tx6)
-	exec.ApplyReadonlyTransactions(txs3)
-}
-
-func generateNodeAddProposeData(t *testing.T, extraArgs NodeExtraArgs) []byte {
-	// test system contract
-	gabi, err := abi.JSON(strings.NewReader(proposeABI))
-	assert.Nil(t, err)
-
-	title := "title"
-	desc := "desc"
-	blockNumber := uint64(1000)
-
-	extra, err := json.Marshal(extraArgs)
-	assert.Nil(t, err)
-	data, err := gabi.Pack(governance.ProposeMethod, uint8(governance.NodeUpgrade), title, desc, blockNumber, extra)
-	assert.Nil(t, err)
-	return data
-}
-
 // NodeExtraArgs is Node proposal extra arguments
-type NodeExtraArgs struct {
-	Nodes []*NodeMember
-}
-
-type NodeMember struct {
-	NodeId string
-}
 
 func mockCommitEvent(blockNumber uint64, txs []*types.Transaction) *consensuscommon.CommitEvent {
 	return &consensuscommon.CommitEvent{
@@ -622,11 +337,9 @@ func mockBlock(blockNumber uint64, txs []*types.Transaction) *types.Block {
 	}
 
 	block := &types.Block{
-		BlockHeader:  header,
+		Header:       header,
 		Transactions: txs,
 	}
-	block.BlockHash = block.Hash()
-
 	return block
 }
 
@@ -682,7 +395,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 			to := types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7")
 
 			dummyRootHash := common2.Hash{}
-			ldg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), nil, 1)
+			ldg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), 1)
 			ldg.StateLedger.SetBalance(signer.Addr, new(big.Int).Mul(big.NewInt(5000000000000), big.NewInt(21000*10000)))
 			account := ldg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
 			balance, _ := new(big.Int).SetString("100000000000000000000", 10)
@@ -693,8 +406,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 			require.NotNil(t, rootHash)
 			block1 := mockBlock(1, nil)
 			// refresh block
-			block1.BlockHeader.StateRoot = rootHash
-			block1.BlockHash = block1.Hash()
+			block1.Header.StateRoot = rootHash
 			err = ldg.ChainLedger.PersistExecutionResult(block1, nil)
 			require.Nil(t, err)
 

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -49,30 +50,21 @@ func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
 	// rollback from stateLedger、chainLedger and blockFile
 	err := exec.ledger.Rollback(newBlock.Height() - 1)
 	if err != nil {
-		exec.logger.WithFields(logrus.Fields{
-			"begin height": newBlock.Height() - 1,
-			"end height":   exec.currentHeight,
-			"err":          err.Error(),
-		}).Errorf("rollback block error")
-		return err
+		return errors.Wrapf(err, "rollback block error, begin height: %d, end height: %d", newBlock.Height()-1, exec.currentHeight)
 	}
 
 	// query last checked block for generating right parent blockHash
-	lastCheckedBlock, err := exec.ledger.ChainLedger.GetBlock(newBlock.Height() - 1)
+	lastCheckedBlockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(newBlock.Height() - 1)
 	if err != nil {
-		exec.logger.WithFields(logrus.Fields{
-			"height": lastCheckedBlock.Height(),
-			"err":    err.Error(),
-		}).Errorf("get last checked block from ledger error")
-		return err
+		return errors.Wrapf(err, "get last checked block from ledger error, height: %d", lastCheckedBlockHeader.Number)
 	}
 	// rollback currentHeight and currentBlockHash
 	exec.currentHeight = newBlock.Height() - 1
-	exec.currentBlockHash = lastCheckedBlock.BlockHash
+	exec.currentBlockHash = lastCheckedBlockHeader.Hash()
 
 	exec.logger.WithFields(logrus.Fields{
-		"height": lastCheckedBlock.Height(),
-		"hash":   lastCheckedBlock.BlockHash.String(),
+		"height": lastCheckedBlockHeader.Number,
+		"hash":   lastCheckedBlockHeader.Hash().String(),
 	}).Infof("rollback block success")
 
 	return nil
@@ -84,12 +76,12 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block := commitEvent.Block
 
 	// check executor handle the right block
-	if block.BlockHeader.Number != exec.currentHeight+1 {
-		exec.logger.WithFields(logrus.Fields{"block height": block.BlockHeader.Number,
+	if block.Header.Number != exec.currentHeight+1 {
+		exec.logger.WithFields(logrus.Fields{"block height": block.Header.Number,
 			"matchedHeight": exec.currentHeight + 1}).Warning("current block height is not matched")
-		if block.BlockHeader.Number <= exec.currentHeight {
+		if block.Header.Number <= exec.currentHeight {
 			if exec.rep.Config.Executor.DisableRollback {
-				panic(fmt.Sprintf("not supported rollback to %d", block.BlockHeader.Number))
+				panic(fmt.Sprintf("not supported rollback to %d", block.Header.Number))
 			}
 			err := exec.rollbackBlocks(block)
 			if err != nil {
@@ -106,9 +98,9 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 
 	exec.cumulativeGasUsed = 0
-	exec.evm = newEvm(block.Height(), uint64(block.BlockHeader.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.BlockHeader.ProposerAccount)
+	exec.evm = newEvm(block.Height(), uint64(block.Header.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.Header.ProposerAccount)
 	// get last block's stateRoot to init the latest world state trie
-	parentBlock, err := exec.ledger.ChainLedger.GetBlock(block.Height() - 1)
+	parentBlockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(block.Height() - 1)
 	if err != nil {
 		exec.logger.WithFields(logrus.Fields{
 			"height": block.Height() - 1,
@@ -116,7 +108,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		}).Errorf("get last block from ledger error")
 		panic(err)
 	}
-	exec.ledger.StateLedger.PrepareBlock(parentBlock.BlockHeader.StateRoot, block.BlockHash, block.Height())
+	exec.ledger.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, block.Height())
 	receipts := exec.applyTransactions(block.Transactions, block.Height())
 
 	for _, hook := range exec.afterBlockHooks {
@@ -144,9 +136,9 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	calcMerkleDuration.Observe(float64(time.Since(calcMerkleStart)) / float64(time.Second))
 
-	block.BlockHeader.TxRoot = txRoot
-	block.BlockHeader.ReceiptRoot = receiptRoot
-	block.BlockHeader.ParentHash = exec.currentBlockHash
+	block.Header.TxRoot = txRoot
+	block.Header.ReceiptRoot = receiptRoot
+	block.Header.ParentHash = exec.currentBlockHash
 
 	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
 
@@ -164,36 +156,38 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		}
 	}
 
-	block.BlockHeader.GasPrice = int64(nextGasPrice)
+	block.Header.GasPrice = int64(nextGasPrice)
 
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {
 		panic(fmt.Errorf("commit stateLedger failed: %w", err))
 	}
 
-	block.BlockHeader.StateRoot = stateRoot
-	block.BlockHeader.GasUsed = exec.cumulativeGasUsed
-	block.BlockHash = block.Hash()
+	block.Header.StateRoot = stateRoot
+	block.Header.GasUsed = exec.cumulativeGasUsed
+
+	// update block hash cache
+	block.Header.CalculateHash()
 
 	exec.logger.WithFields(logrus.Fields{
-		"hash":             block.BlockHash.String(),
-		"height":           block.BlockHeader.Number,
-		"epoch":            block.BlockHeader.Epoch,
-		"coinbase":         block.BlockHeader.ProposerAccount,
-		"proposer_node_id": block.BlockHeader.ProposerNodeID,
-		"gas_price":        block.BlockHeader.GasPrice,
-		"gas_used":         block.BlockHeader.GasUsed,
-		"parent_hash":      block.BlockHeader.ParentHash.String(),
-		"tx_root":          block.BlockHeader.TxRoot.String(),
-		"receipt_root":     block.BlockHeader.ReceiptRoot.String(),
-		"state_root":       block.BlockHeader.StateRoot.String(),
+		"hash":             block.Hash().String(),
+		"height":           block.Header.Number,
+		"epoch":            block.Header.Epoch,
+		"coinbase":         block.Header.ProposerAccount,
+		"proposer_node_id": block.Header.ProposerNodeID,
+		"gas_price":        block.Header.GasPrice,
+		"gas_used":         block.Header.GasUsed,
+		"parent_hash":      block.Header.ParentHash.String(),
+		"tx_root":          block.Header.TxRoot.String(),
+		"receipt_root":     block.Header.ReceiptRoot.String(),
+		"state_root":       block.Header.StateRoot.String(),
 	}).Info("Block meta")
 
 	calcBlockSize.Observe(float64(block.Size()))
 	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 
-	exec.getLogsForReceipt(receipts, block.BlockHash)
-	block.BlockHeader.Bloom = ledger.CreateBloom(receipts)
+	exec.updateLogsBlockHash(receipts, block.Hash())
+	block.Header.Bloom = ledger.CreateBloom(receipts)
 
 	data := &ledger.BlockData{
 		Block:      block,
@@ -202,7 +196,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 
 	exec.logger.WithFields(logrus.Fields{
-		"height": commitEvent.Block.BlockHeader.Number,
+		"height": commitEvent.Block.Header.Number,
 		"count":  len(commitEvent.Block.Transactions),
 		"elapse": time.Since(current),
 	}).Info("Executed block")
@@ -212,20 +206,20 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	// metrics for cal tx tps
 	txCounter.Add(float64(len(data.Block.Transactions)))
-	if block.BlockHeader.ProposerAccount == exec.rep.P2PAddress {
+	if block.Header.ProposerAccount == exec.rep.P2PAddress {
 		proposedBlockCounter.Inc()
 	}
 
 	exec.logger.WithFields(logrus.Fields{
-		"gasPrice": data.Block.BlockHeader.GasPrice,
-		"height":   data.Block.BlockHeader.Number,
-		"hash":     data.Block.BlockHash.String(),
+		"gasPrice": data.Block.Header.GasPrice,
+		"height":   data.Block.Header.Number,
+		"hash":     data.Block.Hash().String(),
 		"count":    len(data.Block.Transactions),
 		"elapse":   time.Since(now),
 	}).Info("Persisted block")
 
-	exec.currentHeight = block.BlockHeader.Number
-	exec.currentBlockHash = block.BlockHash
+	exec.currentHeight = block.Header.Number
+	exec.currentBlockHash = block.Hash()
 
 	txPointerList := make([]*events.TxPointer, len(data.Block.Transactions))
 	lo.ForEach(data.Block.Transactions, func(item *types.Transaction, index int) {
@@ -364,7 +358,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	if msg.To == nil || bytes.Equal(msg.To.Bytes(), common.Address{}.Bytes()) {
 		receipt.ContractAddress = types.NewAddress(crypto.CreateAddress(exec.evm.TxContext.Origin, tx.GetNonce()).Bytes())
 	}
-	receipt.EvmLogs = exec.ledger.StateLedger.GetLogs(*receipt.TxHash, height, &types.Hash{})
+	receipt.EvmLogs = exec.ledger.StateLedger.GetLogs(*receipt.TxHash, height)
 	receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
 	exec.cumulativeGasUsed += receipt.GasUsed
 	receipt.CumulativeGasUsed = exec.cumulativeGasUsed
@@ -411,11 +405,11 @@ func calcMerkleRoot(contents []merkletree.Content) (*types.Hash, error) {
 
 func getBlockHashFunc(chainLedger ledger.ChainLedger) vm.GetHashFunc {
 	return func(n uint64) common.Hash {
-		hash := chainLedger.GetBlockHash(n)
-		if hash == nil {
+		blockHeader, err := chainLedger.GetBlockHeader(n)
+		if err != nil {
 			return common.Hash{}
 		}
-		return common.BytesToHash(hash.Bytes())
+		return common.BytesToHash(blockHeader.Hash().Bytes())
 	}
 }
 
@@ -434,16 +428,15 @@ func newEvm(number uint64, timestamp uint64, chainCfg *params.ChainConfig, db le
 func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error) {
 	var blkCtx vm.BlockContext
 	meta := exec.ledger.ChainLedger.GetChainMeta()
-	block, err := exec.ledger.ChainLedger.GetBlock(meta.Height)
+	blockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(meta.Height)
 	if err != nil {
-		exec.logger.Errorf("fail to get block at %d: %v", meta.Height, err.Error())
 		return nil, err
 	}
 
 	evmLg := &ledger.EvmStateDBAdaptor{
 		StateLedger: exec.ledger.NewView().StateLedger,
 	}
-	blkCtx = NewEVMBlockContextAdaptor(meta.Height, uint64(block.BlockHeader.Timestamp), block.BlockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
+	blkCtx = NewEVMBlockContextAdaptor(meta.Height, uint64(blockHeader.Timestamp), blockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
 	return vm.NewEVM(blkCtx, txCtx, evmLg, exec.evmChainCfg, vmConfig), nil
 }
 
@@ -465,7 +458,7 @@ func (exec *BlockExecutor) getCurrentGasPrice(height uint64) *big.Int {
 	return exec.ledger.ChainLedger.GetChainMeta().GasPrice
 }
 
-func (exec *BlockExecutor) getLogsForReceipt(receipts []*types.Receipt, hash *types.Hash) {
+func (exec *BlockExecutor) updateLogsBlockHash(receipts []*types.Receipt, hash *types.Hash) {
 	for _, receipt := range receipts {
 		for _, log := range receipt.EvmLogs {
 			log.BlockHash = hash

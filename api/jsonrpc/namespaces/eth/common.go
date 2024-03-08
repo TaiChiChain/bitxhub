@@ -19,7 +19,7 @@ var (
 )
 
 func getStateLedgerAt(api api.CoreAPI, blockNrOrHash *rpctypes.BlockNumberOrHash) (ledger.StateLedger, error) {
-	var block *types.Block
+	var blockHeader *types.BlockHeader
 	var err error
 
 	meta, err := api.Chain().Meta()
@@ -30,32 +30,32 @@ func getStateLedgerAt(api api.CoreAPI, blockNrOrHash *rpctypes.BlockNumberOrHash
 	if blockNrOrHash != nil {
 		if blockNumber, ok := blockNrOrHash.Number(); ok {
 			if blockNumber == rpctypes.PendingBlockNumber || blockNumber == rpctypes.LatestBlockNumber {
-				block, err = api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", meta.Height))
+				blockHeader, err = api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", meta.Height))
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				block, err = api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", blockNumber))
+				blockHeader, err = api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", blockNumber))
 				if err != nil {
 					return nil, err
 				}
 			}
 		} else if blockHash, ok := blockNrOrHash.Hash(); ok {
-			block, err = api.Broker().GetBlockWithoutTx("HASH", fmt.Sprintf("%s", blockHash))
+			blockHeader, err = api.Broker().GetBlockHeader("HASH", fmt.Sprintf("%s", blockHash))
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		// default case: use the latest committed block
-		block, err = api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", meta.Height))
+		// default case: use the latest committed blockHeader
+		blockHeader, err = api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", meta.Height))
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	enableSnapshot := block.BlockHeader.Number == meta.Height
-	lg := api.Broker().GetViewStateLedger().NewViewWithoutCache(block.BlockHeader, enableSnapshot)
+	enableSnapshot := blockHeader.Number == meta.Height
+	lg := api.Broker().GetViewStateLedger().NewViewWithoutCache(blockHeader, enableSnapshot)
 	if lg == nil {
 		return nil, errors.New("GetViewStateLedger error")
 	}

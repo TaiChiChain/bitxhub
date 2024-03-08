@@ -264,7 +264,7 @@ func (n *Node) listenExecutedBlockToReport() {
 		select {
 		case r := <-n.stack.ReadyC:
 			block := &types.Block{
-				BlockHeader: &types.BlockHeader{
+				Header: &types.BlockHeader{
 					Epoch:           n.stack.EpochInfo.Epoch,
 					Number:          r.Height,
 					Timestamp:       r.Timestamp / int64(time.Second),
@@ -482,19 +482,19 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 
 func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *consensus.Checkpoint) error {
 	height := checkpoint.Height()
-	localBlock, err := n.config.GetBlockFunc(height)
-	if err != nil || localBlock == nil {
-		return fmt.Errorf("get local block failed: %w", err)
+	localBlockHeader, err := n.config.GetBlockHeaderFunc(height)
+	if err != nil || localBlockHeader == nil {
+		return fmt.Errorf("get local block header failed: %w", err)
 	}
-	if localBlock.BlockHash.String() != checkpoint.GetExecuteState().GetDigest() {
+	if localBlockHeader.Hash().String() != checkpoint.GetExecuteState().GetDigest() {
 		return fmt.Errorf("local block [hash %s, height: %d] not equal to checkpoint digest %s",
-			localBlock.BlockHash.String(), height, checkpoint.GetExecuteState().GetDigest())
+			localBlockHeader.Hash().String(), height, checkpoint.GetExecuteState().GetDigest())
 	}
 	return nil
 }
 
 func (n *Node) Quorum(totalNum uint64) uint64 {
-	//N := uint64(len(n.stack.EpochInfo.ValidatorSet))
+	// N := uint64(len(n.stack.EpochInfo.ValidatorSet))
 	return adaptor.CalQuorum(totalNum)
 }
 

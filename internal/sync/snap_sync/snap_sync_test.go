@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
@@ -12,9 +16,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestSnapSync_Mode(t *testing.T) {
@@ -26,8 +27,8 @@ func TestSnapSync_Mode(t *testing.T) {
 
 func TestSnapSync_Commit(t *testing.T) {
 	commitData := []common.CommitData{
-		&common.ChainData{Block: &types.Block{BlockHeader: &types.BlockHeader{Number: 1, Epoch: 1}}},
-		&common.ChainData{Block: &types.Block{BlockHeader: &types.BlockHeader{Number: 2, Epoch: 1}}},
+		&common.ChainData{Block: &types.Block{Header: &types.BlockHeader{Number: 1, Epoch: 1}}},
+		&common.ChainData{Block: &types.Block{Header: &types.BlockHeader{Number: 2, Epoch: 1}}},
 	}
 
 	sync := mockSnapSync(nil)
@@ -80,14 +81,14 @@ func TestSnapSync_Prepare(t *testing.T) {
 
 	t.Run("test fetch epoch state failed", func(t *testing.T) {
 		latestBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 133,
 				Epoch:  2,
 			},
 		}
 		conf := &common.Config{
 			Peers:               peersSet,
-			StartEpochChangeNum: latestBlock.BlockHeader.Epoch,
+			StartEpochChangeNum: latestBlock.Header.Epoch,
 			SnapPersistedEpoch:  1,
 			LatestPersistEpoch:  0,
 		}
@@ -100,14 +101,14 @@ func TestSnapSync_Prepare(t *testing.T) {
 	})
 	t.Run("test fill epoch change failed", func(t *testing.T) {
 		latestBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 133,
 				Epoch:  1,
 			},
 		}
 		conf := &common.Config{
 			Peers:               peersSet,
-			StartEpochChangeNum: latestBlock.BlockHeader.Epoch,
+			StartEpochChangeNum: latestBlock.Header.Epoch,
 			SnapPersistedEpoch:  2,
 			LatestPersistEpoch:  2,
 		}
@@ -121,14 +122,14 @@ func TestSnapSync_Prepare(t *testing.T) {
 
 	t.Run("test snap sync need not prepare epoch change", func(t *testing.T) {
 		latestBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 133,
 				Epoch:  2,
 			},
 		}
 		conf := &common.Config{
 			Peers:               peersSet,
-			StartEpochChangeNum: latestBlock.BlockHeader.Epoch,
+			StartEpochChangeNum: latestBlock.Header.Epoch,
 			SnapPersistedEpoch:  1,
 			LatestPersistEpoch:  1,
 		}
@@ -142,14 +143,14 @@ func TestSnapSync_Prepare(t *testing.T) {
 	t.Run("test snap sync need prepare epoch change", func(t *testing.T) {
 		// test snap sync need prepare epoch change
 		latestBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 1,
 				Epoch:  1,
 			},
 		}
 		conf := &common.Config{
 			Peers:               peersSet,
-			StartEpochChangeNum: latestBlock.BlockHeader.Epoch,
+			StartEpochChangeNum: latestBlock.Header.Epoch,
 			SnapPersistedEpoch:  2,
 			LatestPersistEpoch:  0,
 		}
@@ -167,14 +168,14 @@ func TestSnapSync_Prepare(t *testing.T) {
 		defer sync.Stop()
 
 		latestBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 1,
 				Epoch:  1,
 			},
 		}
 		conf := &common.Config{
 			Peers:               peersSet,
-			StartEpochChangeNum: latestBlock.BlockHeader.Epoch,
+			StartEpochChangeNum: latestBlock.Header.Epoch,
 			SnapPersistedEpoch:  2,
 			LatestPersistEpoch:  0,
 		}

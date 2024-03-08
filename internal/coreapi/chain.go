@@ -69,7 +69,7 @@ func (api *ChainAPI) TPS(begin, end uint64) (uint64, error) {
 			errCount.Inc()
 		} else {
 			total.Add(uint64(len(block.Transactions)))
-			startTime = block.BlockHeader.Timestamp
+			startTime = block.Header.Timestamp
 		}
 	}()
 	go func() {
@@ -79,7 +79,7 @@ func (api *ChainAPI) TPS(begin, end uint64) (uint64, error) {
 			errCount.Inc()
 		} else {
 			total.Add(uint64(len(block.Transactions)))
-			endTime = block.BlockHeader.Timestamp
+			endTime = block.Header.Timestamp
 		}
 	}()
 	wg.Wait()
