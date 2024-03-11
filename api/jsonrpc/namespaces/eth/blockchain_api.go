@@ -14,6 +14,7 @@ import (
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
@@ -27,7 +28,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 // BlockChain API provides an API for accessing blockchain data
@@ -202,7 +202,7 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 		blockNum = rpctypes.BlockNumber(meta.Height)
 	}
 
-	block, err := api.api.Broker().GetBlockWithoutTx("HEIGHT", fmt.Sprintf("%d", blockNum))
+	blockHeader, err := api.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", blockNum))
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil
@@ -210,7 +210,7 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 		return nil, err
 	}
 
-	return formatBlock(api.api, api.rep.GenesisConfig, block, fullTx)
+	return formatBlock(api.api, api.rep.GenesisConfig, blockHeader, fullTx)
 }
 
 // GetBlockByHash returns the block identified by hash.
@@ -225,14 +225,14 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map
 
 	api.logger.Debugf("eth_getBlockByHash, hash: %s, full: %v", hash.String(), fullTx)
 
-	block, err := api.api.Broker().GetBlockWithoutTx("HASH", hash.String())
+	blockHeader, err := api.api.Broker().GetBlockHeader("HASH", hash.String())
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return formatBlock(api.api, api.rep.GenesisConfig, block, fullTx)
+	return formatBlock(api.api, api.rep.GenesisConfig, blockHeader, fullTx)
 }
 
 // GetCode returns the contract code at the given address, blockNum is ignored.
@@ -518,20 +518,20 @@ func (api *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *r
 
 // FormatBlock creates an ethereum block from a tendermint header and ethereum-formatted
 // transactions.
-func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, block *types.Block, fullTx bool) (map[string]any, error) {
+func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, blockHeader *types.BlockHeader, fullTx bool) (map[string]any, error) {
 	var err error
 	var transactions []any
 	if fullTx {
-		txList, err := api.Broker().GetBlockTxList(block.Height())
+		txList, err := api.Broker().GetBlockTxList(blockHeader.Number)
 		if err != nil {
 			return nil, err
 		}
 		transactions = make([]any, len(txList))
 		for i, tx := range txList {
-			transactions[i] = NewRPCTransaction(tx, common.BytesToHash(block.BlockHash.Bytes()), block.Height(), uint64(i))
+			transactions[i] = NewRPCTransaction(tx, common.BytesToHash(blockHeader.Hash().Bytes()), blockHeader.Number, uint64(i))
 		}
 	} else {
-		txHashList, err := api.Broker().GetBlockTxHashList(block.Height())
+		txHashList, err := api.Broker().GetBlockTxHashList(blockHeader.Number)
 		if err != nil {
 			return nil, err
 		}
@@ -540,33 +540,36 @@ func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, block *type
 			transactions[i] = txHash.ETHHash()
 		}
 	}
-	gasPrice, err := api.Gas().GetCurrentGasPrice(block.Height())
+	gasPrice, err := api.Gas().GetCurrentGasPrice(blockHeader.Number)
 	if err != nil {
 		return nil, err
 	}
 
+	blockExtra, err := api.Broker().GetBlockExtra(blockHeader.Number)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		"number":           (*ethhexutil.Big)(big.NewInt(int64(block.Height()))),
-		"hash":             block.BlockHash.ETHHash(),
+		"number":           (*ethhexutil.Big)(big.NewInt(int64(blockHeader.Number))),
+		"hash":             blockHeader.Hash().ETHHash(),
 		"baseFeePerGas":    ethhexutil.Uint64(gasPrice),
-		"parentHash":       block.BlockHeader.ParentHash.ETHHash(),
+		"parentHash":       blockHeader.ParentHash.ETHHash(),
 		"nonce":            ethtypes.BlockNonce{}, // PoW specific
-		"logsBloom":        block.BlockHeader.Bloom.ETHBloom(),
-		"transactionsRoot": block.BlockHeader.TxRoot.ETHHash(),
-		"stateRoot":        block.BlockHeader.StateRoot.ETHHash(),
-		"miner":            block.BlockHeader.ProposerAccount,
-		"extraData":        ethhexutil.Bytes{},
-		"size":             ethhexutil.Uint64(block.Size()),
+		"logsBloom":        blockHeader.Bloom.ETHBloom(),
+		"transactionsRoot": blockHeader.TxRoot.ETHHash(),
+		"stateRoot":        blockHeader.StateRoot.ETHHash(),
+		"miner":            blockHeader.ProposerAccount,
+		"extraData":        ethhexutil.Bytes(blockHeader.Extra),
+		"size":             ethhexutil.Uint64(blockExtra.Size),
 		"gasLimit":         ethhexutil.Uint64(genesisConfig.EpochInfo.FinanceParams.GasLimit), // Static gas limit
-		"gasUsed":          ethhexutil.Uint64(block.BlockHeader.GasUsed),
-		"timestamp":        ethhexutil.Uint64(block.BlockHeader.Timestamp),
+		"gasUsed":          ethhexutil.Uint64(blockHeader.GasUsed),
+		"timestamp":        ethhexutil.Uint64(blockHeader.Timestamp),
 		"transactions":     transactions,
-		"receiptsRoot":     block.BlockHeader.ReceiptRoot.ETHHash(),
-		// todo delete non-existent fields
-		"sha3Uncles": ethtypes.EmptyUncleHash, // No uncles in raft/rbft
-		"uncles":     []string{},
-		"mixHash":    common.Hash{},
-		"difficulty": (*ethhexutil.Big)(big.NewInt(0)),
+		"receiptsRoot":     blockHeader.ReceiptRoot.ETHHash(),
+		"sha3Uncles":       ethtypes.EmptyUncleHash, // No uncles in rbft
+		"uncles":           []string{},
+		"mixHash":          common.Hash{},
+		"difficulty":       (*ethhexutil.Big)(big.NewInt(0)),
 	}, nil
 }
 

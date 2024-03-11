@@ -63,7 +63,7 @@ func (n *NodeDev) Prepare(tx *types.Transaction) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 	block := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Epoch:           1,
 			Number:          n.lastExec + 1,
 			Timestamp:       time.Now().Unix(),

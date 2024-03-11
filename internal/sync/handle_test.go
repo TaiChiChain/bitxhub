@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	network "github.com/axiomesh/axiom-p2p"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -181,7 +182,7 @@ func genSuccessRespMsg(t *testing.T, typ pb.Message_Type, input any) Response {
 			Status: pb.Status_SUCCESS,
 			CheckpointState: &pb.CheckpointState{
 				Height:       block.Height(),
-				Digest:       block.BlockHash.String(),
+				Digest:       block.Hash().String(),
 				LatestHeight: block.Height(),
 			},
 		}

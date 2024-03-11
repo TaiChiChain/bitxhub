@@ -32,7 +32,7 @@ func TestGetGasPrice(t *testing.T) {
 func GasPriceBySize(t *testing.T, size int, parentGasPrice int64, expectErr error) uint64 {
 	// mock block for ledger
 	block := &types.Block{
-		BlockHeader:  &types.BlockHeader{GasPrice: parentGasPrice},
+		Header:       &types.BlockHeader{GasPrice: parentGasPrice},
 		Transactions: []*types.Transaction{},
 	}
 	prepareTxs := func(size int) []*types.Transaction {

@@ -8,28 +8,28 @@ import (
 	"syscall"
 	"time"
 
-	consensus2 "github.com/axiomesh/axiom-bft/common/consensus"
-	"github.com/axiomesh/axiom-kit/storage"
-	devexecutor "github.com/axiomesh/axiom-ledger/internal/executor/dev"
-	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	consensus2 "github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
 	"github.com/axiomesh/axiom-ledger/internal/consensus"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
+	devexecutor "github.com/axiomesh/axiom-ledger/internal/executor/dev"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/internal/sync"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/profile"
@@ -113,6 +113,11 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		if err != nil {
 			return nil, fmt.Errorf("new txpool failed: %w", err)
 		}
+
+		genesisBlockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(axm.Repo.GenesisConfig.EpochInfo.StartBlock)
+		if err != nil {
+			return nil, fmt.Errorf("get genesis block header failed: %w", err)
+		}
 		// new consensus
 		axm.Consensus, err = consensus.New(
 			rep.Config.Consensus.Type,
@@ -126,9 +131,9 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			common.WithLogger(loggers.Logger(loggers.Consensus)),
 			common.WithApplied(chainMeta.Height),
 			common.WithDigest(chainMeta.BlockHash.String()),
-			common.WithGenesisDigest(axm.ViewLedger.ChainLedger.GetBlockHash(1).String()),
+			common.WithGenesisDigest(genesisBlockHeader.Hash().String()),
 			common.WithGetChainMetaFunc(axm.ViewLedger.ChainLedger.GetChainMeta),
-			common.WithGetBlockFunc(axm.ViewLedger.ChainLedger.GetBlock),
+			common.WithGetBlockHeaderFunc(axm.ViewLedger.ChainLedger.GetBlockHeader),
 			common.WithGetAccountBalanceFunc(func(address string) *big.Int {
 				return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(address))
 			}),
@@ -191,15 +196,15 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 			return nil, err
 		}
 		// verify whether trie snapshot is legal
-		verified, err := rwLdg.StateLedger.VerifyTrie(snap.snapBlock)
+		verified, err := rwLdg.StateLedger.VerifyTrie(snap.snapBlockHeader)
 		if err != nil {
 			return nil, err
 		}
 		if !verified {
-			return nil, fmt.Errorf("verify snapshot trie failed")
+			return nil, errors.New("verify snapshot trie failed")
 		}
 
-		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlock: snap.snapBlock.Clone()})
+		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlockHeader: snap.snapBlockHeader.Clone()})
 	} else {
 		rwLdg, err = ledger.NewLedger(rep)
 		if err != nil {
@@ -235,8 +240,8 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock,
-			vl.ChainLedger.GetReceiptsByHeight, epochStore.Get, net, rep.Config.Sync)
+		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock, vl.ChainLedger.GetBlockHeader,
+			vl.ChainLedger.GetBlockReceipts, epochStore.Get, net, rep.Config.Sync)
 		if err != nil {
 			return nil, fmt.Errorf("create block sync: %w", err)
 		}
@@ -265,14 +270,14 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		// if we reached snap block, needn't sync
 		// prepare sync
 		if axm.Repo.StartArgs.SnapshotMode {
-			if latestHeight > axm.snapMeta.snapBlock.Height() {
-				return nil, fmt.Errorf("local latest block height %d is bigger than snap block height %d", latestHeight, axm.snapMeta.snapBlock.Height())
+			if latestHeight > axm.snapMeta.snapBlockHeader.Number {
+				return nil, fmt.Errorf("local latest block height %d is bigger than snap block height %d", latestHeight, axm.snapMeta.snapBlockHeader.Number)
 			}
-			if latestHeight < axm.snapMeta.snapBlock.Height() {
+			if latestHeight < axm.snapMeta.snapBlockHeader.Number {
 				start := time.Now()
 				axm.logger.WithFields(logrus.Fields{
 					"start height":  latestHeight,
-					"target height": axm.snapMeta.snapBlock.Height(),
+					"target height": axm.snapMeta.snapBlockHeader.Number,
 				}).Info("start snap sync")
 
 				// 1. prepare snap sync info(including epoch state which will be persisted、last sync checkpoint)
@@ -285,14 +290,14 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 				verifiedCh := make(chan bool, 1)
 				go func(resultCh chan bool) {
 					now := time.Now()
-					verified, err := axm.ViewLedger.StateLedger.VerifyTrie(axm.snapMeta.snapBlock)
+					verified, err := axm.ViewLedger.StateLedger.VerifyTrie(axm.snapMeta.snapBlockHeader)
 					if err != nil {
 						resultCh <- false
 						return
 					}
 					axm.logger.WithFields(logrus.Fields{
 						"cost":   time.Since(now),
-						"height": axm.snapMeta.snapBlock.Height(),
+						"height": axm.snapMeta.snapBlockHeader.Number,
 						"result": verified,
 					}).Info("end verify trie snapshot")
 					resultCh <- verified
@@ -312,13 +317,13 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 
 				axm.logger.WithFields(logrus.Fields{
 					"start height":  latestHeight,
-					"target height": axm.snapMeta.snapBlock.Height(),
+					"target height": axm.snapMeta.snapBlockHeader.Number,
 					"duration":      time.Since(start),
 				}).Info("end snap sync")
 			}
 		}
 
-		axm.ViewLedger.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlock: nil})
+		axm.ViewLedger.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlockHeader: nil})
 	}
 
 	var txExec executor.Executor

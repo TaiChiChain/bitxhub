@@ -1,8 +1,15 @@
 #! /bin/bash
 set -e
 
+if [ -z "$1" ]; then
+    echo "error: new binary path is empty"
+    echo "Usage: ./update_binary.sh new_binary_path"
+    exit 1
+fi
+
 if [ ! -f $1 ]; then
   echo "error: new binary($1) does not exist"
+  echo "Usage: ./update_binary.sh new_binary_path"
   exit 1
 fi
 

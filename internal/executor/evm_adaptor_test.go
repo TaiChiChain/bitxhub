@@ -6,35 +6,35 @@ import (
 	"strings"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/axiomesh/axiom-kit/types"
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewEVMBlockContextAdaptor(t *testing.T) {
 	Block := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:          1,
 			Timestamp:       0,
 			ProposerAccount: "0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997",
 		},
 	}
 	getHashFunc := func(n uint64) ethcommon.Hash {
-		hash := Block.BlockHash
+		hash := Block.Hash()
 		if hash == nil {
 			return ethcommon.Hash{}
 		}
 		return ethcommon.BytesToHash(hash.Bytes())
 	}
 
-	adaptor := NewEVMBlockContextAdaptor(Block.Height(), uint64(Block.BlockHeader.Timestamp), Block.BlockHeader.ProposerAccount, getHashFunc)
-	assert.Equal(t, strings.ToLower(Block.BlockHeader.ProposerAccount), strings.ToLower(adaptor.Coinbase.Hex()))
+	adaptor := NewEVMBlockContextAdaptor(Block.Height(), uint64(Block.Header.Timestamp), Block.Header.ProposerAccount, getHashFunc)
+	assert.Equal(t, strings.ToLower(Block.Header.ProposerAccount), strings.ToLower(adaptor.Coinbase.Hex()))
 	assert.Equal(t, Block.Height(), adaptor.BlockNumber.Uint64())
-	assert.Equal(t, uint64(Block.BlockHeader.Timestamp), adaptor.Time)
+	assert.Equal(t, uint64(Block.Header.Timestamp), adaptor.Time)
 }
 
 func TestTransactionToMessage(t *testing.T) {
@@ -224,5 +224,4 @@ func TestCallArgsToMessage(t *testing.T) {
 		_, err = CallArgsToMessage(test.args, test.globalGasCap, test.baseFee)
 		assert.Equal(t, test.expect, err)
 	}
-
 }

@@ -154,9 +154,13 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 	}
 
 	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(&types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number: 1,
 		},
+	}, nil).AnyTimes()
+
+	chainLedger.EXPECT().GetBlockHeader(gomock.Any()).Return(&types.BlockHeader{
+		Number: 1,
 	}, nil).AnyTimes()
 
 	chainLedger.EXPECT().GetTransaction(gomock.Any()).Return(&types.Transaction{}, nil).AnyTimes()

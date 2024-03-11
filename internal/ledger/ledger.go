@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // ChainLedger handles block, transaction and receipt data.
@@ -19,20 +19,23 @@ type ChainLedger interface {
 	// GetBlock get block with height
 	GetBlock(height uint64) (*types.Block, error)
 
-	// GetBlockByHash get the block using block hash
-	GetBlockByHash(hash *types.Hash) (*types.Block, error)
+	GetBlockNumberByHash(hash *types.Hash) (uint64, error)
 
-	// GetBlockWithOutTxByNumber get the block without tx using block height
-	GetBlockWithOutTxByNumber(height uint64) (*types.Block, error)
+	GetBlockHeader(height uint64) (*types.BlockHeader, error)
 
-	// GetBlockWithOutTxByHash get the block without tx using block hash
-	GetBlockWithOutTxByHash(hash *types.Hash) (*types.Block, error)
+	GetBlockExtra(height uint64) (*types.BlockExtra, error)
 
-	// GetBlockTxHashListByNumber get the block tx hash list using block height
-	GetBlockTxHashListByNumber(height uint64) ([]*types.Hash, error)
+	// GetBlockTxHashList get the block tx hash list using block height
+	GetBlockTxHashList(height uint64) ([]*types.Hash, error)
 
-	// GetBlockTxListByNumber get the block tx hash list using block height
-	GetBlockTxListByNumber(height uint64) ([]*types.Transaction, error)
+	// GetBlockTxList get the block tx hash list using block height
+	GetBlockTxList(height uint64) ([]*types.Transaction, error)
+
+	// GetBlockReceipts get the transactions receipts in a block
+	GetBlockReceipts(height uint64) ([]*types.Receipt, error)
+
+	// GetTransactionCount get the transaction count in a block
+	GetTransactionCount(height uint64) (uint64, error)
 
 	// GetTransaction get the transaction using transaction hash
 	GetTransaction(hash *types.Hash) (*types.Transaction, error)
@@ -42,9 +45,6 @@ type ChainLedger interface {
 
 	// GetReceipt get the transaction receipt
 	GetReceipt(hash *types.Hash) (*types.Receipt, error)
-
-	// GetReceiptsByHeight get the transactions receipts in a block
-	GetReceiptsByHeight(height uint64) ([]*types.Receipt, error)
 
 	// PersistExecutionResult persist the execution result
 	PersistExecutionResult(block *types.Block, receipts []*types.Receipt) error
@@ -60,16 +60,9 @@ type ChainLedger interface {
 	// LoadChainMeta get chain meta data
 	LoadChainMeta() (*types.ChainMeta, error)
 
-	// GetTransactionCount get the transaction count in a block
-	GetTransactionCount(height uint64) (uint64, error)
-
 	RollbackBlockChain(height uint64) error
 
-	GetBlockHash(height uint64) *types.Hash
-
 	Close()
-
-	CloseBlockfile()
 }
 
 type StateLedger interface {
@@ -77,11 +70,11 @@ type StateLedger interface {
 
 	AddLog(log *types.EvmLog)
 
-	GetLogs(types.Hash, uint64, *types.Hash) []*types.EvmLog
+	GetLogs(txHash types.Hash, height uint64) []*types.EvmLog
 
 	RollbackState(height uint64, lastStateRoot *types.Hash) error
 
-	PrepareBlock(*types.Hash, *types.Hash, uint64)
+	PrepareBlock(lastStateRoot *types.Hash, currentExecutingHeight uint64)
 
 	ClearChangerAndRefund()
 
@@ -93,20 +86,20 @@ type StateLedger interface {
 	Version() uint64
 
 	// NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
-	NewView(block *types.Block, enableSnapshot bool) StateLedger
+	NewView(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger
 
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger
 
-	IterateTrie(block *types.Block, kv storage.Storage, errC chan error)
+	IterateTrie(blockHeader *types.BlockHeader, kv storage.Storage, errC chan error)
 
 	GetTrieSnapshotMeta() (*SnapshotMeta, error)
 
-	VerifyTrie(block *types.Block) (bool, error)
+	VerifyTrie(blockHeader *types.BlockHeader) (bool, error)
 
 	Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error)
 
-	GenerateSnapshot(block *types.Block, errC chan error)
+	GenerateSnapshot(blockHeader *types.BlockHeader, errC chan error)
 }
 
 // StateAccessor manipulates the state data

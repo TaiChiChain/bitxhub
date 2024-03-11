@@ -2,7 +2,6 @@ package sync
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +11,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -24,10 +28,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	network "github.com/axiomesh/axiom-p2p"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 const (
@@ -77,7 +77,7 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 		epochStateResponse: make(chan *pb.Message, 1),
 		chainMeta: &types.ChainMeta{
 			Height:    genesis.Height(),
-			BlockHash: genesis.BlockHash,
+			BlockHash: genesis.Hash(),
 		},
 	}
 	ctrl := gomock.NewController(t)
@@ -89,12 +89,18 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 		}
 		return mockLg.blockDb[height], nil
 	}).AnyTimes()
+	mockLg.EXPECT().GetBlockHeader(gomock.Any()).DoAndReturn(func(height uint64) (*types.BlockHeader, error) {
+		if mockLg.blockDb[height] == nil {
+			return nil, errors.New("block not found")
+		}
+		return mockLg.blockDb[height].Header, nil
+	}).AnyTimes()
 
 	mockLg.EXPECT().GetChainMeta().DoAndReturn(func() *types.ChainMeta {
 		return mockLg.chainMeta
 	}).AnyTimes()
 
-	mockLg.EXPECT().GetReceiptsByHeight(gomock.Any()).DoAndReturn(func(height uint64) ([]*types.Receipt, error) {
+	mockLg.EXPECT().GetBlockReceipts(gomock.Any()).DoAndReturn(func(height uint64) ([]*types.Receipt, error) {
 		if mockLg.receiptsDb[height] == nil {
 			return nil, fmt.Errorf("receipts not found:[height:%d]", height)
 		}
@@ -106,7 +112,7 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 		mockLg.blockDb[h] = block
 		if mockLg.chainMeta.Height <= h {
 			mockLg.chainMeta.Height = h
-			mockLg.chainMeta.BlockHash = block.BlockHash
+			mockLg.chainMeta.BlockHash = block.Hash()
 		}
 		mockLg.receiptsDb[h] = receipts
 
@@ -118,7 +124,7 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 					Epoch: h / epochPeriod,
 					ExecuteState: &consensus.Checkpoint_ExecuteState{
 						Height: h,
-						Digest: block.BlockHash.String(),
+						Digest: block.Hash().String(),
 					},
 				},
 			}
@@ -135,8 +141,6 @@ func ConstructBlock(height uint64, parentHash *types.Hash) *types.Block {
 	for i := 0; i < 32; i++ {
 		from = append(from, blockHashStr[i%strLen])
 	}
-	fromStr := hex.EncodeToString(from)
-	blockHash := types.NewHashByStr(fromStr)
 	header := &types.BlockHeader{
 		Number:     height,
 		ParentHash: parentHash,
@@ -144,10 +148,9 @@ func ConstructBlock(height uint64, parentHash *types.Hash) *types.Block {
 		Epoch:      ((height - 1) / epochPeriod) + 1,
 	}
 	return &types.Block{
-		BlockHash:    blockHash,
-		BlockHeader:  header,
+		Header:       header,
 		Transactions: []*types.Transaction{},
-	}
+		Extra:        &types.BlockExtra{}}
 }
 
 func ConstructBlocks(count int, parentHash *types.Hash) []*types.Block {
@@ -155,38 +158,11 @@ func ConstructBlocks(count int, parentHash *types.Hash) []*types.Block {
 	parent := parentHash
 	for i := 2; i <= count; i++ {
 		blocks = append(blocks, ConstructBlock(uint64(i), parent))
-		parent = blocks[len(blocks)-1].BlockHash
+		parent = blocks[len(blocks)-1].Hash()
 	}
 	return blocks
 }
 
-func ConstructBlockWithTxs(t *testing.T, height uint64, parentHash *types.Hash, txCount uint64) *types.Block {
-	blockHashStr := "commitData" + strconv.FormatUint(height, 10)
-	from := make([]byte, 0)
-	strLen := len(blockHashStr)
-	for i := 0; i < 32; i++ {
-		from = append(from, blockHashStr[i%strLen])
-	}
-	fromStr := hex.EncodeToString(from)
-	blockHash := types.NewHashByStr(fromStr)
-	header := &types.BlockHeader{
-		Number:     height,
-		ParentHash: parentHash,
-		Timestamp:  time.Now().Unix(),
-	}
-	txs := make([]*types.Transaction, 0)
-
-	for i := uint64(0); i < txCount; i++ {
-		tx, err := types.GenerateEmptyTransactionAndSigner()
-		require.Nil(t, err)
-		txs = append(txs, tx)
-	}
-	return &types.Block{
-		BlockHash:    blockHash,
-		BlockHeader:  header,
-		Transactions: txs,
-	}
-}
 func (net *mockMiniNetwork) newMockBlockRequestPipe(nets map[string]*mockMiniNetwork, mode common.SyncMode, ctrl *gomock.Controller, localId string, wrongPipeId ...int) network.Pipe {
 	var wrongRemoteId string
 	if len(wrongPipeId) > 0 {
@@ -198,7 +174,7 @@ func (net *mockMiniNetwork) newMockBlockRequestPipe(nets map[string]*mockMiniNet
 		}
 	}
 	mockPipe := mock_network.NewMockPipe(ctrl)
-	log := logrus.New()
+	logger := logrus.New()
 	fp := fmt.Sprintf("recv_block_req-node%s.log", localId)
 
 	// show package path
@@ -211,7 +187,7 @@ func (net *mockMiniNetwork) newMockBlockRequestPipe(nets map[string]*mockMiniNet
 	if err != nil {
 		panic(err)
 	}
-	log.SetOutput(file)
+	logger.SetOutput(file)
 	mockPipe.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, to string, data []byte) error {
 			switch mode {
@@ -226,7 +202,7 @@ func (net *mockMiniNetwork) newMockBlockRequestPipe(nets map[string]*mockMiniNet
 				}
 
 				toNet := nets[to]
-				log.WithFields(logrus.Fields{
+				logger.WithFields(logrus.Fields{
 					"to":        to,
 					"toNetNode": toNet.Node,
 					"height":    msg.Height,
@@ -479,7 +455,7 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 					Status: pb.Status_SUCCESS,
 					CheckpointState: &pb.CheckpointState{
 						Height:       block.Height(),
-						Digest:       block.BlockHash.String(),
+						Digest:       block.Hash().String(),
 						LatestHeight: ledgers[to].GetChainMeta().Height,
 					},
 				}
@@ -530,15 +506,8 @@ func genGenesisBlock() *types.Block {
 		Timestamp:   time.Now().Unix(),
 	}
 
-	hash := make([]byte, 0)
-	blockHashStr := "genesis_block"
-	strLen := len(blockHashStr)
-	for i := 0; i < 32; i++ {
-		hash = append(hash, blockHashStr[i%strLen])
-	}
 	genesisBlock := &types.Block{
-		BlockHash:    types.NewHashByStr(hex.EncodeToString(hash)),
-		BlockHeader:  header,
+		Header:       header,
 		Transactions: []*types.Transaction{},
 	}
 	return genesisBlock
@@ -568,7 +537,9 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		getBlockFn := func(height uint64) (*types.Block, error) {
 			return ledgers[localId].GetBlock(height)
 		}
-
+		getBlockHeaderFn := func(height uint64) (*types.BlockHeader, error) {
+			return ledgers[localId].GetBlockHeader(height)
+		}
 		getChainMetaFn := func() *types.ChainMeta {
 			return ledgers[localId].GetChainMeta()
 		}
@@ -581,7 +552,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		}
 
 		getReceiptsFn := func(height uint64) ([]*types.Receipt, error) {
-			return ledgers[localId].GetReceiptsByHeight(height)
+			return ledgers[localId].GetBlockReceipts(height)
 		}
 
 		getEpochStateFn := func(key []byte) []byte {
@@ -591,7 +562,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 			return val
 		}
 
-		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, nets[strconv.Itoa(i)], conf)
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, nets[strconv.Itoa(i)], conf)
 		require.Nil(t, err)
 		syncs = append(syncs, blockSync)
 	}
@@ -655,7 +626,7 @@ func (m *mockNetwork) SendWithStream(stream network.Stream, message *pb.Message)
 }
 
 func (m *mockNetwork) CountConnectedValidators() uint64 {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -729,24 +700,24 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 	genesis := genGenesisBlock()
 
 	beforeBeginBlocks := make([]*types.Block, 0)
-	parent := genesis.BlockHash
+	parent := genesis.Hash()
 	if begin > 1 {
 		for j := 2; j < int(begin); j++ {
 			b := ConstructBlock(uint64(j), parent)
 			beforeBeginBlocks = append(beforeBeginBlocks, b)
-			parent = b.BlockHash
+			parent = b.Hash()
 		}
 	}
 
 	blockCache := make([]*types.Block, 0)
-	parentHash := genesis.BlockHash
+	parentHash := genesis.Hash()
 	if len(beforeBeginBlocks) > 0 {
-		parentHash = beforeBeginBlocks[len(beforeBeginBlocks)-1].BlockHash
+		parentHash = beforeBeginBlocks[len(beforeBeginBlocks)-1].Hash()
 	}
 	for j := begin; j <= end; j++ {
 		block := ConstructBlock(j, parentHash)
 		blockCache = append(blockCache, block)
-		parentHash = block.BlockHash
+		parentHash = block.Hash()
 	}
 
 	for i := 0; i < count; i++ {
@@ -765,9 +736,9 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 
 			if needGenEpochChange && len(epochChanges) == 0 {
 				nextEpochHeight := begin + uint64(epochInterval) - uint64(remainder)
-				nextEpochHash := lg.blockDb[nextEpochHeight].BlockHash.String()
+				nextEpochHash := lg.blockDb[nextEpochHeight].Hash().String()
 				for nextEpochHeight <= end {
-					nextEpochHash = lg.blockDb[nextEpochHeight].BlockHash.String()
+					nextEpochHash = lg.blockDb[nextEpochHeight].Hash().String()
 					epochChanges = append(epochChanges, prepareEpochChange(nextEpochHeight, nextEpochHash))
 					nextEpochHeight += uint64(epochInterval)
 				}
@@ -775,7 +746,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		}
 		ledgers[localId] = lg
 	}
-	//nets := newMockMiniNetworks(count)
+	// nets := newMockMiniNetworks(count)
 
 	nets := make(map[string]*mockNetwork)
 	peers := make([]string, count)
@@ -811,9 +782,11 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		getBlockFn := func(height uint64) (*types.Block, error) {
 			return lg.GetBlock(height)
 		}
-
+		getBlockHeaderFn := func(height uint64) (*types.BlockHeader, error) {
+			return lg.GetBlockHeader(height)
+		}
 		getReceiptsFn := func(height uint64) ([]*types.Receipt, error) {
-			return lg.GetReceiptsByHeight(height)
+			return lg.GetBlockReceipts(height)
 		}
 
 		getEpochStateFn := func(key []byte) []byte {
@@ -829,7 +802,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 			WaitStatesTimeout:     repo.Duration(30 * time.Second),
 		}
 
-		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
 		require.Nil(t, err)
 		localIndex, err := strconv.Atoi(localId)
 		require.Nil(t, err)
@@ -866,7 +839,7 @@ func genSyncParams(peers []string, latestBlockHash string, quorum uint64, curHei
 }
 
 func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int) {
-	blocks := ConstructBlocks(endHeight, genGenesisBlock().BlockHash)
+	blocks := ConstructBlocks(endHeight, genGenesisBlock().Hash())
 	for id, lg := range ledgers {
 		if id == exceptId {
 			continue

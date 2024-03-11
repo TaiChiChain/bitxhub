@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,9 +15,10 @@ import (
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
-
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common/mock_sync"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -37,7 +36,7 @@ func SetMockChainMeta(chainMeta *types.ChainMeta) {
 
 func ResetMockChainMeta() {
 	block := ConstructBlock("block1", uint64(1))
-	mockChainMeta = &types.ChainMeta{Height: uint64(1), BlockHash: block.BlockHash}
+	mockChainMeta = &types.ChainMeta{Height: uint64(1), BlockHash: block.Hash()}
 }
 
 func SetMockBlockLedger(block *types.Block, local bool) {
@@ -74,8 +73,7 @@ func ConstructBlock(blockHashStr string, height uint64) *types.Block {
 		Timestamp:  time.Now().Unix(),
 	}
 	return &types.Block{
-		BlockHash:    blockHash,
-		BlockHeader:  header,
+		Header:       header,
 		Transactions: []*types.Transaction{},
 	}
 }
@@ -143,9 +141,9 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 			return genesisEpochInfo, nil
 		},
 		GetChainMetaFunc: GetChainMetaFunc,
-		GetBlockFunc: func(height uint64) (*types.Block, error) {
+		GetBlockHeaderFunc: func(height uint64) (*types.BlockHeader, error) {
 			if block, ok := mockLocalBlockLedger[height]; ok {
-				return block, nil
+				return block.Header, nil
 			} else {
 				return nil, errors.New("block not found")
 			}

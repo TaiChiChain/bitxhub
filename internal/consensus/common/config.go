@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/storage"
-	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/network"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -34,7 +34,7 @@ type Config struct {
 	GetCurrentEpochInfoFromEpochMgrContractFunc func() (*rbft.EpochInfo, error)
 	GetEpochInfoFromEpochMgrContractFunc        func(epoch uint64) (*rbft.EpochInfo, error)
 	GetChainMetaFunc                            func() *types.ChainMeta
-	GetBlockFunc                                func(height uint64) (*types.Block, error)
+	GetBlockHeaderFunc                          func(height uint64) (*types.BlockHeader, error)
 	GetAccountBalance                           func(address string) *big.Int
 	GetAccountNonce                             func(address *types.Address) uint64
 	EpochStore                                  storage.Storage
@@ -121,9 +121,9 @@ func WithGetChainMetaFunc(f func() *types.ChainMeta) Option {
 	}
 }
 
-func WithGetBlockFunc(f func(height uint64) (*types.Block, error)) Option {
+func WithGetBlockHeaderFunc(f func(height uint64) (*types.BlockHeader, error)) Option {
 	return func(config *Config) {
-		config.GetBlockFunc = f
+		config.GetBlockHeaderFunc = f
 	}
 }
 

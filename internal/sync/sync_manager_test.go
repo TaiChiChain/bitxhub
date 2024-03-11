@@ -8,11 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
-	"github.com/axiomesh/axiom-ledger/internal/sync/common"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	network2 "github.com/axiomesh/axiom-p2p"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -20,6 +15,11 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
+	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	network2 "github.com/axiomesh/axiom-p2p"
 )
 
 func TestNewSyncManager(t *testing.T) {
@@ -28,6 +28,9 @@ func TestNewSyncManager(t *testing.T) {
 		return nil
 	}
 	getBlockFn := func(height uint64) (*types.Block, error) {
+		return nil, nil
+	}
+	getBlockHeaderFn := func(height uint64) (*types.BlockHeader, error) {
 		return nil, nil
 	}
 	getReceiptsFn := func(height uint64) ([]*types.Receipt, error) {
@@ -60,11 +63,12 @@ func TestNewSyncManager(t *testing.T) {
 	}).AnyTimes()
 
 	for i := 0; i < len(createPipeErrCount); i++ {
-		_, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getReceiptsFn, getEpochStateFn, net, cnf)
+		_, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, net, cnf)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "create pipe err")
 	}
 }
+
 func TestStartSync(t *testing.T) {
 	n := 4
 	syncs, ledgers := newMockBlockSyncs(t, n)
@@ -203,7 +207,7 @@ func TestMultiEpochSync(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block100.Height(),
-					Digest: block100.BlockHash.String(),
+					Digest: block100.Hash().String(),
 				},
 			},
 		},
@@ -213,7 +217,7 @@ func TestMultiEpochSync(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block200.Height(),
-					Digest: block200.BlockHash.String(),
+					Digest: block200.Hash().String(),
 				},
 			},
 		},
@@ -224,7 +228,7 @@ func TestMultiEpochSync(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block300.Height(),
-					Digest: block300.BlockHash.String(),
+					Digest: block300.Hash().String(),
 				},
 			},
 		},
@@ -281,7 +285,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block100.Height(),
-					Digest: block100.BlockHash.String(),
+					Digest: block100.Hash().String(),
 				},
 			},
 		},
@@ -295,11 +299,10 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	parentBlock, err := ledgers[remoteId].GetBlock(wrongHeight - 1)
 	require.Nil(t, err)
 	wrongBlockMulti := &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:     wrongHeight,
-			ParentHash: parentBlock.BlockHash,
+			ParentHash: parentBlock.Hash(),
 		},
-		BlockHash: types.NewHash([]byte("wrong_block")),
 	}
 
 	idx := wrongHeight % uint64(len(peers))
@@ -315,7 +318,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 		Checkpoint: &consensus.Checkpoint{
 			ExecuteState: &consensus.Checkpoint_ExecuteState{
 				Height: block10.Height(),
-				Digest: block10.BlockHash.String(),
+				Digest: block10.Hash().String(),
 			},
 		},
 	}
@@ -330,7 +333,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	blocks1 := data.([]common.CommitData)
 	require.Equal(t, 9, len(blocks1))
 	require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
-	require.Equal(t, block10.BlockHash.String(), blocks1[len(blocks1)-1].GetHash())
+	require.Equal(t, block10.Hash().String(), blocks1[len(blocks1)-1].GetHash())
 	require.False(t, syncs[0].syncStatus.Load())
 
 	// reset right block
@@ -347,11 +350,10 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	parentBlock, err = ledgers[remoteId].GetBlock(wrongHeight - 1)
 	require.Nil(t, err)
 	wrongBlockMulti = &types.Block{
-		BlockHeader: &types.BlockHeader{
+		Header: &types.BlockHeader{
 			Number:     wrongHeight,
-			ParentHash: parentBlock.BlockHash,
+			ParentHash: parentBlock.Hash(),
 		},
-		BlockHash: types.NewHash([]byte("wrong_block")),
 	}
 	wrongRemoteId = syncs[0].peers[int(wrongHeight)%len(syncs[0].peers)].PeerID
 	err = ledgers[wrongRemoteId].PersistExecutionResult(wrongBlockMulti, genReceipts(wrongBlockMulti))
@@ -364,7 +366,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 		Checkpoint: &consensus.Checkpoint{
 			ExecuteState: &consensus.Checkpoint_ExecuteState{
 				Height: block101.Height(),
-				Digest: block101.BlockHash.String(),
+				Digest: block101.Hash().String(),
 			},
 		},
 	}
@@ -467,7 +469,7 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 				Checkpoint: &consensus.Checkpoint{
 					ExecuteState: &consensus.Checkpoint_ExecuteState{
 						Height: block100.Height(),
-						Digest: block100.BlockHash.String(),
+						Digest: block100.Hash().String(),
 					},
 				},
 			},
@@ -523,7 +525,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block10.Height(),
-					Digest: block10.BlockHash.String(),
+					Digest: block10.Hash().String(),
 				},
 			},
 		}
@@ -542,7 +544,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		require.Equal(t, 3, len(syncs[0].peers), "not remove timeout peer because timeoutCount < timeoutCountLimit")
 		require.Equal(t, 9, len(blocks1))
 		require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
-		require.Equal(t, oldRightBlock.BlockHash.String(), blocks1[timeoutBlockHeight-2].GetHash())
+		require.Equal(t, oldRightBlock.Hash().String(), blocks1[timeoutBlockHeight-2].GetHash())
 
 		// reset right commitData
 		err = ledgers[wrongId].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
@@ -579,7 +581,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 				Checkpoint: &consensus.Checkpoint{
 					ExecuteState: &consensus.Checkpoint_ExecuteState{
 						Height: block100.Height(),
-						Digest: block100.BlockHash.String(),
+						Digest: block100.Hash().String(),
 					},
 				},
 			},
@@ -591,7 +593,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block100.Height(),
-					Digest: block100.BlockHash.String(),
+					Digest: block100.Hash().String(),
 				},
 			},
 		}
@@ -716,7 +718,7 @@ func TestRequestState(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block10.Height(),
-					Digest: block10.BlockHash.String(),
+					Digest: block10.Hash().String(),
 				},
 			},
 		}
@@ -739,10 +741,9 @@ func TestRequestState(t *testing.T) {
 		// store blocks expect node 0
 		prepareLedger(t, ledgers, localId, 10)
 		wrongGensisBlock := &types.Block{
-			BlockHeader: &types.BlockHeader{
+			Header: &types.BlockHeader{
 				Number: 1,
 			},
-			BlockHash: types.NewHashByStr("wrong hash"),
 		}
 		err := ledgers[wrongRemoteId].PersistExecutionResult(wrongGensisBlock, genReceipts(wrongGensisBlock))
 		require.Nil(t, err)
@@ -763,7 +764,7 @@ func TestRequestState(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block10.Height(),
-					Digest: block10.BlockHash.String(),
+					Digest: block10.Hash().String(),
 				},
 			},
 		}
@@ -871,7 +872,6 @@ func TestStartSyncWithSnapshotMode(t *testing.T) {
 	chainData = <-syncs[0].Commit()
 	require.NotNil(t, chainData)
 	require.Equal(t, uint64(300), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
-
 }
 
 func TestPickPeer(t *testing.T) {
@@ -930,7 +930,7 @@ func TestPickPeer(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block10.Height(),
-					Digest: block10.BlockHash.String(),
+					Digest: block10.Hash().String(),
 				},
 			},
 		}
@@ -972,7 +972,7 @@ func TestPickPeer(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block.Height(),
-					Digest: block.BlockHash.String(),
+					Digest: block.Hash().String(),
 				},
 			},
 		}
@@ -1037,7 +1037,7 @@ func TestPickPeer(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: block.Height(),
-					Digest: block.BlockHash.String(),
+					Digest: block.Hash().String(),
 				},
 			},
 		}
@@ -1088,7 +1088,7 @@ func TestTps(t *testing.T) {
 
 		latestBlock, err := syncs[localId].getBlockFunc(begin - 1)
 		require.Nil(t, err)
-		latestBlockHash := latestBlock.BlockHash.String()
+		latestBlockHash := latestBlock.Hash().String()
 		remoteId := (localId + 1) % n
 		endBlock, err := syncs[remoteId].getBlockFunc(end)
 		require.Nil(t, err)
@@ -1096,7 +1096,7 @@ func TestTps(t *testing.T) {
 			Checkpoint: &consensus.Checkpoint{
 				ExecuteState: &consensus.Checkpoint_ExecuteState{
 					Height: end,
-					Digest: endBlock.BlockHash.String(),
+					Digest: endBlock.Hash().String(),
 				},
 			},
 		}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -14,6 +13,7 @@ import (
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
@@ -62,34 +62,27 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	}
 
 	if chain.Height >= seqNo {
-		localBlock, err := a.getBlockFunc(seqNo)
+		localBlockHeader, err := a.getBlockHeaderFunc(seqNo)
 		if err != nil {
 			panic("get local block failed")
 		}
-		if localBlock.BlockHash.String() != digest {
+		if localBlockHeader.Hash().String() != digest {
 			a.logger.WithFields(logrus.Fields{
 				"remote": digest,
-				"local":  localBlock.BlockHash.String(),
+				"local":  localBlockHeader.Hash().String(),
 				"height": seqNo,
 			}).Warningf("Block hash is inconsistent in state update state, we need rollback")
 			// rollback to the lowWatermark height
 			startHeight = lowWatermark + 1
-			latestBlockHash = localBlock.BlockHash.String()
+			latestBlockHash = localBlockHeader.Hash().String()
 		} else {
-			txPointerList := make([]*events.TxPointer, len(localBlock.Transactions))
-			lo.ForEach(localBlock.Transactions, func(tx *types.Transaction, index int) {
-				txPointerList[index] = &events.TxPointer{
-					Hash:    tx.GetHash(),
-					Account: tx.RbftGetFrom(),
-					Nonce:   tx.RbftGetNonce(),
-				}
-			})
-
 			// notify rbft report State Updated
-			a.postMockBlockEvent(localBlock, txPointerList, checkpoints[0].GetCheckpoint())
+			a.postMockBlockEvent(&types.Block{
+				Header: localBlockHeader,
+			}, []*events.TxPointer{}, checkpoints[0].GetCheckpoint())
 			a.logger.WithFields(logrus.Fields{
 				"remote": digest,
-				"local":  localBlock.BlockHash.String(),
+				"local":  localBlockHeader.Hash().String(),
 				"height": seqNo,
 			}).Info("because we have the same block," +
 				" we will post mock block event to report State Updated")

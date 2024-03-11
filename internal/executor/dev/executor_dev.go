@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/samber/lo"
@@ -14,7 +15,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor"
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 var _ executor.Executor = (*ExecutorDev)(nil)
@@ -60,8 +60,6 @@ func (exec *ExecutorDev) processExecuteEvent(commitEvent *common.CommitEvent) {
 	current := time.Now()
 	block := commitEvent.Block
 
-	block.BlockHash = block.Hash()
-
 	txPointerList := make([]*events.TxPointer, len(block.Transactions))
 	lo.ForEach(block.Transactions, func(item *types.Transaction, index int) {
 		txPointerList[index] = &events.TxPointer{
@@ -74,7 +72,7 @@ func (exec *ExecutorDev) processExecuteEvent(commitEvent *common.CommitEvent) {
 	exec.postBlockEvent(block, txPointerList)
 
 	exec.logger.WithFields(logrus.Fields{
-		"height": commitEvent.Block.BlockHeader.Number,
+		"height": commitEvent.Block.Header.Number,
 		"count":  len(commitEvent.Block.Transactions),
 		"elapse": time.Since(current),
 	}).Info("Executed block")
@@ -93,10 +91,6 @@ func (exec *ExecutorDev) ExecuteBlock(block *common.CommitEvent) {
 
 func (exec *ExecutorDev) AsyncExecuteBlock(commitEvent *common.CommitEvent) {
 	exec.blockC <- commitEvent
-}
-
-func (exec *ExecutorDev) ApplyReadonlyTransactions(txs []*types.Transaction) []*types.Receipt {
-	return nil
 }
 
 func (exec *ExecutorDev) SubscribeBlockEvent(ch chan<- events.ExecutedEvent) event.Subscription {

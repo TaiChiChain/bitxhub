@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts"
-
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -116,10 +115,12 @@ func GenerateCustomKeyJson(auth string, keyDir string, privateKey *ecdsa.Private
 	if err != nil {
 		return "", err
 	}
-	if DefaultKeyJsonPassword == auth {
+	if DefaultKeyJsonPassword == auth && os.Getenv("GOTEST") == "false" {
 		fmt.Println("Warning: Using default keystore password [", DefaultKeyJsonPassword, "], please change it")
 	}
-	fmt.Println("Account generated:", account.Address.Hex())
+	if os.Getenv("GOTEST") == "false" {
+		fmt.Println("Account generated:", account.Address.Hex())
+	}
 	return account.Address.Hex(), nil
 }
 
@@ -129,7 +130,7 @@ func addCustomFieldToKeyJson(account accounts.Account, nodeId string) error {
 	if err != nil {
 		return err
 	}
-	var keyJson map[string]interface{}
+	var keyJson map[string]any
 	if err := json.Unmarshal(keyJsonData, &keyJson); err != nil {
 		return err
 	}

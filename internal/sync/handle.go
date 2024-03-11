@@ -6,11 +6,11 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/sirupsen/logrus"
 
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/types/pb"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	network "github.com/axiomesh/axiom-p2p"
 )
 
@@ -76,7 +76,7 @@ func (sm *SyncManager) constructSyncStateResponse(msg *pb.Message) Response {
 		return wrapFailedStateResp(pb.Message_SYNC_STATE_RESPONSE, err)
 	}
 
-	block, err := sm.getBlockFunc(syncStateRequest.Height)
+	blockHeader, err := sm.getBlockHeaderFunc(syncStateRequest.Height)
 	if err != nil {
 		err = fmt.Errorf("get block failed: %v", err)
 		sm.logger.Error(err)
@@ -92,8 +92,8 @@ func (sm *SyncManager) constructSyncStateResponse(msg *pb.Message) Response {
 
 	// set checkpoint state in current commitData
 	checkpointState := &pb.CheckpointState{
-		Height:       block.Height(),
-		Digest:       block.BlockHash.String(),
+		Height:       blockHeader.Number,
+		Digest:       blockHeader.Hash().String(),
 		LatestHeight: sm.getChainMetaFunc().Height,
 	}
 	return wrapSuccessStateResp(pb.Message_SYNC_STATE_RESPONSE, checkpointState)

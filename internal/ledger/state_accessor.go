@@ -530,15 +530,14 @@ func (l *StateLedgerImpl) AddPreimage(hash types.Hash, preimage []byte) {
 	}
 }
 
-func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, hash *types.Hash, currentExecutingHeight uint64) {
-	l.logs = NewEvmLogs()
-	l.logs.bhash = hash
+func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, currentExecutingHeight uint64) {
+	l.logs = newEvmLogs()
 	l.blockHeight = currentExecutingHeight
 	l.refreshAccountTrie(lastStateRoot)
 	l.accountCache.resetMetrics()
 	storagemgr.ResetCachedStorageMetrics()
 	ResetTriePreloaderMetrics()
-	l.logger.Debugf("[PrepareBlock] height: %v, hash: %v", currentExecutingHeight, hash)
+	l.logger.Debugf("[PrepareBlock] height: %v", currentExecutingHeight)
 }
 
 func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
@@ -581,7 +580,6 @@ func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {
 
 	l.changer.append(addLogChange{txHash: log.TransactionHash})
 
-	log.BlockHash = l.logs.bhash
 	log.LogIndex = uint64(l.logs.logSize)
 	if _, ok := l.logs.logs[*log.TransactionHash]; !ok {
 		l.logs.logs[*log.TransactionHash] = make([]*types.EvmLog, 0)
@@ -591,11 +589,10 @@ func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {
 	l.logs.logSize++
 }
 
-func (l *StateLedgerImpl) GetLogs(hash types.Hash, height uint64, blockHash *types.Hash) []*types.EvmLog {
-	logs := l.logs.logs[hash]
+func (l *StateLedgerImpl) GetLogs(txHash types.Hash, height uint64) []*types.EvmLog {
+	logs := l.logs.logs[txHash]
 	for _, l := range logs {
 		l.BlockNumber = height
-		l.BlockHash = blockHash
 	}
 	return logs
 }

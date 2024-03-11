@@ -6,7 +6,6 @@ import (
 	"time"
 
 	rbft "github.com/axiomesh/axiom-bft"
-
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
 	"github.com/axiomesh/axiom-kit/types"
@@ -26,8 +25,8 @@ type BlockData struct {
 }
 
 type SnapInfo struct {
-	Status    bool
-	SnapBlock *types.Block
+	Status          bool
+	SnapBlockHeader *types.BlockHeader
 }
 
 func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, snapshot storage.Storage, bf *blockfile.BlockFile) (*Ledger, error) {
@@ -90,18 +89,18 @@ func (l *Ledger) PersistBlockData(blockData *BlockData) {
 	}
 
 	persistBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
-	blockHeightMetric.Set(float64(block.BlockHeader.Number))
+	blockHeightMetric.Set(float64(block.Header.Number))
 }
 
 // Rollback rollback ledger to history version
 func (l *Ledger) Rollback(height uint64) error {
 	var stateRoot *types.Hash
 	if height != 0 {
-		block, err := l.ChainLedger.GetBlock(height)
+		blockHeader, err := l.ChainLedger.GetBlockHeader(height)
 		if err != nil {
 			return fmt.Errorf("rollback state to height %d failed: %w", height, err)
 		}
-		stateRoot = block.BlockHeader.StateRoot
+		stateRoot = blockHeader.StateRoot
 	}
 
 	if err := l.StateLedger.RollbackState(height, stateRoot); err != nil {
@@ -125,18 +124,18 @@ func (l *Ledger) Close() {
 func (l *Ledger) NewView() *Ledger {
 	snap := l.SnapMeta.Load()
 	if snap != nil && snap.(SnapInfo).Status {
-		snapBlock := snap.(SnapInfo).SnapBlock
+		snapBlockHeader := snap.(SnapInfo).SnapBlockHeader
 		var sm atomic.Value
 		sm.Store(snap)
 		return &Ledger{
 			ChainLedger: l.ChainLedger,
-			StateLedger: l.StateLedger.NewView(snapBlock, false),
+			StateLedger: l.StateLedger.NewView(snapBlockHeader, false),
 			SnapMeta:    sm,
 		}
 	}
 
 	meta := l.ChainLedger.GetChainMeta()
-	block, err := l.ChainLedger.GetBlock(meta.Height)
+	block, err := l.ChainLedger.GetBlockHeader(meta.Height)
 	if err != nil {
 		panic(err)
 	}
@@ -148,12 +147,12 @@ func (l *Ledger) NewView() *Ledger {
 
 func (l *Ledger) NewViewWithoutCache() *Ledger {
 	meta := l.ChainLedger.GetChainMeta()
-	block, err := l.ChainLedger.GetBlock(meta.Height)
+	blockHeader, err := l.ChainLedger.GetBlockHeader(meta.Height)
 	if err != nil {
 		panic(err)
 	}
 	return &Ledger{
 		ChainLedger: l.ChainLedger,
-		StateLedger: l.StateLedger.NewViewWithoutCache(block.BlockHeader, true),
+		StateLedger: l.StateLedger.NewViewWithoutCache(blockHeader, true),
 	}
 }

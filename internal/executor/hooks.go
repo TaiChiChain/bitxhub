@@ -12,13 +12,13 @@ import (
 func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 	// check need turn into NewEpoch
 	epochInfo := exec.rep.EpochInfo
-	if block.BlockHeader.Number == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
+	if block.Header.Number == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
 		var seed []byte
 		seed = append(seed, []byte(exec.currentBlockHash.String())...)
-		seed = append(seed, []byte(block.BlockHeader.ProposerAccount)...)
-		seed = binary.BigEndian.AppendUint64(seed, block.BlockHeader.Number)
-		seed = binary.BigEndian.AppendUint64(seed, block.BlockHeader.Epoch)
-		seed = binary.BigEndian.AppendUint64(seed, uint64(block.BlockHeader.Timestamp))
+		seed = append(seed, []byte(block.Header.ProposerAccount)...)
+		seed = binary.BigEndian.AppendUint64(seed, block.Header.Number)
+		seed = binary.BigEndian.AppendUint64(seed, block.Header.Epoch)
+		seed = binary.BigEndian.AppendUint64(seed, uint64(block.Header.Timestamp))
 		for _, tx := range block.Transactions {
 			seed = append(seed, []byte(tx.GetHash().String())...)
 		}
@@ -30,7 +30,7 @@ func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 		exec.rep.EpochInfo = newEpoch
 		exec.epochExchange = true
 		exec.logger.WithFields(logrus.Fields{
-			"height":                block.BlockHeader.Number,
+			"height":                block.Header.Number,
 			"new_epoch":             newEpoch.Epoch,
 			"new_epoch_start_block": newEpoch.StartBlock,
 		}).Info("Turn into new epoch")
@@ -39,7 +39,7 @@ func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 
 func (exec *BlockExecutor) updateMiningInfo(block *types.Block) {
 	// calculate mining rewards and transfer the mining reward
-	receiver := types.NewAddressByStr(block.BlockHeader.ProposerAccount).ETHAddress()
+	receiver := types.NewAddressByStr(block.Header.ProposerAccount).ETHAddress()
 	if err := exec.incentive.SetMiningRewards(receiver, exec.ledger.StateLedger,
 		exec.currentHeight); err != nil {
 		exec.logger.WithFields(logrus.Fields{
