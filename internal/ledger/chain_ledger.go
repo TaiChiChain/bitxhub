@@ -99,6 +99,8 @@ func NewChainLedger(rep *repo.Repo, storageDir string) (*ChainLedgerImpl, error)
 		return nil, fmt.Errorf("create blockchain storage: %w", err)
 	}
 
+	cachedStateStorage := storagemgr.NewCachedStorage(bcStorage, 128)
+
 	bfStoragePath := repo.GetStoragePath(rep.RepoRoot, storagemgr.Blockfile)
 	if storageDir != "" {
 		bfStoragePath = path.Join(storageDir, storagemgr.Blockfile)
@@ -108,7 +110,7 @@ func NewChainLedger(rep *repo.Repo, storageDir string) (*ChainLedgerImpl, error)
 		return nil, fmt.Errorf("blockfile initialize: %w", err)
 	}
 
-	return newChainLedger(rep, bcStorage, bf)
+	return newChainLedger(rep, cachedStateStorage, bf)
 }
 
 func (l *ChainLedgerImpl) GetBlockNumberByHash(hash *types.Hash) (uint64, error) {

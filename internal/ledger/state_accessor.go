@@ -272,9 +272,13 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	storageSet := make(map[string]map[string][]byte)
 	trieJournalBatch := make(types.TrieJournalBatch, 0)
 
-	ldbBatch := l.cachedDB.NewBatch()
-
+	kvBatch := l.cachedDB.NewBatch()
 	accSize := 0
+	pruneArgs := &jmt.PruneArgs{
+		Enable: l.repo.Config.Ledger.EnablePrune,
+		Batch:  kvBatch,
+	}
+	updateTriesTime := time.Now()
 	for _, acc := range accounts {
 		account := acc.(*SimpleAccount)
 		if account.Suicided() {
@@ -295,7 +299,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		}
 
 		if !bytes.Equal(account.originCode, account.dirtyCode) && account.dirtyCode != nil {
-			ldbBatch.Put(utils.CompositeCodeKey(account.Addr, account.dirtyAccount.CodeHash), account.dirtyCode)
+			kvBatch.Put(utils.CompositeCodeKey(account.Addr, account.dirtyAccount.CodeHash), account.dirtyCode)
 		}
 
 		l.logger.Debugf("[Commit-Before] committing storage trie begin, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
@@ -321,9 +325,9 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		}
 		// commit account's storage trie
 		if account.storageTrie != nil {
-			storageRoot, storageTrieJournal := account.storageTrie.Commit(l.repo.Config.Ledger.EnablePrune)
+			storageRoot := account.storageTrie.Commit(pruneArgs)
 			account.dirtyAccount.StorageRoot = storageRoot
-			trieJournalBatch = append(trieJournalBatch, storageTrieJournal)
+			trieJournalBatch = append(trieJournalBatch, pruneArgs.Journal)
 			l.logger.Debugf("[Commit-After] committing storage trie end, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
 		}
 		if l.enableExpensiveMetric {
@@ -343,21 +347,36 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			l.logger.Debugf("[Commit] update account trie, addr: %v, origin account: %v, dirty account: %v", account.Addr, account.originAccount, account.dirtyAccount)
 		}
 	}
-	ldbBatch.Commit()
 
 	// Commit world state trie.
 	// If world state is not changed in current block (which is very rarely), this is no-op.
-	stateRoot, stateTrieJournal := l.accountTrie.Commit(l.repo.Config.Ledger.EnablePrune)
-	trieJournalBatch = append(trieJournalBatch, stateTrieJournal)
+	stateRoot := l.accountTrie.Commit(pruneArgs)
+	l.logger.WithFields(logrus.Fields{
+		"elapse": time.Since(updateTriesTime),
+	}).Info("[StateLedger-Commit] Update all trie")
+
+	current := time.Now()
+	kvBatch.Commit()
+	l.logger.WithFields(logrus.Fields{
+		"elapse":     time.Since(current),
+		"write size": kvBatch.Size(),
+	}).Info("[StateLedger-Commit] Commit all trie entries into kv")
+
+	trieJournalBatch = append(trieJournalBatch, pruneArgs.Journal)
 	if l.enableExpensiveMetric {
 		accountFlushSize.Set(float64(accSize))
 	}
 	l.logger.Debugf("[Commit] after committed world state trie, StateRoot: %v", stateRoot)
 
+	current = time.Now()
 	if l.repo.Config.Ledger.EnablePrune {
 		l.trieCache.Update(height, trieJournalBatch)
 	}
+	l.logger.WithFields(logrus.Fields{
+		"elapse": time.Since(current),
+	}).Info("[StateLedger-Commit] Update trieCache")
 
+	current = time.Now()
 	if l.snapshot != nil {
 		err := l.snapshot.Update(height, journals, destructSet, accountSet, storageSet)
 		if err != nil {
@@ -370,6 +389,9 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			}
 		}
 	}
+	l.logger.WithFields(logrus.Fields{
+		"elapse": time.Since(current),
+	}).Info("[StateLedger-Commit] Update snapshot")
 
 	return types.NewHash(stateRoot.Bytes()), nil
 }

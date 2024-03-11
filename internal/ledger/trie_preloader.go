@@ -82,19 +82,19 @@ func (tp *triePreloader) close() {
 
 // preload schedules sub preloader to preload tries
 func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
-	if rootHash == (common.Hash{}) {
-		rootHash = tp.rootHash
-	}
-	trieKey := tp.trieKey(rootHash)
-	if tp.loaders == nil {
-		tp.loaders = make(map[string]*subPreloader)
-	}
-	loader := tp.loaders[trieKey]
-	if loader == nil {
-		loader = newSubPreloader(tp.logger, tp.db, tp.trieCache, rootHash)
-		tp.loaders[trieKey] = loader
-	}
-	loader.schedule(keys)
+	//if rootHash == (common.Hash{}) {
+	//	rootHash = tp.rootHash
+	//}
+	//trieKey := tp.trieKey(rootHash)
+	//if tp.loaders == nil {
+	//	tp.loaders = make(map[string]*subPreloader)
+	//}
+	//loader := tp.loaders[trieKey]
+	//if loader == nil {
+	//	loader = newSubPreloader(tp.logger, tp.db, tp.trieCache, rootHash)
+	//	tp.loaders[trieKey] = loader
+	//}
+	//loader.schedule(keys)
 }
 
 func (tp *triePreloader) trieKey(rootHash common.Hash) string {

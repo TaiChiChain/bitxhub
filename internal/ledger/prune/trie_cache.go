@@ -58,7 +58,7 @@ func (tc *TrieCache) Update(height uint64, trieJournals types.TrieJournalBatch) 
 
 	tc.logger.Debugf("[TrieCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
 
-	diff := NewDiffLayer(height, tc.ledgerStorage, trieJournals)
+	diff := NewDiffLayer(height, tc.ledgerStorage, trieJournals, true)
 	tc.states.diffs = append(tc.states.diffs, diff)
 	tc.states.size.Add(1)
 }
@@ -112,6 +112,7 @@ func (tc *TrieCache) Rollback(height uint64) error {
 	}
 
 	tc.states.diffs = make([]*diffLayer, 0)
+	tc.states.size.Store(0)
 
 	batch := tc.ledgerStorage.NewBatch()
 	for i := minHeight; i <= height; i++ {
@@ -120,11 +121,9 @@ func (tc *TrieCache) Rollback(height uint64) error {
 		if trieJournal == nil {
 			break
 		}
-		tc.states.diffs = append(tc.states.diffs, &diffLayer{
-			height:        i,
-			ledgerStorage: tc.ledgerStorage,
-			trieJournals:  trieJournal,
-		})
+		diff := NewDiffLayer(i, tc.ledgerStorage, trieJournal, false)
+		tc.states.diffs = append(tc.states.diffs, diff)
+		tc.states.size.Add(1)
 	}
 	batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
 

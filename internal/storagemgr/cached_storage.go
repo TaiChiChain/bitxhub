@@ -60,16 +60,11 @@ func (c *CachedStorage) Get(key []byte) []byte {
 	value, ok := c.cache.HasGet(nil, key)
 	if ok {
 		kvCacheHitCountPerBlock++
-		if value == nil {
-			return []byte{}
-		}
 		return value
 	}
 	v := c.Storage.Get(key)
 	kvCacheMissCountPerBlock++
-	if v != nil {
-		c.cache.Set(key, v)
-	}
+	c.cache.Set(key, v)
 	return v
 }
 
@@ -116,11 +111,12 @@ type BatchWrapper struct {
 }
 
 func (w *BatchWrapper) Put(key, value []byte) {
-	if value == nil {
-		value = []byte{}
-	}
 	w.finalState[string(key)] = value
-	w.Batch.Put(key, value)
+	if value == nil {
+		w.Batch.Delete(key)
+	} else {
+		w.Batch.Put(key, value)
+	}
 }
 
 func (w *BatchWrapper) Delete(key []byte) {
@@ -131,11 +127,7 @@ func (w *BatchWrapper) Delete(key []byte) {
 func (w *BatchWrapper) Commit() {
 	w.Batch.Commit()
 	for k, v := range w.finalState {
-		if v == nil {
-			w.cache.Del([]byte(k))
-		} else {
-			w.cache.Set([]byte(k), v)
-		}
+		w.cache.Set([]byte(k), v)
 	}
 }
 

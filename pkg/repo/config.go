@@ -326,13 +326,13 @@ func DefaultConfig() *Config {
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize:               100,
-			StateLedgerCacheMegabytesLimit:     128,
+			StateLedgerCacheMegabytesLimit:     1024,
 			StateLedgerAccountCacheSize:        1024,
 			EnablePrune:                        true,
 			StateLedgerReservedHistoryBlockNum: 2,
 		},
 		Snapshot: Snapshot{
-			DiskCacheMegabytesLimit: 128,
+			DiskCacheMegabytesLimit: 1024,
 		},
 		Executor: Executor{
 			Type:            ExecTypeNative,
@@ -365,7 +365,7 @@ func DefaultConfig() *Config {
 				Governance:     "info",
 				API:            "info",
 				CoreAPI:        "info",
-				Storage:        "debug",
+				Storage:        "info",
 				Profile:        "info",
 				Finance:        "error",
 				BlockSync:      "info",

@@ -286,12 +286,12 @@ func (o *SimpleAccount) setCodeAndHash(code []byte) {
 // Code return the contract code
 func (o *SimpleAccount) Code() []byte {
 	if o.dirtyCode != nil {
-		o.logger.Debugf("[Code] get from dirty, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.dirtyCode[:8]})
+		o.logger.Debugf("[Code] get from dirty, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.dirtyCode[:4]})
 		return o.dirtyCode
 	}
 
 	if o.originCode != nil {
-		o.logger.Debugf("[Code] get from origin, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode[:8]})
+		o.logger.Debugf("[Code] get from origin, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode[:4]})
 		return o.originCode
 	}
 
@@ -306,7 +306,7 @@ func (o *SimpleAccount) Code() []byte {
 		if o.enableExpensiveMetric {
 			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
-		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: o.originCode[:8]})
+		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: code[:4]})
 	}
 
 	o.originCode = code

@@ -13,44 +13,44 @@ import (
 type diffLayer struct {
 	height uint64
 
-	trieJournals types.TrieJournalBatch
+	cache map[string][]byte
 
 	ledgerStorage storage.Storage
 }
 
-func NewDiffLayer(height uint64, ledgerStorage storage.Storage, trieJournals types.TrieJournalBatch) *diffLayer {
+func NewDiffLayer(height uint64, ledgerStorage storage.Storage, trieJournals types.TrieJournalBatch, persist bool) *diffLayer {
 	l := &diffLayer{
 		height:        height,
 		ledgerStorage: ledgerStorage,
-		trieJournals:  trieJournals,
+		cache:         make(map[string][]byte),
 	}
-	// persist trie journal and its meta info in disk in case of crash down
-	batch := l.ledgerStorage.NewBatch()
-	batch.Put(utils.CompositeKey(utils.TrieJournalKey, height), trieJournals.Encode())
-	batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
-	if height == 1 {
-		batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(height))
+	if persist {
+		batch := l.ledgerStorage.NewBatch()
+		batch.Put(utils.CompositeKey(utils.TrieJournalKey, height), trieJournals.Encode())
+		batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
+		if height == 1 {
+			batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(height))
+		}
+		batch.Commit()
 	}
-	batch.Commit()
+
+	for _, journal := range trieJournals {
+		for k := range journal.PruneSet {
+			l.cache[k] = nil
+		}
+		for k, v := range journal.DirtySet {
+			l.cache[k] = v
+		}
+	}
 
 	return l
 }
 
-func (dl *diffLayer) GetFromTrieCache(nodeKey []byte) (res []byte, ok bool) {
-	for _, journal := range dl.trieJournals {
-		nk := string(nodeKey)
-		if _, ok = journal.PruneSet[nk]; ok {
-			break
-		}
-		if res, ok = journal.DirtySet[nk]; ok {
-			break
-		}
+func (dl *diffLayer) GetFromTrieCache(nodeKey []byte) ([]byte, bool) {
+	if v, ok := dl.cache[string(nodeKey)]; ok {
+		return v, true
 	}
-
-	//fmt.Printf("[GetFromTrieCache] nodeKey=%v, ok=%v, res=%v,\n", nodeKey, ok, res)
-	//fmt.Printf("[GetFromTrieCache] journal is %v,\n", dl.trieJournals)
-
-	return res, ok
+	return nil, false
 }
 
 func (dl *diffLayer) String() string {
@@ -58,9 +58,7 @@ func (dl *diffLayer) String() string {
 	res.WriteString("Version[")
 	res.WriteString(strconv.Itoa(int(dl.height)))
 	res.WriteString(fmt.Sprintf("], \nJournals[\n"))
-	for _, j := range dl.trieJournals {
-		res.WriteString(fmt.Sprintf("journal=%v\n", j.String()))
-	}
+	res.WriteString(fmt.Sprintf("journal=%v\n", dl.cache))
 	res.WriteString("]")
 	return res.String()
 }

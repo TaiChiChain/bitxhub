@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/VictoriaMetrics/fastcache"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/storage"
@@ -18,7 +17,6 @@ import (
 
 type Snapshot struct {
 	snapStorage storage.Storage
-	cache       *fastcache.Cache // Cache to avoid hitting the disk for direct access
 
 	lock sync.RWMutex
 
@@ -38,7 +36,6 @@ func NewSnapshot(snapStorage storage.Storage, logger logrus.FieldLogger) *Snapsh
 	return &Snapshot{
 		snapStorage: snapStorage,
 		logger:      logger,
-		cache:       fastcache.New(128 * 1024 * 1024), // todo configurable
 	}
 }
 
@@ -69,20 +66,10 @@ func (snap *Snapshot) Account(addr *types.Address) (*types.InnerAccount, error) 
 
 	accountKey := utils.CompositeAccountKey(addr)
 
-	// Try to retrieve the account from the memory cache
-	if blob, found := snap.cache.HasGet(nil, accountKey); found {
-		innerAccount := &types.InnerAccount{Balance: big.NewInt(0)}
-		if err := innerAccount.Unmarshal(blob); err != nil {
-			panic(err)
-		}
-		return innerAccount, nil
-	}
-
 	blob := snap.snapStorage.Get(accountKey)
 	if len(blob) == 0 { // can be both nil and []byte{}
 		return nil, nil
 	}
-	snap.cache.Set(accountKey, blob)
 
 	innerAccount := &types.InnerAccount{Balance: big.NewInt(0)}
 	if err := innerAccount.Unmarshal(blob); err != nil {
@@ -98,19 +85,15 @@ func (snap *Snapshot) Storage(addr *types.Address, key []byte) ([]byte, error) {
 
 	snapKey := utils.CompositeStorageKey(addr, key)
 
-	if blob, found := snap.cache.HasGet(nil, snapKey); found {
-		return blob, nil
-	}
 	blob := snap.snapStorage.Get(snapKey)
 	if blob == nil {
 		return nil, nil
 	}
 
-	snap.cache.Set(snapKey, blob)
-
 	return blob, nil
 }
 
+// todo serveral number of blocks batch write
 func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map[string]struct{}, accounts map[string]*types.InnerAccount, storage map[string]map[string][]byte) error {
 	snap.lock.Lock()
 	defer snap.lock.Unlock()
@@ -122,7 +105,6 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 	for addr := range destructs {
 		accountKey := utils.CompositeAccountKey(types.NewAddressByStr(addr))
 		batch.Delete(accountKey)
-		snap.cache.Del(accountKey)
 	}
 
 	for addr, acc := range accounts {
@@ -132,7 +114,6 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 			panic(err)
 		}
 		batch.Put(accountKey, blob)
-		snap.cache.Set(accountKey, blob)
 	}
 
 	for rawAddr, slots := range storage {
@@ -140,7 +121,6 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 		for slot, blob := range slots {
 			storageKey := utils.CompositeStorageKey(addr, []byte(slot))
 			batch.Put(storageKey, blob)
-			snap.cache.Set(storageKey, blob)
 		}
 	}
 
@@ -151,10 +131,12 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 		}
 	}
 
+	// todo use pb
 	data, err := json.Marshal(journal)
 	if err != nil {
 		return fmt.Errorf("marshal snapshot journal error: %w", err)
 	}
+	snap.logger.Infof("[Snapshot-Update] journal size = %v", len(data))
 
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, height), data)
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(height))
@@ -208,7 +190,6 @@ func (snap *Snapshot) Rollback(height uint64) error {
 	}
 	batch.Commit()
 
-	snap.cache.Reset()
 	return nil
 }
 

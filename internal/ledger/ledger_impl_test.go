@@ -389,11 +389,11 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			nonce := evmStateDB.GetNonce(account)
 			assert.Equal(t, nonce, uint64(10))
 			evmStateDB.GetCodeHash(account)
-			evmStateDB.SetCode(account, []byte("111"))
+			evmStateDB.SetCode(account, []byte("1111"))
 			code := evmStateDB.GetCode(account)
-			assert.Equal(t, code, []byte("111"))
+			assert.Equal(t, code, []byte("1111"))
 			codeSize := evmStateDB.GetCodeSize(account)
-			assert.Equal(t, codeSize, 3)
+			assert.Equal(t, codeSize, 4)
 			evmStateDB.AddRefund(2)
 			refund := evmStateDB.GetRefund()
 			assert.Equal(t, refund, uint64(2))
@@ -1675,7 +1675,6 @@ func TestStateLedger_RollbackToContractHistoryVersion(t *testing.T) {
 	// revert from block 4 to block 3
 	err = lg.Rollback(3)
 	assert.Nil(t, err)
-	fmt.Printf("lg.StateLedger.Version()=%v\n", lg.StateLedger.Version())
 	// check state ledger in block 3
 	// account1: k1=v111, k11=nil
 	// account2: k2=v222
@@ -1752,8 +1751,6 @@ func TestStateLedger_ReplayAfterAccountRollback(t *testing.T) {
 	// create an account
 	account1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	account2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
-
-	fmt.Printf("begin process block 1\n")
 
 	// set contract account data in block 1
 	// account1: k1=v1,k2=v2
