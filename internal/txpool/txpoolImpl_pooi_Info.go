@@ -1,8 +1,7 @@
 package txpool
 
 import (
-	"sort"
-
+	"github.com/google/btree"
 	"github.com/samber/lo"
 
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
@@ -121,7 +120,18 @@ func (p *txPoolImpl[T, Constraint]) handleGetAccountMeta(account string, full bo
 		}
 	}
 
-	fullTxs := p.txStore.allTxs[account].items
+	fullTxs := make([]*internalTransaction[T, Constraint], 0)
+	p.txStore.allTxs[account].index.data.Ascend(func(i btree.Item) bool {
+		nonce := i.(*sortedNonceKey).nonce
+		item, ok := p.txStore.allTxs[account].items[nonce]
+		if !ok {
+			p.logger.Errorf("Get nil tx from allTxs items")
+			return true
+		}
+		fullTxs = append(fullTxs, item)
+		return true
+	})
+
 	res := &commonpool.AccountMeta[T, Constraint]{
 		CommitNonce:  p.txStore.nonceCache.getCommitNonce(account),
 		PendingNonce: p.txStore.nonceCache.getPendingNonce(account),
@@ -138,9 +148,6 @@ func (p *txPoolImpl[T, Constraint]) handleGetAccountMeta(account string, full bo
 				ArrivedTime: tx.arrivedTime,
 			})
 		}
-		sort.Slice(res.Txs, func(i, j int) bool {
-			return Constraint(res.Txs[i].Tx).RbftGetNonce() < Constraint(res.Txs[j].Tx).RbftGetNonce()
-		})
 	} else {
 		res.SimpleTxs = make([]*commonpool.TxSimpleInfo, 0, len(fullTxs))
 		for _, tx := range fullTxs {
@@ -154,9 +161,6 @@ func (p *txPoolImpl[T, Constraint]) handleGetAccountMeta(account string, full bo
 				ArrivedTime: tx.arrivedTime,
 			})
 		}
-		sort.Slice(res.SimpleTxs, func(i, j int) bool {
-			return res.SimpleTxs[i].Nonce < res.SimpleTxs[j].Nonce
-		})
 	}
 
 	return res

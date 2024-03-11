@@ -122,13 +122,13 @@ func (api *TxPoolAPI) getSimpleContent() SimpleContentResponse {
 
 	SimpleContentM := make(map[string]SimpleAccountContent)
 	for account, accMeta := range txpoolMeta.Accounts {
-		pending := make(map[string]string)
-		queued := make(map[string]string)
+		pending := make([]TxByNonce, 0)
+		queued := make([]TxByNonce, 0)
 		lo.ForEach(accMeta.SimpleTxs, func(info *txpool.TxSimpleInfo, index int) {
 			if info.Nonce > accMeta.PendingNonce {
-				queued[fmt.Sprintf("%d", info.Nonce)] = info.Hash
+				queued = append(queued, TxByNonce{Nonce: info.Nonce, TxHash: info.Hash})
 			} else {
-				pending[fmt.Sprintf("%d", info.Nonce)] = info.Hash
+				pending = append(pending, TxByNonce{Nonce: info.Nonce, TxHash: info.Hash})
 			}
 		})
 		SimpleContentM[account] = SimpleAccountContent{

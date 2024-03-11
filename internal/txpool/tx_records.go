@@ -61,7 +61,7 @@ func (r *txRecords[T, Constraint]) load(input *os.File, taskDoneCh chan struct{}
 					}
 
 				} else {
-					r.logger.Errorf("TxRecords load failed to peek transaction length: %v", err)
+					r.logger.Errorf("TxRecords load failed to peek transaction size: %v", err)
 				}
 				r.logger.Infof("TxRecords loaded %d transactions from %s", txNums, r.filePath)
 				taskDoneCh <- struct{}{}

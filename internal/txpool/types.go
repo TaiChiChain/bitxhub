@@ -12,6 +12,7 @@ import (
 const (
 	DefaultPoolSize               = 50000
 	DefaultToleranceNonceGap      = 1000
+	DefaultPriceBump              = 10
 	DefaultToleranceTime          = 5 * time.Minute
 	DefaultToleranceRemoveTime    = 15 * time.Minute
 	DefaultCleanEmptyAccountTime  = 10 * time.Minute
@@ -119,7 +120,7 @@ type reqRemoveBatchedTxs struct {
 }
 
 type reqRemoveInvalidTxs[T any, Constraint types.TXConstraint[T]] struct {
-	removeTxs map[string][]*internalTransaction[T, Constraint]
+	removeTxs map[string]*internalTransaction[T, Constraint]
 }
 
 // ========================================================================

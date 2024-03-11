@@ -4,6 +4,7 @@ import (
 	"time"
 
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,6 +23,8 @@ type Config struct {
 	GetAccountBalance      GetAccountBalanceFunc
 	EnableLocalsPersist    bool
 	PriceLimit             uint64
+	PriceBump              uint64
+	GenerateBatchType      string
 }
 
 // sanitize checks the provided user configurations and changes anything that's
@@ -44,5 +47,12 @@ func (c *Config) sanitize() {
 	}
 	if c.RotateTxLocalsInterval == 0 {
 		c.RotateTxLocalsInterval = DefaultRotateTxLocalsInterval
+	}
+
+	if c.GenerateBatchType != repo.GenerateBatchByTime && c.GenerateBatchType != repo.GenerateBatchByGasPrice {
+		c.GenerateBatchType = repo.GenerateBatchByTime
+	}
+	if c.PriceBump < DefaultPriceBump {
+		c.PriceBump = DefaultPriceBump
 	}
 }

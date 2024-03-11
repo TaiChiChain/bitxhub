@@ -106,6 +106,8 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
 			ChainInfo:              chainInfo,
 			PriceLimit:             priceLimit,
+			PriceBump:              poolConf.PriceBump,
+			GenerateBatchType:      poolConf.GenerateBatchType,
 		}
 		axm.TxPool, err = txpool2.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
 		if err != nil {

@@ -18,7 +18,7 @@ const (
 	btreeDegree = 10
 )
 
-// the key of priorityIndex and parkingLotIndex.
+// the key of priorityByTime and parkingLotIndex.
 type orderedIndexKey struct {
 	time    int64
 	account string

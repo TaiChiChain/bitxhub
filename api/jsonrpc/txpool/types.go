@@ -22,11 +22,16 @@ type SimpleContentResponse struct {
 }
 
 type SimpleAccountContent struct {
-	Pending      map[string]string `json:"pending"`
-	Queued       map[string]string `json:"queued"`
-	CommitNonce  uint64            `json:"commitNonce"`
-	PendingNonce uint64            `json:"pendingNonce"`
-	TxCount      uint64            `json:"txCount"`
+	Pending      []TxByNonce `json:"pending"`
+	Queued       []TxByNonce `json:"queued"`
+	CommitNonce  uint64      `json:"commitNonce"`
+	PendingNonce uint64      `json:"pendingNonce"`
+	TxCount      uint64      `json:"txCount"`
+}
+
+type TxByNonce struct {
+	Nonce  uint64
+	TxHash string
 }
 
 type AccountContentResponse struct {

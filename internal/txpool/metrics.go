@@ -29,6 +29,14 @@ var (
 		},
 		[]string{"event"},
 	)
+	insertRecordDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "txpool",
+			Name:      "insert_record_duration_seconds",
+			Help:      "the duration of insert every record",
+			Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 10),
+		},
+	)
 	rejectTxNum = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "txpool",
@@ -49,6 +57,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(processEventDuration)
+	prometheus.MustRegister(insertRecordDuration)
 	prometheus.MustRegister(poolTxNum)
 	prometheus.MustRegister(readyTxNum)
 	prometheus.MustRegister(rejectTxNum)

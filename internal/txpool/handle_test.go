@@ -2,7 +2,6 @@ package txpool
 
 import (
 	"encoding/binary"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -37,17 +36,20 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		txs := constructTxs(s, 5) // 4 batched txs + 1 priority tx
 		pool.AddRemoteTxs(txs)
 		<-ch
-		// sleep a while to trigger the remove timeout event
-		time.Sleep(10 * time.Millisecond)
+
+		// wait to ensure that tx had been timeout
+		time.Sleep(12 * time.Millisecond)
 		ast.Equal(uint64(5), pool.GetTotalPendingTxCount())
 		ast.Equal(4, len(pool.txStore.batchedTxs))
 		ast.Equal(1, len(pool.txStore.batchesCache))
-		ast.Equal(5, pool.txStore.priorityIndex.size())
+		if pool.enablePricePriority {
+			ast.Equal(1, getPrioritySize(pool))
+		} else {
+			ast.Equal(5, getPrioritySize(pool))
+		}
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 
 		pool.handleRemoveTimeout(timer.RemoveTx)
-		res := pool.GetTotalPendingTxCount()
-		fmt.Println(res)
 		ast.Equal(uint64(5), pool.GetTotalPendingTxCount(), "ignore batched and priority txs")
 	})
 
@@ -72,7 +74,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			pool.AddRemoteTxs(txs)
 			assert.Equal(t, uint64(4), pool.GetTotalPendingTxCount())
-			ast.Equal(0, pool.txStore.priorityIndex.size())
+			ast.Equal(0, getPrioritySize(pool))
 			ast.Equal(4, pool.txStore.parkingLotIndex.size())
 			ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 

@@ -447,9 +447,9 @@ func (n *Node) listenReadyBlock() {
 			executeEvent := &common.CommitEvent{
 				Block: block,
 			}
-			n.commitC <- executeEvent
 			n.batchDigestM[block.Height()] = e.BatchHash
 			n.lastExec++
+			n.commitC <- executeEvent
 		}
 	}
 }

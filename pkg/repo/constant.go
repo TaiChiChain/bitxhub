@@ -78,6 +78,11 @@ const (
 	DefaultMinGasPrice   = 1000000000000
 )
 
+const (
+	GenerateBatchByTime     = "FIFO" // default
+	GenerateBatchByGasPrice = "price_priority"
+)
+
 var (
 	DefaultAdminNames = []string{
 		"S2luZw==", // base64 encode King

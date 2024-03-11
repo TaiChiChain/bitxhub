@@ -37,6 +37,8 @@ type TxPool struct {
 	EnableLocalsPersist    bool     `mapstructure:"enable_locals_persist" toml:"enable_locals_persist"`
 	RotateTxLocalsInterval Duration `mapstructure:"rotate_tx_locals_interval" toml:"rotate_tx_locals_interval"`
 	PriceLimit             uint64   `mapstructure:"price_limit" toml:"price_limit"`
+	PriceBump              uint64   `mapstructure:"price_bump" toml:"price_bump"`
+	GenerateBatchType      string   `mapstructure:"generate_batch_type" toml:"generate_batch_type"`
 }
 
 type TxCache struct {
@@ -92,6 +94,8 @@ func DefaultConsensusConfig() *ConsensusConfig {
 			ToleranceNonceGap:      1000,
 			EnableLocalsPersist:    true,
 			PriceLimit:             DefaultMinGasPrice,
+			PriceBump:              10,
+			GenerateBatchType:      GenerateBatchByTime,
 		},
 		TxCache: TxCache{
 			SetSize:    50,
