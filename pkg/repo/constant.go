@@ -79,7 +79,7 @@ const (
 )
 
 const (
-	GenerateBatchByTime     = "FIFO" // default
+	GenerateBatchByTime     = "fifo" // default
 	GenerateBatchByGasPrice = "price_priority"
 )
 

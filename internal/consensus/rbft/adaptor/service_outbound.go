@@ -102,9 +102,10 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
 		params := &sync_comm.SyncParams{
-			Peers:            peers,
-			LatestBlockHash:  latestBlockHash,
-			Quorum:           CalQuorum(uint64(len(peers))),
+			Peers:           peers,
+			LatestBlockHash: latestBlockHash,
+			// ensure sync remote count including at least one correct node
+			Quorum:           CalFaulty(uint64(len(peers))),
 			CurHeight:        startHeight,
 			TargetHeight:     seqNo,
 			QuorumCheckpoint: checkpoints[0],
@@ -198,4 +199,9 @@ func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*event
 func CalQuorum(N uint64) uint64 {
 	f := (N - 1) / 3
 	return (N + f + 2) / 2
+}
+
+func CalFaulty(N uint64) uint64 {
+	f := (N - 1) / 3
+	return f
 }

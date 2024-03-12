@@ -34,20 +34,20 @@ import (
 var _ common.Sync = (*SyncManager)(nil)
 
 type SyncManager struct {
-	mode               common.SyncMode
-	started            atomic.Bool
-	modeConstructor    common.ISyncConstructor
-	conf               repo.Sync
-	syncStatus         atomic.Bool         // sync status
-	initPeers          []*common.Peer      // p2p set of latest epoch validatorSet with init
-	peers              []*common.Peer      // p2p set of latest epoch validatorSet
-	quorum             uint64              // quorum of latest epoch validatorSet
-	curHeight          uint64              // current commitData which we need sync
-	targetHeight       uint64              // sync target commitData height
-	recvBlockSize      atomic.Int64        // current chunk had received commitData size
-	latestCheckedState *pb.CheckpointState // latest checked commitData state
-	requesters         sync.Map            // requester map
-	requesterLen       atomic.Int64        // requester length
+	mode                common.SyncMode
+	started             atomic.Bool
+	modeConstructor     common.ISyncConstructor
+	conf                repo.Sync
+	syncStatus          atomic.Bool         // sync status
+	initPeers           []*common.Peer      // p2p set of latest epoch validatorSet with init
+	peers               []*common.Peer      // p2p set of latest epoch validatorSet
+	ensureOneCorrectNum uint64              // ensureOneCorrectNum of latest epoch validatorSet
+	curHeight           uint64              // current commitData which we need sync
+	targetHeight        uint64              // sync target commitData height
+	recvBlockSize       atomic.Int64        // current chunk had received commitData size
+	latestCheckedState  *pb.CheckpointState // latest checked commitData state
+	requesters          sync.Map            // requester map
+	requesterLen        atomic.Int64        // requester length
 
 	quorumCheckpoint   *consensus.SignedCheckpoint // latest checkpoint from remote
 	epochChanges       []*consensus.EpochChange    // every epoch change which the node behind
@@ -303,7 +303,7 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 		}
 
 		sm.logger.WithFields(logrus.Fields{
-			"Quorum": sm.quorum,
+			"Quorum": sm.ensureOneCorrectNum,
 		}).Info("Receive Quorum response")
 	}
 
@@ -419,7 +419,10 @@ func (sm *SyncManager) InitBlockSyncInfo(peers []string, latestBlockHash string,
 		}
 	})
 	copy(sm.initPeers, sm.peers)
-	sm.quorum = quorum
+	if quorum < 1 {
+		quorum = 1
+	}
+	sm.ensureOneCorrectNum = quorum
 	sm.curHeight = curHeight
 	sm.targetHeight = targetHeight
 	sm.quorumCheckpoint = quorumCheckpoint
@@ -483,7 +486,7 @@ func (sm *SyncManager) switchSyncStatus(status bool) error {
 	return nil
 }
 
-func (sm *SyncManager) listenSyncStateResp(ctx context.Context, cancel context.CancelFunc, height uint64, localHash string) {
+func (sm *SyncManager) listenSyncStateResp(ctx context.Context, height uint64, localHash string) {
 	diffState := make(map[string][]string)
 
 	for {
@@ -494,20 +497,22 @@ func (sm *SyncManager) listenSyncStateResp(ctx context.Context, cancel context.C
 			// update remote peers' latest block height,
 			// if we request block height ig bigger than remote's latest height, we should pick a new peer
 			sm.updatePeers(resp.PeerID, resp.Resp.CheckpointState.LatestHeight)
-			sm.handleSyncStateResp(resp, diffState, height, localHash, cancel)
+			sm.handleSyncStateResp(resp, diffState, height, localHash)
 		}
 	}
 }
 
 func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 	sm.logger.WithFields(logrus.Fields{
-		"height": height,
+		"height":              height,
+		"ensureOneCorrectNum": sm.ensureOneCorrectNum,
 	}).Info("Prepare request sync state")
 	sm.stateTaskDone.Store(false)
 
 	// 1. start listen sync state response
 	stateCtx, stateCancel := context.WithCancel(context.Background())
-	go sm.listenSyncStateResp(stateCtx, stateCancel, height, localHash)
+	defer stateCancel()
+	go sm.listenSyncStateResp(stateCtx, height, localHash)
 
 	wp := workerpool.New(len(sm.peers))
 	// send sync state request to all validators, check our local state(latest commitData) is equal to Quorum state
@@ -584,6 +589,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 									"peerID": resp.From,
 								}).Error("Block not found")
 								sm.updatePeers(resp.From, stateResp.CheckpointState.LatestHeight)
+								return fmt.Errorf("block not found")
 							}
 
 							if stateResp.Status == pb.Status_SUCCESS {
@@ -932,11 +938,12 @@ func (sm *SyncManager) collectChunkTaskDone() bool {
 }
 
 func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffState map[string][]string, localHeight uint64,
-	localHash string, cancel context.CancelFunc) {
+	localHash string) {
 	sm.logger.WithFields(logrus.Fields{
-		"peer":   msg.PeerID,
-		"height": msg.Resp.CheckpointState.Height,
-		"digest": msg.Resp.CheckpointState.Digest,
+		"peer":      msg.PeerID,
+		"height":    msg.Resp.CheckpointState.Height,
+		"digest":    msg.Resp.CheckpointState.Digest,
+		"diffState": diffState,
 	}).Debug("Receive sync state response")
 
 	if sm.stateTaskDone.Load() || localHeight != msg.Resp.CheckpointState.Height {
@@ -950,8 +957,7 @@ func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffSta
 	diffState[msg.Hash] = append(diffState[msg.Hash], msg.PeerID)
 
 	// if Quorum state is enough, update Quorum state
-	if len(diffState[msg.Hash]) >= int(sm.quorum) {
-		defer cancel()
+	if len(diffState[msg.Hash]) >= int(sm.ensureOneCorrectNum) {
 		// verify Quorum state failed, we will quit state with false
 		if msg.Resp.CheckpointState.Digest != localHash {
 			sm.quitState(fmt.Errorf("quorum state is not equal to current state:[height:%d quorum hash:%s, current hash:%s]",

@@ -65,7 +65,7 @@ func TestTxPoolImpl_Start(t *testing.T) {
 		}
 		err = pool.Start()
 		ast.NotNil(err)
-		ast.Contains(err.Error(), "timer removeTx doesn't exist")
+		ast.Contains(err.Error(), "timer RemoveTx doesn't exist")
 		pool.Stop()
 
 		t.Run("test load tx records failed", func(t *testing.T) {

@@ -102,10 +102,6 @@ func (q *accountQueue[T, Constraint]) remove(nonce uint64) bool {
 
 // removeBehind removes all transactions with nonce bigger than given.
 func (q *accountQueue[T, Constraint]) removeBehind(nonce uint64) ([]*internalTransaction[T, Constraint], bool) {
-	_, ok := q.items[nonce]
-	if !ok {
-		return nil, false
-	}
 	removedTxs := make([]*internalTransaction[T, Constraint], 0)
 	// Otherwise delete the transaction and fix the heap index
 	for i := 0; i < q.minNonceQueue.Len(); {
@@ -118,7 +114,7 @@ func (q *accountQueue[T, Constraint]) removeBehind(nonce uint64) ([]*internalTra
 			i++
 		}
 	}
-	return removedTxs, true
+	return removedTxs, len(removedTxs) > 0
 }
 
 // length returns the number of transactions in the minNonceQueue.

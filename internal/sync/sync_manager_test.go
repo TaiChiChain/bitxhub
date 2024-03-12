@@ -983,14 +983,14 @@ func TestPickPeer(t *testing.T) {
 		err = <-syncTaskDoneCh
 		require.Nil(t, err)
 
-		// peers' latest height had been updated(count is bigger than quorum)
+		// peers' latest height had been updated(count is bigger than ensureOneCorrectNum)
 		updatedCount := uint64(0)
 		lo.ForEach(syncs[0].peers, func(peer *common.Peer, _ int) {
 			if peer.LatestHeight == latestHeight {
 				updatedCount++
 			}
 		})
-		require.True(t, updatedCount >= syncs[0].quorum)
+		require.True(t, updatedCount >= syncs[0].ensureOneCorrectNum)
 	})
 
 	t.Run("test update peers, defaultLatestHeight is smaller than target height", func(t *testing.T) {
@@ -1014,7 +1014,7 @@ func TestPickPeer(t *testing.T) {
 		block, err := ledgers[remoteId].GetBlock(targetHeight)
 		require.Nil(t, err)
 
-		// remove targetHeight block in remote peers(N - removeCount < quorum)
+		// remove targetHeight block in remote peers(N - removeCount < ensureOneCorrectNum)
 		N := len(peers)
 		quorum := 2
 		removeCount := N - quorum + 1
