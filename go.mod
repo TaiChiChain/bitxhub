@@ -2,6 +2,8 @@ module github.com/axiomesh/axiom-ledger
 
 go 1.20
 
+replace github.com/ethereum/go-ethereum v1.12.0 => github.com/axiomesh/go-ethereum v1.12.0-1
+
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1

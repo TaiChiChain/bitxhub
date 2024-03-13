@@ -24,7 +24,6 @@ import (
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -336,17 +335,6 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, api 
 	}
 	stateLedger.SetTxContext(types.NewHash([]byte("mockTx")), 0)
 
-	// check if call system contract
-	nvm := api.Broker().GetNativeVm()
-	if msg.To != nil && nvm.IsSystemContract(types.NewAddress(msg.To.Bytes())) {
-		chainMeta, err := api.Chain().Meta()
-		if err != nil {
-			return nil, err
-		}
-		ret := system.RunAxiomNativeVM(nvm, chainMeta.Height, stateLedger, msg.Data, msg.From, msg.To)
-		return ret, ret.Err
-	}
-
 	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true})
 	if err != nil {
 		return nil, errors.New("error get evm")
@@ -387,13 +375,6 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	}(time.Now())
 
 	api.logger.Debugf("eth_estimateGas, args: %s", args)
-
-	// Judge whether this is system contract
-	nvm := api.api.Broker().GetNativeVm()
-	if args.To != nil && nvm.IsSystemContract(types.NewAddress(args.To.Bytes())) {
-		gas := nvm.RequiredGas(*args.Data)
-		return ethhexutil.Uint64(gas), err
-	}
 
 	// Determine the highest gas limit can be used during the estimation.
 	// if args.Gas == nil || uint64(*args.Gas) < params.TxGas {

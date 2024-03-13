@@ -8,8 +8,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/core"
-
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -34,8 +32,8 @@ var (
 	ErrNotExistSystemContract         = errors.New("not exist this system contract")
 	ErrNotExistMethodName             = errors.New("not exist method name of this system contract")
 	ErrNotExistSystemContractABI      = errors.New("not exist this system contract abi")
-	ErrNotDeploySystemContract        = errors.New("not deploy this system contract")
 	ErrNotImplementFuncSystemContract = errors.New("not implement the function for this system contract")
+	ErrInvalidStateDB                 = errors.New("invalid statedb")
 )
 
 //go:embed sol/Governance.abi
@@ -57,19 +55,14 @@ var _ common.VirtualMachine = (*NativeVM)(nil)
 
 // NativeVM handle abi decoding for parameters and abi encoding for return data
 type NativeVM struct {
-	logger        logrus.FieldLogger
-	stateLedger   ledger.StateLedger
-	currentLogs   []common.Log
-	currentHeight uint64
-	from          ethcommon.Address
-	to            *ethcommon.Address
+	logger logrus.FieldLogger
 
 	// contract address mapping to method signature
 	contract2MethodSig map[string]map[string][]byte
 	// contract address mapping to contract abi
 	contract2ABI map[string]abi.ABI
 	// contract address mapping to contact instance
-	contract2Instance map[string]common.SystemContract
+	contracts map[string]struct{}
 }
 
 func New() common.VirtualMachine {
@@ -77,19 +70,15 @@ func New() common.VirtualMachine {
 		logger:             loggers.Logger(loggers.SystemContract),
 		contract2MethodSig: make(map[string]map[string][]byte),
 		contract2ABI:       make(map[string]abi.ABI),
-		contract2Instance:  make(map[string]common.SystemContract),
-	}
-
-	cfg := &common.SystemContractConfig{
-		Logger: nvm.logger,
+		contracts:          make(map[string]struct{}),
 	}
 
 	// deploy all system contract
-	nvm.Deploy(common.GovernanceContractAddr, governanceABI, governance.GovernanceMethod2Sig, governance.NewGov(cfg))
-	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI, base.EpochManagerMethod2Sig, base.NewEpochManager(cfg))
-	nvm.Deploy(common.WhiteListContractAddr, whiteListABI, access.WhiteListMethod2Sig, access.NewWhiteList(cfg))
-	nvm.Deploy(common.AXMContractAddr, axmManagerABI, axm.Method2Sig, axm.New(cfg))
-	nvm.Deploy(common.AXCContractAddr, axcManagerABI, axc.Method2Sig, axc.New(cfg))
+	nvm.Deploy(common.GovernanceContractAddr, governanceABI, governance.GovernanceMethod2Sig)
+	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI, base.EpochManagerMethod2Sig)
+	nvm.Deploy(common.WhiteListContractAddr, whiteListABI, access.WhiteListMethod2Sig)
+	nvm.Deploy(common.AXMContractAddr, axmManagerABI, axm.Method2Sig)
+	nvm.Deploy(common.AXCContractAddr, axcManagerABI, axc.Method2Sig)
 
 	return nvm
 }
@@ -99,20 +88,20 @@ func (nvm *NativeVM) View() common.VirtualMachine {
 		logger:             nvm.logger,
 		contract2MethodSig: nvm.contract2MethodSig,
 		contract2ABI:       nvm.contract2ABI,
-		contract2Instance:  nvm.contract2Instance,
+		contracts:          nvm.contracts,
 	}
 }
 
-func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]string, instance common.SystemContract) {
+func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]string) {
 	// check system contract range
 	if addr < common.SystemContractStartAddr || addr > common.SystemContractEndAddr {
 		panic(fmt.Sprintf("this system contract %s is out of range", addr))
 	}
 
-	if _, ok := nvm.contract2Instance[addr]; ok {
+	if _, ok := nvm.contracts[addr]; ok {
 		panic("deploy system contract repeated")
 	}
-	nvm.contract2Instance[addr] = instance
+	nvm.contracts[addr] = struct{}{}
 
 	contractABI, err := abi.JSON(strings.NewReader(abiFile))
 	if err != nil {
@@ -129,16 +118,31 @@ func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]s
 	nvm.setEVMPrecompiled(addr)
 }
 
-func (nvm *NativeVM) Reset(currentHeight uint64, stateLedger ledger.StateLedger, from ethcommon.Address, to *ethcommon.Address) {
-	nvm.stateLedger = stateLedger
-	nvm.currentHeight = currentHeight
-	nvm.currentLogs = make([]common.Log, 0)
-	nvm.from = from
-	nvm.to = to
-}
+func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult []byte, execErr error) {
+	adaptor, ok := statefulArgs.StateDB.(*ledger.EvmStateDBAdaptor)
+	if !ok {
+		return nil, ErrInvalidStateDB
+	}
 
-func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
-	defer nvm.saveLogs()
+	if statefulArgs.To == nil {
+		return nil, ErrNotExistSystemContract
+	}
+	contractAddr := statefulArgs.To.Hex()
+	contractInstance := nvm.GetContractInstance(types.NewAddressByStr(contractAddr))
+	if contractInstance == nil {
+		return nil, ErrNotExistSystemContract
+	}
+	currentLogs := make([]common.Log, 0)
+	vmContext := &common.VMContext{
+		// set context first
+		StateLedger:   adaptor.StateLedger,
+		CurrentHeight: statefulArgs.Height.Uint64(),
+		CurrentLogs:   &currentLogs,
+		CurrentUser:   &statefulArgs.From,
+	}
+	contractInstance.SetContext(vmContext)
+
+	defer nvm.saveLogs(vmContext.StateLedger, vmContext.CurrentLogs)
 	defer func() {
 		if err := recover(); err != nil {
 			nvm.logger.Error(err)
@@ -146,29 +150,10 @@ func (nvm *NativeVM) Run(data []byte) (execResult []byte, execErr error) {
 		}
 	}()
 
-	if nvm.to == nil {
-		return nil, ErrNotExistSystemContract
-	}
-
-	// get args and method, call the contract method
-	contractAddr := nvm.to.Hex()
 	methodName, err := nvm.getMethodName(contractAddr, data)
 	if err != nil {
 		return nil, err
 	}
-	contractInstance, ok := nvm.contract2Instance[contractAddr]
-	if !ok {
-		return nil, ErrNotDeploySystemContract
-	}
-
-	// set context first
-	contractInstance.SetContext(&common.VMContext{
-		StateLedger:   nvm.stateLedger,
-		CurrentHeight: nvm.currentHeight,
-		CurrentLogs:   &nvm.currentLogs,
-		CurrentUser:   &nvm.from,
-	})
-
 	// method name may be proposed, but we implement Propose
 	// capitalize the first letter of a function
 	funcName := methodName
@@ -323,30 +308,17 @@ func (nvm *NativeVM) UnpackOutputArgs(contractAddr, methodName string, packed []
 }
 
 // saveLogs save all logs during the system execution
-func (nvm *NativeVM) saveLogs() {
-	nvm.logger.Debugf("logs: %+v", nvm.currentLogs)
+func (nvm *NativeVM) saveLogs(l ledger.StateLedger, currentLogs *[]common.Log) {
+	nvm.logger.Debugf("logs: %+v", currentLogs)
 
-	for _, currentLog := range nvm.currentLogs {
-		nvm.stateLedger.AddLog(&types.EvmLog{
+	for _, currentLog := range *currentLogs {
+		l.AddLog(&types.EvmLog{
 			Address: currentLog.Address,
 			Topics:  currentLog.Topics,
 			Data:    currentLog.Data,
 			Removed: currentLog.Removed,
 		})
 	}
-}
-
-// IsSystemContract judge if it is system contract
-// return true if system contract, false if not
-func (nvm *NativeVM) IsSystemContract(addr *types.Address) bool {
-	if addr == nil {
-		return false
-	}
-
-	if _, ok := nvm.contract2Instance[addr.String()]; ok {
-		return true
-	}
-	return false
 }
 
 func (nvm *NativeVM) setEVMPrecompiled(addr string) {
@@ -363,18 +335,22 @@ func (nvm *NativeVM) setEVMPrecompiled(addr string) {
 }
 
 func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContract {
-	return nvm.contract2Instance[addr.String()]
-}
-
-func RunAxiomNativeVM(nvm common.VirtualMachine, height uint64, ledger ledger.StateLedger, data []byte, from ethcommon.Address, to *ethcommon.Address) *core.ExecutionResult {
-	nvm.Reset(height, ledger, from, to)
-	usedGas := nvm.RequiredGas(data)
-	returnData, err := nvm.Run(data)
-	return &core.ExecutionResult{
-		UsedGas:    usedGas,
-		Err:        err,
-		ReturnData: returnData,
+	cfg := &common.SystemContractConfig{
+		Logger: nvm.logger,
 	}
+	switch addr.String() {
+	case common.GovernanceContractAddr:
+		return governance.NewGov(cfg)
+	case common.EpochManagerContractAddr:
+		return base.NewEpochManager(cfg)
+	case common.WhiteListContractAddr:
+		return access.NewWhiteList(cfg)
+	case common.AXMContractAddr:
+		return axm.New(cfg)
+	case common.AXCContractAddr:
+		return axc.New(cfg)
+	}
+	return nil
 }
 
 func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
