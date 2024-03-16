@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"math/big"
 	"sync"
 
@@ -16,7 +18,11 @@ import (
 )
 
 type Snapshot struct {
-	snapStorage storage.Storage
+	rep *repo.Repo
+
+	accountSnapshot  *storagemgr.CachedStorage
+	contractSnapshot *storagemgr.CachedStorage
+	backend          storage.Storage
 
 	lock sync.RWMutex
 
@@ -32,10 +38,13 @@ var (
 // maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
 const maxBatchSize = 64 * 1024 * 1024
 
-func NewSnapshot(snapStorage storage.Storage, logger logrus.FieldLogger) *Snapshot {
+func NewSnapshot(rep *repo.Repo, backend storage.Storage, logger logrus.FieldLogger) *Snapshot {
 	return &Snapshot{
-		snapStorage: snapStorage,
-		logger:      logger,
+		rep:              rep,
+		accountSnapshot:  storagemgr.NewCachedStorage(backend, rep.Config.Snapshot.AccountSnapshotCacheMegabytesLimit).(*storagemgr.CachedStorage),
+		contractSnapshot: storagemgr.NewCachedStorage(backend, rep.Config.Snapshot.ContractSnapshotCacheMegabytesLimit).(*storagemgr.CachedStorage),
+		backend:          backend,
+		logger:           logger,
 	}
 }
 
@@ -50,7 +59,7 @@ func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 		return nil
 	}
 
-	batch := snap.snapStorage.NewBatch()
+	batch := snap.backend.NewBatch()
 	for i := minHeight; i < height; i++ {
 		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
 	}
@@ -66,7 +75,7 @@ func (snap *Snapshot) Account(addr *types.Address) (*types.InnerAccount, error) 
 
 	accountKey := utils.CompositeAccountKey(addr)
 
-	blob := snap.snapStorage.Get(accountKey)
+	blob := snap.accountSnapshot.Get(accountKey)
 	if len(blob) == 0 { // can be both nil and []byte{}
 		return nil, nil
 	}
@@ -85,7 +94,7 @@ func (snap *Snapshot) Storage(addr *types.Address, key []byte) ([]byte, error) {
 
 	snapKey := utils.CompositeStorageKey(addr, key)
 
-	blob := snap.snapStorage.Get(snapKey)
+	blob := snap.contractSnapshot.Get(snapKey)
 	if blob == nil {
 		return nil, nil
 	}
@@ -100,11 +109,12 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 
 	snap.logger.Infof("[Snapshot-Update] update snapshot at height:%v", height)
 
-	batch := snap.snapStorage.NewBatch()
+	batch := snap.backend.NewBatch()
 
 	for addr := range destructs {
 		accountKey := utils.CompositeAccountKey(types.NewAddressByStr(addr))
 		batch.Delete(accountKey)
+		snap.accountSnapshot.PutCache(accountKey, nil)
 	}
 
 	for addr, acc := range accounts {
@@ -113,6 +123,7 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 		if err != nil {
 			panic(err)
 		}
+		snap.accountSnapshot.PutCache(accountKey, blob)
 		batch.Put(accountKey, blob)
 	}
 
@@ -120,6 +131,7 @@ func (snap *Snapshot) Update(height uint64, journal *BlockJournal, destructs map
 		addr := types.NewAddressByStr(rawAddr)
 		for slot, blob := range slots {
 			storageKey := utils.CompositeStorageKey(addr, []byte(slot))
+			snap.contractSnapshot.PutCache(storageKey, blob)
 			batch.Put(storageKey, blob)
 		}
 	}
@@ -169,7 +181,7 @@ func (snap *Snapshot) Rollback(height uint64) error {
 		return nil
 	}
 
-	batch := snap.snapStorage.NewBatch()
+	batch := snap.backend.NewBatch()
 	for i := maxHeight; i > height; i-- {
 		snap.logger.Infof("[Snapshot-Rollback] execute snapshot journal of height %v", i)
 		blockJournal := snap.GetBlockJournal(i)
@@ -194,7 +206,7 @@ func (snap *Snapshot) Rollback(height uint64) error {
 }
 
 func (snap *Snapshot) Batch() storage.Batch {
-	return snap.snapStorage.NewBatch()
+	return snap.backend.NewBatch()
 }
 
 func encodeToBase64(src map[string][]byte) map[string][]byte {

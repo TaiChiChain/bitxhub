@@ -1,6 +1,7 @@
 package prune
 
 import (
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -11,9 +12,12 @@ import (
 )
 
 type prunner struct {
-	rep           *repo.Repo
-	ledgerStorage storage.Storage
-	states        *states
+	rep    *repo.Repo
+	states *states
+
+	ledgerStorageBackend storage.Storage
+	accountTrieStorage   *storagemgr.CachedStorage
+	storageTrieStorage   *storagemgr.CachedStorage
 
 	logger logrus.FieldLogger
 
@@ -28,17 +32,18 @@ const (
 	maxFlushBatchSizeThreshold     = 12 * 1024 * 1024 // 12MB
 )
 
-func NewPrunner(rep *repo.Repo, ledgerStorage storage.Storage, states *states, logger logrus.FieldLogger) *prunner {
+func NewPrunner(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieStorage *storagemgr.CachedStorage, storageTrieStorage *storagemgr.CachedStorage, states *states, logger logrus.FieldLogger) *prunner {
 	return &prunner{
-		rep:           rep,
-		ledgerStorage: ledgerStorage,
-		states:        states,
-		logger:        logger,
-		lastPruneTime: time.Now(),
+		rep:                  rep,
+		ledgerStorageBackend: ledgerStorage,
+		accountTrieStorage:   accountTrieStorage,
+		storageTrieStorage:   storageTrieStorage,
+		states:               states,
+		logger:               logger,
+		lastPruneTime:        time.Now(),
 	}
 }
 
-// todo configure different pruning strategies
 func (p *prunner) pruning() {
 	p.logger.Infof("[Prune] start prunner")
 	reserve := defaultMinimumReservedBlockNum
@@ -47,11 +52,11 @@ func (p *prunner) pruning() {
 	}
 
 	var (
-		ticker               = time.NewTicker(checkFlushTimeInterval)
-		pendingBatch         = p.ledgerStorage.NewBatch()
-		from                 uint64 // block from
-		to                   uint64 // block to
-		pendingFlushBlockNum uint32
+		ticker       = time.NewTicker(checkFlushTimeInterval)
+		pendingBatch = p.ledgerStorageBackend.NewBatch()
+		from         uint64 // block from
+		to           uint64 // block to
+		//pendingFlushBlockNum uint32
 	)
 
 	for {
@@ -60,7 +65,8 @@ func (p *prunner) pruning() {
 			if int(p.states.size.Load()) <= reserve {
 				break
 			}
-			pendingStales := p.states.diffs[pendingFlushBlockNum : len(p.states.diffs)-reserve]
+			p.states.lock.Lock()
+			pendingStales := p.states.diffs[:len(p.states.diffs)-reserve]
 			if len(pendingStales) > 0 {
 				if from == 0 {
 					from = pendingStales[0].height
@@ -79,41 +85,46 @@ func (p *prunner) pruning() {
 						}
 					}
 				}
+				// todo confirm concurrent rw safety here
 				for _, diff := range pendingStales {
 					for k, v := range diff.cache {
 						if v == nil {
 							if _, ok := writeSet[k]; !ok {
+								if _, has := diff.accountCache[k]; has {
+									p.accountTrieStorage.PutCache([]byte(k), nil)
+								} else if _, has = diff.storageCache[k]; has {
+									p.storageTrieStorage.PutCache([]byte(k), nil)
+								}
 								pendingBatch.Delete([]byte(k))
 							}
 						} else {
 							if _, ok := pruneSet[k]; !ok {
+								if _, has := diff.accountCache[k]; has {
+									p.accountTrieStorage.PutCache([]byte(k), v)
+								} else if _, has = diff.storageCache[k]; has {
+									p.storageTrieStorage.PutCache([]byte(k), v)
+								}
 								pendingBatch.Put([]byte(k), v)
 							}
 						}
 					}
 					pendingBatch.Delete(utils.CompositeKey(utils.TrieJournalKey, diff.height))
-					pendingFlushBlockNum++
 				}
 			}
 
-			if time.Since(p.lastPruneTime) >= maxFlushTimeInterval || pendingFlushBlockNum >= maxFlushBlockNum || pendingBatch.Size() > maxFlushBatchSizeThreshold {
-				if pendingFlushBlockNum <= 0 || pendingBatch.Size() <= 0 {
-					return
-				}
-				pendingBatch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
-				pendingBatch.Commit()
+			pendingBatch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
+			pendingBatch.Commit()
 
-				//reset states diff
-				p.states.lock.Lock()
-				p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
-				p.states.size.Add(int32(-pendingFlushBlockNum))
-				p.states.lock.Unlock()
+			//reset states diff
+			p.states.diffs = p.states.diffs[len(pendingStales):]
+			p.states.size.Add(int32(-len(pendingStales)))
+			p.states.lock.Unlock()
 
-				pendingBatch.Reset()
-				from, to, pendingFlushBlockNum = 0, 0, 0
-				p.lastPruneTime = time.Now()
-				p.logger.Infof("[Prune] prune state from block %v to block %v", from, to)
-			}
+			pendingBatch.Reset()
+			from, to = 0, 0
+			p.lastPruneTime = time.Now()
+			p.logger.Infof("[Prune] prune state from block %v to block %v", from, to)
+
 		}
 	}
 }

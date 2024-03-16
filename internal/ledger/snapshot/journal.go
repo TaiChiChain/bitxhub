@@ -65,12 +65,12 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
-	data := snap.snapStorage.Get(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr))
+	data := snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr))
 	if data != nil {
 		minHeight = utils.UnmarshalHeight(data)
 	}
 
-	data = snap.snapStorage.Get(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr))
+	data = snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr))
 	if data != nil {
 		maxHeight = utils.UnmarshalHeight(data)
 	}
@@ -79,7 +79,7 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 }
 
 func (snap *Snapshot) GetBlockJournal(height uint64) *BlockJournal {
-	data := snap.snapStorage.Get(utils.CompositeKey(utils.SnapshotKey, height))
+	data := snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, height))
 	if data == nil {
 		return nil
 	}

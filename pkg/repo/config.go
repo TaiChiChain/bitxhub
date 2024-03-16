@@ -215,15 +215,17 @@ type Storage struct {
 }
 
 type Ledger struct {
-	ChainLedgerCacheSize               int  `mapstructure:"chain_ledger_cache_size" toml:"chain_ledger_cache_size"`
-	StateLedgerCacheMegabytesLimit     int  `mapstructure:"state_ledger_cache_megabytes_limit" toml:"state_ledger_cache_megabytes_limit"`
-	StateLedgerAccountCacheSize        int  `mapstructure:"state_ledger_account_cache_size" toml:"state_ledger_account_cache_size"`
-	EnablePrune                        bool `mapstructure:"enable_prune" toml:"enable_prune"`
-	StateLedgerReservedHistoryBlockNum int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
+	ChainLedgerCacheSize                      int  `mapstructure:"chain_ledger_cache_size" toml:"chain_ledger_cache_size"`
+	StateLedgerAccountTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_account_trie_cache_megabytes_limit" toml:"state_ledger_account_trie_cache_megabytes_limit"`
+	StateLedgerStorageTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_storage_trie_cache_megabytes_limit" toml:"state_ledger_storage_trie_cache_megabytes_limit"`
+	StateLedgerAccountCacheSize               int  `mapstructure:"state_ledger_account_cache_size" toml:"state_ledger_account_cache_size"`
+	EnablePrune                               bool `mapstructure:"enable_prune" toml:"enable_prune"`
+	StateLedgerReservedHistoryBlockNum        int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
 }
 
 type Snapshot struct {
-	DiskCacheMegabytesLimit int `mapstructure:"disk_cache_megabytes_limit" toml:"disk_cache_megabytes_limit"`
+	AccountSnapshotCacheMegabytesLimit  int `mapstructure:"account_snapshot_cache_megabytes_limit" toml:"account_snapshot_cache_megabytes_limit"`
+	ContractSnapshotCacheMegabytesLimit int `mapstructure:"contract_snapshot_cache_megabytes_limit" toml:"contract_snapshot_cache_megabytes_limit"`
 }
 
 type Executor struct {
@@ -325,14 +327,16 @@ func DefaultConfig() *Config {
 			Sync:        true,
 		},
 		Ledger: Ledger{
-			ChainLedgerCacheSize:               100,
-			StateLedgerCacheMegabytesLimit:     1024,
-			StateLedgerAccountCacheSize:        1024,
-			EnablePrune:                        true,
-			StateLedgerReservedHistoryBlockNum: 2,
+			ChainLedgerCacheSize:                      100,
+			StateLedgerAccountTrieCacheMegabytesLimit: 2048,
+			StateLedgerStorageTrieCacheMegabytesLimit: 1024,
+			StateLedgerAccountCacheSize:               1024,
+			EnablePrune:                               true,
+			StateLedgerReservedHistoryBlockNum:        2,
 		},
 		Snapshot: Snapshot{
-			DiskCacheMegabytesLimit: 1024,
+			AccountSnapshotCacheMegabytesLimit:  1024,
+			ContractSnapshotCacheMegabytesLimit: 128,
 		},
 		Executor: Executor{
 			Type:            ExecTypeNative,

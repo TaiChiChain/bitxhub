@@ -91,7 +91,7 @@ func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
 	//}
 	//loader := tp.loaders[trieKey]
 	//if loader == nil {
-	//	loader = newSubPreloader(tp.logger, tp.db, tp.trieCache, rootHash)
+	//	loader = newSubPreloader(tp.logger, tp.db, tp.pruneCache, rootHash)
 	//	tp.loaders[trieKey] = loader
 	//}
 	//loader.schedule(keys)

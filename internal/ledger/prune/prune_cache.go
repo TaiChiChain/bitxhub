@@ -3,6 +3,7 @@ package prune
 import (
 	"errors"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"sync"
 	"sync/atomic"
@@ -13,10 +14,10 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 )
 
-// TrieCache enables trie node caches, so that every trie read op will happen in trie cache first,
+// PruneCache enables trie node caches, so that every trie read op will happen in trie cache first,
 // which avoids frequent reading from disk.
-// By using TrieCache, we also implement trie pruning schema, which reduces state storage size that a full node must hold.
-type TrieCache struct {
+// By using PruneCache, we also implement trie pruning schema, which reduces state storage size that a full node must hold.
+type PruneCache struct {
 	rep *repo.Repo
 	// todo check content of cache, ensure there are only trie nodes
 	ledgerStorage storage.Storage
@@ -34,36 +35,36 @@ type states struct {
 }
 
 var (
-	ErrorRollbackToHigherNumber = errors.New("rollback TrieCache to higher blockchain height")
-	ErrorRollbackTooMuch        = errors.New("rollback TrieCache too much block")
+	ErrorRollbackToHigherNumber = errors.New("rollback PruneCache to higher blockchain height")
+	ErrorRollbackTooMuch        = errors.New("rollback PruneCache too much block")
 )
 
-func NewTrieCache(rep *repo.Repo, ledgerStorage storage.Storage, logger logrus.FieldLogger) *TrieCache {
-	tc := &TrieCache{
+func NewTrieCache(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieStorage *storagemgr.CachedStorage, storageTrieStorage *storagemgr.CachedStorage, logger logrus.FieldLogger) *PruneCache {
+	tc := &PruneCache{
 		rep:           rep,
 		ledgerStorage: ledgerStorage,
 		states:        &states{diffs: make([]*diffLayer, 0)},
 		logger:        logger,
 	}
 
-	p := NewPrunner(rep, ledgerStorage, tc.states, logger)
+	p := NewPrunner(rep, ledgerStorage, accountTrieStorage, storageTrieStorage, tc.states, logger)
 	tc.prunner = p
 	go p.pruning()
 	return tc
 }
 
-func (tc *TrieCache) Update(height uint64, trieJournals types.TrieJournalBatch) {
+func (tc *PruneCache) Update(height uint64, trieJournals types.TrieJournalBatch) {
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
-	tc.logger.Debugf("[TrieCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
+	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
 
 	diff := NewDiffLayer(height, tc.ledgerStorage, trieJournals, true)
 	tc.states.diffs = append(tc.states.diffs, diff)
 	tc.states.size.Add(1)
 }
 
-func (tc *TrieCache) Get(version uint64, key []byte) (res []byte, ok bool) {
+func (tc *PruneCache) Get(version uint64, key []byte) (res []byte, ok bool) {
 	tc.states.lock.RLock()
 	defer tc.states.lock.RUnlock()
 
@@ -81,18 +82,18 @@ func (tc *TrieCache) Get(version uint64, key []byte) (res []byte, ok bool) {
 		}
 	}
 
-	//tc.logger.Infof("[TrieCache-Get] get from TrieCache: version=%v,key=%v,ok=%v", version, key, ok)
+	//tc.logger.Infof("[PruneCache-Get] get from PruneCache: version=%v,key=%v,ok=%v", version, key, ok)
 
 	return res, ok
 }
 
-func (tc *TrieCache) Rollback(height uint64) error {
+func (tc *PruneCache) Rollback(height uint64) error {
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
 	minHeight, maxHeight := tc.GetRange()
 
-	tc.logger.Infof("[TrieCache-Rollback] minHeight=%v,maxHeight=%v, targetHeight=%v", minHeight, maxHeight, height)
+	tc.logger.Infof("[PruneCache-Rollback] minHeight=%v,maxHeight=%v, targetHeight=%v", minHeight, maxHeight, height)
 
 	// empty cache, no-op
 	if minHeight == 0 && maxHeight == 0 {
@@ -117,7 +118,7 @@ func (tc *TrieCache) Rollback(height uint64) error {
 	batch := tc.ledgerStorage.NewBatch()
 	for i := minHeight; i <= height; i++ {
 		trieJournal := tc.GetTrieJournal(i)
-		tc.logger.Debugf("[TrieCache-Rollback] apply trie journal of height=%v, trieJournal=%v", i, trieJournal)
+		tc.logger.Debugf("[PruneCache-Rollback] apply trie journal of height=%v, trieJournal=%v", i, trieJournal)
 		if trieJournal == nil {
 			break
 		}
@@ -136,7 +137,7 @@ func (tc *TrieCache) Rollback(height uint64) error {
 	return nil
 }
 
-func (tc *TrieCache) GetRange() (uint64, uint64) {
+func (tc *PruneCache) GetRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
@@ -153,7 +154,7 @@ func (tc *TrieCache) GetRange() (uint64, uint64) {
 	return minHeight, maxHeight
 }
 
-func (tc *TrieCache) GetTrieJournal(height uint64) types.TrieJournalBatch {
+func (tc *PruneCache) GetTrieJournal(height uint64) types.TrieJournalBatch {
 	data := tc.ledgerStorage.Get(utils.CompositeKey(utils.TrieJournalKey, height))
 	if data == nil {
 		return nil

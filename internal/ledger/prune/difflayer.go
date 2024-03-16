@@ -15,14 +15,23 @@ type diffLayer struct {
 
 	cache map[string][]byte
 
+	// todo implement here in a more elegant way
+	accountCache map[string][]byte
+	storageCache map[string][]byte
+
 	ledgerStorage storage.Storage
 }
+
+const TypeAccount = 1
+const TypeStorage = 2
 
 func NewDiffLayer(height uint64, ledgerStorage storage.Storage, trieJournals types.TrieJournalBatch, persist bool) *diffLayer {
 	l := &diffLayer{
 		height:        height,
 		ledgerStorage: ledgerStorage,
 		cache:         make(map[string][]byte),
+		accountCache:  make(map[string][]byte),
+		storageCache:  make(map[string][]byte),
 	}
 	if persist {
 		batch := l.ledgerStorage.NewBatch()
@@ -37,9 +46,19 @@ func NewDiffLayer(height uint64, ledgerStorage storage.Storage, trieJournals typ
 	for _, journal := range trieJournals {
 		for k := range journal.PruneSet {
 			l.cache[k] = nil
+			if journal.Type == TypeAccount {
+				l.accountCache[k] = nil
+			} else {
+				l.storageCache[k] = nil
+			}
 		}
 		for k, v := range journal.DirtySet {
 			l.cache[k] = v
+			if journal.Type == TypeAccount {
+				l.accountCache[k] = v
+			} else {
+				l.storageCache[k] = v
+			}
 		}
 	}
 

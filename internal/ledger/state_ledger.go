@@ -38,11 +38,15 @@ type revision struct {
 }
 
 type StateLedgerImpl struct {
-	logger        logrus.FieldLogger
-	cachedDB      storage.Storage
-	accountCache  *AccountCache
-	accountTrie   *jmt.JMT // keep track of the latest world state (dirty or committed)
-	trieCache     *prune.TrieCache
+	logger       logrus.FieldLogger
+	accountCache *AccountCache
+	accountTrie  *jmt.JMT // keep track of the latest world state (dirty or committed)
+
+	pruneCache         *prune.PruneCache
+	backend            storage.Storage
+	accountTrieStorage *storagemgr.CachedStorage
+	storageTrieStorage *storagemgr.CachedStorage
+
 	triePreloader *triePreloader
 	accounts      map[string]IAccount
 	repo          *repo.Repo
@@ -89,8 +93,10 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
 		logger:                l.logger,
-		cachedDB:              l.cachedDB,
-		trieCache:             l.trieCache,
+		backend:               l.backend,
+		pruneCache:            l.pruneCache,
+		accountTrieStorage:    l.storageTrieStorage,
+		storageTrieStorage:    l.storageTrieStorage,
 		accountCache:          l.accountCache,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -120,8 +126,10 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
 		logger:                l.logger,
-		cachedDB:              l.cachedDB,
-		trieCache:             l.trieCache,
+		backend:               l.backend,
+		pruneCache:            l.pruneCache,
+		accountTrieStorage:    l.storageTrieStorage,
+		storageTrieStorage:    l.storageTrieStorage,
 		accountCache:          ac,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -141,12 +149,12 @@ func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
-	data := l.cachedDB.Get(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr))
+	data := l.backend.Get(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr))
 	if data != nil {
 		minHeight = utils.UnmarshalHeight(data)
 	}
 
-	data = l.cachedDB.Get(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr))
+	data = l.backend.Get(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr))
 	if data != nil {
 		maxHeight = utils.UnmarshalHeight(data)
 	}
@@ -184,7 +192,7 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 	batch := kv.NewBatch()
 	for len(queue) > 0 {
 		trieRoot := queue[0]
-		iter := jmt.NewIterator(trieRoot, l.cachedDB, l.trieCache, 100, time.Second)
+		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 100, time.Second)
 		l.logger.Debugf("[IterateTrie] trie root=%v", trieRoot)
 		go iter.Iterate()
 
@@ -214,14 +222,14 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 				if acc.StorageRoot != (common.Hash{}) {
 					// set contract code
 					codeKey := utils.CompositeCodeKey(types.NewAddress(types.HexToBytes(node.LeafKey)), acc.CodeHash)
-					batch.Put(codeKey, l.cachedDB.Get(codeKey))
+					batch.Put(codeKey, l.backend.Get(codeKey))
 					// prepare storage trie root
 					queue = append(queue, acc.StorageRoot)
 				}
 			}
 		}
 		queue = queue[1:]
-		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
+		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
 
 	blockData, err := blockHeader.Marshal()
@@ -257,9 +265,9 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 }
 
 func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
-	rawBlock := l.cachedDB.Get([]byte(utils.TrieBlockHeaderKey))
-	rawEpochInfo := l.cachedDB.Get([]byte(utils.TrieNodeInfoKey))
-	rawNodes := l.cachedDB.Get([]byte(utils.TrieNodeIdKey))
+	rawBlock := l.backend.Get([]byte(utils.TrieBlockHeaderKey))
+	rawEpochInfo := l.backend.Get([]byte(utils.TrieNodeInfoKey))
+	rawNodes := l.backend.Get([]byte(utils.TrieNodeIdKey))
 	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 || len(rawNodes) == 0 {
 		return nil, ErrNotFound
 	}
@@ -295,7 +303,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 	batch := l.snapshot.Batch()
 	for len(queue) > 0 {
 		trieRoot := queue[0]
-		iter := jmt.NewIterator(trieRoot, l.cachedDB, l.trieCache, 100, time.Second)
+		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 100, time.Second)
 		l.logger.Debugf("[GenerateSnapshot] trie root=%v", trieRoot)
 		go iter.IterateLeaf()
 
@@ -329,7 +337,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 			}
 		}
 		queue = queue[1:]
-		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
+		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
 	batch.Commit()
 	l.logger.Infof("[GenerateSnapshot] generate snapshot successfully")
@@ -340,7 +348,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 func (l *StateLedgerImpl) VerifyTrie(blockHeader *types.BlockHeader) (bool, error) {
 	l.logger.Infof("[VerifyTrie] start verifying blockNumber: %v, rootHash: %v", blockHeader.Number, blockHeader.StateRoot.String())
 	defer l.logger.Infof("[VerifyTrie] finish VerifyTrie")
-	return jmt.VerifyTrie(blockHeader.StateRoot.ETHHash(), l.cachedDB, l.trieCache)
+	return jmt.VerifyTrie(blockHeader.StateRoot.ETHHash(), l.backend, l.pruneCache)
 }
 
 func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error) {
@@ -349,7 +357,7 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 		trie = l.accountTrie
 		return trie.Prove(key)
 	}
-	trie, err := jmt.New(rootHash, l.cachedDB, l.trieCache, l.logger)
+	trie, err := jmt.New(rootHash, l.backend, l.pruneCache, l.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +365,8 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
-	cachedStateStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerCacheMegabytesLimit)
+	accountTrieStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit).(*storagemgr.CachedStorage)
+	storageTrieStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit).(*storagemgr.CachedStorage)
 
 	accountCache, err := NewAccountCache(rep.Config.Ledger.StateLedgerAccountCacheSize, false)
 	if err != nil {
@@ -368,8 +377,10 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	ledger := &StateLedgerImpl{
 		repo:                  rep,
 		logger:                loggers.Logger(loggers.Storage),
-		cachedDB:              cachedStateStorage,
-		trieCache:             prune.NewTrieCache(rep, cachedStateStorage, loggers.Logger(loggers.Storage)),
+		backend:               stateStorage,
+		accountTrieStorage:    accountTrieStorage,
+		storageTrieStorage:    storageTrieStorage,
+		pruneCache:            prune.NewTrieCache(rep, stateStorage, accountTrieStorage, storageTrieStorage, loggers.Logger(loggers.Storage)),
 		accountCache:          accountCache,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -380,8 +391,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	}
 
 	if snapshotStorage != nil {
-		snapshotCachedStorage := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
-		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage, ledger.logger)
+		ledger.snapshot = snapshot.NewSnapshot(rep, snapshotStorage, ledger.logger)
 	}
 
 	ledger.refreshAccountTrie(nil)
@@ -419,6 +429,6 @@ func (l *StateLedgerImpl) SetTxContext(thash *types.Hash, ti int) {
 
 // Close close the ledger instance
 func (l *StateLedgerImpl) Close() {
-	_ = l.cachedDB.Close()
+	_ = l.backend.Close()
 	l.triePreloader.close()
 }

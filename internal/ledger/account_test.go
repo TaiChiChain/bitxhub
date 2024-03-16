@@ -53,7 +53,7 @@ func TestAccount_GetState(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.trieCache, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.pruneCache, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			addr1 := account.GetAddress()
 			assert.Equal(t, addr, addr1)
@@ -126,7 +126,7 @@ func TestAccount_AccountBalance(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.trieCache, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.pruneCache, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			account.AddBalance(big.NewInt(1))
 			account.SubBalance(big.NewInt(1))
@@ -183,7 +183,7 @@ func TestAccount_setNonce(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.cachedDB, stateLedger.trieCache, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.cachedDB, stateLedger.pruneCache, stateLedger.accountCache, addr, NewChanger(), stateLedger.snapshot)
 
 			account.setNonce(1)
 

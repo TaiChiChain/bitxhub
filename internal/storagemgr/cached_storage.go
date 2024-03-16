@@ -56,6 +56,10 @@ func NewCachedStorage(s storage.Storage, megabytesLimit int) storage.Storage {
 	}
 }
 
+func (c *CachedStorage) PutCache(key, value []byte) {
+	c.cache.Set(key, value)
+}
+
 func (c *CachedStorage) Get(key []byte) []byte {
 	value, ok := c.cache.HasGet(nil, key)
 	if ok {

@@ -3,6 +3,7 @@ package ledger
 import (
 	"bytes"
 	"fmt"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"math/big"
 	"sort"
 	"time"
@@ -25,7 +26,7 @@ const MinJournalHeight = 10
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	account := l.GetAccount(addr)
 	if account == nil {
-		account = NewAccount(l.blockHeight, l.cachedDB, l.trieCache, l.accountCache, addr, l.changer, l.snapshot)
+		account = NewAccount(l.blockHeight, l.storageTrieStorage, l.pruneCache, l.accountCache, addr, l.changer, l.snapshot)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
@@ -47,7 +48,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return value
 	}
 
-	account := NewAccount(l.blockHeight, l.cachedDB, l.trieCache, l.accountCache, address, l.changer, l.snapshot)
+	account := NewAccount(l.blockHeight, l.storageTrieStorage, l.pruneCache, l.accountCache, address, l.changer, l.snapshot)
 	account.SetEnableExpensiveMetric(l.enableExpensiveMetric)
 
 	if innerAccount, ok := l.accountCache.getInnerAccount(address); ok {
@@ -55,7 +56,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		if !bytes.Equal(innerAccount.CodeHash, nil) {
 			code, okCode := l.accountCache.getCode(address)
 			if !okCode {
-				code = l.cachedDB.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+				code = l.storageTrieStorage.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 			}
 			account.originCode = code
 			account.dirtyCode = code
@@ -75,7 +76,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 			if !bytes.Equal(innerAccount.CodeHash, nil) {
 				code, okCode := l.accountCache.getCode(address)
 				if !okCode {
-					code = l.cachedDB.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+					code = l.storageTrieStorage.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 				}
 				account.originCode = code
 				account.dirtyCode = code
@@ -102,7 +103,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 			panic(err)
 		}
 		if !bytes.Equal(account.originAccount.CodeHash, nil) {
-			code := l.cachedDB.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+			code := l.storageTrieStorage.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 			account.originCode = code
 			account.dirtyCode = code
 		}
@@ -272,7 +273,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	storageSet := make(map[string]map[string][]byte)
 	trieJournalBatch := make(types.TrieJournalBatch, 0)
 
-	kvBatch := l.cachedDB.NewBatch()
+	kvBatch := l.backend.NewBatch()
 	accSize := 0
 	pruneArgs := &jmt.PruneArgs{
 		Enable: l.repo.Config.Ledger.EnablePrune,
@@ -327,6 +328,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		if account.storageTrie != nil {
 			storageRoot := account.storageTrie.Commit(pruneArgs)
 			account.dirtyAccount.StorageRoot = storageRoot
+			pruneArgs.Journal.Type = prune.TypeStorage
 			trieJournalBatch = append(trieJournalBatch, pruneArgs.Journal)
 			l.logger.Debugf("[Commit-After] committing storage trie end, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
 		}
@@ -362,6 +364,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		"write size": kvBatch.Size(),
 	}).Info("[StateLedger-Commit] Commit all trie entries into kv")
 
+	pruneArgs.Journal.Type = prune.TypeStorage
 	trieJournalBatch = append(trieJournalBatch, pruneArgs.Journal)
 	if l.enableExpensiveMetric {
 		accountFlushSize.Set(float64(accSize))
@@ -370,11 +373,11 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 
 	current = time.Now()
 	if l.repo.Config.Ledger.EnablePrune {
-		l.trieCache.Update(height, trieJournalBatch)
+		l.pruneCache.Update(height, trieJournalBatch)
 	}
 	l.logger.WithFields(logrus.Fields{
 		"elapse": time.Since(current),
-	}).Info("[StateLedger-Commit] Update trieCache")
+	}).Info("[StateLedger-Commit] Update pruneCache")
 
 	current = time.Now()
 	if l.snapshot != nil {
@@ -427,7 +430,7 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 
 	// rollback world state trie
 	if height != 0 {
-		if err := l.trieCache.Rollback(height); err != nil {
+		if err := l.pruneCache.Rollback(height); err != nil {
 			return err
 		}
 		l.refreshAccountTrie(stateRoot)
@@ -576,16 +579,16 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 			Type:    []byte{},
 		}
 		nk := rootNodeKey.Encode()
-		l.cachedDB.Put(nk, nil)
-		l.cachedDB.Put(rootHash[:], nk)
-		trie, _ := jmt.New(rootHash, l.cachedDB, l.trieCache, l.logger)
+		l.backend.Put(nk, nil)
+		l.backend.Put(rootHash[:], nk)
+		trie, _ := jmt.New(rootHash, l.accountTrieStorage, l.pruneCache, l.logger)
 		l.accountTrie = trie
-		l.triePreloader = newTriePreloader(l.logger, l.cachedDB, l.trieCache, rootHash)
+		l.triePreloader = newTriePreloader(l.logger, l.accountTrieStorage, l.pruneCache, rootHash)
 		return
 	}
 
 	// todo check block number range
-	trie, err := jmt.New(lastStateRoot.ETHHash(), l.cachedDB, l.trieCache, l.logger)
+	trie, err := jmt.New(lastStateRoot.ETHHash(), l.accountTrieStorage, l.pruneCache, l.logger)
 	if err != nil {
 		l.logger.WithFields(logrus.Fields{
 			"lastStateRoot": lastStateRoot,
@@ -595,7 +598,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		return
 	}
 	l.accountTrie = trie
-	l.triePreloader = newTriePreloader(l.logger, l.cachedDB, l.trieCache, lastStateRoot.ETHHash())
+	l.triePreloader = newTriePreloader(l.logger, l.accountTrieStorage, l.pruneCache, lastStateRoot.ETHHash())
 }
 
 func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {
