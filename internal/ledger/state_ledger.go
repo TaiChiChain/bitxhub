@@ -346,7 +346,7 @@ func NewStateLedger(rep *repo.Repo, storageDir string) (StateLedger, error) {
 	if storageDir != "" {
 		stateStoragePath = path.Join(storageDir, storagemgr.Ledger)
 	}
-	stateStorage, err := storagemgr.Open(stateStoragePath)
+	stateStorage, err := storagemgr.OpenWithMetrics(stateStoragePath, storagemgr.Ledger)
 	if err != nil {
 		return nil, fmt.Errorf("create stateDB: %w", err)
 	}
@@ -355,7 +355,7 @@ func NewStateLedger(rep *repo.Repo, storageDir string) (StateLedger, error) {
 	if storageDir != "" {
 		snapshotStoragePath = path.Join(storageDir, storagemgr.Snapshot)
 	}
-	snapshotStorage, err := storagemgr.Open(snapshotStoragePath)
+	snapshotStorage, err := storagemgr.OpenWithMetrics(snapshotStoragePath, storagemgr.Snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("create snapshot storage: %w", err)
 	}
