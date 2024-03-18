@@ -94,7 +94,7 @@ func NewChainLedger(rep *repo.Repo, storageDir string) (*ChainLedgerImpl, error)
 	if storageDir != "" {
 		bcStoragePath = path.Join(storageDir, storagemgr.BlockChain)
 	}
-	bcStorage, err := storagemgr.Open(bcStoragePath)
+	bcStorage, err := storagemgr.OpenWithMetrics(bcStoragePath, storagemgr.BlockChain)
 	if err != nil {
 		return nil, fmt.Errorf("create blockchain storage: %w", err)
 	}

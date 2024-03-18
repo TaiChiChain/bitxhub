@@ -183,7 +183,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	// 0. load ledger
 	var snap *snapMeta
 	if rep.StartArgs.SnapshotMode {
-		stateLg, err := storagemgr.Open(repo.GetStoragePath(rep.RepoRoot, storagemgr.Ledger))
+		stateLg, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Ledger), storagemgr.Ledger)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +236,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	var syncMgr *sync.SyncManager
 	var epochStore storage.Storage
 	if !rep.StartArgs.ReadonlyMode {
-		epochStore, err = storagemgr.Open(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch))
+		epochStore, err = storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch), storagemgr.Epoch)
 		if err != nil {
 			return nil, err
 		}

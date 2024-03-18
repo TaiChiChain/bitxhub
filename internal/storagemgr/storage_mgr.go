@@ -2,13 +2,13 @@ package storagemgr
 
 import (
 	"fmt"
-	"path"
 	"runtime"
 	"sync"
 
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	pebbledb "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
+	"github.com/prometheus/common/model"
 
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
@@ -28,13 +28,13 @@ const (
 )
 
 var globalStorageMgr = &storageMgr{
-	storageBuilderMap: make(map[string]func(p string) (storage.Storage, error)),
+	storageBuilderMap: make(map[string]func(p string, metricsPrefixName string) (storage.Storage, error)),
 	storages:          make(map[string]storage.Storage),
 	lock:              new(sync.Mutex),
 }
 
 type storageMgr struct {
-	storageBuilderMap map[string]func(p string) (storage.Storage, error)
+	storageBuilderMap map[string]func(p string, metricsPrefixName string) (storage.Storage, error)
 	storages          map[string]storage.Storage
 	defaultKVType     string
 	lock              *sync.Mutex
@@ -62,31 +62,30 @@ var defaultPebbleOptions = &pebbledb.Options{
 	},
 }
 
-func (m *storageMgr) Open(typ string, p string) (storage.Storage, error) {
+func (m *storageMgr) open(typ string, p string, metricsPrefixName string) (storage.Storage, error) {
 	builder, ok := m.storageBuilderMap[typ]
 	if !ok {
 		return nil, fmt.Errorf("unknow kv type %s, expect leveldb or pebble", typ)
 	}
-	return builder(p)
+	return builder(p, metricsPrefixName)
 }
 
 func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableMetrics bool) error {
-	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string) (storage.Storage, error) {
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string, _ string) (storage.Storage, error) {
 		return leveldb.New(p, nil)
 	}
-	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string) (storage.Storage, error) {
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (storage.Storage, error) {
 		defaultPebbleOptions.Cache = pebbledb.NewCache(int64(defaultKvCacheSize * 1024 * 1024))
 		defaultPebbleOptions.MemTableSize = defaultKvCacheSize * 1024 * 1024 / 4 // The size of single memory table
 		namespace := "axiom_ledger"
 		subsystem := "ledger"
-		dataCatagory := path.Base(p)
 		var metricOpts []pebble.MetricsOption
-		if enableMetrics {
+		if enableMetrics && model.IsValidMetricName(model.LabelValue(metricsPrefixName)) {
 			metricOpts = append(metricOpts,
-				pebble.WithDiskSizeGauge(namespace, subsystem, dataCatagory),
-				pebble.WithDiskWriteThroughput(namespace, subsystem, dataCatagory),
-				pebble.WithWalWriteThroughput(namespace, subsystem, dataCatagory),
-				pebble.WithEffectiveWriteThroughput(namespace, subsystem, dataCatagory))
+				pebble.WithDiskSizeGauge(namespace, subsystem, metricsPrefixName),
+				pebble.WithDiskWriteThroughput(namespace, subsystem, metricsPrefixName),
+				pebble.WithWalWriteThroughput(namespace, subsystem, metricsPrefixName),
+				pebble.WithEffectiveWriteThroughput(namespace, subsystem, metricsPrefixName))
 		}
 		return pebble.New(p, defaultPebbleOptions, &pebbledb.WriteOptions{Sync: sync}, loggers.Logger(loggers.Storage), metricOpts...)
 	}
@@ -99,16 +98,23 @@ func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableM
 }
 
 func Open(p string) (storage.Storage, error) {
-	return OpenSpecifyType(globalStorageMgr.defaultKVType, p)
+	return OpenSpecifyType(globalStorageMgr.defaultKVType, p, "")
 }
 
-func OpenSpecifyType(typ string, p string) (storage.Storage, error) {
+func OpenWithMetrics(p string, uniqueMetricsPrefixName string) (storage.Storage, error) {
+	if uniqueMetricsPrefixName != "" && !model.IsValidMetricName(model.LabelValue(uniqueMetricsPrefixName)) {
+		return nil, fmt.Errorf("%q is not a valid metric name", uniqueMetricsPrefixName)
+	}
+	return OpenSpecifyType(globalStorageMgr.defaultKVType, p, uniqueMetricsPrefixName)
+}
+
+func OpenSpecifyType(typ string, p string, metricName string) (storage.Storage, error) {
 	globalStorageMgr.lock.Lock()
 	defer globalStorageMgr.lock.Unlock()
 	s, ok := globalStorageMgr.storages[p]
 	if !ok {
 		var err error
-		s, err = globalStorageMgr.Open(typ, p)
+		s, err = globalStorageMgr.open(typ, p, metricName)
 		if err != nil {
 			return nil, err
 		}
