@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	Peers               []string
+	Peers               []*Node
 	StartEpochChangeNum uint64
 	SnapPersistedEpoch  uint64
 	LatestPersistEpoch  uint64
@@ -18,7 +18,7 @@ type Option func(*Config)
 
 // ============= snap sync config ================
 
-func WithPeers(peers []string) Option {
+func WithPeers(peers []*Node) Option {
 	return func(config *Config) {
 		config.Peers = peers
 	}

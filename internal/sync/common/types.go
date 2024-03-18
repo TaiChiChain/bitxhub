@@ -39,7 +39,7 @@ var SyncModeMap = map[SyncMode]string{
 }
 
 type SyncParams struct {
-	Peers            []string
+	Peers            []*Node
 	LatestBlockHash  string
 	Quorum           uint64
 	CurHeight        uint64
@@ -67,7 +67,13 @@ type Chunk struct {
 	CheckPoint *pb.CheckpointState
 }
 
+type Node struct {
+	Id     uint64
+	PeerID string
+}
+
 type Peer struct {
+	Id           uint64
 	PeerID       string
 	LatestHeight uint64
 	TimeoutCount uint64

@@ -10,7 +10,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
+	"strings"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -57,6 +60,7 @@ var ledgerSimpleSyncArgs = struct {
 var ledgerGenerateTrieArgs = struct {
 	TargetBlockNumber uint64
 	TargetStoragePath string
+	remotePeers       cli.StringSlice
 }{}
 
 var ledgerImportAccountsArgs = struct {
@@ -193,6 +197,13 @@ var ledgerCMD = &cli.Command{
 					Aliases:     []string{"t"},
 					Usage:       "directory to store trie instance",
 					Destination: &ledgerGenerateTrieArgs.TargetStoragePath,
+					Required:    true,
+				},
+				&cli.StringSliceFlag{
+					Name:        "peers",
+					Usage:       `list peers which have the same state, format: "1:p2pID"`,
+					Aliases:     []string{`p`},
+					Destination: &ledgerGenerateTrieArgs.remotePeers,
 					Required:    true,
 				},
 			},
@@ -698,9 +709,38 @@ func simpleSync(ctx *cli.Context) error {
 	}, targetBlockNumber)
 }
 
+func decodePeers(peersStr []string) (*consensus.QuorumValidators, error) {
+	var peers []*consensus.QuorumValidator
+	if len(peersStr) == 0 {
+		return nil, fmt.Errorf("peers cannot be empty")
+	}
+	for _, p := range peersStr {
+		// spilt id and peerId by :
+		data := strings.Split(p, ":")
+		if len(data) != 2 {
+			return nil, fmt.Errorf("invalid peer: %s, should be id:peerId", p)
+		}
+		id, err := strconv.ParseUint(data[0], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		peers = append(peers, &consensus.QuorumValidator{
+			Id:     id,
+			PeerId: data[1],
+		})
+	}
+
+	return &consensus.QuorumValidators{Validators: peers}, nil
+}
+
 func generateTrie(ctx *cli.Context) error {
 	logger := loggers.Logger(loggers.App)
 	logger.Infof("start generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
+
+	peers, err := decodePeers(ledgerGenerateTrieArgs.remotePeers.Value())
+	if err != nil {
+		return fmt.Errorf("decode peers failed: %w", err)
+	}
 
 	r, err := prepareRepo(ctx)
 	if err != nil {
@@ -729,7 +769,7 @@ func generateTrie(ctx *cli.Context) error {
 	originStateLedger.(*ledger.StateLedgerImpl).WithGetEpochInfoFunc(base.GetEpochInfo)
 
 	errC := make(chan error)
-	go originStateLedger.IterateTrie(blockHeader, targetStateStorage, errC)
+	go originStateLedger.IterateTrie(blockHeader, peers, targetStateStorage, errC)
 	err = <-errC
 
 	logger.Infof("success generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)

@@ -1,7 +1,6 @@
 package ledger
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -12,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
@@ -71,6 +71,7 @@ type StateLedgerImpl struct {
 type SnapshotMeta struct {
 	BlockHeader *types.BlockHeader
 	EpochInfo   *rbft.EpochInfo
+	Nodes       *consensus.QuorumValidators
 }
 
 // NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
@@ -142,7 +143,7 @@ func (l *StateLedgerImpl) Finalise() {
 }
 
 // todo make arguments configurable
-func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, kv storage.Storage, errC chan error) {
+func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *consensus.QuorumValidators, kv storage.Storage, errC chan error) {
 	stateRoot := blockHeader.StateRoot.ETHHash()
 	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", blockHeader.Hash(), stateRoot)
 
@@ -202,12 +203,19 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, kv storage
 		l.logger.Errorf("l.getEpochInfoFunc error:%v\n", err.Error())
 		errC <- err
 	}
-	blob, err := json.Marshal(epochInfo)
+	blob, err := epochInfo.Marshal()
 	if err != nil {
 		errC <- err
 		return
 	}
 	batch.Put([]byte(utils.TrieNodeInfoKey), blob)
+
+	nodesIdBytes, err := nodesId.MarshalVT()
+	if err != nil {
+		errC <- err
+		return
+	}
+	batch.Put([]byte(utils.TrieNodeIdKey), nodesIdBytes)
 
 	batch.Commit()
 	l.logger.Infof("[IterateTrie] iterate trie successfully")
@@ -218,7 +226,8 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, kv storage
 func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
 	rawBlock := l.cachedDB.Get([]byte(utils.TrieBlockHeaderKey))
 	rawEpochInfo := l.cachedDB.Get([]byte(utils.TrieNodeInfoKey))
-	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 {
+	rawNodes := l.cachedDB.Get([]byte(utils.TrieNodeIdKey))
+	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 || len(rawNodes) == 0 {
 		return nil, ErrNotFound
 	}
 	blockHeader := &types.BlockHeader{}
@@ -232,9 +241,15 @@ func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
 		return nil, err
 	}
 
+	nodes := &consensus.QuorumValidators{}
+	err = nodes.UnmarshalVT(rawNodes)
+	if err != nil {
+		return nil, err
+	}
 	meta := &SnapshotMeta{
 		BlockHeader: blockHeader,
 		EpochInfo:   epochInfo,
+		Nodes:       nodes,
 	}
 	return meta, nil
 }

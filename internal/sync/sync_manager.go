@@ -407,13 +407,14 @@ func (sm *SyncManager) updateLatestCheckedState(height uint64, digest string) {
 	}
 }
 
-func (sm *SyncManager) InitBlockSyncInfo(peers []string, latestBlockHash string, quorum, curHeight, targetHeight uint64,
+func (sm *SyncManager) InitBlockSyncInfo(peers []*common.Node, latestBlockHash string, quorum, curHeight, targetHeight uint64,
 	quorumCheckpoint *consensus.SignedCheckpoint, epc ...*consensus.EpochChange) {
 	sm.peers = make([]*common.Peer, len(peers))
 	sm.initPeers = make([]*common.Peer, len(peers))
-	lo.ForEach(peers, func(p string, index int) {
+	lo.ForEach(peers, func(p *common.Node, index int) {
 		sm.peers[index] = &common.Peer{
-			PeerID:       p,
+			Id:           p.Id,
+			PeerID:       p.PeerID,
 			TimeoutCount: 0,
 			LatestHeight: targetHeight,
 		}
@@ -538,13 +539,13 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 					select {
 					case <-stateCtx.Done():
 						sm.logger.WithFields(logrus.Fields{
-							"peer":   p.PeerID,
+							"peer":   p.Id,
 							"height": height,
 						}).Debug("receive quit signal, Quit request state")
 						return nil
 					default:
 						sm.logger.WithFields(logrus.Fields{
-							"peer":   p.PeerID,
+							"peer":   p.Id,
 							"height": height,
 						}).Debug("start send sync state request")
 
@@ -555,7 +556,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 
 						if err != nil {
 							sm.logger.WithFields(logrus.Fields{
-								"peer": p.PeerID,
+								"peer": p.Id,
 								"err":  err,
 							}).Warn("Send sync state request failed")
 							return err
@@ -563,7 +564,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 
 						if err = sm.isValidSyncResponse(resp, p.PeerID); err != nil {
 							sm.logger.WithFields(logrus.Fields{
-								"peer": p.PeerID,
+								"peer": p.Id,
 								"err":  err,
 							}).Warn("Invalid sync state response")
 
@@ -578,7 +579,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 						select {
 						case <-stateCtx.Done():
 							sm.logger.WithFields(logrus.Fields{
-								"peer":   p.PeerID,
+								"peer":   p.Id,
 								"height": height,
 							}).Debug("receive quit signal, Quit request state")
 							return nil
@@ -586,7 +587,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 							if stateResp.Status == pb.Status_ERROR && strings.Contains(stateResp.Error, ledger.ErrNotFound.Error()) {
 								sm.logger.WithFields(logrus.Fields{
 									"height": height,
-									"peerID": resp.From,
+									"peerID": p.Id,
 								}).Error("Block not found")
 								sm.updatePeers(resp.From, stateResp.CheckpointState.LatestHeight)
 								return fmt.Errorf("block not found")
@@ -613,7 +614,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 					return
 				}
 				sm.logger.WithFields(logrus.Fields{
-					"peer":   p.PeerID,
+					"peer":   p.Id,
 					"height": height,
 				}).Debug("Send sync state request success")
 			})
@@ -1183,7 +1184,7 @@ func (sm *SyncManager) addPeerTimeoutCount(peerID string) {
 			p.TimeoutCount++
 			if p.TimeoutCount >= sm.conf.TimeoutCountLimit {
 				if empty := sm.removePeer(p.PeerID); empty {
-					sm.logger.Warningf("remove peer[id:%s] err: available peer is empty, will reset peer", p.PeerID)
+					sm.logger.Warningf("remove peer[id:%d] err: available peer is empty, will reset peer", p.Id)
 					sm.resetPeers()
 					return
 				}
@@ -1210,8 +1211,8 @@ func (sm *SyncManager) pickPeer(height uint64) string {
 			sm.logger.WithFields(logrus.Fields{
 				"height":                height,
 				"illegal latest height": peer.LatestHeight,
-				"illegal peer":          peer.PeerID,
-				"new peer":              sm.peers[idx].PeerID,
+				"illegal peer":          peer.Id,
+				"new peer":              sm.peers[idx].Id,
 			}).Warning("pick peer failed, peer is not exist block")
 		} else {
 			peerId = sm.peers[idx].PeerID
