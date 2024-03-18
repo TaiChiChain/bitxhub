@@ -55,7 +55,7 @@ func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
 	// query last checked block for generating right parent blockHash
 	lastCheckedBlockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(newBlock.Height() - 1)
 	if err != nil {
-		return errors.Wrapf(err, "get last checked block from ledger error, height: %d", lastCheckedBlockHeader.Number)
+		return errors.Wrapf(err, "get last checked block from ledger error at height: %d", newBlock.Height()-1)
 	}
 	// rollback currentHeight and currentBlockHash
 	exec.currentHeight = newBlock.Height() - 1

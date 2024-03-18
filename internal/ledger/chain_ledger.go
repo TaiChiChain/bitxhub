@@ -227,7 +227,10 @@ func (l *ChainLedgerImpl) GetBlockTxList(height uint64) ([]*types.Transaction, e
 
 // GetTransaction get the transaction using transaction hash
 func (l *ChainLedgerImpl) GetTransaction(hash *types.Hash) (*types.Transaction, error) {
+	start := time.Now()
 	metaBytes := l.blockchainStore.Get(utils.CompositeKey(utils.TransactionMetaKey, hash.String()))
+	getTransactionDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	getTransactionCounter.Inc()
 	if metaBytes == nil {
 		return nil, ErrNotFound
 	}

@@ -87,7 +87,7 @@ func (l *Ledger) PersistBlockData(blockData *BlockData) {
 	if err := l.ChainLedger.PersistExecutionResult(block, receipts); err != nil {
 		panic(err)
 	}
-
+	getTransactionCounter.Set(0)
 	persistBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 	blockHeightMetric.Set(float64(block.Header.Number))
 }

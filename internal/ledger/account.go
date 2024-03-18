@@ -3,7 +3,6 @@ package ledger
 import (
 	"bytes"
 	"fmt"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"math/big"
 	"time"
 
@@ -13,10 +12,12 @@ import (
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/jmt"
+	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
 
@@ -49,9 +50,10 @@ type SimpleAccount struct {
 	originCode []byte
 	dirtyCode  []byte
 
-	storageTrieStorage *storagemgr.CachedStorage
-	trieCache          jmt.TrieCache
-	cache              *AccountCache
+	backend          storage.Storage
+	storageTrieCache *storagemgr.CacheWrapper
+	pruneCache       jmt.PruneCache
+	cache            *AccountCache
 
 	blockHeight uint64
 	storageTrie *jmt.JMT
@@ -75,33 +77,35 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		panic(err)
 	}
 	return &SimpleAccount{
-		logger:             loggers.Logger(loggers.Storage),
-		Addr:               addr,
-		originState:        make(map[string][]byte),
-		pendingState:       make(map[string][]byte),
-		dirtyState:         make(map[string][]byte),
-		blockHeight:        blockHeight,
-		storageTrieStorage: storagemgr.NewCachedStorage(ldb, 16).(*storagemgr.CachedStorage),
-		cache:              ac,
-		changer:            NewChanger(),
-		suicided:           false,
+		logger:           loggers.Logger(loggers.Storage),
+		Addr:             addr,
+		originState:      make(map[string][]byte),
+		pendingState:     make(map[string][]byte),
+		dirtyState:       make(map[string][]byte),
+		blockHeight:      blockHeight,
+		backend:          ldb,
+		storageTrieCache: storagemgr.NewCacheWrapper(32, false),
+		cache:            ac,
+		changer:          NewChanger(),
+		suicided:         false,
 	}
 }
 
-func NewAccount(blockHeight uint64, storageTrieStorage *storagemgr.CachedStorage, trieCache jmt.TrieCache, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
+func NewAccount(blockHeight uint64, backend storage.Storage, storageTrieCache *storagemgr.CacheWrapper, pruneCache jmt.PruneCache, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
 	return &SimpleAccount{
-		logger:             loggers.Logger(loggers.Storage),
-		Addr:               addr,
-		originState:        make(map[string][]byte),
-		pendingState:       make(map[string][]byte),
-		dirtyState:         make(map[string][]byte),
-		blockHeight:        blockHeight,
-		storageTrieStorage: storageTrieStorage,
-		trieCache:          trieCache,
-		cache:              accountCache,
-		changer:            changer,
-		suicided:           false,
-		snapshot:           snapshot,
+		logger:           loggers.Logger(loggers.Storage),
+		Addr:             addr,
+		originState:      make(map[string][]byte),
+		pendingState:     make(map[string][]byte),
+		dirtyState:       make(map[string][]byte),
+		blockHeight:      blockHeight,
+		backend:          backend,
+		storageTrieCache: storageTrieCache,
+		pruneCache:       pruneCache,
+		cache:            accountCache,
+		changer:          changer,
+		suicided:         false,
+		snapshot:         snapshot,
 	}
 }
 
@@ -126,9 +130,11 @@ func (o *SimpleAccount) initStorageTrie() {
 			Type:    o.Addr.Bytes(),
 		}
 		nk := rootNodeKey.Encode()
-		o.storageTrieStorage.Put(nk, nil)
-		o.storageTrieStorage.Put(rootHash[:], nk)
-		trie, err := jmt.New(rootHash, o.storageTrieStorage, o.trieCache, o.logger)
+		batch := o.backend.NewBatch()
+		batch.Put(nk, nil)
+		batch.Put(rootHash[:], nk)
+		batch.Commit()
+		trie, err := jmt.New(rootHash, o.backend, o.storageTrieCache, o.pruneCache, o.logger)
 		if err != nil {
 			panic(err)
 		}
@@ -137,7 +143,7 @@ func (o *SimpleAccount) initStorageTrie() {
 		return
 	}
 
-	trie, err := jmt.New(o.originAccount.StorageRoot, o.storageTrieStorage, o.trieCache, o.logger)
+	trie, err := jmt.New(o.originAccount.StorageRoot, o.backend, o.storageTrieCache, o.pruneCache, o.logger)
 	if err != nil {
 		panic(err)
 	}
@@ -304,7 +310,7 @@ func (o *SimpleAccount) Code() []byte {
 	code, ok := o.cache.getCode(o.Addr)
 	if !ok {
 		start := time.Now()
-		code = o.storageTrieStorage.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
+		code = o.backend.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
 		if o.enableExpensiveMetric {
 			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
@@ -436,8 +442,8 @@ func (o *SimpleAccount) Finalise() [][]byte {
 	return keys2Preload
 }
 
-func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
-	entry := &snapshot.BlockJournalEntry{Address: o.Addr}
+func (o *SimpleAccount) getAccountJournal() *types.SnapshotJournalEntry {
+	entry := &types.SnapshotJournalEntry{Address: o.Addr}
 	prevStates := o.getStateJournal()
 
 	if o.originAccount.InnerAccountChanged(o.dirtyAccount) || len(prevStates) != 0 || o.suicided {
@@ -447,7 +453,7 @@ func (o *SimpleAccount) getAccountJournal() *snapshot.BlockJournalEntry {
 	}
 
 	if o.originCode == nil && o.originAccount != nil && o.originAccount.CodeHash != nil {
-		o.originCode = o.storageTrieStorage.Get(utils.CompositeCodeKey(o.Addr, o.originAccount.CodeHash))
+		o.originCode = o.backend.Get(utils.CompositeCodeKey(o.Addr, o.originAccount.CodeHash))
 	}
 
 	if entry.AccountChanged {

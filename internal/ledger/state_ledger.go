@@ -3,7 +3,6 @@ package ledger
 import (
 	"errors"
 	"fmt"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"math/big"
 	"path"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -39,13 +39,13 @@ type revision struct {
 
 type StateLedgerImpl struct {
 	logger       logrus.FieldLogger
-	accountCache *AccountCache
-	accountTrie  *jmt.JMT // keep track of the latest world state (dirty or committed)
+	accountCache *AccountCache // todo remove this
+	accountTrie  *jmt.JMT      // keep track of the latest world state (dirty or committed)
 
-	pruneCache         *prune.PruneCache
-	backend            storage.Storage
-	accountTrieStorage *storagemgr.CachedStorage
-	storageTrieStorage *storagemgr.CachedStorage
+	pruneCache       *prune.PruneCache
+	backend          storage.Storage
+	accountTrieCache *storagemgr.CacheWrapper
+	storageTrieCache *storagemgr.CacheWrapper
 
 	triePreloader *triePreloader
 	accounts      map[string]IAccount
@@ -85,8 +85,8 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
 	if l.repo.Config.Ledger.EnablePrune {
 		min, max := l.GetHistoryRange()
-		if block.Height() < min || block.Height() > max {
-			return nil, fmt.Errorf("history at target block %v is invalid, the valid range is from %v to %v", block.BlockHeader.Number, min, max)
+		if blockHeader.Number < min || blockHeader.Number > max {
+			return nil, fmt.Errorf("history at target block %v is invalid, the valid range is from %v to %v", blockHeader.Number, min, max)
 		}
 	}
 
@@ -95,8 +95,8 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 		logger:                l.logger,
 		backend:               l.backend,
 		pruneCache:            l.pruneCache,
-		accountTrieStorage:    l.storageTrieStorage,
-		storageTrieStorage:    l.storageTrieStorage,
+		accountTrieCache:      l.accountTrieCache,
+		storageTrieCache:      l.storageTrieCache,
 		accountCache:          l.accountCache,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -128,8 +128,8 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 		logger:                l.logger,
 		backend:               l.backend,
 		pruneCache:            l.pruneCache,
-		accountTrieStorage:    l.storageTrieStorage,
-		storageTrieStorage:    l.storageTrieStorage,
+		accountTrieCache:      l.accountTrieCache,
+		storageTrieCache:      l.storageTrieCache,
 		accountCache:          ac,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -149,12 +149,12 @@ func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
 	minHeight := uint64(0)
 	maxHeight := uint64(0)
 
-	data := l.backend.Get(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr))
+	data := l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr))
 	if data != nil {
 		minHeight = utils.UnmarshalHeight(data)
 	}
 
-	data = l.backend.Get(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr))
+	data = l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr))
 	if data != nil {
 		maxHeight = utils.UnmarshalHeight(data)
 	}
@@ -357,7 +357,7 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 		trie = l.accountTrie
 		return trie.Prove(key)
 	}
-	trie, err := jmt.New(rootHash, l.backend, l.pruneCache, l.logger)
+	trie, err := jmt.New(rootHash, l.backend, nil, l.pruneCache, l.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -365,8 +365,9 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
-	accountTrieStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit).(*storagemgr.CachedStorage)
-	storageTrieStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit).(*storagemgr.CachedStorage)
+	stateCachedStorage := storagemgr.NewCachedStorage(stateStorage, 128).(*storagemgr.CachedStorage)
+	accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
+	storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
 
 	accountCache, err := NewAccountCache(rep.Config.Ledger.StateLedgerAccountCacheSize, false)
 	if err != nil {
@@ -377,10 +378,10 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	ledger := &StateLedgerImpl{
 		repo:                  rep,
 		logger:                loggers.Logger(loggers.Storage),
-		backend:               stateStorage,
-		accountTrieStorage:    accountTrieStorage,
-		storageTrieStorage:    storageTrieStorage,
-		pruneCache:            prune.NewTrieCache(rep, stateStorage, accountTrieStorage, storageTrieStorage, loggers.Logger(loggers.Storage)),
+		backend:               stateCachedStorage,
+		accountTrieCache:      accountTrieCache,
+		storageTrieCache:      storageTrieCache,
+		pruneCache:            prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
 		accountCache:          accountCache,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),

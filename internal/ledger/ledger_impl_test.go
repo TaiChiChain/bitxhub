@@ -14,7 +14,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
@@ -27,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/log"
@@ -355,7 +355,7 @@ func TestChainLedger_Commit(t *testing.T) {
 			ver := ldg.StateLedger.Version()
 			assert.Equal(t, uint64(0), ver)
 			err = lg.StateLedger.(*StateLedgerImpl).snapshot.RemoveJournalsBeforeBlock(4)
-			assert.Nil(t, err)
+			assert.NotNil(t, err)
 		})
 	}
 }
@@ -692,7 +692,7 @@ func TestChainLedger_GetCode(t *testing.T) {
 			acc := &SimpleAccount{
 				logger:                loggers.Logger(loggers.Storage),
 				Addr:                  addr,
-				backend:               stateLedger.cachedDB,
+				backend:               stateLedger.backend,
 				cache:                 cache,
 				enableExpensiveMetric: true,
 			}
@@ -2140,7 +2140,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		// check state ledger in block 1
 		sl1, err := sl.NewViewWithoutCache(block1.Header, false)
 		assert.Nil(t, err)
-		sl1.(*StateLedgerImpl).cachedDB = s1
+		sl1.(*StateLedgerImpl).backend = s1
 		sl1.(*StateLedgerImpl).refreshAccountTrie(block1.Header.StateRoot)
 		verify, err := sl1.VerifyTrie(block1.Header)
 		assert.True(t, verify)
@@ -2176,7 +2176,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 
 		// check state ledger in block 2
 		sl2, _ := sl.NewViewWithoutCache(block2.Header, false)
-		sl2.(*StateLedgerImpl).cachedDB = s2
+		sl2.(*StateLedgerImpl).backend = s2
 		sl2.(*StateLedgerImpl).refreshAccountTrie(block2.Header.StateRoot)
 		verify, err := sl2.VerifyTrie(block2.Header)
 		assert.True(t, verify)
@@ -2209,7 +2209,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 
 		// check state ledger in block 3
 		sl3, _ := sl.NewViewWithoutCache(block3.Header, false)
-		sl3.(*StateLedgerImpl).cachedDB = s3
+		sl3.(*StateLedgerImpl).backend = s3
 		verify, err := sl3.VerifyTrie(block3.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2246,7 +2246,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 
 		// check state ledger in block 4
 		sl4, _ := sl.NewViewWithoutCache(block4.Header, false)
-		sl4.(*StateLedgerImpl).cachedDB = s4
+		sl4.(*StateLedgerImpl).backend = s4
 		sl4.(*StateLedgerImpl).refreshAccountTrie(block4.Header.StateRoot)
 		verify, err := sl4.VerifyTrie(block4.Header)
 		assert.True(t, verify)
@@ -2278,7 +2278,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 		// check state ledger in block 5
 		sl5, _ := sl.NewViewWithoutCache(block5.Header, false)
-		sl5.(*StateLedgerImpl).cachedDB = s5
+		sl5.(*StateLedgerImpl).backend = s5
 		sl5.(*StateLedgerImpl).refreshAccountTrie(block5.Header.StateRoot)
 		verify, err := sl5.VerifyTrie(block5.Header)
 		assert.True(t, verify)
@@ -2412,7 +2412,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 
 		// check state ledger in block 1
 		sl1, _ := sl.NewViewWithoutCache(block1.Header, false)
-		sl1.(*StateLedgerImpl).cachedDB = s1
+		sl1.(*StateLedgerImpl).backend = s1
 		sl1.(*StateLedgerImpl).refreshAccountTrie(block1.Header.StateRoot)
 		verify, err := sl1.VerifyTrie(block1.Header)
 		assert.True(t, verify)
@@ -2454,7 +2454,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 
 		// check state ledger in block 2
 		sl2, _ := sl.NewViewWithoutCache(block2.Header, false)
-		sl2.(*StateLedgerImpl).cachedDB = s2
+		sl2.(*StateLedgerImpl).backend = s2
 		sl2.(*StateLedgerImpl).refreshAccountTrie(block2.Header.StateRoot)
 		verify, err := sl2.VerifyTrie(block2.Header)
 		assert.True(t, verify)
@@ -2496,7 +2496,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 
 		// check state ledger in block 3
 		sl3, _ := sl.NewViewWithoutCache(block3.Header, false)
-		sl3.(*StateLedgerImpl).cachedDB = s3
+		sl3.(*StateLedgerImpl).backend = s3
 		verify, err := sl3.VerifyTrie(block3.Header)
 		assert.True(t, verify)
 		assert.Nil(t, err)
@@ -2540,7 +2540,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 
 		// check state ledger in block 4
 		sl4, _ := sl.NewViewWithoutCache(block4.Header, false)
-		sl4.(*StateLedgerImpl).cachedDB = s4
+		sl4.(*StateLedgerImpl).backend = s4
 		sl4.(*StateLedgerImpl).refreshAccountTrie(block4.Header.StateRoot)
 		verify, err := sl4.VerifyTrie(block4.Header)
 		assert.True(t, verify)
@@ -2585,7 +2585,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 
 		// check state ledger in block 5
 		sl5, _ := sl.NewViewWithoutCache(block5.Header, false)
-		sl5.(*StateLedgerImpl).cachedDB = s5
+		sl5.(*StateLedgerImpl).backend = s5
 		sl5.(*StateLedgerImpl).refreshAccountTrie(block5.Header.StateRoot)
 		verify, err := sl5.VerifyTrie(block5.Header)
 		assert.True(t, verify)
@@ -2625,12 +2625,12 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	require.Nil(t, meta)
 	require.Equal(t, err, ErrNotFound)
 
-	sl.cachedDB.Put([]byte(utils.TrieBlockHeaderKey), []byte{1})
+	sl.backend.Put([]byte(utils.TrieBlockHeaderKey), []byte{1})
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
 
-	sl.cachedDB.Put([]byte(utils.TrieNodeInfoKey), []byte{1})
+	sl.backend.Put([]byte(utils.TrieNodeInfoKey), []byte{1})
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2642,7 +2642,7 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	blockHeaderData, err := blockHeader.Marshal()
 	require.Nil(t, err)
 	require.NotNil(t, blockHeaderData)
-	sl.cachedDB.Put([]byte(utils.TrieBlockHeaderKey), blockHeaderData)
+	sl.backend.Put([]byte(utils.TrieBlockHeaderKey), blockHeaderData)
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2658,9 +2658,9 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	epochData, err := epochInfo.Marshal()
 	require.Nil(t, err)
 	require.NotNil(t, epochData)
-	sl.cachedDB.Put([]byte(utils.TrieNodeInfoKey), epochData)
+	sl.backend.Put([]byte(utils.TrieNodeInfoKey), epochData)
 
-	sl.cachedDB.Put([]byte(utils.TrieNodeIdKey), []byte{1})
+	sl.backend.Put([]byte(utils.TrieNodeIdKey), []byte{1})
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, meta)
 	require.NotNil(t, err)
@@ -2680,7 +2680,7 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 
 	nodesIdData, err := nodesId.MarshalVT()
 	require.Nil(t, err)
-	sl.cachedDB.Put([]byte(utils.TrieNodeIdKey), nodesIdData)
+	sl.backend.Put([]byte(utils.TrieNodeIdKey), nodesIdData)
 
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, err)
@@ -2759,7 +2759,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 				StateRoot: stateRoot1,
 			},
 		}
-		snap := newSnapshot(t.TempDir())
+		snap := newSnapshot(createMockRepo(t), t.TempDir())
 		sl.snapshot = snap
 		errC1 := make(chan error)
 		go sl.GenerateSnapshot(block1.Header, errC1)
@@ -2785,7 +2785,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 				StateRoot: stateRoot2,
 			},
 		}
-		snap := newSnapshot(t.TempDir())
+		snap := newSnapshot(createMockRepo(t), t.TempDir())
 		sl.snapshot = snap
 		errC := make(chan error)
 		go sl.GenerateSnapshot(block2.Header, errC)
@@ -2818,7 +2818,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 				StateRoot: stateRoot3,
 			},
 		}
-		snap := newSnapshot(t.TempDir())
+		snap := newSnapshot(createMockRepo(t), t.TempDir())
 		sl.snapshot = snap
 		errC := make(chan error)
 		go sl.GenerateSnapshot(block3.Header, errC)
@@ -2851,7 +2851,7 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 				StateRoot: stateRoot4,
 			},
 		}
-		snap := newSnapshot(t.TempDir())
+		snap := newSnapshot(createMockRepo(t), t.TempDir())
 		sl.snapshot = snap
 		errC := make(chan error)
 		go sl.GenerateSnapshot(block4.Header, errC)
@@ -3477,8 +3477,8 @@ func initKVStorage(path string) storage.Storage {
 	return s
 }
 
-func newSnapshot(path string) *snapshot.Snapshot {
+func newSnapshot(rep *repo.Repo, path string) *snapshot.Snapshot {
 	dir, _ := os.MkdirTemp(path, "")
 	s, _ := pebble.New(dir, nil, nil, logrus.New())
-	return snapshot.NewSnapshot(s, log.NewWithModule("snapshot_test"))
+	return snapshot.NewSnapshot(rep, s, log.NewWithModule("snapshot_test"))
 }

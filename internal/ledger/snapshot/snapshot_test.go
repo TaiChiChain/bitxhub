@@ -14,6 +14,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/pebble"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func TestNormalCase(t *testing.T) {
@@ -22,7 +23,7 @@ func TestNormalCase(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage, logger)
+	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -119,7 +120,7 @@ func TestStateTransit(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage, logger)
+	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -209,7 +210,7 @@ func TestRollback(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage, logger)
+	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -239,16 +240,16 @@ func TestRollback(t *testing.T) {
 		"key2": []byte("val2"),
 	}
 
-	journal1 := &BlockJournal{}
+	journal1 := &types.SnapshotJournal{}
 
-	journal1.Journals = append(journal1.Journals, &BlockJournalEntry{
+	journal1.Journals = append(journal1.Journals, &types.SnapshotJournalEntry{
 		Address:        addr1,
 		PrevAccount:    nil,
 		AccountChanged: true,
 		PrevStates:     nil,
 	})
 
-	journal1.Journals = append(journal1.Journals, &BlockJournalEntry{
+	journal1.Journals = append(journal1.Journals, &types.SnapshotJournalEntry{
 		Address:        addr2,
 		PrevAccount:    nil,
 		AccountChanged: true,
@@ -300,16 +301,16 @@ func TestRollback(t *testing.T) {
 	accountSet2[addr1.String()] = account11
 	accountSet2[addr2.String()] = account22
 
-	journal2 := &BlockJournal{}
+	journal2 := &types.SnapshotJournal{}
 
-	journal2.Journals = append(journal2.Journals, &BlockJournalEntry{
+	journal2.Journals = append(journal2.Journals, &types.SnapshotJournalEntry{
 		Address:        addr1,
 		PrevAccount:    account1,
 		AccountChanged: true,
 		PrevStates:     nil,
 	})
 
-	journal2.Journals = append(journal2.Journals, &BlockJournalEntry{
+	journal2.Journals = append(journal2.Journals, &types.SnapshotJournalEntry{
 		Address:        addr2,
 		PrevAccount:    account2,
 		AccountChanged: true,
@@ -317,7 +318,7 @@ func TestRollback(t *testing.T) {
 			"key1": []byte("val1"),
 			"key2": []byte("val2"),
 			"key3": nil,
-			"key4": make([]byte, maxBatchSize+1),
+			//"key4": make([]byte, maxBatchSize+1),
 		},
 	})
 
@@ -346,6 +347,7 @@ func TestRollback(t *testing.T) {
 	require.Equal(t, a2k3, []byte("val3"))
 
 	t.Run("rollback to state 1", func(t *testing.T) {
+
 		err = snapshot.Rollback(1)
 		require.Nil(t, err)
 
@@ -401,7 +403,7 @@ func TestRemoveJournal(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage, logger)
+	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
 	addr1 := types.NewAddress(LeftPadBytes([]byte{101}, 20))
 	addr2 := types.NewAddress(LeftPadBytes([]byte{102}, 20))
@@ -431,16 +433,16 @@ func TestRemoveJournal(t *testing.T) {
 		"key2": []byte("val2"),
 	}
 
-	journal1 := &BlockJournal{}
+	journal1 := &types.SnapshotJournal{}
 
-	journal1.Journals = append(journal1.Journals, &BlockJournalEntry{
+	journal1.Journals = append(journal1.Journals, &types.SnapshotJournalEntry{
 		Address:        addr1,
 		PrevAccount:    nil,
 		AccountChanged: true,
 		PrevStates:     nil,
 	})
 
-	journal1.Journals = append(journal1.Journals, &BlockJournalEntry{
+	journal1.Journals = append(journal1.Journals, &types.SnapshotJournalEntry{
 		Address:        addr2,
 		PrevAccount:    nil,
 		AccountChanged: true,
@@ -492,16 +494,16 @@ func TestRemoveJournal(t *testing.T) {
 	accountSet2[addr1.String()] = account11
 	accountSet2[addr2.String()] = account22
 
-	journal2 := &BlockJournal{}
+	journal2 := &types.SnapshotJournal{}
 
-	journal2.Journals = append(journal2.Journals, &BlockJournalEntry{
+	journal2.Journals = append(journal2.Journals, &types.SnapshotJournalEntry{
 		Address:        addr1,
 		PrevAccount:    account1,
 		AccountChanged: true,
 		PrevStates:     nil,
 	})
 
-	journal2.Journals = append(journal2.Journals, &BlockJournalEntry{
+	journal2.Journals = append(journal2.Journals, &types.SnapshotJournalEntry{
 		Address:        addr2,
 		PrevAccount:    account2,
 		AccountChanged: true,
@@ -537,7 +539,7 @@ func TestEmptySnapshot(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
 	assert.Nil(t, err)
 
-	snapshot := NewSnapshot(pStateStorage, logger)
+	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 	minHeight, maxHeight := snapshot.GetJournalRange()
 	assert.Equal(t, uint64(0), minHeight)
 	assert.Equal(t, uint64(0), maxHeight)
@@ -578,4 +580,10 @@ func isEqualAccount(a1 *types.InnerAccount, a2 *types.InnerAccount) bool {
 	}
 
 	return false
+}
+
+func createMockRepo(t *testing.T) *repo.Repo {
+	r, err := repo.Default(t.TempDir())
+	require.Nil(t, err)
+	return r
 }

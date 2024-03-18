@@ -55,21 +55,21 @@ func ResetTriePreloaderMetrics() {
 // triePreloader is an trie preloader, which is preload trie node to avoid
 // huge trie loading when commit state
 type triePreloader struct {
-	logger    logrus.FieldLogger
-	db        storage.Storage // load trie node would be cached in this db
-	trieCache jmt.TrieCache
-	rootHash  common.Hash
+	logger     logrus.FieldLogger
+	db         storage.Storage // load trie node would be cached in this db
+	pruneCache jmt.PruneCache
+	rootHash   common.Hash
 
 	loaders map[string]*subPreloader
 }
 
-func newTriePreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.TrieCache, rootHash common.Hash) *triePreloader {
+func newTriePreloader(logger logrus.FieldLogger, db storage.Storage, pruneCache jmt.PruneCache, rootHash common.Hash) *triePreloader {
 	return &triePreloader{
-		logger:    logger,
-		db:        db,
-		trieCache: trieCache,
-		rootHash:  rootHash,
-		loaders:   make(map[string]*subPreloader),
+		logger:     logger,
+		db:         db,
+		pruneCache: pruneCache,
+		rootHash:   rootHash,
+		loaders:    make(map[string]*subPreloader),
 	}
 }
 
@@ -97,18 +97,18 @@ func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
 	//loader.schedule(keys)
 }
 
-func (tp *triePreloader) trieKey(rootHash common.Hash) string {
-	return string(rootHash.Bytes())
-}
+//func (tp *triePreloader) trieKey(rootHash common.Hash) string {
+//	return string(rootHash.Bytes())
+//}
 
 // subPreloader is a trie preload goroutinue for get a single trie.
 // The subPreloader would process all requests from the same trie.
 type subPreloader struct {
-	logger    logrus.FieldLogger
-	db        storage.Storage
-	trieCache jmt.TrieCache
-	rootHash  common.Hash
-	trie      *jmt.JMT
+	logger logrus.FieldLogger
+	db     storage.Storage
+	//pruneCache jmt.PruneCache
+	rootHash common.Hash
+	trie     *jmt.JMT
 
 	preloadKeys [][]byte
 	lock        sync.Mutex
@@ -120,34 +120,34 @@ type subPreloader struct {
 	cached map[string]struct{}
 }
 
-func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.TrieCache, rootHash common.Hash) *subPreloader {
-	sp := subPreloaderPool.Get().(*subPreloader)
-	sp.logger = logger
-	sp.db = db
-	sp.rootHash = rootHash
-	sp.trieCache = trieCache
+//func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.PruneCache, rootHash common.Hash) *subPreloader {
+//	sp := subPreloaderPool.Get().(*subPreloader)
+//	sp.logger = logger
+//	sp.db = db
+//	sp.rootHash = rootHash
+//	sp.pruneCache = trieCache
+//
+//	sp.wake = make(chan struct{}, 1)
+//	sp.stop = make(chan struct{})
+//	sp.term = make(chan struct{})
+//	sp.cached = make(map[string]struct{})
+//
+//	go sp.loop()
+//	return sp
+//}
 
-	sp.wake = make(chan struct{}, 1)
-	sp.stop = make(chan struct{})
-	sp.term = make(chan struct{})
-	sp.cached = make(map[string]struct{})
-
-	go sp.loop()
-	return sp
-}
-
-func (sp *subPreloader) schedule(keys [][]byte) {
-	// append the preload keys to the current queue
-	sp.lock.Lock()
-	sp.preloadKeys = append(sp.preloadKeys, keys...)
-	sp.lock.Unlock()
-
-	// notify the preloader to load
-	select {
-	case sp.wake <- struct{}{}:
-	default:
-	}
-}
+//func (sp *subPreloader) schedule(keys [][]byte) {
+//	// append the preload keys to the current queue
+//	sp.lock.Lock()
+//	sp.preloadKeys = append(sp.preloadKeys, keys...)
+//	sp.lock.Unlock()
+//
+//	// notify the preloader to load
+//	select {
+//	case sp.wake <- struct{}{}:
+//	default:
+//	}
+//}
 
 func (sp *subPreloader) close() {
 	defer func() {
@@ -176,52 +176,52 @@ func (sp *subPreloader) reset() {
 	sp.cached = make(map[string]struct{})
 }
 
-func (sp *subPreloader) loop() {
-	defer close(sp.term)
-
-	if sp.trie == nil {
-		trie, err := jmt.New(sp.rootHash, sp.db, sp.trieCache, sp.logger)
-		if err != nil {
-			sp.logger.Errorf("Trie preloader failed to new jmt trie, root hash: %s", sp.rootHash)
-			return
-		}
-		sp.trie = trie
-	}
-
-	for {
-		select {
-		case <-sp.wake:
-			sp.lock.Lock()
-			preloadKeys := sp.preloadKeys
-			sp.preloadKeys = nil
-			sp.lock.Unlock()
-
-			for i, key := range preloadKeys {
-				select {
-				case <-sp.stop:
-					sp.lock.Lock()
-					sp.preloadKeys = append(sp.preloadKeys, preloadKeys[i:]...)
-					sp.lock.Unlock()
-					return
-
-				default:
-					if _, ok := sp.cached[string(key)]; !ok {
-						// haven't preload
-						_, err := sp.trie.Get(key)
-						if err != nil {
-							sp.logger.Errorf("Load trie node error, key: %s", key)
-							continue
-						}
-						sp.cached[string(key)] = struct{}{}
-						triePreloadMissCountPerBlock++
-					} else {
-						triePreloadHitCountPerBlock++
-					}
-				}
-			}
-
-		case <-sp.stop:
-			return
-		}
-	}
-}
+//func (sp *subPreloader) loop() {
+//	defer close(sp.term)
+//
+//	if sp.trie == nil {
+//		trie, err := jmt.New(sp.rootHash, sp.db, nil, sp.pruneCache, sp.logger)
+//		if err != nil {
+//			sp.logger.Errorf("Trie preloader failed to new jmt trie, root hash: %s", sp.rootHash)
+//			return
+//		}
+//		sp.trie = trie
+//	}
+//
+//	for {
+//		select {
+//		case <-sp.wake:
+//			sp.lock.Lock()
+//			preloadKeys := sp.preloadKeys
+//			sp.preloadKeys = nil
+//			sp.lock.Unlock()
+//
+//			for i, key := range preloadKeys {
+//				select {
+//				case <-sp.stop:
+//					sp.lock.Lock()
+//					sp.preloadKeys = append(sp.preloadKeys, preloadKeys[i:]...)
+//					sp.lock.Unlock()
+//					return
+//
+//				default:
+//					if _, ok := sp.cached[string(key)]; !ok {
+//						// haven't preload
+//						_, err := sp.trie.Get(key)
+//						if err != nil {
+//							sp.logger.Errorf("Load trie node error, key: %s", key)
+//							continue
+//						}
+//						sp.cached[string(key)] = struct{}{}
+//						triePreloadMissCountPerBlock++
+//					} else {
+//						triePreloadHitCountPerBlock++
+//					}
+//				}
+//			}
+//
+//		case <-sp.stop:
+//			return
+//		}
+//	}
+//}

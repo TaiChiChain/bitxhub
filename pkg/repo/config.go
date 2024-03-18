@@ -328,14 +328,14 @@ func DefaultConfig() *Config {
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize:                      100,
-			StateLedgerAccountTrieCacheMegabytesLimit: 2048,
-			StateLedgerStorageTrieCacheMegabytesLimit: 1024,
+			StateLedgerAccountTrieCacheMegabytesLimit: 128,
+			StateLedgerStorageTrieCacheMegabytesLimit: 128,
 			StateLedgerAccountCacheSize:               1024,
 			EnablePrune:                               true,
-			StateLedgerReservedHistoryBlockNum:        2,
+			StateLedgerReservedHistoryBlockNum:        256,
 		},
 		Snapshot: Snapshot{
-			AccountSnapshotCacheMegabytesLimit:  1024,
+			AccountSnapshotCacheMegabytesLimit:  128,
 			ContractSnapshotCacheMegabytesLimit: 128,
 		},
 		Executor: Executor{

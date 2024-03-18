@@ -3,7 +3,6 @@ package ledger
 import (
 	"bytes"
 	"fmt"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"math/big"
 	"sort"
 	"time"
@@ -13,7 +12,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 )
@@ -26,7 +25,7 @@ const MinJournalHeight = 10
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	account := l.GetAccount(addr)
 	if account == nil {
-		account = NewAccount(l.blockHeight, l.storageTrieStorage, l.pruneCache, l.accountCache, addr, l.changer, l.snapshot)
+		account = NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, l.accountCache, addr, l.changer, l.snapshot)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
@@ -48,7 +47,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return value
 	}
 
-	account := NewAccount(l.blockHeight, l.storageTrieStorage, l.pruneCache, l.accountCache, address, l.changer, l.snapshot)
+	account := NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, l.accountCache, address, l.changer, l.snapshot)
 	account.SetEnableExpensiveMetric(l.enableExpensiveMetric)
 
 	if innerAccount, ok := l.accountCache.getInnerAccount(address); ok {
@@ -56,7 +55,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		if !bytes.Equal(innerAccount.CodeHash, nil) {
 			code, okCode := l.accountCache.getCode(address)
 			if !okCode {
-				code = l.storageTrieStorage.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+				code = l.backend.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 			}
 			account.originCode = code
 			account.dirtyCode = code
@@ -76,7 +75,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 			if !bytes.Equal(innerAccount.CodeHash, nil) {
 				code, okCode := l.accountCache.getCode(address)
 				if !okCode {
-					code = l.storageTrieStorage.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+					code = l.backend.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 				}
 				account.originCode = code
 				account.dirtyCode = code
@@ -103,7 +102,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 			panic(err)
 		}
 		if !bytes.Equal(account.originAccount.CodeHash, nil) {
-			code := l.storageTrieStorage.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+			code := l.backend.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 			account.originCode = code
 			account.dirtyCode = code
 		}
@@ -233,9 +232,9 @@ func (l *StateLedgerImpl) Clear() {
 }
 
 // collectDirtyData gets dirty accounts and snapshot journals
-func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *snapshot.BlockJournal) {
+func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *types.SnapshotJournal) {
 	dirtyAccounts := make(map[string]IAccount)
-	var journals []*snapshot.BlockJournalEntry
+	var journals []*types.SnapshotJournalEntry
 
 	for addr, acc := range l.accounts {
 		account := acc.(*SimpleAccount)
@@ -246,7 +245,7 @@ func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *snapshot.Blo
 		}
 	}
 
-	blockJournal := &snapshot.BlockJournal{
+	blockJournal := &types.SnapshotJournal{
 		Journals: journals,
 	}
 	l.Clear() // remove accounts that cached during executing current block
@@ -259,9 +258,11 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	l.logger.Debugf("==================[Commit-Prepare]==================")
 	defer l.logger.Debugf("==================[Commit-End]==================")
 
-	l.accountCache.exportMetrics()
 	storagemgr.ExportCachedStorageMetrics()
-	defer ExportTriePreloaderMetrics()
+	defer func() {
+		ExportTriePreloaderMetrics()
+		l.exportMetrics()
+	}()
 	if l.triePreloader != nil {
 		defer l.triePreloader.close()
 	}
@@ -271,13 +272,12 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	destructSet := make(map[string]struct{})
 	accountSet := make(map[string]*types.InnerAccount)
 	storageSet := make(map[string]map[string][]byte)
-	trieJournalBatch := make(types.TrieJournalBatch, 0)
+	stateDelta := &types.StateDelta{Journal: make([]*types.TrieJournal, 0)}
 
 	kvBatch := l.backend.NewBatch()
 	accSize := 0
 	pruneArgs := &jmt.PruneArgs{
 		Enable: l.repo.Config.Ledger.EnablePrune,
-		Batch:  kvBatch,
 	}
 	updateTriesTime := time.Now()
 	for _, acc := range accounts {
@@ -328,12 +328,11 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		if account.storageTrie != nil {
 			storageRoot := account.storageTrie.Commit(pruneArgs)
 			account.dirtyAccount.StorageRoot = storageRoot
-			pruneArgs.Journal.Type = prune.TypeStorage
-			trieJournalBatch = append(trieJournalBatch, pruneArgs.Journal)
+			if l.repo.Config.Ledger.EnablePrune {
+				pruneArgs.Journal.Type = prune.TypeStorage
+				stateDelta.Journal = append(stateDelta.Journal, pruneArgs.Journal)
+			}
 			l.logger.Debugf("[Commit-After] committing storage trie end, addr: %v,account.dirtyAccount.StorageRoot: %v", account.Addr, account.dirtyAccount.StorageRoot)
-		}
-		if l.enableExpensiveMetric {
-			stateFlushSize.Set(float64(stateSize))
 		}
 		// update account trie if needed
 		if account.originAccount.InnerAccountChanged(account.dirtyAccount) {
@@ -357,27 +356,21 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 		"elapse": time.Since(updateTriesTime),
 	}).Info("[StateLedger-Commit] Update all trie")
 
-	current := time.Now()
-	kvBatch.Commit()
-	l.logger.WithFields(logrus.Fields{
-		"elapse":     time.Since(current),
-		"write size": kvBatch.Size(),
-	}).Info("[StateLedger-Commit] Commit all trie entries into kv")
-
-	pruneArgs.Journal.Type = prune.TypeStorage
-	trieJournalBatch = append(trieJournalBatch, pruneArgs.Journal)
-	if l.enableExpensiveMetric {
-		accountFlushSize.Set(float64(accSize))
+	if l.repo.Config.Ledger.EnablePrune {
+		pruneArgs.Journal.Type = prune.TypeAccount
+		stateDelta.Journal = append(stateDelta.Journal, pruneArgs.Journal)
+		l.pruneCache.Update(kvBatch, height, stateDelta)
 	}
 	l.logger.Debugf("[Commit] after committed world state trie, StateRoot: %v", stateRoot)
 
-	current = time.Now()
-	if l.repo.Config.Ledger.EnablePrune {
-		l.pruneCache.Update(height, trieJournalBatch)
-	}
+	current := time.Now()
+
+	kvBatch.Commit()
+
 	l.logger.WithFields(logrus.Fields{
-		"elapse": time.Since(current),
-	}).Info("[StateLedger-Commit] Update pruneCache")
+		"elapse":             time.Since(current),
+		"write size (bytes)": kvBatch.Size(),
+	}).Info("[StateLedger-Commit] Flush pruneCache and trie rootHash entries into kv")
 
 	current = time.Now()
 	if l.snapshot != nil {
@@ -563,10 +556,32 @@ func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, currentExecuti
 	l.logs = newEvmLogs()
 	l.blockHeight = currentExecutingHeight
 	l.refreshAccountTrie(lastStateRoot)
-	l.accountCache.resetMetrics()
 	storagemgr.ResetCachedStorageMetrics()
 	ResetTriePreloaderMetrics()
-	l.logger.Debugf("[PrepareBlock] height: %v", currentExecutingHeight)
+	l.resetMetrics()
+	l.logger.Debugf("[PrepareBlock] height: %v, hash: %v", currentExecutingHeight, lastStateRoot)
+}
+
+func (l *StateLedgerImpl) resetMetrics() {
+	l.accountCache.resetMetrics()
+	l.snapshot.ResetMetrics()
+	l.accountTrieCache.ResetCounterMetrics()
+	l.storageTrieCache.ResetCounterMetrics()
+}
+
+func (l *StateLedgerImpl) exportMetrics() {
+	l.accountCache.exportMetrics()
+	l.snapshot.ExportMetrics()
+
+	accountTrieCacheMetrics := l.accountTrieCache.ExportMetrics()
+	accountTrieCacheMissCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheMissCounter))
+	accountTrieCacheHitCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheHitCounter))
+	accountTrieCacheSize.Set(float64(accountTrieCacheMetrics.CacheSize / 1024 / 1024))
+
+	storageTrieCacheMetrics := l.storageTrieCache.ExportMetrics()
+	storageTrieCacheMissCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheMissCounter))
+	storageTrieCacheHitCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheHitCounter))
+	storageTrieCacheSize.Set(float64(storageTrieCacheMetrics.CacheSize / 1024 / 1024))
 }
 
 func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
@@ -579,16 +594,17 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 			Type:    []byte{},
 		}
 		nk := rootNodeKey.Encode()
-		l.backend.Put(nk, nil)
-		l.backend.Put(rootHash[:], nk)
-		trie, _ := jmt.New(rootHash, l.accountTrieStorage, l.pruneCache, l.logger)
+		batch := l.backend.NewBatch()
+		batch.Put(nk, nil)
+		batch.Put(rootHash[:], nk)
+		batch.Commit()
+		trie, _ := jmt.New(rootHash, l.backend, l.accountTrieCache, l.pruneCache, l.logger)
 		l.accountTrie = trie
-		l.triePreloader = newTriePreloader(l.logger, l.accountTrieStorage, l.pruneCache, rootHash)
+		l.triePreloader = newTriePreloader(l.logger, l.backend, l.pruneCache, rootHash)
 		return
 	}
 
-	// todo check block number range
-	trie, err := jmt.New(lastStateRoot.ETHHash(), l.accountTrieStorage, l.pruneCache, l.logger)
+	trie, err := jmt.New(lastStateRoot.ETHHash(), l.backend, l.accountTrieCache, l.pruneCache, l.logger)
 	if err != nil {
 		l.logger.WithFields(logrus.Fields{
 			"lastStateRoot": lastStateRoot,
@@ -598,7 +614,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		return
 	}
 	l.accountTrie = trie
-	l.triePreloader = newTriePreloader(l.logger, l.accountTrieStorage, l.pruneCache, lastStateRoot.ETHHash())
+	l.triePreloader = newTriePreloader(l.logger, l.backend, l.pruneCache, lastStateRoot.ETHHash())
 }
 
 func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {

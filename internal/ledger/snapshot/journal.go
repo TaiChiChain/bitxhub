@@ -1,40 +1,12 @@
 package snapshot
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"strings"
-
-	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
-type BlockJournal struct {
-	Journals []*BlockJournalEntry
-}
-
-type BlockJournalEntry struct {
-	Address        *types.Address
-	PrevAccount    *types.InnerAccount
-	AccountChanged bool
-	PrevStates     map[string][]byte
-}
-
-func (entry *BlockJournalEntry) String() string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("[BlockJournalEntry]: addr=%v,prevAccount=%v,changed=%v,prevStates=[",
-		entry.Address.String(), entry.PrevAccount, entry.AccountChanged))
-	for k, v := range entry.PrevStates {
-		builder.WriteString(fmt.Sprintf("k=%v,v=%v;", hexutil.Encode([]byte(k)), hexutil.Encode(v)))
-	}
-	builder.WriteString("]")
-	return builder.String()
-}
-
-func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
+func revertJournal(journal *types.SnapshotJournalEntry, batch storage.Batch) {
 	if !journal.AccountChanged {
 		return
 	}
@@ -49,14 +21,10 @@ func revertJournal(journal *BlockJournalEntry, batch storage.Batch) {
 	}
 
 	for key, val := range journal.PrevStates {
-		decodedKey, err := base64.StdEncoding.DecodeString(key)
-		if err != nil {
-			panic(fmt.Sprintf("decode key from base64 err: %v", err))
-		}
-		if val != nil {
-			batch.Put(utils.CompositeStorageKey(journal.Address, decodedKey), val)
+		if len(val) > 0 {
+			batch.Put(utils.CompositeStorageKey(journal.Address, []byte(key)), val)
 		} else {
-			batch.Delete(utils.CompositeStorageKey(journal.Address, decodedKey))
+			batch.Delete(utils.CompositeStorageKey(journal.Address, []byte(key)))
 		}
 	}
 }
@@ -78,14 +46,14 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 	return minHeight, maxHeight
 }
 
-func (snap *Snapshot) GetBlockJournal(height uint64) *BlockJournal {
+func (snap *Snapshot) GetBlockJournal(height uint64) *types.SnapshotJournal {
 	data := snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, height))
 	if data == nil {
 		return nil
 	}
 
-	journal := &BlockJournal{}
-	if err := json.Unmarshal(data, journal); err != nil {
+	journal, err := types.DecodeSnapshotJournal(data)
+	if err != nil {
 		panic(err)
 	}
 

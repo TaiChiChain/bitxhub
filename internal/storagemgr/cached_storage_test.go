@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func TestCachedStorage(t *testing.T) {
-	err := Initialize(repo.KVStorageTypePebble, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+	err := Initialize(repo.KVStorageTypePebble, repo.KVStorageCacheSize, repo.KVStorageSync, true)
 	require.Nil(t, err)
 
 	s, err := Open(repo.GetStoragePath(t.TempDir()))
@@ -26,6 +27,7 @@ func TestCachedStorage(t *testing.T) {
 		{key: []byte("k1"), value: []byte("v1")},
 		{key: []byte("k2"), value: []byte{}},
 		{key: []byte{}, value: []byte("v3")},
+		{key: []byte("k3"), value: nil},
 	}
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("non_batch_%d", i), func(t *testing.T) {
@@ -33,7 +35,7 @@ func TestCachedStorage(t *testing.T) {
 			require.False(t, c.Has(tt.key))
 
 			c.Put(tt.key, tt.value)
-			require.EqualValues(t, tt.value, c.Get(tt.key))
+			require.True(t, slices.Equal(tt.value, c.Get(tt.key)))
 			require.True(t, c.Has(tt.key))
 
 			c.Delete(tt.key)
@@ -65,7 +67,7 @@ func TestCachedStorage(t *testing.T) {
 		require.Nil(t, c.Get(keys[0]))
 		require.False(t, c.Has(keys[0]))
 
-		require.EqualValues(t, vals[1], c.Get(keys[1]))
+		require.True(t, slices.Equal(vals[1], c.Get(keys[1])))
 		require.True(t, c.Has(keys[1]))
 
 		require.Nil(t, c.Get(keys[2]))
@@ -122,7 +124,7 @@ func TestCachedStorage(t *testing.T) {
 		b.Put(keys[2], vals[2])
 		c.Put(keys[3], vals[3])
 
-		require.EqualValues(t, vals[1], c.Get(keys[1]))
+		require.True(t, slices.Equal(vals[1], c.Get(keys[1])))
 		require.True(t, c.Has(keys[1]))
 
 		require.Nil(t, c.Get(keys[2]))
