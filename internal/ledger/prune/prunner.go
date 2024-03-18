@@ -52,29 +52,36 @@ func (p *prunner) pruning() {
 	}
 
 	var (
-		ticker       = time.NewTicker(checkFlushTimeInterval)
-		pendingBatch = p.ledgerStorageBackend.NewBatch()
-		from         uint64 // block from
-		to           uint64 // block to
-		//pendingFlushBlockNum uint32
+		ticker               = time.NewTicker(checkFlushTimeInterval)
+		pendingBatch         = p.ledgerStorageBackend.NewBatch()
+		from                 uint64 // block from
+		to                   uint64 // block to
+		pruneSet             = make(map[string]struct{})
+		writeSet             = make(map[string]struct{})
+		pendingFlushBlockNum int
 	)
 
 	for {
 		select {
 		case <-ticker.C:
+			p.states.lock.RLock()
 			if int(p.states.size.Load()) <= reserve {
+				p.states.lock.RUnlock()
 				break
 			}
-			p.states.lock.Lock()
-			pendingStales := p.states.diffs[:len(p.states.diffs)-reserve]
+
+			if pendingFlushBlockNum > len(p.states.diffs)-reserve {
+				p.states.lock.RUnlock()
+				break
+			}
+
+			pendingStales := p.states.diffs[pendingFlushBlockNum : len(p.states.diffs)-reserve]
 			if len(pendingStales) > 0 {
 				if from == 0 {
 					from = pendingStales[0].height
 				}
 				to = pendingStales[len(pendingStales)-1].height
 
-				pruneSet := make(map[string]struct{})
-				writeSet := make(map[string]struct{})
 				// merge prune set and write set, reduce duplicated entries
 				for _, diff := range pendingStales {
 					for k, v := range diff.cache {
@@ -100,31 +107,40 @@ func (p *prunner) pruning() {
 						} else {
 							if _, ok := pruneSet[k]; !ok {
 								if _, has := diff.accountCache[k]; has {
-									p.accountTrieStorage.PutCache([]byte(k), v)
+									p.accountTrieStorage.PutCache([]byte(k), v.EncodePb())
 								} else if _, has = diff.storageCache[k]; has {
-									p.storageTrieStorage.PutCache([]byte(k), v)
+									p.storageTrieStorage.PutCache([]byte(k), v.EncodePb())
 								}
-								pendingBatch.Put([]byte(k), v)
+								pendingBatch.Put([]byte(k), v.EncodePb())
 							}
 						}
 					}
+
 					pendingBatch.Delete(utils.CompositeKey(utils.TrieJournalKey, diff.height))
 				}
+				pendingFlushBlockNum += len(pendingStales)
 			}
+			p.states.lock.RUnlock()
 
-			pendingBatch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
-			pendingBatch.Commit()
+			if time.Since(p.lastPruneTime) >= maxFlushTimeInterval || pendingFlushBlockNum >= maxFlushBlockNum || pendingBatch.Size() >= maxFlushBatchSizeThreshold {
+				pendingBatch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
+				pendingBatch.Commit()
 
-			//reset states diff
-			p.states.diffs = p.states.diffs[len(pendingStales):]
-			p.states.size.Add(int32(-len(pendingStales)))
-			p.states.lock.Unlock()
+				//reset states diff
+				p.states.lock.Lock()
+				p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
+				p.states.size.Add(int32(-pendingFlushBlockNum))
+				p.states.rebuildAllKeyMap()
+				p.states.lock.Unlock()
 
-			pendingBatch.Reset()
-			from, to = 0, 0
-			p.lastPruneTime = time.Now()
-			p.logger.Infof("[Prune] prune state from block %v to block %v", from, to)
-
+				pendingBatch.Reset()
+				from, to = 0, 0
+				p.lastPruneTime = time.Now()
+				pruneSet = make(map[string]struct{})
+				writeSet = make(map[string]struct{})
+				pendingFlushBlockNum = 0
+				p.logger.Infof("[Prune] prune state from block %v to block %v", from, to)
+			}
 		}
 	}
 }

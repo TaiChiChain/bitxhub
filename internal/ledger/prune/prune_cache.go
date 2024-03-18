@@ -29,9 +29,24 @@ type PruneCache struct {
 }
 
 type states struct {
-	size  atomic.Int32
-	diffs []*diffLayer
-	lock  sync.RWMutex
+	size      atomic.Int32
+	diffs     []*diffLayer
+	lock      sync.RWMutex
+	allKeyMap map[string]struct{}
+}
+
+func (s *states) rebuildAllKeyMap() {
+	s.allKeyMap = make(map[string]struct{})
+	if len(s.diffs) > 0 {
+		for _, diff := range s.diffs {
+			for k, _ := range diff.accountCache {
+				s.allKeyMap[k] = struct{}{}
+			}
+			for k, _ := range diff.storageCache {
+				s.allKeyMap[k] = struct{}{}
+			}
+		}
+	}
 }
 
 var (
@@ -43,7 +58,7 @@ func NewTrieCache(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieStor
 	tc := &PruneCache{
 		rep:           rep,
 		ledgerStorage: ledgerStorage,
-		states:        &states{diffs: make([]*diffLayer, 0)},
+		states:        &states{diffs: make([]*diffLayer, 0), allKeyMap: make(map[string]struct{})},
 		logger:        logger,
 	}
 
@@ -53,22 +68,67 @@ func NewTrieCache(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieStor
 	return tc
 }
 
+func (tc *PruneCache) addNewDifflayer(height uint64, ledgerStorage storage.Storage, trieJournals types.TrieJournalBatch, persist bool) {
+	l := &diffLayer{
+		height:        height,
+		ledgerStorage: ledgerStorage,
+		cache:         make(map[string]types.Node),
+		accountCache:  make(map[string]types.Node),
+		storageCache:  make(map[string]types.Node),
+	}
+	if persist {
+		batch := l.ledgerStorage.NewBatch()
+		batch.Put(utils.CompositeKey(utils.TrieJournalKey, height), trieJournals.Encode())
+		batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
+		if height == 1 {
+			batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MinHeightStr), utils.MarshalHeight(height))
+		}
+		batch.Commit()
+	}
+
+	for _, journal := range trieJournals {
+		for k := range journal.PruneSet {
+			l.cache[k] = nil
+			if journal.Type == TypeAccount {
+				l.accountCache[k] = nil
+			} else {
+				l.storageCache[k] = nil
+			}
+			tc.states.allKeyMap[k] = struct{}{}
+		}
+		for k, v := range journal.DirtySet {
+			l.cache[k] = v
+			if journal.Type == TypeAccount {
+				l.accountCache[k] = v
+			} else {
+				l.storageCache[k] = v
+			}
+			tc.states.allKeyMap[k] = struct{}{}
+		}
+	}
+	tc.states.diffs = append(tc.states.diffs, l)
+	tc.states.size.Add(1)
+}
+
 func (tc *PruneCache) Update(height uint64, trieJournals types.TrieJournalBatch) {
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
 	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
 
-	diff := NewDiffLayer(height, tc.ledgerStorage, trieJournals, true)
-	tc.states.diffs = append(tc.states.diffs, diff)
-	tc.states.size.Add(1)
+	tc.addNewDifflayer(height, tc.ledgerStorage, trieJournals, true)
+
 }
 
-func (tc *PruneCache) Get(version uint64, key []byte) (res []byte, ok bool) {
+func (tc *PruneCache) Get(version uint64, key []byte) (res types.Node, ok bool) {
 	tc.states.lock.RLock()
 	defer tc.states.lock.RUnlock()
 
 	if len(tc.states.diffs) == 0 {
+		return nil, false
+	}
+
+	if _, ok = tc.states.allKeyMap[string(key)]; !ok {
 		return nil, false
 	}
 
@@ -113,6 +173,7 @@ func (tc *PruneCache) Rollback(height uint64) error {
 	}
 
 	tc.states.diffs = make([]*diffLayer, 0)
+	tc.states.allKeyMap = make(map[string]struct{}, 0)
 	tc.states.size.Store(0)
 
 	batch := tc.ledgerStorage.NewBatch()
@@ -122,9 +183,7 @@ func (tc *PruneCache) Rollback(height uint64) error {
 		if trieJournal == nil {
 			break
 		}
-		diff := NewDiffLayer(i, tc.ledgerStorage, trieJournal, false)
-		tc.states.diffs = append(tc.states.diffs, diff)
-		tc.states.size.Add(1)
+		tc.addNewDifflayer(i, tc.ledgerStorage, trieJournal, false)
 	}
 	batch.Put(utils.CompositeKey(utils.TrieJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
 
@@ -133,6 +192,7 @@ func (tc *PruneCache) Rollback(height uint64) error {
 	}
 
 	batch.Commit()
+	tc.states.rebuildAllKeyMap()
 
 	return nil
 }

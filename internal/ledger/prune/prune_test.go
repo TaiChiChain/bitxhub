@@ -2,12 +2,13 @@ package prune
 
 import (
 	"crypto/rand"
-	"path/filepath"
-	"testing"
-	"time"
-
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"path/filepath"
+	"strconv"
+	"testing"
+	"time"
 
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
@@ -15,13 +16,20 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
+func makeLeafNode(str string) *types.LeafNode {
+	return &types.LeafNode{
+		Val: []byte(str),
+	}
+}
+
 func TestTrieCacheUpdate(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
 	repoRoot := t.TempDir()
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
-
-	tc := NewTrieCache(createMockRepo(t), pStateStorage, logger)
+	accountTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	storageTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	tc := NewTrieCache(createMockRepo(t), pStateStorage, accountTrieStorage, storageTrieStorage, logger)
 	v, ok := tc.Get(0, []byte("empty"))
 	require.False(t, ok)
 	require.Nil(t, v)
@@ -29,17 +37,17 @@ func TestTrieCacheUpdate(t *testing.T) {
 	trieJournal1 := types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: 1,
-			DirtySet: map[string][]byte{
-				"k1":                       []byte("v1"),
-				"k2":                       []byte("v2"),
-				string([]byte{0, 0, 0, 1}): []byte("vv"),
+			DirtySet: map[string]types.Node{
+				"k1":                       makeLeafNode("v1"),
+				"k2":                       makeLeafNode("v2"),
+				string([]byte{0, 0, 0, 1}): makeLeafNode("vv"),
 			},
 			PruneSet: map[string]struct{}{},
 		},
 		&types.TrieJournal{
 			Version: 1,
-			DirtySet: map[string][]byte{
-				"k3": []byte("v3"),
+			DirtySet: map[string]types.Node{
+				"k3": makeLeafNode("v3"),
 			},
 			PruneSet: map[string]struct {
 			}{
@@ -52,9 +60,9 @@ func TestTrieCacheUpdate(t *testing.T) {
 	trieJournal2 := types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: 2,
-			DirtySet: map[string][]byte{
-				"k1": []byte("v11"),
-				"k5": []byte("v55"),
+			DirtySet: map[string]types.Node{
+				"k1": makeLeafNode("v11"),
+				"k5": makeLeafNode("v55"),
 			},
 			PruneSet: map[string]struct{}{
 				"k2": {},
@@ -62,7 +70,7 @@ func TestTrieCacheUpdate(t *testing.T) {
 		},
 		&types.TrieJournal{
 			Version:  2,
-			DirtySet: map[string][]byte{},
+			DirtySet: map[string]types.Node{},
 			PruneSet: map[string]struct {
 			}{
 				"k3": {},
@@ -75,10 +83,10 @@ func TestTrieCacheUpdate(t *testing.T) {
 	// verify version 1
 	v, ok = tc.Get(1, []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v1"))
+	require.Equal(t, v, makeLeafNode("v1"))
 	v, ok = tc.Get(1, []byte("k3"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v3"))
+	require.Equal(t, v, makeLeafNode("v3"))
 	v, ok = tc.Get(1, []byte("k4"))
 	require.True(t, ok)
 	require.Nil(t, v)
@@ -87,12 +95,12 @@ func TestTrieCacheUpdate(t *testing.T) {
 	require.Nil(t, v)
 	v, ok = tc.Get(1, []byte{0, 0, 0, 1})
 	require.True(t, ok)
-	require.Equal(t, v, []byte("vv"))
+	require.Equal(t, v, makeLeafNode("vv"))
 
 	// verify version 2
 	v, ok = tc.Get(2, []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v11"))
+	require.Equal(t, v, makeLeafNode("v11"))
 	v, ok = tc.Get(2, []byte("k3"))
 	require.True(t, ok)
 	require.Nil(t, v)
@@ -101,7 +109,7 @@ func TestTrieCacheUpdate(t *testing.T) {
 	require.Nil(t, v)
 	v, ok = tc.Get(2, []byte("k5"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v55"))
+	require.Equal(t, v, makeLeafNode("v55"))
 
 }
 
@@ -111,21 +119,23 @@ func TestTrieCacheRollback(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	tc := NewTrieCache(createMockRepo(t), pStateStorage, logger)
+	accountTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	storageTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	tc := NewTrieCache(createMockRepo(t), pStateStorage, accountTrieStorage, storageTrieStorage, logger)
 
 	trieJournal1 := types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: 1,
-			DirtySet: map[string][]byte{
-				"k1": []byte("v1"),
-				"k2": []byte("v2"),
+			DirtySet: map[string]types.Node{
+				"k1": makeLeafNode("v1"),
+				"k2": makeLeafNode("v2"),
 			},
 			PruneSet: map[string]struct{}{},
 		},
 		&types.TrieJournal{
 			Version: 1,
-			DirtySet: map[string][]byte{
-				"k3": []byte("v3"),
+			DirtySet: map[string]types.Node{
+				"k3": makeLeafNode("v3"),
 			},
 			PruneSet: map[string]struct {
 			}{
@@ -138,9 +148,9 @@ func TestTrieCacheRollback(t *testing.T) {
 	trieJournal2 := types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: 2,
-			DirtySet: map[string][]byte{
-				"k1": []byte("v11"),
-				"k5": []byte("v55"),
+			DirtySet: map[string]types.Node{
+				"k1": makeLeafNode("v11"),
+				"k5": makeLeafNode("v55"),
 			},
 			PruneSet: map[string]struct{}{
 				"k2": {},
@@ -148,7 +158,7 @@ func TestTrieCacheRollback(t *testing.T) {
 		},
 		&types.TrieJournal{
 			Version:  2,
-			DirtySet: map[string][]byte{},
+			DirtySet: map[string]types.Node{},
 			PruneSet: map[string]struct {
 			}{
 				"k3": {},
@@ -163,10 +173,10 @@ func TestTrieCacheRollback(t *testing.T) {
 	// verify version 1
 	v, ok := tc.Get(1, []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v1"))
+	require.Equal(t, v, makeLeafNode("v1"))
 	v, ok = tc.Get(1, []byte("k3"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v3"))
+	require.Equal(t, v, makeLeafNode("v3"))
 	v, ok = tc.Get(1, []byte("k4"))
 	require.True(t, ok)
 	require.Nil(t, v)
@@ -177,10 +187,10 @@ func TestTrieCacheRollback(t *testing.T) {
 	// verify version 2
 	v, ok = tc.Get(2, []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v1"))
+	require.Equal(t, v, makeLeafNode("v1"))
 	v, ok = tc.Get(2, []byte("k3"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v3"))
+	require.Equal(t, v, makeLeafNode("v3"))
 	v, ok = tc.Get(2, []byte("k4"))
 	require.True(t, ok)
 	require.Nil(t, v)
@@ -192,9 +202,9 @@ func TestTrieCacheRollback(t *testing.T) {
 	trieJournal2 = types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: 2,
-			DirtySet: map[string][]byte{
-				"k1": []byte("v11"),
-				"k5": []byte("v55"),
+			DirtySet: map[string]types.Node{
+				"k1": makeLeafNode("v11"),
+				"k5": makeLeafNode("v55"),
 			},
 			PruneSet: map[string]struct{}{
 				"k2": {},
@@ -202,7 +212,7 @@ func TestTrieCacheRollback(t *testing.T) {
 		},
 		&types.TrieJournal{
 			Version:  2,
-			DirtySet: map[string][]byte{},
+			DirtySet: map[string]types.Node{},
 			PruneSet: map[string]struct {
 			}{
 				"k3": {},
@@ -214,7 +224,7 @@ func TestTrieCacheRollback(t *testing.T) {
 	// verify version 2 again after replay
 	v, ok = tc.Get(2, []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v11"))
+	require.Equal(t, v, makeLeafNode("v11"))
 	v, ok = tc.Get(2, []byte("k3"))
 	require.True(t, ok)
 	require.Nil(t, v)
@@ -223,7 +233,7 @@ func TestTrieCacheRollback(t *testing.T) {
 	require.Nil(t, v)
 	v, ok = tc.Get(2, []byte("k5"))
 	require.True(t, ok)
-	require.Equal(t, v, []byte("v55"))
+	require.Equal(t, v, makeLeafNode("v55"))
 
 }
 
@@ -233,13 +243,15 @@ func TestPruningFlushByMaxFlushNum(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	tc := NewTrieCache(createMockRepo(t), pStateStorage, logger)
+	accountTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	storageTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	tc := NewTrieCache(createMockRepo(t), pStateStorage, accountTrieStorage, storageTrieStorage, logger)
 	for i := 0; i < tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+maxFlushBlockNum-1; i++ {
 		trieJournal1 := types.TrieJournalBatch{
 			&types.TrieJournal{
 				Version: uint64(i + 1),
-				DirtySet: map[string][]byte{
-					"k1": []byte("v1"),
+				DirtySet: map[string]types.Node{
+					"k" + strconv.Itoa(i+1): makeLeafNode("v" + strconv.Itoa(i+1)),
 				},
 				PruneSet: map[string]struct{}{},
 			},
@@ -249,26 +261,26 @@ func TestPruningFlushByMaxFlushNum(t *testing.T) {
 	time.Sleep(time.Second)
 	v, ok := tc.Get(uint64(1), []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, []byte("v1"), v)
-	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+maxFlushBlockNum-1), []byte("k1"))
+	require.Equal(t, makeLeafNode("v1"), v)
+	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+maxFlushBlockNum-1), []byte("k"+strconv.Itoa(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+maxFlushBlockNum-1)))
 	require.True(t, ok)
-	require.Equal(t, []byte("v1"), v)
+	require.Equal(t, makeLeafNode("v"+strconv.Itoa(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+maxFlushBlockNum-1)), v)
 	require.Nil(t, tc.ledgerStorage.Get([]byte("k1"))) // not flush
 
 	trieJournal2 := types.TrieJournalBatch{
 		&types.TrieJournal{
-			Version: 2,
-			DirtySet: map[string][]byte{
-				"k1": []byte("v11"),
+			Version: uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum),
+			DirtySet: map[string]types.Node{
+				"k" + strconv.Itoa(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum): makeLeafNode("v" + strconv.Itoa(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum)),
 			},
 		},
 	}
 	tc.Update(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum), trieJournal2)
-	time.Sleep(checkFlushTimeInterval + time.Second)
+	time.Sleep(2*checkFlushTimeInterval + time.Second)
 	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum), []byte("k1"))
-	require.True(t, ok)
-	require.Equal(t, []byte("v11"), v)
-	require.Equal(t, []byte("v1"), tc.ledgerStorage.Get([]byte("k1"))) // backend flushed
+	require.False(t, ok)
+	require.Nil(t, v)
+	require.Equal(t, makeLeafNode("v1").EncodePb(), tc.ledgerStorage.Get([]byte("k1"))) // backend flushed
 	require.Equal(t, tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(tc.states.diffs))
 
 }
@@ -279,14 +291,16 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	tc := NewTrieCache(createMockRepo(t), pStateStorage, logger)
+	accountTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	storageTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	tc := NewTrieCache(createMockRepo(t), pStateStorage, accountTrieStorage, storageTrieStorage, logger)
 	bigV := make([]byte, maxFlushBatchSizeThreshold)
 	rand.Read(bigV)
 	trieJournal := types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: uint64(1),
-			DirtySet: map[string][]byte{
-				"k1": bigV,
+			DirtySet: map[string]types.Node{
+				"k1": makeLeafNode(string(bigV)),
 			},
 		},
 	}
@@ -296,8 +310,8 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 		trieJournal := types.TrieJournalBatch{
 			&types.TrieJournal{
 				Version: uint64(i + 1),
-				DirtySet: map[string][]byte{
-					"k1": []byte("v1"),
+				DirtySet: map[string]types.Node{
+					"k1": makeLeafNode("v1"),
 				},
 			},
 		}
@@ -308,14 +322,14 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	require.True(t, ok)
 	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum), []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, []byte("v1"), v)
+	require.Equal(t, makeLeafNode("v1"), v)
 	require.Nil(t, tc.ledgerStorage.Get([]byte("k1"))) // not flush
 
 	trieJournal2 := types.TrieJournalBatch{
 		&types.TrieJournal{
 			Version: 2,
-			DirtySet: map[string][]byte{
-				"k1": []byte("v11"),
+			DirtySet: map[string]types.Node{
+				"k1": makeLeafNode("v11"),
 			},
 		},
 	}
@@ -323,10 +337,10 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	time.Sleep(2*checkFlushTimeInterval + time.Second)
 	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, []byte("v11"), v)
-	v = tc.ledgerStorage.Get([]byte("k1"))
-	require.True(t, len(v) > 0)
-	require.Equal(t, bigV, v) // flushed
+	require.Equal(t, makeLeafNode("v11"), v)
+	v1 := tc.ledgerStorage.Get([]byte("k1"))
+	require.True(t, len(v1) > 0)
+	require.Equal(t, makeLeafNode(string(bigV)).EncodePb(), v1) // flushed
 	require.Equal(t, tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(tc.states.diffs))
 
 }
@@ -340,14 +354,16 @@ func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil)
 	assert.Nil(t, err)
 
-	tc := NewTrieCache(createMockRepo(t), pStateStorage, logger)
+	accountTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	storageTrieStorage := storagemgr.NewCachedStorage(pStateStorage, 1).(*storagemgr.CachedStorage)
+	tc := NewTrieCache(createMockRepo(t), pStateStorage, accountTrieStorage, storageTrieStorage, logger)
 
 	for i := 0; i < tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1; i++ {
 		trieJournal := types.TrieJournalBatch{
 			&types.TrieJournal{
 				Version: uint64(i + 1),
-				DirtySet: map[string][]byte{
-					"k1": []byte("v1"),
+				DirtySet: map[string]types.Node{
+					"k1": makeLeafNode("v1"),
 				},
 			},
 		}
@@ -358,18 +374,25 @@ func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	require.True(t, ok)
 	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, []byte("v1"), v)
+	require.Equal(t, makeLeafNode("v1"), v)
 	require.Nil(t, tc.ledgerStorage.Get([]byte("k1"))) // not flush
 
-	time.Sleep(maxFlushTimeInterval + time.Second)
+	time.Sleep(maxFlushTimeInterval + checkFlushTimeInterval + time.Second)
 	v, ok = tc.Get(uint64(tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), []byte("k1"))
 	require.True(t, ok)
-	require.Equal(t, []byte("v1"), v)
-	v = tc.ledgerStorage.Get([]byte("k1"))
-	require.True(t, len(v) > 0)
-	require.Equal(t, []byte("v1"), v) // flushed
-	require.Equal(t, tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(tc.states.diffs))
+	require.Equal(t, makeLeafNode("v1"), v)
+	v1 := tc.ledgerStorage.Get([]byte("k1"))
+	require.True(t, len(v1) > 0)
+	require.Equal(t, makeLeafNode("v1").EncodePb(), v1) // flushed
+	require.Equal(t, 1, len(tc.states.diffs))
 
+}
+
+func TestName(t *testing.T) {
+	var arr []int
+	arr = append(arr, 1)
+	arr = append(arr, 2)
+	println(len(arr[1:1]))
 }
 
 func createMockRepo(t *testing.T) *repo.Repo {
