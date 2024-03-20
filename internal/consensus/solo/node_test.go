@@ -142,7 +142,8 @@ func TestNode_ReportState(t *testing.T) {
 		defer node.Stop()
 		node.batchDigestM[10] = "test"
 		node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
-		time.Sleep(10 * time.Millisecond)
+		// ensure last event(report state) had been processed
+		node.GetLowWatermark()
 		ast.Equal(0, len(node.batchDigestM))
 
 		txList, signer := prepareMultiTx(t, 10)

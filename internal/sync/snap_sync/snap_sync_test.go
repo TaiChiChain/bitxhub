@@ -56,11 +56,24 @@ func TestSnapSync_Commit(t *testing.T) {
 }
 
 func TestSnapSync_Prepare(t *testing.T) {
-	peersSet := []string{"peer1", "peer2", "peer3"}
+	peersSet := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "peer1",
+		},
+		{
+			Id:     2,
+			PeerID: "peer2",
+		},
+		{
+			Id:     3,
+			PeerID: "peer3",
+		},
+	}
 
 	epcStates := make(map[string]map[uint64]*consensus.QuorumCheckpoint)
-	epcStates[peersSet[0]] = make(map[uint64]*consensus.QuorumCheckpoint)
-	epcStates[peersSet[0]][1] = &consensus.QuorumCheckpoint{
+	epcStates[peersSet[0].PeerID] = make(map[uint64]*consensus.QuorumCheckpoint)
+	epcStates[peersSet[0].PeerID][1] = &consensus.QuorumCheckpoint{
 		Checkpoint: &consensus.Checkpoint{
 			Epoch: 1,
 			ExecuteState: &consensus.Checkpoint_ExecuteState{
@@ -69,7 +82,7 @@ func TestSnapSync_Prepare(t *testing.T) {
 			},
 		},
 	}
-	epcStates[peersSet[0]][2] = &consensus.QuorumCheckpoint{
+	epcStates[peersSet[0].PeerID][2] = &consensus.QuorumCheckpoint{
 		Checkpoint: &consensus.Checkpoint{
 			Epoch: 2,
 			ExecuteState: &consensus.Checkpoint_ExecuteState{

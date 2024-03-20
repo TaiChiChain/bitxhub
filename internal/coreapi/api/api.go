@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
@@ -38,6 +39,8 @@ type BrokerAPI interface {
 
 	GetBlockTxHashList(height uint64) ([]*types.Hash, error)
 	GetBlockTxList(height uint64) ([]*types.Transaction, error)
+
+	GetSyncProgress() *common.SyncProgress
 }
 
 type NetworkAPI interface {

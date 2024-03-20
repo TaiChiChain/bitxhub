@@ -68,3 +68,22 @@ func matchNodeIncentiveAddress(P2PID string, EpochInfo *rbft.EpochInfo) (res str
 	}
 	return "", fmt.Errorf("unable to match node incentive address")
 }
+
+func (api *AxmAPI) SyncProgress() any {
+	progress := api.api.Broker().GetSyncProgress()
+	meta, err := api.api.Chain().Meta()
+	var highestBlock uint64
+	if err != nil {
+		api.logger.Error(err)
+		progress.HighestBlockHeight = 0
+		progress.CatchUp = false
+	} else {
+		highestBlock = meta.Height
+		progress.HighestBlockHeight = highestBlock
+		if highestBlock >= progress.TargetHeight {
+			progress.CatchUp = true
+		}
+	}
+
+	return progress
+}

@@ -42,6 +42,7 @@ type SyncManager struct {
 	initPeers           []*common.Peer      // p2p set of latest epoch validatorSet with init
 	peers               []*common.Peer      // p2p set of latest epoch validatorSet
 	ensureOneCorrectNum uint64              // ensureOneCorrectNum of latest epoch validatorSet
+	startHeight         uint64              // startHeight
 	curHeight           uint64              // current commitData which we need sync
 	targetHeight        uint64              // sync target commitData height
 	recvBlockSize       atomic.Int64        // current chunk had received commitData size
@@ -72,7 +73,7 @@ type SyncManager struct {
 	requesterCh      chan struct{}                 // chunk task done signal
 	validChunkTaskCh chan struct{}                 // start validate chunk task signal
 
-	invalidRequestCh chan *common.InvalidMsg // timeout or invalid of sync Block request
+	recvEventCh chan *common.LocalEvent // timeout or invalid of sync Block request、 get sync progress event
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -90,7 +91,7 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 		mode:               common.SyncModeFull,
 		modeConstructor:    newModeConstructor(common.SyncModeFull, common.WithContext(ctx)),
 		logger:             logger,
-		invalidRequestCh:   make(chan *common.InvalidMsg, cnf.ConcurrencyLimit),
+		recvEventCh:        make(chan *common.LocalEvent, cnf.ConcurrencyLimit),
 		recvStateCh:        make(chan *common.WrapperStateResp, cnf.ConcurrencyLimit),
 		validChunkTaskCh:   make(chan struct{}, 1),
 		quitStateCh:        make(chan error, 1),
@@ -141,6 +142,107 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 	return syncMgr, nil
 }
 
+func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan error) error {
+	now := time.Now()
+	syncCount := params.TargetHeight - params.CurHeight + 1
+	syncCtx, syncCancel := context.WithCancel(context.Background())
+	sm.syncCtx = syncCtx
+	sm.syncCancel = syncCancel
+
+	// 1. update commitData sync info
+	sm.InitBlockSyncInfo(params.Peers, params.LatestBlockHash, params.Quorum, params.CurHeight, params.TargetHeight, params.QuorumCheckpoint, params.EpochChanges...)
+	// 2. send sync state request to all validators, waiting for Quorum response
+	if sm.curHeight != 1 {
+		err := sm.requestSyncState(sm.curHeight-1, params.LatestBlockHash)
+		if err != nil {
+			syncTaskDoneCh <- err
+			return err
+		}
+
+		sm.logger.WithFields(logrus.Fields{
+			"Quorum": sm.ensureOneCorrectNum,
+		}).Info("Receive Quorum response")
+	}
+
+	// 3. switch sync status to true, if switch failed, return error
+	if err := sm.switchSyncStatus(true); err != nil {
+		syncTaskDoneCh <- err
+		return err
+	}
+
+	// 4. start listen sync commitData response
+	go sm.listenSyncCommitDataResponse()
+
+	// 5. produce requesters for first chunk
+	sm.produceRequester(sm.chunk.ChunkSize)
+
+	// 6. start sync commitData task
+	go func() {
+		for {
+			select {
+			case <-sm.syncCtx.Done():
+				return
+			case ev := <-sm.recvEventCh:
+				switch ev.EventType {
+				case common.EventType_InvalidMsg:
+					req, ok := ev.Event.(*common.InvalidMsg)
+					if !ok {
+						sm.logger.Errorf("invalid event type: %v", ev)
+						continue
+					}
+					sm.handleInvalidRequest(req)
+				case common.EventType_GetSyncProgress:
+					req, ok := ev.Event.(*common.GetSyncProgressReq)
+					if !ok {
+						sm.logger.Errorf("invalid event type: %v", ev)
+						continue
+					}
+					req.Resp <- sm.handleSyncProgress()
+				}
+			case <-sm.validChunkTaskCh:
+				sm.processChunkTask(syncCount, now, syncTaskDoneCh)
+			case <-sm.consumeRequester():
+				sm.makeRequesters(sm.curHeight + uint64(sm.requesterLen.Load()))
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (sm *SyncManager) GetSyncProgress() *common.SyncProgress {
+	if sm.status() {
+		resp := make(chan *common.SyncProgress)
+		ev := &common.LocalEvent{
+			EventType: common.EventType_GetSyncProgress,
+			Event: &common.GetSyncProgressReq{
+				Resp: resp,
+			},
+		}
+		sm.recvEventCh <- ev
+		return <-resp
+	}
+	return &common.SyncProgress{TargetHeight: sm.targetHeight}
+}
+
+func (sm *SyncManager) handleSyncProgress() *common.SyncProgress {
+	return &common.SyncProgress{
+		InSync:            sm.syncStatus.Load(),
+		StartSyncBlock:    sm.startHeight,
+		CurrentSyncHeight: sm.curHeight,
+		TargetHeight:      sm.targetHeight,
+		SyncMode:          common.SyncModeMap[sm.mode],
+		Peers: lo.FlatMap(sm.peers, func(p *common.Peer, _ int) []common.Node {
+			return []common.Node{
+				{
+					Id:     p.Id,
+					PeerID: p.PeerID,
+				},
+			}
+		}),
+	}
+}
+
 func newModeConstructor(mode common.SyncMode, opt ...common.ModeOption) common.ISyncConstructor {
 	conf := &common.ModeConfig{}
 	for _, o := range opt {
@@ -166,7 +268,11 @@ func (sm *SyncManager) consumeRequester() chan struct{} {
 }
 
 func (sm *SyncManager) postInvalidMsg(msg *common.InvalidMsg) {
-	sm.invalidRequestCh <- msg
+	ev := &common.LocalEvent{
+		EventType: common.EventType_InvalidMsg,
+		Event:     msg,
+	}
+	sm.recvEventCh <- ev
 }
 
 func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, syncTaskDoneCh chan error) {
@@ -284,60 +390,6 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 	}
 }
 
-func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan error) error {
-	now := time.Now()
-	syncCount := params.TargetHeight - params.CurHeight + 1
-	syncCtx, syncCancel := context.WithCancel(context.Background())
-	sm.syncCtx = syncCtx
-	sm.syncCancel = syncCancel
-
-	// 1. update commitData sync info
-	sm.InitBlockSyncInfo(params.Peers, params.LatestBlockHash, params.Quorum, params.CurHeight, params.TargetHeight, params.QuorumCheckpoint, params.EpochChanges...)
-
-	// 2. send sync state request to all validators, waiting for Quorum response
-	if sm.curHeight != 1 {
-		err := sm.requestSyncState(sm.curHeight-1, params.LatestBlockHash)
-		if err != nil {
-			syncTaskDoneCh <- err
-			return err
-		}
-
-		sm.logger.WithFields(logrus.Fields{
-			"Quorum": sm.ensureOneCorrectNum,
-		}).Info("Receive Quorum response")
-	}
-
-	// 3. switch sync status to true, if switch failed, return error
-	if err := sm.switchSyncStatus(true); err != nil {
-		syncTaskDoneCh <- err
-		return err
-	}
-
-	// 4. start listen sync commitData response
-	go sm.listenSyncCommitDataResponse()
-
-	// 5. produce requesters for first chunk
-	sm.produceRequester(sm.chunk.ChunkSize)
-
-	// 6. start sync commitData task
-	go func() {
-		for {
-			select {
-			case <-sm.syncCtx.Done():
-				return
-			case msg := <-sm.invalidRequestCh:
-				sm.handleInvalidRequest(msg)
-			case <-sm.validChunkTaskCh:
-				sm.processChunkTask(syncCount, now, syncTaskDoneCh)
-			case <-sm.consumeRequester():
-				sm.makeRequesters(sm.curHeight + uint64(sm.requesterLen.Load()))
-			}
-		}
-	}()
-
-	return nil
-}
-
 func (sm *SyncManager) validateChunkState(localHeight uint64, localHash string) error {
 	return sm.requestSyncState(localHeight, localHash)
 }
@@ -424,6 +476,7 @@ func (sm *SyncManager) InitBlockSyncInfo(peers []*common.Node, latestBlockHash s
 		quorum = 1
 	}
 	sm.ensureOneCorrectNum = quorum
+	sm.startHeight = curHeight
 	sm.curHeight = curHeight
 	sm.targetHeight = targetHeight
 	sm.quorumCheckpoint = quorumCheckpoint
@@ -1066,7 +1119,7 @@ func (sm *SyncManager) makeRequesters(height uint64) {
 	case common.SyncModeSnapshot:
 		pipe = sm.chainDataRequestPipe
 	}
-	request := newRequester(sm.mode, sm.ctx, peerID, height, sm.invalidRequestCh, pipe)
+	request := newRequester(sm.mode, sm.ctx, peerID, height, sm.recvEventCh, pipe)
 	sm.increaseRequester(request, height)
 	request.start(sm.conf.RequesterRetryTimeout.ToDuration())
 }

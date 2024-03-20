@@ -48,6 +48,21 @@ type SyncParams struct {
 	EpochChanges     []*consensus.EpochChange
 }
 
+type LocalEvent struct {
+	EventType int
+	Event     any
+}
+
+// event type
+const (
+	EventType_InvalidMsg = iota
+	EventType_GetSyncProgress
+)
+
+type GetSyncProgressReq struct {
+	Resp chan *SyncProgress
+}
+
 type InvalidMsg struct {
 	NodeID string
 	Height uint64
@@ -161,4 +176,16 @@ func (c *Chunk) FillCheckPoint(chunkMaxHeight uint64, checkpoint *pb.CheckpointS
 	if chunkMaxHeight >= checkpoint.Height {
 		c.CheckPoint = checkpoint
 	}
+}
+
+// SyncProgress gives progress indications when the node is synchronising with other nodes
+type SyncProgress struct {
+	InSync             bool
+	CatchUp            bool
+	StartSyncBlock     uint64 // Block number where sync began
+	CurrentSyncHeight  uint64 // Current block height where sync began
+	HighestBlockHeight uint64 // Highest block height where persisted in ledger
+	TargetHeight       uint64 // Target block height where sync ended
+	SyncMode           string // Sync mode (full or snapshot)
+	Peers              []Node // List of remote peers in sync
 }

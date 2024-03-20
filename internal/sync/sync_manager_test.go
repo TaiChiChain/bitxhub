@@ -82,7 +82,20 @@ func TestStartSync(t *testing.T) {
 		sync.conf.TimeoutCountLimit = 1
 	}
 	// node0 start sync commitData
-	peers := []string{"1", "2", "3"}
+	peers := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "1",
+		},
+		{
+			Id:     2,
+			PeerID: "2",
+		},
+		{
+			Id:     3,
+			PeerID: "3",
+		},
+	}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 	remoteBlockHash := ledgers[remoteId].GetChainMeta().BlockHash.String()
@@ -142,7 +155,20 @@ func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 	}
 
 	// node0 start sync commitData
-	peers := []string{"1", "2", "3"}
+	peers := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "1",
+		},
+		{
+			Id:     2,
+			PeerID: "2",
+		},
+		{
+			Id:     3,
+			PeerID: "3",
+		},
+	}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 	remoteBlockHash := ledgers[remoteId].GetChainMeta().BlockHash.String()
@@ -183,7 +209,20 @@ func TestMultiEpochSync(t *testing.T) {
 	}
 
 	// node0 start sync commitData
-	peers := []string{"1", "2", "3"}
+	peers := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "1",
+		},
+		{
+			Id:     2,
+			PeerID: "2",
+		},
+		{
+			Id:     3,
+			PeerID: "3",
+		},
+	}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 	remoteBlockHash := ledgers[remoteId].GetChainMeta().BlockHash.String()
@@ -273,7 +312,20 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	}
 
 	// node0 start sync commitData
-	peers := []string{"1", "2", "3"}
+	peers := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "1",
+		},
+		{
+			Id:     2,
+			PeerID: "2",
+		},
+		{
+			Id:     3,
+			PeerID: "3",
+		},
+	}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
@@ -308,7 +360,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	idx := wrongHeight % uint64(len(peers))
 	wrongRemoteId := peers[idx]
 
-	err = ledgers[wrongRemoteId].PersistExecutionResult(wrongBlockMulti, genReceipts(wrongBlockMulti))
+	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(wrongBlockMulti, genReceipts(wrongBlockMulti))
 	require.Nil(t, err)
 
 	block10, err := ledgers[remoteId].GetBlock(10)
@@ -337,7 +389,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	require.False(t, syncs[0].syncStatus.Load())
 
 	// reset right block
-	err = ledgers[wrongRemoteId].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
+	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
 	require.Nil(t, err)
 
 	require.False(t, syncs[0].syncStatus.Load())
@@ -355,8 +407,12 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 			ParentHash: parentBlock.Hash(),
 		},
 	}
-	wrongRemoteId = syncs[0].peers[int(wrongHeight)%len(syncs[0].peers)].PeerID
-	err = ledgers[wrongRemoteId].PersistExecutionResult(wrongBlockMulti, genReceipts(wrongBlockMulti))
+	wrongRemotePeer := syncs[0].peers[int(wrongHeight)%len(syncs[0].peers)]
+	wrongRemoteId = &common.Node{
+		Id:     wrongRemotePeer.Id,
+		PeerID: wrongRemotePeer.PeerID,
+	}
+	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(wrongBlockMulti, genReceipts(wrongBlockMulti))
 	require.Nil(t, err)
 
 	block101, err := ledgers[remoteId].GetBlock(101)
@@ -387,7 +443,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	require.Equal(t, uint64(101), blocks2[len(blocks2)-1].GetHeight())
 
 	// reset right block
-	err = ledgers[wrongRemoteId].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
+	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
 	require.Nil(t, err)
 	require.False(t, syncs[0].syncStatus.Load())
 }
@@ -411,7 +467,20 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 		}
 
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
 		startHeight := ledgers[localId].GetChainMeta().Height + 1
@@ -448,7 +517,20 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 		}
 
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
@@ -506,7 +588,20 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
 		// timeout with one time
@@ -534,8 +629,15 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		syncTaskDoneCh := make(chan error, 1)
 		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 10, quorumCkpt10), syncTaskDoneCh)
 		require.Nil(t, err)
+		progress := syncs[0].GetSyncProgress()
+		require.True(t, progress.InSync)
+		require.False(t, progress.CatchUp)
+		require.Equal(t, uint64(2), progress.StartSyncBlock)
+
 		err = <-syncTaskDoneCh
 		require.Nil(t, err)
+		progress = syncs[0].GetSyncProgress()
+		require.False(t, progress.InSync)
 
 		data := <-syncs[0].Commit()
 		blocks1 := data.([]common.CommitData)
@@ -569,7 +671,20 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
 		remoteId := "1"
@@ -601,6 +716,9 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		syncTaskDoneCh := make(chan error, 1)
 		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 100, quorumCkpt100, epc1), syncTaskDoneCh)
 		require.Nil(t, err)
+		progress := syncs[0].GetSyncProgress()
+		require.True(t, progress.InSync)
+		require.Equal(t, uint64(2), progress.StartSyncBlock)
 		data := <-syncs[0].Commit()
 		blocks1 := data.([]common.CommitData)
 		require.Equal(t, 99, len(blocks1))
@@ -608,6 +726,8 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		require.Equal(t, 2, len(syncs[0].peers), "remove timeout peer")
 
 		require.False(t, syncs[0].syncStatus.Load())
+		progress = syncs[0].GetSyncProgress()
+		require.False(t, progress.InSync)
 	})
 }
 
@@ -627,7 +747,20 @@ func TestHandleSyncErrMsg(t *testing.T) {
 		syncs[i].Start()
 	}
 	// node0 start sync commitData
-	peers := []string{"1", "2", "3"}
+	peers := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "1",
+		},
+		{
+			Id:     2,
+			PeerID: "2",
+		},
+		{
+			Id:     3,
+			PeerID: "3",
+		},
+	}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 	remoteBlockHash := ledgers[remoteId].GetChainMeta().BlockHash.String()
@@ -709,7 +842,20 @@ func TestRequestState(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		remoteId := "1"
 		wrongLatestBlockHash := "wrong hash"
 		block10, err := ledgers[remoteId].GetBlock(10)
@@ -736,7 +882,7 @@ func TestRequestState(t *testing.T) {
 		defer stopSyncs(syncs)
 
 		// peer2 will send wrong state request
-		wrongRemoteId := "2"
+		wrongRemoteId := uint64(2)
 		localId := "0"
 		// store blocks expect node 0
 		prepareLedger(t, ledgers, localId, 10)
@@ -745,7 +891,7 @@ func TestRequestState(t *testing.T) {
 				Number: 1,
 			},
 		}
-		err := ledgers[wrongRemoteId].PersistExecutionResult(wrongGensisBlock, genReceipts(wrongGensisBlock))
+		err := ledgers[strconv.FormatUint(wrongRemoteId, 10)].PersistExecutionResult(wrongGensisBlock, genReceipts(wrongGensisBlock))
 		require.Nil(t, err)
 
 		// start sync model
@@ -755,7 +901,20 @@ func TestRequestState(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
 		block10, err := ledgers[remoteId].GetBlock(10)
@@ -820,7 +979,20 @@ func TestStartSyncWithSnapshotMode(t *testing.T) {
 	prepareLedger(t, ledgers, localId, 300)
 
 	// node0 start sync commitData
-	peers := []string{"1", "2", "3"}
+	peers := []*common.Node{
+		{
+			Id:     1,
+			PeerID: "1",
+		},
+		{
+			Id:     2,
+			PeerID: "2",
+		},
+		{
+			Id:     3,
+			PeerID: "3",
+		},
+	}
 	remoteId := "1"
 	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 	remoteBlockHash := ledgers[remoteId].GetChainMeta().BlockHash.String()
@@ -878,33 +1050,46 @@ func TestPickPeer(t *testing.T) {
 	t.Parallel()
 	t.Run("test pick random peer", func(t *testing.T) {
 		sm := &SyncManager{}
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		sm.peers = []*common.Peer{
-			{PeerID: peers[0]},
-			{PeerID: peers[1]},
-			{PeerID: peers[2]},
+			{Id: peers[0].Id, PeerID: peers[0].PeerID},
+			{Id: peers[1].Id, PeerID: peers[1].PeerID},
+			{Id: peers[2].Id, PeerID: peers[2].PeerID},
 		}
 		expectPeer := peers[0]
 		peer := sm.pickRandomPeer("not exist peer")
 		exist := false
-		lo.ForEach(peers, func(p string, _ int) {
-			if p == peer {
+		lo.ForEach(peers, func(p *common.Node, _ int) {
+			if p.PeerID == peer {
 				exist = true
 			}
 		})
 		require.True(t, exist)
 
-		peer = sm.pickRandomPeer(expectPeer)
+		peer = sm.pickRandomPeer(expectPeer.PeerID)
 		require.NotEqual(t, expectPeer, peer)
 
 		sm.initPeers = []*common.Peer{
-			{PeerID: expectPeer},
+			{Id: expectPeer.Id, PeerID: expectPeer.PeerID},
 		}
-		sm.removePeer(peers[1])
-		sm.removePeer(peers[2])
+		sm.removePeer(peers[1].PeerID)
+		sm.removePeer(peers[2].PeerID)
 
-		peer = sm.pickRandomPeer(expectPeer)
-		require.Equal(t, expectPeer, peer, "if we just set expectPeer in initPeers, it will always return expectPeer")
+		peer = sm.pickRandomPeer(expectPeer.PeerID)
+		require.Equal(t, expectPeer.PeerID, peer, "if we just set expectPeer in initPeers, it will always return expectPeer")
 	})
 
 	t.Run("test update peers, defaultLatestHeight equal target height", func(t *testing.T) {
@@ -921,7 +1106,20 @@ func TestPickPeer(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
 		block10, err := ledgers[remoteId].GetBlock(10)
@@ -962,7 +1160,20 @@ func TestPickPeer(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
 		targetHeight := latestHeight - 1
@@ -1007,7 +1218,20 @@ func TestPickPeer(t *testing.T) {
 			syncs[i].Start()
 		}
 		// node0 start sync commitData
-		peers := []string{"1", "2", "3"}
+		peers := []*common.Node{
+			{
+				Id:     1,
+				PeerID: "1",
+			},
+			{
+				Id:     2,
+				PeerID: "2",
+			},
+			{
+				Id:     3,
+				PeerID: "3",
+			},
+		}
 		remoteId := "1"
 		latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
 		targetHeight := latestHeight - 1
@@ -1082,8 +1306,8 @@ func TestTps(t *testing.T) {
 
 	for i := 0; i < round; i++ {
 		// start sync
-		remotePeers := lo.Filter(allPeers, func(peer string, _ int) bool {
-			return peer != strconv.Itoa(localId)
+		remotePeers := lo.Filter(allPeers, func(peer *common.Node, _ int) bool {
+			return peer.Id != uint64(localId)
 		})
 
 		latestBlock, err := syncs[localId].getBlockFunc(begin - 1)

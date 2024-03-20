@@ -59,6 +59,7 @@ type transactionStore[T any, Constraint types.TXConstraint[T]] struct {
 }
 
 func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNonceFunc, logger logrus.FieldLogger) *transactionStore[T, Constraint] {
+	nCache := newNonceCache(f)
 	return &transactionStore[T, Constraint]{
 		logger:               logger,
 		priorityNonBatchSize: 0,
@@ -72,8 +73,8 @@ func newTransactionStore[T any, Constraint types.TXConstraint[T]](f GetAccountNo
 		priorityByTime:       newBtreeIndex[T, Constraint](Ordered),
 		localTTLIndex:        newBtreeIndex[T, Constraint](Rebroadcast),
 		removeTTLIndex:       newBtreeIndex[T, Constraint](Remove),
-		nonceCache:           newNonceCache(f),
-		priorityByPrice:      newPriorityQueue[T, Constraint](logger),
+		nonceCache:           nCache,
+		priorityByPrice:      newPriorityQueue[T, Constraint](nCache.getCommitNonce, logger),
 	}
 }
 

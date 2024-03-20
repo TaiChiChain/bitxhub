@@ -44,7 +44,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	// get the validator set of the remote latest epoch
 	if len(epochChanges) != 0 {
 		lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *consensus.QuorumValidator, _ int) {
-			if _, ok := peersM[v.Id]; !ok {
+			if _, ok := peersM[v.Id]; !ok && v.PeerId != a.network.PeerID() {
 				peersM[v.Id] = &sync_comm.Node{Id: v.Id, PeerID: v.PeerId}
 			}
 		})

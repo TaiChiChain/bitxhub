@@ -186,19 +186,27 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 		Checkpoint: ckp,
 	}
 
-	peerSet := make([]string, 0)
+	peerSet := make([]*consensus.QuorumValidator, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
 	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
-		if item.P2PNodeID != adaptor.network.PeerID() {
-			peerSet = append(peerSet, item.P2PNodeID)
-		}
+		peerSet = append(peerSet, &consensus.QuorumValidator{
+			Id:     item.ID,
+			PeerId: item.P2PNodeID,
+		})
+	})
+
+	// add self to validators
+	peerSet = append(peerSet, &consensus.QuorumValidator{
+		Id:     uint64(0),
+		PeerId: adaptor.network.PeerID(),
 	})
 
 	epochChange := &consensus.EpochChange{
 		Checkpoint: &consensus.QuorumCheckpoint{Checkpoint: ckp},
-		Validators: peerSet,
+		Validators: &consensus.QuorumValidators{Validators: peerSet},
 	}
 
+	adaptor.EpochInfo.ValidatorSet = make([]rbft.NodeInfo, 0)
 	adaptor.StateUpdate(0, block3.Header.Number, block3.Hash().String(),
 		[]*consensus.SignedCheckpoint{signCkp}, epochChange)
 
@@ -251,14 +259,14 @@ func TestStateUpdateWithRollback(t *testing.T) {
 	testutil.SetMockBlockLedger(block3, true)
 	defer testutil.ResetMockBlockLedger()
 	adaptor.StateUpdate(2, block3.Header.Number, block3.Hash().String(),
-		[]*consensus.SignedCheckpoint{signCkp}, nil)
+		[]*consensus.SignedCheckpoint{signCkp})
 
 	wrongBlock3 := testutil.ConstructBlock("wrong_block3", uint64(3))
 	testutil.SetMockBlockLedger(wrongBlock3, true)
 	defer testutil.ResetMockBlockLedger()
 
 	adaptor.StateUpdate(2, block3.Header.Number, block3.Hash().String(),
-		[]*consensus.SignedCheckpoint{signCkp}, nil)
+		[]*consensus.SignedCheckpoint{signCkp})
 
 	target := <-adaptor.BlockC
 	ast.Equal(uint64(3), target.Block.Header.Number, "low watermark is 2, we should rollback to 2, and then sync to 3")
