@@ -22,8 +22,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -49,9 +48,6 @@ var whiteListABI string
 
 //go:embed sol/EpochManager.abi
 var epochManagerABI string
-
-//go:embed sol/AxmManager.abi
-var axmManagerABI string
 
 //go:embed sol/AxcManager.abi
 var axcManagerABI string
@@ -91,7 +87,6 @@ func New() common.VirtualMachine {
 	nvm.Deploy(common.GovernanceContractAddr, governanceABI)
 	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI)
 	nvm.Deploy(common.WhiteListContractAddr, whiteListABI)
-	nvm.Deploy(common.AXMContractAddr, axmManagerABI)
 	nvm.Deploy(common.AXCContractAddr, axcManagerABI)
 	nvm.Deploy(common.EntryPointContractAddr, entryPointABI)
 	nvm.Deploy(common.AccountFactoryContractAddr, smartAccountFactoryABI)
@@ -408,10 +403,8 @@ func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContr
 		return base.NewEpochManager(cfg)
 	case common.WhiteListContractAddr:
 		return access.NewWhiteList(cfg)
-	case common.AXMContractAddr:
-		return axm.New(cfg)
 	case common.AXCContractAddr:
-		return axc.New(cfg)
+		return token.New(cfg)
 	case common.EntryPointContractAddr:
 		return saccount.NewEntryPoint(cfg)
 	case common.AccountFactoryContractAddr:
@@ -446,19 +439,11 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 
-	axmConfig, err := axm.GenerateConfig(genesis)
+	axmConfig, err := token.GenerateConfig(genesis)
 	if err != nil {
 		return err
 	}
-	if err = axm.Init(lg, axmConfig); err != nil {
-		return err
-	}
-
-	axcConfig, err := axc.GenerateConfig(genesis)
-	if err != nil {
-		return err
-	}
-	if err = axc.Init(lg, axcConfig); err != nil {
+	if err = token.Init(lg, axmConfig); err != nil {
 		return err
 	}
 
@@ -469,10 +454,10 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	combined := make([]string, 0, totalLength)
 	combined = append(combined, admins...)
 	combined = append(combined, genesis.InitWhiteListProviders...)
-	accountAddrs := lo.Map(genesis.Accounts, func(ac *repo.Account, _ int) string {
-		return ac.Address
+	accounts := lo.Map(genesis.Accounts, func(x *repo.Account, _ int) string {
+		return x.Address
 	})
-	combined = append(combined, accountAddrs...)
+	combined = append(combined, accounts...)
 	if err = access.InitProvidersAndWhiteList(lg, combined, genesis.InitWhiteListProviders); err != nil {
 		return err
 	}

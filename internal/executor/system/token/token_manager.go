@@ -1,20 +1,16 @@
-package axm
+package token
 
 import (
 	"math/big"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
-
-var _ token.ITokenMintableBurnable = (*Manager)(nil)
 
 type Manager struct {
 	logger      logrus.FieldLogger
@@ -24,27 +20,19 @@ type Manager struct {
 }
 
 func Init(lg ledger.StateLedger, config Config) error {
-	contractAccount := lg.GetOrCreateAccount(types.NewAddressByStr(common.AXMContractAddr))
+	contractAccount := lg.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
 
 	contractAccount.SetState([]byte(NameKey), []byte(config.Name))
 	contractAccount.SetState([]byte(SymbolKey), []byte(config.Symbol))
 	contractAccount.SetState([]byte(DecimalsKey), []byte{config.Decimals})
+	contractAccount.SetState([]byte(TotalSupplyKey), config.TotalSupply.Bytes())
 
-	var err error
-
-	// init balance for contract contractAccount
-	if err = mint(contractAccount, config.TotalSupply); err != nil {
-		return err
+	// init balance for all accounts
+	for _, account := range config.Accounts {
+		supplyAccount := lg.GetOrCreateAccount(account.Address)
+		supplyAccount.AddBalance(account.Balance)
 	}
-
-	lo.ForEach(config.InitialAccounts, func(account *InitialAccount, _ int) {
-		adminAccount := lg.GetOrCreateAccount(account.Address)
-		if err = transfer(contractAccount, adminAccount, account.Balance); err != nil {
-			return
-		}
-	})
-
-	return err
+	return nil
 }
 
 func (am *Manager) Name() string {
@@ -105,7 +93,7 @@ func mint(contractAccount ledger.IAccount, value *big.Int) error {
 }
 
 func changeTotalSupply(acc ledger.IAccount, amount *big.Int, increase bool) error {
-	if acc.GetAddress().String() != common.AXMContractAddr {
+	if acc.GetAddress().String() != common.AXCContractAddr {
 		return ErrContractAccount
 	}
 
@@ -227,7 +215,7 @@ func New(cfg *common.SystemContractConfig) *Manager {
 }
 
 func (am *Manager) SetContext(context *common.VMContext) {
-	am.account = context.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXMContractAddr))
+	am.account = context.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
 	am.stateLedger = context.StateLedger
 	am.msgFrom = *context.CurrentUser
 }
