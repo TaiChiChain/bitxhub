@@ -205,7 +205,7 @@ func AriesConsensusConfig() *ConsensusConfig {
 }
 
 func AriesGenesisConfig() *GenesisConfig {
-	axmBalance, _ := new(big.Int).SetString(DefaultAXMBalance, 10)
+	axmBalance, _ := new(big.Int).SetString(DefaultAXCBalance, 10)
 	// balance = axmBalance * 10^decimals
 	balance := new(big.Int).Mul(axmBalance, big.NewInt(10).Exp(big.NewInt(10), big.NewInt(int64(DefaultDecimals)), nil))
 	adminLen := 4
@@ -236,7 +236,7 @@ func AriesGenesisConfig() *GenesisConfig {
 			},
 		},
 		SmartAccountAdmin: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
-		Axm: &Token{
+		Axc: &Token{
 			Name:        "Axiom",
 			Symbol:      "Token",
 			Decimals:    DefaultDecimals,

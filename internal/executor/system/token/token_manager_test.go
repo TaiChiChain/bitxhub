@@ -1,4 +1,4 @@
-package axm
+package token
 
 import (
 	"math/big"
@@ -15,7 +15,7 @@ import (
 var adminBalance *big.Int
 
 func init() {
-	adminBalance, _ = new(big.Int).SetString(repo.DefaultAXMBalance, 10)
+	adminBalance, _ = new(big.Int).SetString(repo.DefaultAccountBalance, 10)
 }
 
 func TestInitAxmTokenManager(t *testing.T) {
@@ -28,24 +28,12 @@ func TestInitAxmTokenManager(t *testing.T) {
 		err = Init(mockLg, conf)
 		require.Nil(t, err)
 	})
-
-	t.Run("test transfer failed", func(t *testing.T) {
-		mockLg := newMockMinLedger(t)
-		genesisConf := repo.DefaultGenesisConfig(false)
-		conf, err := GenerateConfig(genesisConf)
-		require.Nil(t, err)
-		// insert totalSupply too small
-		conf.TotalSupply = big.NewInt(1000000)
-		err = Init(mockLg, conf)
-		require.NotNil(t, err)
-		require.Contains(t, err.Error(), ErrInsufficientBalance.Error())
-	})
 }
 
 func TestGetMeta(t *testing.T) {
 	logger := log.NewWithModule("token")
 	am := New(&common.SystemContractConfig{Logger: logger})
-	am.account = newMockAccount(types.NewAddressByStr(common.AXMContractAddr))
+	am.account = newMockAccount(types.NewAddressByStr(common.AXCContractAddr))
 	require.Equal(t, "", am.Name())
 	require.Equal(t, "", am.Symbol())
 	require.Equal(t, uint8(0), am.Decimals())
@@ -53,15 +41,15 @@ func TestGetMeta(t *testing.T) {
 
 	am = mockAxmManager(t)
 	require.Equal(t, "Axiom", am.Name())
-	require.Equal(t, "AXM", am.Symbol())
+	require.Equal(t, "AXC", am.Symbol())
 	require.Equal(t, uint8(18), am.Decimals())
-	require.Equal(t, defaultTotalSupply, am.TotalSupply().String())
+	require.Equal(t, repo.DefaultAXCBalance, am.TotalSupply().String())
 }
 
 func TestAxmManager_BalanceOf(t *testing.T) {
 	am := mockAxmManager(t)
-	account1 := types.NewAddressByStr(admin1).ETHAddress()
-	require.Equal(t, adminBalance.String(), am.BalanceOf(account1).String())
+	account := types.NewAddressByStr(admin1).ETHAddress()
+	require.Equal(t, adminBalance.String(), am.BalanceOf(account).String())
 
 	s, err := types.GenerateSigner()
 	require.Nil(t, err)
@@ -71,15 +59,15 @@ func TestAxmManager_BalanceOf(t *testing.T) {
 
 func TestAxmManager_Mint(t *testing.T) {
 	am := mockAxmManager(t)
-	contractAddr := types.NewAddressByStr(common.AXMContractAddr).ETHAddress()
+	contractAddr := types.NewAddressByStr(common.AXCContractAddr).ETHAddress()
 	require.Equal(t, big.NewInt(0).String(), am.BalanceOf(contractAddr).String())
-	require.Equal(t, defaultTotalSupply, am.TotalSupply().String())
+	require.Equal(t, repo.DefaultAXCBalance, am.TotalSupply().String())
 
 	// mint success
 	addAmount := big.NewInt(1)
 	require.Nil(t, am.Mint(addAmount))
 	require.Equal(t, addAmount.String(), am.BalanceOf(contractAddr).String())
-	oldTotalSupply, _ := new(big.Int).SetString(defaultTotalSupply, 10)
+	oldTotalSupply, _ := new(big.Int).SetString(repo.DefaultAXCBalance, 10)
 	newTotalSupply := new(big.Int).Add(oldTotalSupply, addAmount)
 	require.Equal(t, newTotalSupply.String(), am.TotalSupply().String())
 
@@ -98,9 +86,9 @@ func TestAxmManager_Mint(t *testing.T) {
 
 func TestAxmManager_Burn(t *testing.T) {
 	am := mockAxmManager(t)
-	contractAddr := types.NewAddressByStr(common.AXMContractAddr).ETHAddress()
+	contractAddr := types.NewAddressByStr(common.AXCContractAddr).ETHAddress()
 	require.Equal(t, big.NewInt(0).String(), am.BalanceOf(contractAddr).String())
-	totalSupply, _ := new(big.Int).SetString(defaultTotalSupply, 10)
+	totalSupply, _ := new(big.Int).SetString(repo.DefaultAXCBalance, 10)
 	require.Equal(t, totalSupply.String(), am.TotalSupply().String())
 
 	err := am.Burn(big.NewInt(-1))
@@ -117,7 +105,7 @@ func TestAxmManager_Burn(t *testing.T) {
 	addAmount := big.NewInt(1)
 	require.Nil(t, am.Mint(addAmount))
 	require.Equal(t, addAmount.String(), am.BalanceOf(contractAddr).String())
-	oldTotalSupply, _ := new(big.Int).SetString(defaultTotalSupply, 10)
+	oldTotalSupply, _ := new(big.Int).SetString(repo.DefaultAXCBalance, 10)
 	newTotalSupply := new(big.Int).Add(oldTotalSupply, addAmount)
 	require.Equal(t, newTotalSupply.String(), am.TotalSupply().String())
 
@@ -132,7 +120,7 @@ func TestAxmManager_Allowance(t *testing.T) {
 	account1 := types.NewAddressByStr(admin1).ETHAddress()
 	account2 := types.NewAddressByStr(admin2).ETHAddress()
 
-	owner := ethcommon.HexToAddress(common.AXMContractAddr)
+	owner := ethcommon.HexToAddress(common.AXCContractAddr)
 	spender := account2
 	require.Equal(t, big.NewInt(0).String(), am.Allowance(account1, account2).String())
 	contractToAdmin2Key := getAllowancesKey(owner, spender)
@@ -244,7 +232,7 @@ func TestAxmManager_TransferFrom(t *testing.T) {
 		am := mockAxmManager(t)
 		account2 := types.NewAddressByStr(admin2).ETHAddress()
 
-		am.msgFrom = types.NewAddressByStr(common.AXMContractAddr).ETHAddress()
+		am.msgFrom = types.NewAddressByStr(common.AXCContractAddr).ETHAddress()
 		err := am.Approve(account2, big.NewInt(1))
 		require.Nil(t, err)
 		require.Equal(t, big.NewInt(1), am.Allowance(am.msgFrom, account2))

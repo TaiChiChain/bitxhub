@@ -1,4 +1,4 @@
-package axm
+package token
 
 import (
 	"math/big"
@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	admin1             = "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"
-	admin2             = "0x79a1215469FaB6f9c63c1816b45183AD3624bE34"
-	defaultTotalSupply = "24000000000000000000000000000"
+	admin1 = "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"
+	admin2 = "0x79a1215469FaB6f9c63c1816b45183AD3624bE34"
 )
 
 type mockLedger struct {
@@ -121,7 +120,7 @@ func mockAxmManager(t *testing.T) *Manager {
 	require.Nil(t, err)
 	err = Init(mockLg, conf)
 	require.Nil(t, err)
-	contractAccount := mockLg.GetOrCreateAccount(types.NewAddressByStr(common.AXMContractAddr))
+	contractAccount := mockLg.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
 
 	am := &Manager{logger: logger, account: contractAccount, stateLedger: mockLg}
 	return am

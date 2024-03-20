@@ -1,23 +1,22 @@
-package axm
+package token
 
 import (
 	"fmt"
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 type Config struct {
-	Name            string
-	Symbol          string
-	Decimals        uint8
-	TotalSupply     *big.Int
-	InitialAccounts []*InitialAccount
+	Name        string
+	Symbol      string
+	Decimals    uint8
+	TotalSupply *big.Int
+	Accounts    []*InitialAccount
 }
 
 type InitialAccount struct {
@@ -36,6 +35,7 @@ var (
 const (
 	TotalSupplyKey = "totalSupplyKey"
 	DecimalsKey    = "decimalsKey"
+	decimal        = 10000
 
 	SymbolKey     = "symbolKey"
 	NameKey       = "nameKey"
@@ -77,39 +77,32 @@ func getAllowancesKey(owner, spender ethcommon.Address) string {
 
 func GenerateConfig(genesis *repo.GenesisConfig) (Config, error) {
 	var err error
-	initialAccounts := make([]*InitialAccount, len(genesis.Accounts))
-	// calculate the total consume balance for accounts
-	accBalance := lo.Map(genesis.Accounts, func(ac *repo.Account, index int) *big.Int {
-		balance, ok := new(big.Int).SetString(ac.Balance, 10)
+	totalSupply, ok := new(big.Int).SetString(genesis.Axc.TotalSupply, 10)
+	if !ok || totalSupply.Sign() < 0 {
+		err = fmt.Errorf("invalid balance: %s", totalSupply)
+	}
+	initialAccounts := lo.Map(genesis.Accounts, func(account *repo.Account, index int) *InitialAccount {
+		balance, ok := new(big.Int).SetString(account.Balance, 10)
 		if !ok || balance.Sign() < 0 {
-			err = fmt.Errorf("invalid balance: %s", ac.Balance)
+			err = fmt.Errorf("invalid balance: %s", totalSupply)
+			return nil
 		}
-		initialAccounts[index] = &InitialAccount{
-			Address: types.NewAddressByStr(ac.Address),
+		return &InitialAccount{
+			Address: types.NewAddressByStr(account.Address),
 			Balance: balance,
 		}
-		return balance
 	})
+
 	if err != nil {
 		return Config{}, err
 	}
-	consumeBalance := big.NewInt(0)
-	lo.ForEach(accBalance, func(balance *big.Int, _ int) {
-		consumeBalance.Add(consumeBalance, balance)
-	})
 
-	totalSupply, _ := new(big.Int).SetString(genesis.Axm.TotalSupply, 10)
-	// calculate totalSupply - (sum<each account balance>)
-	contractBalance := new(big.Int).Set(totalSupply)
-	if contractBalance.Cmp(consumeBalance) < 0 {
-		return Config{}, ErrTotalSupply
-	}
 	tokenConfig := Config{
-		Name:            genesis.Axm.Name,
-		Symbol:          genesis.Axm.Symbol,
-		Decimals:        genesis.Axm.Decimals,
-		InitialAccounts: initialAccounts,
-		TotalSupply:     contractBalance,
+		Name:        genesis.Axc.Name,
+		Symbol:      genesis.Axc.Symbol,
+		Decimals:    genesis.Axc.Decimals,
+		Accounts:    initialAccounts,
+		TotalSupply: totalSupply,
 	}
 	return tokenConfig, nil
 }
