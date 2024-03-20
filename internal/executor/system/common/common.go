@@ -27,8 +27,8 @@ const (
 	ProposalIDContractAddr = "0x0000000000000000000000000000000000001000"
 	GovernanceContractAddr = "0x0000000000000000000000000000000000001001"
 
-	// AXMContractAddr is the contract to used to manager native token info
-	AXMContractAddr = "0x0000000000000000000000000000000000001002"
+	// AXCContractAddr is the contract to used to manager native token info
+	AXCContractAddr = "0x0000000000000000000000000000000000001002"
 
 	// Addr2NameContractAddr for unique name mapping to address
 	Addr2NameContractAddr           = "0x0000000000000000000000000000000000001003"
@@ -37,9 +37,6 @@ const (
 
 	// EpochManagerContractAddr is the contract to used to manager chain epoch info
 	EpochManagerContractAddr = "0x0000000000000000000000000000000000001006"
-
-	// AXCContractAddr is the system contract for axc
-	AXCContractAddr = "0x0000000000000000000000000000000000001007"
 
 	// Smart account contract
 	// EntryPointContractAddr is the address of entry point system contract

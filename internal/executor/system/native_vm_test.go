@@ -21,8 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -49,12 +48,9 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis := repo.DefaultGenesisConfig(false)
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXMContractAddr {
-				return axmAccount
-			}
 			if address.String() == common.AXCContractAddr {
 				return axcAccount
 			}
@@ -82,10 +78,10 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis.EpochInfo.ValidatorSet[0].AccountAddress = "wrong address"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXMContractAddr {
+			if address.String() == common.AXCContractAddr {
 				return axmAccount
 			}
 			if address.String() == common.AXCContractAddr {
@@ -112,13 +108,13 @@ func TestContractInitGenesisData(t *testing.T) {
 
 		genesis := repo.DefaultGenesisConfig(false)
 		// set wrong balance for token manager
-		genesis.Accounts[0].Balance = "wrong balance"
+		genesis.Accounts[0].Balance = "-10"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXMContractAddr {
+			if address.String() == common.AXCContractAddr {
 				return axmAccount
 			}
 			if address.String() == common.AXCContractAddr {
@@ -136,10 +132,9 @@ func TestContractInitGenesisData(t *testing.T) {
 
 		genesis = repo.DefaultGenesisConfig(false)
 		// decrease total supply
-		genesis.Axm.TotalSupply = "10"
+		genesis.Axc.TotalSupply = "-10"
 		err = InitGenesisData(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), axm.ErrTotalSupply.Error())
 	})
 
 }
@@ -157,9 +152,9 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	//WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
-	axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+	axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.AXMContractAddr {
+		if address.String() == common.AXCContractAddr {
 			return axmAccount
 		}
 		return account
@@ -281,11 +276,11 @@ func TestNativeVM_GetContractInstance(t *testing.T) {
 		},
 		{
 			ContractAddr: types.NewAddressByStr(common.AXCContractAddr),
-			expectType:   axc.New(cfg),
+			expectType:   token.New(cfg),
 		},
 		{
-			ContractAddr: types.NewAddressByStr(common.AXMContractAddr),
-			expectType:   axm.New(cfg),
+			ContractAddr: types.NewAddressByStr(common.AXCContractAddr),
+			expectType:   token.New(cfg),
 		},
 		{
 			ContractAddr: types.NewAddressByStr(common.WhiteListContractAddr),
