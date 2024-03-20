@@ -85,13 +85,7 @@ interface IERC20 {
 /**
  * @dev Interface for the optional metadata functions from the ERC-20 standard.
  */
-interface AxcToken is IERC20 {
-    /**
-     * @dev Emitted when the unlock of a `owner`
-     * a call to {unlock}. `value` is the new unlocked value.
-     */
-    event Unlock(address indexed owner, uint256 value);
-
+interface IERC20Metadata is IERC20 {
     /**
      * @dev Returns the name of the token.
      */
@@ -106,9 +100,19 @@ interface AxcToken is IERC20 {
      * @dev Returns the decimals places of the token.
      */
     function decimals() external view returns (uint8);
+}
+
+interface AXC is IERC20Metadata {
+    /**
+    * @notice This method can only be called through the governance contract
+    * @param amount How much should be minted for token contract account
+    * @dev Returns the success status of the mint operation.
+    */
+    function mint(uint256 amount) external returns (bool);
 
     /**
-     * @dev Unlock the total amount of token `value` to `account`.
-     */
-    function unlock(address account, uint256 value) external returns (bool);
+    * @notice This method can only be called through the governance contract
+    * @param amount How much should be burned
+    */
+    function burn(uint256 amount) external;
 }

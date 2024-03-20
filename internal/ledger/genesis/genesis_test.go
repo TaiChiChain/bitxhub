@@ -25,9 +25,9 @@ func TestInitialize(t *testing.T) {
 	}
 
 	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.ZeroAddress))
-	tokenAccount := ledger.NewMockAccount(1, types.NewAddressByStr(common.AXMContractAddr))
+	tokenAccount := ledger.NewMockAccount(1, types.NewAddressByStr(common.AXCContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.AXMContractAddr {
+		if address.String() == common.AXCContractAddr {
 			return tokenAccount
 		}
 		return account

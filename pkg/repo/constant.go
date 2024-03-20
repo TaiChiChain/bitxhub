@@ -67,15 +67,14 @@ const (
 	// to validate whether they fit into the pool or not.
 	DefaultTxMaxSize = 4 * txSlotSize // 128KB
 
-	DefaultAXMBalance = "1000000000000000000000000000" // one billion AXM
+	DefaultAXCBalance     = "1000000000000000000000000000" // 1 billion AXC
+	DefaultAccountBalance = "250000000000000000000000000"  // 250 million AXC = 1/4 of total
 
 	DefaultDecimals = 18
 
-	DefaultAXCTotalSupply = "2000000000000000000000000000"
-
-	DefaultStartGasPrice = 0
-	DefaultMaxGasPrice   = 0
-	DefaultMinGasPrice   = 0
+	DefaultStartGasPrice = 5000000000000
+	DefaultMaxGasPrice   = 10000000000000
+	DefaultMinGasPrice   = 1000_000_000_000
 )
 
 const (
@@ -143,65 +142,5 @@ var (
 		"16Uiu2HAkx1o5fzWLdAobanvE6vqbf1XSbDSgCnid3AoqDGQYFVxo",
 	}
 
-	DefaultAXCDistribution = []Distribution{
-		{
-			Name:         "Community",
-			Addr:         "0xf16F8B02df2Dd7c4043C41F3f1EBB17f15358888",
-			Percentage:   0.44,
-			InitEmission: 0,
-			Locked:       true,
-		},
-		{
-			Name:         "Advisor",
-			Addr:         "0x6F878f6355646240878bc732e91d875DE8649999",
-			Percentage:   0.05,
-			InitEmission: 0,
-			Locked:       true,
-		},
-		{
-			Name:         "Investor",
-			Addr:         "0x56ee19704930abbdd1ABb11D6B6fE4b6b3B76666",
-			Percentage:   0.05,
-			InitEmission: 0,
-			Locked:       true,
-		},
-		{
-			Name:         "Contributors",
-			Addr:         "0xF0aD804C24caE19F5Ab061dDDfa843B3A5976666",
-			Percentage:   0.2,
-			InitEmission: 0,
-			Locked:       true,
-		},
-		{
-			Name:         "Foundation",
-			Addr:         "0x150776D3268c0eAEdAB7d880fd929fe1c5666666",
-			Percentage:   0.15,
-			InitEmission: 0,
-			Locked:       true,
-		},
-		{
-			Name:         "Mining",
-			Addr:         "0xE7aEe2a87E7d5129Bd2fBf12fAfF7534Ed146666",
-			Percentage:   0.02,
-			InitEmission: 0,
-			Locked:       false,
-		},
-		{
-			Name:         "UserAcquisition",
-			Addr:         "0xe829F053f2DA7E97dC4A7E40E5B29370B7669999",
-			Percentage:   0.04,
-			InitEmission: 0,
-			Locked:       false,
-		},
-	}
-
-	DefaultAXCDistributionPrivateKey = map[string]string{
-		"Community":       "c1e0c69234f8d95c150d31c861951675608cc3a3a8941466911f9b9901d4295c",
-		"Advisor":         "cf3dda5b1d28ea25149e74a53b9442b79238944e45ff4a592e84aa9467e7bb28",
-		"Investor":        "8a8f960fea458305ddb84c71fceeec3484adcc807e1989934069c93c946bdaac",
-		"Contributors":    "4a4d0a01f7fbe7a61b132564fa785bf32c04983828dfd581e7a73b51ad8d9d7b",
-		"Foundation":      "5b11af4b31ea70763486004cf0f3e0521da98d2c95cce4013a207287f8aeabc6",
-		"Mining":          "1d7a8c36d0931b47ada09215eb33b79d8c5dc877ca8eb4891b97bc8691061abc",
-		"UserAcquisition": "ea464b9759a95a7b3b7d66cf16205d733fb3c73d9c666217e676568db68da375",
-	}
+	DefaultFoundationPrivateKey = "5b11af4b31ea70763486004cf0f3e0521da98d2c95cce4013a207287f8aeabc6"
 )
