@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -152,6 +153,10 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 
 func (b *BrokerAPI) ChainConfig() *params.ChainConfig {
 	return b.axiomLedger.BlockExecutor.GetChainConfig()
+}
+
+func (b *BrokerAPI) GetSyncProgress() *common.SyncProgress {
+	return b.axiomLedger.Sync.GetSyncProgress()
 }
 
 func getBlockHashFunc(block *types.Block) vm.GetHashFunc {

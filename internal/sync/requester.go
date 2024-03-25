@@ -16,7 +16,7 @@ type requester struct {
 
 	quitCh          chan struct{}
 	retryCh         chan string             // retry peerID
-	invalidCh       chan *common.InvalidMsg // a channel which send invalid msg to syncer
+	invalidCh       chan *common.LocalEvent // a channel which send invalid msg to syncer
 	gotBlock        bool
 	gotCommitDataCh chan struct{}
 
@@ -26,7 +26,7 @@ type requester struct {
 	ctx context.Context
 }
 
-func newRequester(mode common.SyncMode, ctx context.Context, peerID string, height uint64, invalidCh chan *common.InvalidMsg, pipe network.Pipe) *requester {
+func newRequester(mode common.SyncMode, ctx context.Context, peerID string, height uint64, invalidCh chan *common.LocalEvent, pipe network.Pipe) *requester {
 	return &requester{
 		mode:                  mode,
 		peerID:                peerID,
@@ -62,17 +62,17 @@ OUTER_LOOP:
 			req := &pb.SyncBlockRequest{Height: r.blockHeight}
 			data, err = req.MarshalVT()
 			if err != nil {
-				r.invalidCh <- &common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg}
+				r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
 			}
 		case common.SyncModeSnapshot:
 			req := &pb.SyncChainDataRequest{Height: r.blockHeight}
 			data, err = req.MarshalVT()
 			if err != nil {
-				r.invalidCh <- &common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg}
+				r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
 			}
 		}
 		if err = r.commitDataRequestPipe.Send(r.ctx, r.peerID, data); err != nil {
-			r.invalidCh <- &common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg}
+			r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
 		}
 
 	WAIT_LOOP:
@@ -91,7 +91,7 @@ OUTER_LOOP:
 					continue WAIT_LOOP
 				}
 				// Timeout
-				r.invalidCh <- &common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, Typ: common.SyncMsgType_TimeoutBlock}
+				r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, Typ: common.SyncMsgType_TimeoutBlock})
 
 			case <-r.gotCommitDataCh:
 				// We got a commitData!
@@ -114,4 +114,12 @@ func (r *requester) setCommitData(data common.CommitData) {
 
 func (r *requester) clearBlock() {
 	r.commitData = nil
+}
+
+func (r *requester) postInvalidMsg(msg *common.InvalidMsg) {
+	ev := &common.LocalEvent{
+		EventType: common.EventType_InvalidMsg,
+		Event:     msg,
+	}
+	r.invalidCh <- ev
 }

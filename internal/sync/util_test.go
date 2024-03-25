@@ -683,7 +683,7 @@ func (m *mockNetwork) RegisterMultiMsgHandler(messageTypes []pb.Message_Type, ha
 	return nil
 }
 
-func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange, []string) {
+func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange, []*common.Node) {
 	syncs := make([]*SyncManager, count)
 	var (
 		epochChanges       []*consensus.EpochChange
@@ -749,13 +749,16 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 	// nets := newMockMiniNetworks(count)
 
 	nets := make(map[string]*mockNetwork)
-	peers := make([]string, count)
+	peers := make([]*common.Node, count)
 	for i := 0; i < count; i++ {
-		peers[i] = strconv.Itoa(i)
+		peers[i] = &common.Node{Id: uint64(i), PeerID: strconv.Itoa(i)}
 	}
-	hm := network.GenMockHostManager(peers)
+	peerIds := lo.FlatMap(peers, func(peer *common.Node, _ int) []string {
+		return []string{peer.PeerID}
+	})
+	hm := network.GenMockHostManager(peerIds)
 
-	lo.ForEach(peers, func(peer string, _ int) {
+	lo.ForEach(peerIds, func(peer string, _ int) {
 		p2pLog := log.NewWithModule(fmt.Sprintf("p2p%s", peer))
 		p2p, err := network.NewMockP2P(peer, hm, p2pLog)
 		require.Nil(t, err)
@@ -825,7 +828,7 @@ func prepareEpochChange(height uint64, hash string) *consensus.EpochChange {
 	}
 }
 
-func genSyncParams(peers []string, latestBlockHash string, quorum uint64, curHeight, targetHeight uint64,
+func genSyncParams(peers []*common.Node, latestBlockHash string, quorum uint64, curHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges ...*consensus.EpochChange) *common.SyncParams {
 	return &common.SyncParams{
 		Peers:            peers,

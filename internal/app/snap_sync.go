@@ -5,25 +5,25 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
-	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 type snapMeta struct {
 	snapBlockHeader  *types.BlockHeader
 	snapPersistEpoch uint64
-	snapPeers        []string
+	snapPeers        []*common.Node
 }
 
-func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
+func loadSnapMeta(lg *ledger.Ledger) (*snapMeta, error) {
 	meta, err := lg.StateLedger.GetTrieSnapshotMeta()
 	if err != nil {
 		return nil, fmt.Errorf("get snapshot meta hash: %w", err)
@@ -34,14 +34,15 @@ func loadSnapMeta(lg *ledger.Ledger, rep *repo.Repo) (*snapMeta, error) {
 		snapPersistedEpoch = meta.EpochInfo.Epoch
 	}
 
-	var peers []string
-
-	// get the validator set of the current local epoch
-	for _, v := range meta.EpochInfo.ValidatorSet {
-		if v.P2PNodeID != rep.P2PID {
-			peers = append(peers, v.P2PNodeID)
+	// flatten peers
+	peers := lo.FlatMap(meta.Nodes.Validators, func(p *consensus.QuorumValidator, _ int) []*common.Node {
+		return []*common.Node{
+			{
+				Id:     p.Id,
+				PeerID: p.PeerId,
+			},
 		}
-	}
+	})
 
 	return &snapMeta{
 		snapBlockHeader:  meta.BlockHeader,
@@ -104,7 +105,7 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 	return res, snapCheckpoint, nil
 }
 
-func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.SignedCheckpoint, peers []string, startHeight uint64, epochChanges []*consensus.EpochChange) error {
+func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.SignedCheckpoint, peers []*common.Node, startHeight uint64, epochChanges []*consensus.EpochChange) error {
 	syncTaskDoneCh := make(chan error, 1)
 	targetHeight := ckpt.Height()
 	params := axm.genSnapSyncParams(peers, startHeight, targetHeight, ckpt, epochChanges)
@@ -173,7 +174,7 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 	}
 
 	storeEpochStateFn := func(key string, value []byte) error {
-		return common2.StoreEpochState(axm.epochStore, key, value)
+		return consensuscommon.StoreEpochState(axm.epochStore, key, value)
 	}
 	if data.EpochState != nil {
 		if err := rbft.PersistEpochQuorumCheckpoint(storeEpochStateFn, data.EpochState); err != nil {
@@ -183,13 +184,13 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 	return nil
 }
 
-func (axm *AxiomLedger) genSnapSyncParams(peers []string, startHeight, targetHeight uint64,
+func (axm *AxiomLedger) genSnapSyncParams(peers []*common.Node, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
 	latestBlockHash := axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
 	return &common.SyncParams{
 		Peers:            peers,
 		LatestBlockHash:  latestBlockHash,
-		Quorum:           common2.GetQuorum(axm.Repo.Config.Consensus.Type, len(peers)),
+		Quorum:           consensuscommon.GetQuorum(axm.Repo.Config.Consensus.Type, len(peers)),
 		CurHeight:        startHeight,
 		TargetHeight:     targetHeight,
 		QuorumCheckpoint: quorumCkpt,

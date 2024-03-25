@@ -15,7 +15,7 @@ import (
 )
 
 func TestPriorityQueue_Push(t *testing.T) {
-	q := newPriceQueue[types.Transaction, *types.Transaction](log.NewWithModule("priorityQueue"))
+	q := newPriorityQueue[types.Transaction, *types.Transaction](getNonce, log.NewWithModule("priorityQueue"))
 	s, _ := types.GenerateSigner()
 	tx := constructTx(s, 0)
 	poolTx := &internalTransaction[types.Transaction, *types.Transaction]{
@@ -24,15 +24,28 @@ func TestPriorityQueue_Push(t *testing.T) {
 	}
 	q.push(poolTx)
 	require.Equal(t, poolTx, q.peek())
-	require.Equal(t, 1, q.length())
+	require.Equal(t, uint64(1), q.size())
 
 	actualTx := q.pop()
 	require.Equal(t, poolTx.getNonce(), actualTx.getNonce())
-	require.Equal(t, 0, q.length())
+	require.Equal(t, uint64(0), q.size())
+
+	poolTxs := constructPoolTxListByGas(s, 5, big.NewInt(100))
+	// lack tx2
+	newTxs := append(poolTxs[1:2], poolTxs[3:]...)
+	for _, pt := range newTxs {
+		q.push(pt)
+	}
+	require.Equal(t, uint64(1), q.peek().getNonce())
+	require.Equal(t, uint64(1), q.size(), "insert tx1")
+
+	q.push(poolTxs[0])
+	require.Equal(t, uint64(0), q.peek().getNonce())
+	require.Equal(t, uint64(2), q.size(), "exist tx0 and tx1")
 }
 
 func TestPriorityQueue_Pop(t *testing.T) {
-	q := newPriorityQueue[types.Transaction, *types.Transaction](log.NewWithModule("priorityQueue"))
+	q := newPriorityQueue[types.Transaction, *types.Transaction](getNonce, log.NewWithModule("priorityQueue"))
 	s1, _ := types.GenerateSigner()
 	from1 := s1.Addr.String()
 	price := big.NewInt(100)
@@ -53,7 +66,7 @@ func TestPriorityQueue_Pop(t *testing.T) {
 }
 
 func TestPriorityQueue_PushByMulti(t *testing.T) {
-	q := newPriorityQueue[types.Transaction, *types.Transaction](log.NewWithModule("priorityQueue"))
+	q := newPriorityQueue[types.Transaction, *types.Transaction](getNonce, log.NewWithModule("priorityQueue"))
 	s1, _ := types.GenerateSigner()
 	from1 := s1.Addr.String()
 	price := big.NewInt(100)
@@ -123,7 +136,7 @@ func TestPriorityQueue_PushByMulti(t *testing.T) {
 }
 
 func TestPriorityQueue_RemoveTx(t *testing.T) {
-	q := newPriorityQueue[types.Transaction, *types.Transaction](log.NewWithModule("priorityQueue"))
+	q := newPriorityQueue[types.Transaction, *types.Transaction](getNonce, log.NewWithModule("priorityQueue"))
 	s1, _ := types.GenerateSigner()
 	from1 := s1.Addr.String()
 	s2, _ := types.GenerateSigner()
@@ -163,7 +176,7 @@ func TestPriorityQueue_RemoveTx(t *testing.T) {
 }
 
 func TestPriorityQueue_ReplaceTx(t *testing.T) {
-	q := newPriorityQueue[types.Transaction, *types.Transaction](log.NewWithModule("priorityQueue"))
+	q := newPriorityQueue[types.Transaction, *types.Transaction](getNonce, log.NewWithModule("priorityQueue"))
 	s1, _ := types.GenerateSigner()
 	oldTx := constructPoolTxByGas(s1, 0, big.NewInt(100))
 	newTx := constructPoolTxByGas(s1, 0, big.NewInt(200))
@@ -216,7 +229,7 @@ func Benchmark_PriorityQueue(t *testing.B) {
 			for i := 0; i < t.N; i++ {
 				logger := log.NewWithModule("priorityQueue")
 				logger.Logger.SetLevel(logrus.ErrorLevel)
-				q := newPriorityQueue[types.Transaction, *types.Transaction](logger)
+				q := newPriorityQueue[types.Transaction, *types.Transaction](getNonce, logger)
 				lo.ForEach(tt.unsortedTxs, func(tx *internalTransaction[types.Transaction, *types.Transaction], _ int) {
 					q.push(tx)
 				})
@@ -271,4 +284,8 @@ func generateTxs(accountCount, perAccountTxCount int) []*internalTransaction[typ
 	}
 	wg.Wait()
 	return txs
+}
+
+func getNonce(_ string) uint64 {
+	return 0
 }

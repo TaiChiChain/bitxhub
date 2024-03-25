@@ -32,21 +32,25 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	a.StateUpdating = true
 	a.StateUpdateHeight = seqNo
 
-	var peers []string
+	peersM := make(map[uint64]*sync_comm.Node)
 
 	// get the validator set of the current local epoch
 	for _, v := range a.EpochInfo.ValidatorSet {
 		if v.P2PNodeID != a.network.PeerID() {
-			peers = append(peers, v.P2PNodeID)
+			peersM[v.ID] = &sync_comm.Node{Id: v.ID, PeerID: v.P2PNodeID}
 		}
 	}
 
 	// get the validator set of the remote latest epoch
 	if len(epochChanges) != 0 {
-		peers = lo.Filter(lo.Union(peers, epochChanges[len(epochChanges)-1].GetValidators()), func(item string, idx int) bool {
-			return item != a.config.Network.PeerID()
+		lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *consensus.QuorumValidator, _ int) {
+			if _, ok := peersM[v.Id]; !ok && v.PeerId != a.network.PeerID() {
+				peersM[v.Id] = &sync_comm.Node{Id: v.Id, PeerID: v.PeerId}
+			}
 		})
 	}
+	// flatten peersM
+	peers := lo.Values(peersM)
 
 	chain := a.getChainMetaFunc()
 

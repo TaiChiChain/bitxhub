@@ -152,19 +152,19 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 				return
 			}
 
-			invalidPeers := make([]string, 0)
+			invalidPeers := make([]*common.Node, 0)
 			if err = retry.Retry(func(attempt uint) error {
 				s.logger.WithFields(logrus.Fields{
-					"peer":  peer,
+					"peer":  peer.Id,
 					"epoch": epoch,
 				}).Info("Send fetch epoch state request")
-				resp, err = s.network.Send(peer, &pb.Message{
+				resp, err = s.network.Send(peer.PeerID, &pb.Message{
 					Type: pb.Message_FETCH_EPOCH_STATE_REQUEST,
 					Data: data,
 				})
 				if err != nil {
 					s.logger.WithFields(logrus.Fields{
-						"peer": peer,
+						"peer": peer.Id,
 						"err":  err,
 					}).Error("Send fetch epoch state request failed")
 
@@ -173,14 +173,14 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 					peer, pickErr = s.pickRandomPeer(invalidPeers...)
 					// reset invalidPeers
 					if pickErr != nil {
-						invalidPeers = make([]string, 0)
+						invalidPeers = make([]*common.Node, 0)
 						peer, _ = s.pickRandomPeer()
 					}
 					return err
 				}
 
 				s.logger.WithFields(logrus.Fields{
-					"peer":  peer,
+					"peer":  peer.Id,
 					"epoch": epoch,
 				}).Info("Receive fetch epoch state response")
 				return nil
@@ -188,7 +188,7 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 			}, strategy.Limit(uint(len(s.cnf.Peers))), strategy.Wait(200*time.Millisecond)); err != nil {
 				err = fmt.Errorf("retry send fetch epoch state request failed, all peers invalid: %v", s.cnf.Peers)
 				s.logger.WithFields(logrus.Fields{
-					"peer":  peer,
+					"peer":  peer.Id,
 					"err":   err,
 					"epoch": epoch,
 				}).Error("Send fetch epoch state request failed")
@@ -198,7 +198,7 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 			epcStateResp := &pb.FetchEpochStateResponse{}
 			if err = epcStateResp.UnmarshalVT(resp.Data); err != nil {
 				s.logger.WithFields(logrus.Fields{
-					"peer": peer,
+					"peer": peer.Id,
 					"err":  err,
 				}).Error("Unmarshal fetch epoch state response failed")
 				return
@@ -207,7 +207,7 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 
 			if err = epochState.UnmarshalVT(epcStateResp.Data); err != nil {
 				s.logger.WithFields(logrus.Fields{
-					"peer": peer,
+					"peer": peer.Id,
 					"err":  err,
 				}).Error("Unmarshal epoch state failed")
 				return
@@ -244,18 +244,18 @@ func (s *SnapSync) fillEpochChanges(start, end uint64) ([]*consensus.EpochChange
 	return epochChanges, nil
 }
 
-func (s *SnapSync) pickPeer(taskNum int) string {
+func (s *SnapSync) pickPeer(taskNum int) *common.Node {
 	index := taskNum % len(s.cnf.Peers)
 	return s.cnf.Peers[index]
 }
 
-func (s *SnapSync) pickRandomPeer(exceptPeerIds ...string) (string, error) {
+func (s *SnapSync) pickRandomPeer(exceptPeerIds ...*common.Node) (*common.Node, error) {
 	if len(exceptPeerIds) > 0 {
-		newPeers := lo.Filter(s.cnf.Peers, func(p string, _ int) bool {
+		newPeers := lo.Filter(s.cnf.Peers, func(p *common.Node, _ int) bool {
 			return !lo.Contains(exceptPeerIds, p)
 		})
 		if len(newPeers) == 0 {
-			return "", errors.New("all peers are excluded")
+			return nil, errors.New("all peers are excluded")
 		}
 		return newPeers[rand.Intn(len(newPeers))], nil
 	}

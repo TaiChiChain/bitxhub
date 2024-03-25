@@ -9,15 +9,15 @@ import (
 )
 
 type priceQueue[T any, Constraint types.TXConstraint[T]] struct {
-	priced        *TxByPriceAndTime[T, Constraint] // every account exist only lowest nonce transaction in the queue
-	dirtyAccounts map[string]uint64                // account -> current pending nonce
+	priced        *TxByPriceAndTime[T, Constraint]               // every account exist only lowest nonce transaction in the queue
+	dirtyAccounts map[string]*internalTransaction[T, Constraint] // account -> current pending nonce
 	logger        logrus.FieldLogger
 }
 
 func newPriceQueue[T any, Constraint types.TXConstraint[T]](logger logrus.FieldLogger) *priceQueue[T, Constraint] {
 	p := &priceQueue[T, Constraint]{
 		priced:        new(TxByPriceAndTime[T, Constraint]),
-		dirtyAccounts: make(map[string]uint64),
+		dirtyAccounts: make(map[string]*internalTransaction[T, Constraint]),
 		logger:        logger,
 	}
 	*p.priced = make(TxByPriceAndTime[T, Constraint], 0)
@@ -29,10 +29,18 @@ func newPriceQueue[T any, Constraint types.TXConstraint[T]](logger logrus.FieldL
 // otherwise push it to the priced queue
 func (p *priceQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint]) {
 	from := tx.getAccount()
-	if _, ok := p.dirtyAccounts[from]; !ok {
-		p.dirtyAccounts[from] = tx.getNonce()
-		p.priced.push(tx)
+	oldTx, ok := p.dirtyAccounts[from]
+	if ok {
+		// if the old tx has smaller nonce, do nothing
+		if oldTx.getNonce() < tx.getNonce() {
+			return
+		}
+		// remove the old tx
+		p.priced.remove(oldTx)
 	}
+	p.dirtyAccounts[from] = tx
+	p.priced.push(tx)
+
 }
 
 func (p *priceQueue[T, Constraint]) pop() *internalTransaction[T, Constraint] {
@@ -56,7 +64,7 @@ func (p *priceQueue[T, Constraint]) peek() *internalTransaction[T, Constraint] {
 
 func (p *priceQueue[T, Constraint]) remove(tx *internalTransaction[T, Constraint]) bool {
 	from := tx.getAccount()
-	if nonce, ok := p.dirtyAccounts[from]; !ok || nonce != tx.getNonce() {
+	if old, ok := p.dirtyAccounts[from]; !ok || old.getNonce() != tx.getNonce() {
 		return false
 	}
 
@@ -78,21 +86,31 @@ type priorityQueue[T any, Constraint types.TXConstraint[T]] struct {
 	// track the priority transaction.
 	nonBatchSize uint64
 
+	getNonceFn func(from string) uint64
+
 	logger logrus.FieldLogger
 }
 
-func newPriorityQueue[T any, Constraint types.TXConstraint[T]](logger logrus.FieldLogger) *priorityQueue[T, Constraint] {
+func newPriorityQueue[T any, Constraint types.TXConstraint[T]](fn func(string) uint64, logger logrus.FieldLogger) *priorityQueue[T, Constraint] {
 	return &priorityQueue[T, Constraint]{
 		accountsM:    make(map[string]*accountQueue[T, Constraint]),
 		txsByPrice:   newPriceQueue[T, Constraint](logger),
 		nonBatchSize: 0,
+		getNonceFn:   fn,
 		logger:       logger,
 	}
 }
 func (p *priorityQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint]) {
 	from := tx.getAccount()
-	if _, ok := p.accountsM[from]; !ok {
-		p.accountsM[from] = newAccountQueue[T, Constraint]()
+	account, ok := p.accountsM[from]
+	if !ok {
+		p.accountsM[from] = newAccountQueue[T, Constraint](p.getNonceFn(from))
+		account = p.accountsM[from]
+	}
+
+	if !account.isValidPush(tx.getNonce()) {
+		p.logger.Errorf("pushing tx[account: %s, nonce: %d] to priority queue failed, expected nonce: %d", from, tx.getNonce(), account.lastNonce+1)
+		return
 	}
 	if replaced := p.accountsM[from].push(tx); !replaced {
 		p.increasePrioritySize()
@@ -105,14 +123,14 @@ func (p *priorityQueue[T, Constraint]) pop() *internalTransaction[T, Constraint]
 		return nil
 	}
 	tx := p.txsByPrice.pop()
-	if p.accountsM[tx.getAccount()].remove(tx.getNonce()) {
-		p.decreasePrioritySize()
+	if p.accountsM[tx.getAccount()].pop().getNonce() != tx.getNonce() {
+		panic(fmt.Errorf("pop tx from priority queue err: nonce not match"))
 	}
 
 	from := tx.getAccount()
 	lastNonce := tx.getNonce()
 	p.shift(from, lastNonce)
-
+	p.decreasePrioritySize()
 	return tx
 }
 

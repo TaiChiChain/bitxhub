@@ -60,8 +60,8 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef h1:2JGTg6JapxP9/R33ZaagQtAM4EkkSYnIAlOG5EI8gkM=
 github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef/go.mod h1:JS7hed4L1fj0hXcyEejnW57/7LCetXggd+vwrRnYeII=
-github.com/axiomesh/axiom-bft v0.0.3-0.20240123063523-d0b48541230d h1:0V2GW9Fd7H4a6Z7RlcvZWPk2DuIH9UzJZ+DIQQ4tbHU=
-github.com/axiomesh/axiom-bft v0.0.3-0.20240123063523-d0b48541230d/go.mod h1:ntjy1xKch94LjPAvAzzyaktSuzoev3zlHZxaaRT9NsQ=
+github.com/axiomesh/axiom-bft v0.0.3-0.20240320053810-33b5bcd5e7fc h1:jLu7FfD+WRRlGC6CpREvYh5AHlN3T5WpMe7jZ45xVkU=
+github.com/axiomesh/axiom-bft v0.0.3-0.20240320053810-33b5bcd5e7fc/go.mod h1:Vgz4A/bRUtQZDhXlldNNnfTt1yi/+irE8NHqTAce4h8=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240308082339-3490cc27c928 h1:ZB8rorTmdLgTnyVu8vj3CO8JwhuBS1+dmQ3DpWzJOUQ=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240308082339-3490cc27c928/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d h1:tOWrHY3ctc6hvOltNzpae63ZFdQQrsQnsj1U6NJSuDU=

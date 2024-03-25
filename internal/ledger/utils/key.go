@@ -15,6 +15,7 @@ const (
 	ChainMetaKey       = "chain-meta"
 	TrieBlockHeaderKey = "trie-block-"
 	TrieNodeInfoKey    = "trie-nodeInfo-"
+	TrieNodeIdKey      = "trie-nodeId-"
 	SnapshotKey        = "snap-"
 )
 

@@ -13,6 +13,7 @@ import (
 	big "math/big"
 	reflect "reflect"
 
+	consensus "github.com/axiomesh/axiom-bft/common/consensus"
 	jmt "github.com/axiomesh/axiom-kit/jmt"
 	storage "github.com/axiomesh/axiom-kit/storage"
 	types "github.com/axiomesh/axiom-kit/types"
@@ -42,6 +43,11 @@ func NewMockChainLedger(ctrl *gomock.Controller) *MockChainLedger {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockChainLedger) EXPECT() *MockChainLedgerMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockChainLedger) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // BatchPersistExecutionResult mocks base method.
@@ -757,6 +763,11 @@ func NewMockStateLedger(ctrl *gomock.Controller) *MockStateLedger {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStateLedger) EXPECT() *MockStateLedgerMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockStateLedger) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // AddAddressToAccessList mocks base method.
@@ -1805,15 +1816,15 @@ func (c *MockStateLedgerHasSuicideCall) DoAndReturn(f func(*types.Address) bool)
 }
 
 // IterateTrie mocks base method.
-func (m *MockStateLedger) IterateTrie(blockHeader *types.BlockHeader, kv storage.Storage, errC chan error) {
+func (m *MockStateLedger) IterateTrie(blockHeader *types.BlockHeader, nodesId *consensus.QuorumValidators, kv storage.Storage, errC chan error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "IterateTrie", blockHeader, kv, errC)
+	m.ctrl.Call(m, "IterateTrie", blockHeader, nodesId, kv, errC)
 }
 
 // IterateTrie indicates an expected call of IterateTrie.
-func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, kv, errC any) *MockStateLedgerIterateTrieCall {
+func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, nodesId, kv, errC any) *MockStateLedgerIterateTrieCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), blockHeader, kv, errC)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), blockHeader, nodesId, kv, errC)
 	return &MockStateLedgerIterateTrieCall{Call: call}
 }
 
@@ -1829,13 +1840,13 @@ func (c *MockStateLedgerIterateTrieCall) Return() *MockStateLedgerIterateTrieCal
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2530,6 +2541,11 @@ func NewMockStateAccessor(ctrl *gomock.Controller) *MockStateAccessor {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStateAccessor) EXPECT() *MockStateAccessorMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockStateAccessor) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // AddAddressToAccessList mocks base method.
@@ -3744,6 +3760,11 @@ func NewMockIAccount(ctrl *gomock.Controller) *MockIAccount {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIAccount) EXPECT() *MockIAccountMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockIAccount) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // AddBalance mocks base method.

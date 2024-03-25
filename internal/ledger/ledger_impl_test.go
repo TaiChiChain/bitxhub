@@ -14,6 +14,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
@@ -2138,7 +2139,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s1 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC1 := make(chan error)
-		go sl.IterateTrie(block1.Header, s1, errC1)
+		go sl.IterateTrie(block1.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s1, errC1)
 		err, ok := <-errC1
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2161,6 +2162,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Equal(t, block1.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 		assert.Equal(t, block1.Header.Epoch, meta.EpochInfo.Epoch)
 		assert.Equal(t, "P2PNodeID-1", meta.EpochInfo.ValidatorSet[0].P2PNodeID)
+		assert.Equal(t, "P2PNodeID-1", meta.Nodes.Validators[0].PeerId)
 	})
 
 	t.Run("test iterate and verify trie of block 2", func(t *testing.T) {
@@ -2173,7 +2175,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s2 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC2 := make(chan error)
-		go sl.IterateTrie(block2.Header, s2, errC2)
+		go sl.IterateTrie(block2.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s2, errC2)
 		err, ok := <-errC2
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2206,7 +2208,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s3 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC3 := make(chan error)
-		go sl.IterateTrie(block3.Header, s3, errC3)
+		go sl.IterateTrie(block3.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s3, errC3)
 		err, ok := <-errC3
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2243,7 +2245,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s4 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC4 := make(chan error)
-		go sl.IterateTrie(block4.Header, s4, errC4)
+		go sl.IterateTrie(block4.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s4, errC4)
 		err, ok := <-errC4
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2276,7 +2278,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s5 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC5 := make(chan error)
-		go sl.IterateTrie(block5.Header, s5, errC5)
+		go sl.IterateTrie(block5.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s5, errC5)
 		err, ok := <-errC5
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2311,7 +2313,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		sl.getEpochInfoFunc = func(epoch uint64) (*rbft.EpochInfo, error) {
 			return nil, errors.Errorf("getEpochInfoFunc error test")
 		}
-		go sl.IterateTrie(block5.Header, s5, errC5)
+		go sl.IterateTrie(block5.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s5, errC5)
 		err, ok := <-errC5
 		assert.True(t, ok)
 		assert.NotNil(t, err)
@@ -2409,7 +2411,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		}
 		s1 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC1 := make(chan error)
-		go sl.IterateTrie(block1.Header, s1, errC1)
+		go sl.IterateTrie(block1.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s1, errC1)
 		err, ok := <-errC1
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2438,6 +2440,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		assert.Equal(t, block1.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 		assert.Equal(t, block1.Header.Epoch, meta.EpochInfo.Epoch)
 		assert.Equal(t, "P2PNodeID-1", meta.EpochInfo.ValidatorSet[0].P2PNodeID)
+		assert.Equal(t, "P2PNodeID-1", meta.Nodes.Validators[0].PeerId)
 	})
 
 	t.Run("test iterate and verify trie of block 2", func(t *testing.T) {
@@ -2450,7 +2453,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		}
 		s2 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC2 := make(chan error)
-		go sl.IterateTrie(block2.Header, s2, errC2)
+		go sl.IterateTrie(block2.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s2, errC2)
 		err, ok := <-errC2
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2492,7 +2495,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		}
 		s3 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC3 := make(chan error)
-		go sl.IterateTrie(block3.Header, s3, errC3)
+		go sl.IterateTrie(block3.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s3, errC3)
 		err, ok := <-errC3
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2536,7 +2539,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		}
 		s4 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC4 := make(chan error)
-		go sl.IterateTrie(block4.Header, s4, errC4)
+		go sl.IterateTrie(block4.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s4, errC4)
 		err, ok := <-errC4
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2581,7 +2584,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 		}
 		s5 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC5 := make(chan error)
-		go sl.IterateTrie(block5.Header, s5, errC5)
+		go sl.IterateTrie(block5.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s5, errC5)
 		err, ok := <-errC5
 		assert.True(t, ok)
 		assert.Nil(t, err)
@@ -2658,16 +2661,39 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 			},
 		},
 	}
-	epochData, err := json.Marshal(epochInfo)
+	epochData, err := epochInfo.Marshal()
 	require.Nil(t, err)
 	require.NotNil(t, epochData)
 	sl.cachedDB.Put([]byte(utils.TrieNodeInfoKey), epochData)
+
+	sl.cachedDB.Put([]byte(utils.TrieNodeIdKey), []byte{1})
+	meta, err = sl.GetTrieSnapshotMeta()
+	require.Nil(t, meta)
+	require.NotNil(t, err)
+
+	nodesId := &consensus.QuorumValidators{
+		Validators: []*consensus.QuorumValidator{
+			{
+				Id:     1,
+				PeerId: "P2PNodeID-1",
+			},
+			{
+				Id:     2,
+				PeerId: "P2PNodeID-2",
+			},
+		},
+	}
+
+	nodesIdData, err := nodesId.MarshalVT()
+	require.Nil(t, err)
+	sl.cachedDB.Put([]byte(utils.TrieNodeIdKey), nodesIdData)
 
 	meta, err = sl.GetTrieSnapshotMeta()
 	require.Nil(t, err)
 	require.NotNil(t, meta)
 	require.Equal(t, blockHeader.Epoch, meta.BlockHeader.Epoch)
 	require.Equal(t, epochInfo.Epoch, meta.EpochInfo.Epoch)
+	require.Equal(t, nodesId.Validators[0].Id, meta.Nodes.Validators[0].Id)
 }
 
 func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {

@@ -191,7 +191,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-		snap, err = loadSnapMeta(rwLdg, rep)
+		snap, err = loadSnapMeta(rwLdg)
 		if err != nil {
 			return nil, err
 		}

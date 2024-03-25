@@ -12,12 +12,14 @@ import (
 type accountQueue[T any, Constraint types.TXConstraint[T]] struct {
 	items         map[uint64]*internalTransaction[T, Constraint]
 	minNonceQueue *nonceHeap
+	lastNonce     uint64
 }
 
-func newAccountQueue[T any, Constraint types.TXConstraint[T]]() *accountQueue[T, Constraint] {
+func newAccountQueue[T any, Constraint types.TXConstraint[T]](latestNonce uint64) *accountQueue[T, Constraint] {
 	q := &accountQueue[T, Constraint]{
 		items:         make(map[uint64]*internalTransaction[T, Constraint]),
 		minNonceQueue: new(nonceHeap),
+		lastNonce:     latestNonce,
 	}
 	*q.minNonceQueue = make([]uint64, 0)
 	heap.Init(q.minNonceQueue)
@@ -34,6 +36,17 @@ func (q *accountQueue[T, Constraint]) replaceTx(tx *internalTransaction[T, Const
 	q.items[nonce] = tx
 
 	return old, true
+}
+
+func (q *accountQueue[T, Constraint]) isValidPush(nonce uint64) bool {
+	if nonce < q.minNonceQueue.peek() {
+		return true
+	}
+
+	if nonce != 0 && nonce != q.lastNonce+1 {
+		return false
+	}
+	return true
 }
 
 // prune removes all transactions from the minNonceQueue
@@ -61,6 +74,7 @@ func (q *accountQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint
 	}
 	q.items[tx.getNonce()] = tx
 	q.minNonceQueue.push(tx.getNonce())
+	q.lastNonce = tx.getNonce()
 	return false
 }
 
@@ -83,24 +97,7 @@ func (q *accountQueue[T, Constraint]) pop() *internalTransaction[T, Constraint] 
 	return tx
 }
 
-// remove removes the given transaction from the minNonceQueue.
-func (q *accountQueue[T, Constraint]) remove(nonce uint64) bool {
-	_, ok := q.items[nonce]
-	if !ok {
-		return false
-	}
-	// Otherwise delete the transaction and fix the heap index
-	for i := 0; i < q.minNonceQueue.Len(); i++ {
-		if (*q.minNonceQueue)[i] == nonce {
-			heap.Remove(q.minNonceQueue, i)
-			break
-		}
-	}
-	delete(q.items, nonce)
-	return true
-}
-
-// removeBehind removes all transactions with nonce bigger than given.
+// removeBehind removes all transactions with nonce bigger than given(including the given).
 func (q *accountQueue[T, Constraint]) removeBehind(nonce uint64) ([]*internalTransaction[T, Constraint], bool) {
 	removedTxs := make([]*internalTransaction[T, Constraint], 0)
 	// Otherwise delete the transaction and fix the heap index
@@ -113,6 +110,12 @@ func (q *accountQueue[T, Constraint]) removeBehind(nonce uint64) ([]*internalTra
 		} else {
 			i++
 		}
+	}
+
+	if nonce == 0 {
+		q.lastNonce = 0
+	} else {
+		q.lastNonce = nonce - 1
 	}
 	return removedTxs, len(removedTxs) > 0
 }

@@ -13,6 +13,8 @@ type Sync interface {
 	Commit() chan any
 
 	StartSync(params *SyncParams, syncTaskDoneCh chan error) error
+
+	GetSyncProgress() *SyncProgress
 }
 
 type ISyncConstructor interface {
