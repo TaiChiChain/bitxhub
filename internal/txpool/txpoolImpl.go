@@ -278,8 +278,11 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		if event.EventType == remoteTxsEvent {
 			// if tx pool is full, reject the left txs
 			if len(p.txStore.txHashMap)+len(txs) > int(p.poolMaxSize) {
-				txs = txs[:int(p.poolMaxSize)-len(p.txStore.txHashMap)]
-				overSpaceTxs = txs[len(txs)-int(p.poolMaxSize)+len(p.txStore.txHashMap):]
+				if len(p.txStore.txHashMap) < int(p.poolMaxSize) {
+					remainSpace := int(p.poolMaxSize) - len(p.txStore.txHashMap)
+					overSpaceTxs = txs[remainSpace:]
+					txs = txs[:remainSpace]
+				}
 			}
 			if p.statusMgr.In(PoolFull) {
 				overSpaceTxs = txs
@@ -348,14 +351,18 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 			}
 			req.ch <- len(validTxs)
 		}()
+
+		// if tx pool is full, reject the left txs
+		if len(p.txStore.txHashMap)+len(txs) > int(p.poolMaxSize) {
+			if len(p.txStore.txHashMap) < int(p.poolMaxSize) {
+				remainSpace := int(p.poolMaxSize) - len(p.txStore.txHashMap)
+				overSpaceTxs = txs[remainSpace:]
+				txs = txs[:remainSpace]
+			}
+		}
 		if p.statusMgr.In(PoolFull) {
 			overSpaceTxs = txs
 			return nil
-		}
-
-		if len(p.txStore.txHashMap)+len(txs) > int(p.poolMaxSize) {
-			txs = txs[:int(p.poolMaxSize)-len(p.txStore.txHashMap)]
-			overSpaceTxs = txs[len(txs)-int(p.poolMaxSize)+len(p.txStore.txHashMap):]
 		}
 
 		errs := p.addTxs(txs, true)

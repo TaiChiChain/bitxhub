@@ -82,6 +82,7 @@ func (api *AxmAPI) SyncProgress() any {
 		progress.HighestBlockHeight = highestBlock
 		if highestBlock >= progress.TargetHeight {
 			progress.CatchUp = true
+			progress.TargetHeight = 0
 		}
 	}
 

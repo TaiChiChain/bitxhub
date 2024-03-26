@@ -82,44 +82,88 @@ func TestTxPoolImpl_Start(t *testing.T) {
 
 func TestTxPoolImpl_StartWithTxRecordsFile(t *testing.T) {
 	ast := assert.New(t)
-	testcase := map[string]*txPoolImpl[types.Transaction, *types.Transaction]{
-		"price_priority": mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByGasPrice),
-		"time":           mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByTime),
-	}
+	t.Parallel()
+	t.Run("test load tx records successfully", func(t *testing.T) {
+		testcase := map[string]*txPoolImpl[types.Transaction, *types.Transaction]{
+			"price_priority": mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByGasPrice),
+			"time":           mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByTime),
+		}
 
-	for _, tc := range testcase {
-		pool := tc
-		recordFile := pool.txRecordsFile
-		err := pool.Start()
+		for _, tc := range testcase {
+			pool := tc
+			recordFile := pool.txRecordsFile
+			err := pool.Start()
 
-		s, err := types.GenerateSigner()
-		ast.Nil(err)
-		from := s.Addr.String()
-		txs := constructTxs(s, 10)
-		lo.ForEach(txs, func(tx *types.Transaction, _ int) {
-			err = pool.AddLocalTx(tx)
+			s, err := types.GenerateSigner()
 			ast.Nil(err)
-		})
-		ast.Equal(10, len(pool.txStore.allTxs[from].items))
-		ast.Equal(10, len(pool.txStore.txHashMap))
-		ast.Equal(10, pool.txStore.localTTLIndex.size())
+			from := s.Addr.String()
+			txs := constructTxs(s, 10)
+			lo.ForEach(txs, func(tx *types.Transaction, _ int) {
+				err = pool.AddLocalTx(tx)
+				ast.Nil(err)
+			})
+			ast.Equal(10, len(pool.txStore.allTxs[from].items))
+			ast.Equal(10, len(pool.txStore.txHashMap))
+			ast.Equal(10, pool.txStore.localTTLIndex.size())
 
-		pool.Stop()
+			pool.Stop()
 
-		// start pool which txRecordsFile is not empty
-		pool = mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-		pool.txRecords.filePath = recordFile
-		ast.Equal(0, len(pool.txStore.txHashMap))
-		ast.Equal(0, pool.txStore.localTTLIndex.size())
+			// start pool which txRecordsFile is not empty
+			pool = mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+			pool.txRecords.filePath = recordFile
+			ast.Equal(0, len(pool.txStore.txHashMap))
+			ast.Equal(0, pool.txStore.localTTLIndex.size())
 
-		// load tx records successfully
-		err = pool.Start()
-		ast.Nil(err)
-		defer pool.Stop()
-		ast.Equal(10, len(pool.txStore.allTxs[from].items))
-		ast.Equal(10, len(pool.txStore.txHashMap))
-		ast.Equal(10, pool.txStore.localTTLIndex.size())
-	}
+			// load tx records successfully
+			err = pool.Start()
+			ast.Nil(err)
+			defer pool.Stop()
+			ast.Equal(10, len(pool.txStore.allTxs[from].items))
+			ast.Equal(10, len(pool.txStore.txHashMap))
+			ast.Equal(10, pool.txStore.localTTLIndex.size())
+		}
+	})
+	t.Run("test load tx records failed, pool is full", func(t *testing.T) {
+		testcase := map[string]*txPoolImpl[types.Transaction, *types.Transaction]{
+			"price_priority": mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByGasPrice),
+			"time":           mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByTime),
+		}
+
+		for _, tc := range testcase {
+			pool := tc
+			recordFile := pool.txRecordsFile
+			err := pool.Start()
+
+			s, err := types.GenerateSigner()
+			ast.Nil(err)
+			from := s.Addr.String()
+			txs := constructTxs(s, 10)
+			lo.ForEach(txs, func(tx *types.Transaction, _ int) {
+				err = pool.AddLocalTx(tx)
+				ast.Nil(err)
+			})
+			ast.Equal(10, len(pool.txStore.allTxs[from].items))
+			ast.Equal(10, len(pool.txStore.txHashMap))
+			ast.Equal(10, pool.txStore.localTTLIndex.size())
+
+			pool.Stop()
+
+			// start pool which txRecordsFile is not empty
+			pool = mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+			pool.txRecords.filePath = recordFile
+			ast.Equal(0, len(pool.txStore.txHashMap))
+			ast.Equal(0, pool.txStore.localTTLIndex.size())
+
+			// decrease pool size
+			pool.poolMaxSize = 5
+			err = pool.Start()
+			ast.Nil(err)
+			defer pool.Stop()
+			ast.Equal(5, len(pool.txStore.allTxs[from].items))
+			ast.Equal(5, len(pool.txStore.txHashMap))
+			ast.Equal(5, pool.txStore.localTTLIndex.size())
+		}
+	})
 }
 
 func TestTxPoolImpl_AddLocalTx(t *testing.T) {
@@ -518,7 +562,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			pool.chainInfo.EpochConf.BatchSize = 4
-			pool.poolMaxSize = 1
+			pool.poolMaxSize = 2
 			err := pool.Start()
 			defer pool.Stop()
 			ast.Nil(err)
@@ -526,16 +570,16 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
-			tx := constructTx(s, 0)
-			pool.AddRemoteTxs([]*types.Transaction{tx})
+			txs := constructTxs(s, 5)
+			pool.AddRemoteTxs(txs)
 			// because add remote txs is async,
-			// so we need to send getPendingTxByHash event to ensure last event is handled
-			ast.Equal(tx.RbftGetTxHash(), pool.GetPendingTxByHash(tx.RbftGetTxHash()).RbftGetTxHash())
+			// so we need to send getMeta event to ensure last event is handled
+			ast.Equal(uint64(2), pool.GetMeta(false).TxCount)
 			ast.True(pool.statusMgr.In(PoolFull))
 
-			tx1 := constructTx(s, 1)
-			pool.AddRemoteTxs([]*types.Transaction{tx1})
-			ast.Nil(pool.GetPendingTxByHash(tx1.RbftGetTxHash()), "tx1 is not exit in txpool, because pool is full")
+			tx6 := constructTx(s, 6)
+			pool.AddRemoteTxs([]*types.Transaction{tx6})
+			ast.Nil(pool.GetPendingTxByHash(tx6.RbftGetTxHash()), "tx6 is not exit in txpool, because pool is full")
 		}
 	})
 
