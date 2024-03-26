@@ -244,9 +244,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 			dirtyAccounts[Constraint(req.tx).RbftGetFrom()]++
 			validTxs = append(validTxs, req.tx)
 			if p.enableLocalsPersist && p.txRecordsFile != "" {
-				now := time.Now()
-				err = p.txRecords.insert(req.tx)
-				tracePersistRecords(time.Since(now))
+				p.txRecords.insert2Chan(req.tx)
 			}
 		}
 		defer func() {

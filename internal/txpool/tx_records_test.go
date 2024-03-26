@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -27,10 +28,10 @@ func TestTxRecords(t *testing.T) {
 	err = records.rotate(pool.txStore.allTxs)
 	assert.Nil(t, err)
 
-	// test insert
+	// test insert2Chan
 	tx := constructTx(s, 0)
-	err = records.insert(tx)
-	assert.Nil(t, err)
+	records.insert2Chan(tx)
+	time.Sleep(WriteTimeoutDuration + 1*time.Second)
 
 	// test get
 	all, err := GetAllTxRecords(records.filePath)
@@ -109,9 +110,9 @@ func TestTxRecords_load(t *testing.T) {
 	s, err := types.GenerateSigner()
 	txs := constructTxs(s, TxRecordsBatchSize+1)
 	for _, tx := range txs {
-		err = records.insert(tx)
-		assert.Nil(t, err)
+		records.insert2Chan(tx)
 	}
+	time.Sleep(WriteTimeoutDuration + 1*time.Second)
 	input, err = os.Open(records.filePath)
 	assert.Nil(t, err)
 	batchCh := records.load(input, taskDoneCh)
@@ -134,9 +135,9 @@ func TestTxRecords_LoadMoreThanOneBatch(t *testing.T) {
 	assert.Nil(t, err)
 	txs := constructTxs(s, TxRecordsBatchSize+1)
 	for _, tx := range txs {
-		err = records.insert(tx)
-		assert.Nil(t, err)
+		records.insert2Chan(tx)
 	}
+	time.Sleep(WriteTimeoutDuration + 1*time.Second)
 	err = pool.Start() // used for test txrecord load
 	assert.Nil(t, err)
 
@@ -192,11 +193,22 @@ func TestTxRecords_Insert(t *testing.T) {
 	// init pool and txs
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 	records := pool.txRecords
-
-	// test insert no writer
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
 	tx1 := constructTx(s, 0)
-	err = records.insert(tx1)
-	assert.NotNil(t, err) // if not start pool first, records writer is null
+	txs := []*types.Transaction{tx1}
+	for i := 1; i < TxRecordsBatchWrite+1; i++ {
+		txs = append(txs, constructTx(s, uint64(i)))
+	}
+
+	// test insert2Chan more than TxRecordsBatchWrite
+	pool.Start()
+	defer pool.Stop()
+	for _, tx := range txs {
+		records.insert2Chan(tx)
+	}
+	time.Sleep(WriteTimeoutDuration + 1*time.Second)
+	allTxs, err := GetAllTxRecords(pool.txRecords.filePath)
+	assert.Nil(t, err)
+	assert.True(t, len(allTxs) == TxRecordsBatchWrite+1)
 }

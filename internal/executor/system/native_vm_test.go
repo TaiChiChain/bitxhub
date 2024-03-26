@@ -1,30 +1,27 @@
 package system
 
 import (
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
 	"math/big"
 	"strings"
 	"testing"
-
-	"github.com/ethereum/go-ethereum/core/vm"
-
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
-	"github.com/ethereum/go-ethereum/core"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 const (

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -20,8 +21,10 @@ type devNull struct{}
 const (
 	TxRecordPrefixLength = 8
 	TxRecordsBatchSize   = 1000
+	TxRecordsBatchWrite  = 100
 	TxRecordsFile        = "tx_records.pb"
 	DecodeTxRecordsFile  = "decode_tx_records.json"
+	WriteTimeoutDuration = time.Second * 1
 )
 
 func (*devNull) Write(p []byte) (n int, err error) { return len(p), nil }
@@ -32,13 +35,17 @@ type txRecords[T any, Constraint types.TXConstraint[T]] struct {
 	logger   logrus.FieldLogger
 	filePath string
 	writer   io.WriteCloser
+	txChan   chan *T
 }
 
 func newTxRecords[T any, Constraint types.TXConstraint[T]](filePath string, logger logrus.FieldLogger) *txRecords[T, Constraint] {
-	return &txRecords[T, Constraint]{
+	r := &txRecords[T, Constraint]{
 		filePath: filePath,
 		logger:   logger,
+		txChan:   make(chan *T, TxRecordsBatchSize),
 	}
+	go r.consumeTxs()
+	return r
 }
 
 func (r *txRecords[T, Constraint]) load(input *os.File, taskDoneCh chan struct{}) chan []*T {
@@ -98,24 +105,69 @@ func (r *txRecords[T, Constraint]) load(input *os.File, taskDoneCh chan struct{}
 	return batchCh
 }
 
-func (r *txRecords[T, Constraint]) insert(tx *T) error {
+func (r *txRecords[T, Constraint]) insert2Chan(tx *T) {
+	r.txChan <- tx
+}
+
+func (r *txRecords[T, Constraint]) consumeTxs() {
+	var txBuffer []*T
+	ticker := time.NewTicker(WriteTimeoutDuration)
+	defer ticker.Stop()
+
+	for {
+		if len(txBuffer) >= TxRecordsBatchWrite {
+			if err := r.batchWrite(txBuffer); err != nil {
+				r.logger.Errorf("TxRecords consumeTxs common batchWrite failed: %v", err)
+			}
+			txBuffer = txBuffer[:0]
+		}
+
+		select {
+		case tx, ok := <-r.txChan:
+			if !ok {
+				goto Finish
+			}
+			txBuffer = append(txBuffer, tx)
+		case <-ticker.C:
+			if len(txBuffer) > 0 {
+				if err := r.batchWrite(txBuffer); err != nil {
+					r.logger.Errorf("TxRecords consumeTxs timeout batchWrite failed: %v", err)
+				}
+				txBuffer = txBuffer[:0]
+			}
+		}
+	}
+
+Finish:
+	if len(txBuffer) > 0 {
+		if err := r.batchWrite(txBuffer); err != nil {
+			r.logger.Errorf("TxRecords finish batchWrite failed: %v", err)
+		}
+	}
+}
+
+func (r *txRecords[T, Constraint]) batchWrite(txBuffer []*T) error {
+	now := time.Now()
 	if r.writer == nil {
 		return errors.New("no active txRecords")
 	}
-	b, err := Constraint(tx).RbftMarshal()
-	if err != nil {
-		return err
+	var allBytes []byte
+
+	for _, tx := range txBuffer {
+		b, err := Constraint(tx).RbftMarshal()
+		if err != nil {
+			return err
+		}
+		length := uint64(len(b))
+		var lengthBytes [TxRecordPrefixLength]byte
+		binary.LittleEndian.PutUint64(lengthBytes[:], length)
+		allBytes = append(allBytes, lengthBytes[:]...)
+		allBytes = append(allBytes, b...)
 	}
-	length := uint64(len(b))
-	var lengthBytes [TxRecordPrefixLength]byte
-	binary.LittleEndian.PutUint64(lengthBytes[:], length)
-	if _, err := r.writer.Write(lengthBytes[:]); err != nil {
-		return err
-	}
-	if _, err := r.writer.Write(b); err != nil {
-		return err
-	}
-	return nil
+
+	_, err := r.writer.Write(allBytes)
+	tracePersistRecords(time.Since(now) / time.Duration(len(txBuffer)))
+	return err
 }
 
 func (r *txRecords[T, Constraint]) rotate(all map[string]*txSortedMap[T, Constraint]) error {
