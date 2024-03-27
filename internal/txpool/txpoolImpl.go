@@ -87,6 +87,8 @@ func (p *txPoolImpl[T, Constraint]) Start() error {
 		}
 	}
 
+	go p.txRecords.consumeTxs()
+
 	err := p.timerMgr.StartTimer(timer.RemoveTx)
 	if err != nil {
 		return err
@@ -1042,7 +1044,7 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 	txpoolImp.enableLocalsPersist = config.EnableLocalsPersist
 	txpoolImp.txRecordsFile = path.Join(repo.GetStoragePath(config.RepoRoot, storagemgr.TxPool), TxRecordsFile)
 	if txpoolImp.enableLocalsPersist {
-		txpoolImp.txRecords = newTxRecords[T, Constraint](txpoolImp.txRecordsFile, config.Logger)
+		txpoolImp.txRecords = newTxRecords[T, Constraint](txpoolImp.txRecordsFile, config.Logger, ctx)
 	}
 	if config.GenerateBatchType == repo.GenerateBatchByGasPrice {
 		txpoolImp.enablePricePriority = true

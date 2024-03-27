@@ -2,6 +2,7 @@ package txpool
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -36,15 +37,16 @@ type txRecords[T any, Constraint types.TXConstraint[T]] struct {
 	filePath string
 	writer   io.WriteCloser
 	txChan   chan *T
+	ctx      context.Context
 }
 
-func newTxRecords[T any, Constraint types.TXConstraint[T]](filePath string, logger logrus.FieldLogger) *txRecords[T, Constraint] {
+func newTxRecords[T any, Constraint types.TXConstraint[T]](filePath string, logger logrus.FieldLogger, ctx context.Context) *txRecords[T, Constraint] {
 	r := &txRecords[T, Constraint]{
 		filePath: filePath,
 		logger:   logger,
 		txChan:   make(chan *T, TxRecordsBatchSize),
+		ctx:      ctx,
 	}
-	go r.consumeTxs()
 	return r
 }
 
@@ -123,10 +125,10 @@ func (r *txRecords[T, Constraint]) consumeTxs() {
 		}
 
 		select {
-		case tx, ok := <-r.txChan:
-			if !ok {
-				goto Finish
-			}
+		case <-r.ctx.Done():
+			close(r.txChan)
+			goto Finish
+		case tx := <-r.txChan:
 			txBuffer = append(txBuffer, tx)
 		case <-ticker.C:
 			if len(txBuffer) > 0 {
