@@ -48,7 +48,6 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis := repo.DefaultGenesisConfig(false)
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
 			if address.String() == common.AXCContractAddr {
@@ -136,7 +135,6 @@ func TestContractInitGenesisData(t *testing.T) {
 		err = InitGenesisData(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
 	})
-
 }
 
 func TestWhiteListContractInitGenesisData(t *testing.T) {
@@ -150,7 +148,7 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	genesis := repo.DefaultGenesisConfig(false)
 
-	//WhiteListContractAddr
+	// WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
 	axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
@@ -268,7 +266,7 @@ func TestNativeVM_GetContractInstance(t *testing.T) {
 
 	testCases := []struct {
 		ContractAddr *types.Address
-		expectType   interface{}
+		expectType   any
 	}{
 		{
 			ContractAddr: types.NewAddressByStr(common.GovernanceContractAddr),

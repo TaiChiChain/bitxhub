@@ -38,6 +38,8 @@ const (
 	// EpochManagerContractAddr is the contract to used to manager chain epoch info
 	EpochManagerContractAddr = "0x0000000000000000000000000000000000001006"
 
+	NodeManagerContractAddr = "0x0000000000000000000000000000000000001007"
+
 	// Smart account contract
 	// EntryPointContractAddr is the address of entry point system contract
 	EntryPointContractAddr = "0x0000000000000000000000000000000000001008"
@@ -47,6 +49,9 @@ const (
 	VerifyingPaymasterContractAddr = "0x0000000000000000000000000000000000001010"
 	// TokenPaymasterContractAddr is the address of token paymaster system contract
 	TokenPaymasterContractAddr = "0x0000000000000000000000000000000000001011"
+
+	StakingManagerContractAddr     = "0x0000000000000000000000000000000000001012"
+	LiquidStakingTokenContractAddr = "0x0000000000000000000000000000000000001013"
 
 	// SystemContractEndAddr is the end address of system contract
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
