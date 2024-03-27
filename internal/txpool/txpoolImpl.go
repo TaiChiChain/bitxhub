@@ -198,21 +198,30 @@ func (p *txPoolImpl[T, Constraint]) processEvent(event txPoolEvent) []txPoolEven
 	return nil
 }
 
+func (p *txPoolImpl[T, Constraint]) updateValidTxs(validTxs *[]*T, tx *T, replaced bool) {
+	*validTxs = append(*validTxs, tx)
+	if replaced {
+		for index := 0; index < len(*validTxs); index++ {
+			if Constraint((*validTxs)[index]).RbftGetFrom() == Constraint(tx).RbftGetFrom() &&
+				Constraint((*validTxs)[index]).RbftGetNonce() == Constraint(tx).RbftGetNonce() {
+				// if old tx is replaced, remove it
+				(*validTxs)[index] = (*validTxs)[len(*validTxs)-1]
+				// remove old tx
+				*validTxs = (*validTxs)[:len(*validTxs)-1]
+				break
+			}
+		}
+	}
+}
+
 func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []txPoolEvent {
 	p.logger.Debugf("start dispatch add txs event:%s", addTxsEventToStr[event.EventType])
-	var (
-		err                          error
-		completionMissingBatchHashes []string
-		nextEvents                   []txPoolEvent
-		dirtyAccounts                map[string]int
-		validTxs                     []*T
-	)
-	dirtyAccounts = make(map[string]int)
+	var nextEvents []txPoolEvent
+
 	start := time.Now()
 	metricsPrefix := "addTxs_"
 	defer func() {
 		traceProcessEvent(fmt.Sprintf("%s%s", metricsPrefix, addTxsEventToStr[event.EventType]), time.Since(start))
-		// p.logger.WithFields(logrus.Fields{"cost": time.Since(start)}).Debugf("end dispatch add txs event:%s", addTxsEventToStr[event.EventType])
 	}()
 	switch event.EventType {
 	case localTxEvent:
@@ -222,39 +231,28 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 			req.errCh <- ErrTxPoolFull
 			return nil
 		}
-		errs := p.addTxs([]*T{req.tx}, true)
-		err = errs[0]
+
+		_, err := p.addTx(req.tx, true)
 		// trigger remove all high nonce txs
 		if errors.Is(err, ErrNonceTooHigh) {
 			removeEvent := p.genHighNonceEvent(req.tx)
 			nextEvents = append(nextEvents, removeEvent)
 		}
 
-		if errors.Is(err, ErrReplacePendingOldTx) {
-			newPoolTx := p.txStore.getPoolTxByTxnPointer(Constraint(req.tx).RbftGetFrom(), Constraint(req.tx).RbftGetNonce())
-			if p.enablePricePriority {
-				p.txStore.priorityByPrice.replaceTx(newPoolTx)
-			} else {
-				p.txStore.priorityByTime.insertKey(newPoolTx)
-			}
-		}
-
-		// if error is nil, it means the tx is inserted into pool successfully
-		if err == nil || errors.Is(err, ErrReplaceQueueOldTx) {
-			dirtyAccounts[Constraint(req.tx).RbftGetFrom()]++
-			validTxs = append(validTxs, req.tx)
+		if err == nil {
 			if p.enableLocalsPersist && p.txRecordsFile != "" {
 				now := time.Now()
 				err = p.txRecords.insert(req.tx)
 				tracePersistRecords(time.Since(now))
 			}
+
+			// if it is a valid tx, check if it should notify consensus
+			p.postConsensusSignal([]*T{req.tx})
 		}
 		defer func() {
-			// replace tx successfully
-			if errors.Is(err, ErrReplaceQueueOldTx) || errors.Is(err, ErrReplacePendingOldTx) {
-				req.errCh <- nil
-			} else {
-				req.errCh <- err
+			req.errCh <- err
+			if err != nil {
+				traceRejectTx(err.Error())
 			}
 		}()
 
@@ -262,6 +260,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		nonceTooHighAccounts := make(map[string]bool)
 		req := event.Event.(*reqRemoteTxs[T, Constraint])
 		txs := req.txs
+		validTxs := make([]*T, 0)
 
 		traceRejectTxs := func(txs []*T) {
 			for i := 0; i < len(txs); i++ {
@@ -289,43 +288,35 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 				return nil
 			}
 		}
-		errs := p.addTxs(txs, false)
-		lo.ForEach(errs, func(err error, i int) {
+
+		//errs := p.addTxs(txs, false)
+		lo.ForEach(txs, func(tx *T, i int) {
+			replaced, err := p.addTx(tx, false)
+
 			// trigger remove all high nonce txs, ensure this event is only triggered once
 			if errors.Is(err, ErrNonceTooHigh) && !nonceTooHighAccounts[Constraint(txs[i]).RbftGetFrom()] {
 				removeEvent := p.genHighNonceEvent(txs[i])
 				nextEvents = append(nextEvents, removeEvent)
 				nonceTooHighAccounts[Constraint(txs[i]).RbftGetFrom()] = true
 			}
-
-			if errors.Is(err, ErrReplacePendingOldTx) {
-				newPoolTx := p.txStore.getPoolTxByTxnPointer(Constraint(txs[i]).RbftGetFrom(), Constraint(txs[i]).RbftGetNonce())
-				if p.enablePricePriority {
-					p.txStore.priorityByPrice.replaceTx(newPoolTx)
-				} else {
-					p.txStore.priorityByTime.insertKey(newPoolTx)
-				}
-				return
-			}
-
-			if err == nil || errors.Is(err, ErrReplaceQueueOldTx) {
-				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()]++
-				validTxs = append(validTxs, txs[i])
+			if err != nil {
+				traceRejectTx(err.Error())
 			} else {
-				p.logger.WithFields(logrus.Fields{"txHash": Constraint(txs[i]).RbftGetTxHash(), "err": err}).Debug("add remote tx failed")
+				p.updateValidTxs(&validTxs, tx, replaced)
+				p.logger.Infof("update valid txs: %d", len(validTxs))
 			}
 		})
+
+		p.postConsensusSignal(validTxs)
 
 	case missingTxsEvent:
 		// NOTICE!!! this event will ignore the pool full status
 		req := event.Event.(*reqMissingTxs[T, Constraint])
-		validTxs, err = p.validateReceiveMissingRequests(req.batchHash, req.txs)
+		validTxs, err := p.validateReceiveMissingRequests(req.batchHash, req.txs)
 		if err == nil {
 			lo.ForEach(validTxs, func(tx *T, _ int) {
-				// if the tx is a new tx, need process it as dirty tx(update nonce cache)
-				if replaced := p.replaceTx(tx); !replaced {
-					dirtyAccounts[Constraint(tx).RbftGetFrom()]++
-				}
+
+				p.replaceTx(tx, false)
 			})
 			delete(p.txStore.missingBatch, req.batchHash)
 		} else {
@@ -338,6 +329,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 	case localRecordTxEvent:
 		req := event.Event.(*reqLocalRecordTx[T, Constraint])
 		txs := req.txs
+		validTxs := make([]*T, 0)
 
 		traceRejectTxs := func(txs []*T) {
 			for i := 0; i < len(txs); i++ {
@@ -365,11 +357,13 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 			return nil
 		}
 
-		errs := p.addTxs(txs, true)
-		lo.ForEach(errs, func(err error, i int) {
-			if err == nil || errors.Is(err, ErrReplaceQueueOldTx) {
-				dirtyAccounts[Constraint(txs[i]).RbftGetFrom()]++
-				validTxs = append(validTxs, txs[i])
+		// omit add record txs error
+		lo.ForEach(txs, func(tx *T, i int) {
+			replaced, err := p.addTx(tx, true)
+			if err == nil {
+				validTxs = append(validTxs, tx)
+			} else {
+				p.updateValidTxs(&validTxs, tx, replaced)
 			}
 		})
 
@@ -377,32 +371,28 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		p.logger.Errorf("unknown addTxs event type: %d", event.EventType)
 	}
 
-	// process dirty accounts(update account nonce cache、priority txs)
-	p.processDirtyAccount(dirtyAccounts)
-
 	// check if pool is full
 	if p.checkPoolFull() {
 		p.setFull()
 	}
 
-	// notify generate batch for primary
-	if event.EventType == localTxEvent || event.EventType == remoteTxsEvent {
-		// when primary generate batch, reset notifyGenerateBatch flag
-		if p.txStore.priorityNonBatchSize >= p.chainInfo.EpochConf.BatchSize && !p.notifyGenerateBatch {
-			p.logger.Infof("notify generate batch")
-			p.notifyGenerateBatchFn(commonpool.GenBatchSizeEvent)
-			p.notifyGenerateBatch = true
-		}
+	return nextEvents
+}
 
-		// notify find next batch for replica
-		completionMissingBatchHashes = p.checkIfCompleteMissingBatch(validTxs)
-		if len(completionMissingBatchHashes) != 0 {
-			p.logger.Infof("notify find next batch")
-			p.notifyFindNextBatchFn(completionMissingBatchHashes...)
-		}
+func (p *txPoolImpl[T, Constraint]) postConsensusSignal(validTxs []*T) {
+	// when primary generate batch, reset notifyGenerateBatch flag
+	if p.txStore.priorityNonBatchSize >= p.chainInfo.EpochConf.BatchSize && !p.notifyGenerateBatch {
+		p.logger.Infof("notify generate batch")
+		p.notifyGenerateBatchFn(commonpool.GenBatchSizeEvent)
+		p.notifyGenerateBatch = true
 	}
 
-	return nextEvents
+	// notify find next batch for replica
+	completionMissingBatchHashes := p.checkIfCompleteMissingBatch(validTxs)
+	if len(completionMissingBatchHashes) != 0 {
+		p.logger.Infof("notify find next batch")
+		p.notifyFindNextBatchFn(completionMissingBatchHashes...)
+	}
 }
 
 func (p *txPoolImpl[T, Constraint]) checkIfCompleteMissingBatch(txs []*T) []string {
@@ -827,64 +817,44 @@ func (p *txPoolImpl[T, Constraint]) AddRebroadcastTxs(txs []*T) {
 	p.postEvent(ev)
 }
 
-func (p *txPoolImpl[T, Constraint]) removeOldTxInPool(oldTx *internalTransaction[T, Constraint], isPriority bool) error {
-	p.txStore.removeTxInPool(oldTx, p.enablePricePriority, isPriority)
-	if isPriority {
-		traceRemovedTx("replace_pending_tx", 1)
-		return ErrReplacePendingOldTx
-	}
-	traceRemovedTx("replace_queue_tx", 1)
-	return ErrReplaceQueueOldTx
-}
+func (p *txPoolImpl[T, Constraint]) addTx(tx *T, local bool) (bool, error) {
+	txAccount := Constraint(tx).RbftGetFrom()
+	txHash := Constraint(tx).RbftGetTxHash()
+	txNonce := Constraint(tx).RbftGetNonce()
+	gasPrice := Constraint(tx).RbftGetGasPrice()
+	var (
+		needReplace bool
+		replaced    bool
+	)
 
-func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
-	errs := make([]error, len(txs))
+	currentSeqNo := p.txStore.nonceCache.getPendingNonce(txAccount)
 
-	// record all accounts wanted nonce
-	currentSeqNoMap := make(map[string]uint64)
-
-	lo.ForEach(txs, func(tx *T, i int) {
-		txAccount := Constraint(tx).RbftGetFrom()
-		txHash := Constraint(tx).RbftGetTxHash()
-		txNonce := Constraint(tx).RbftGetNonce()
-		gasPrice := Constraint(tx).RbftGetGasPrice()
-
-		currentSeqNo, ok := currentSeqNoMap[txAccount]
-		if !ok {
-			currentSeqNo = p.txStore.nonceCache.getPendingNonce(txAccount)
-			currentSeqNoMap[txAccount] = currentSeqNo
-		}
-
-		// 1. validate tx
-		err := p.validateTx(txHash, txNonce, currentSeqNo, gasPrice)
-		if errors.Is(err, ErrNonceTooLow) || err == nil {
-			// if exist old tx with same nonce, replace it
-			if p.txStore.allTxs[txAccount] != nil {
-				oldTx, exist := p.txStore.allTxs[txAccount].items[txNonce]
-				if exist {
-					if p.isValidPriceBump(oldTx.getGasPrice(), gasPrice) {
-						p.logger.Warningf("Receive duplicate nonce transaction [account: %s, nonce: %d, hash: %s],"+
-							" will replace old tx[hash: %s]", txAccount, txNonce, txHash, oldTx.getHash())
-						// remove old tx from allTxs、txHashMap、parkingLotIndex、localTTLIndex and removeTTLIndex
-						errs[i] = p.removeOldTxInPool(oldTx, err != nil)
-						err = nil
-					} else {
-						err = ErrBelowPriceBump
-					}
+	// 1. validate tx
+	err := p.validateTx(txHash, txNonce, currentSeqNo, gasPrice)
+	if errors.Is(err, ErrNonceTooLow) || err == nil {
+		// if exist old tx with same nonce, replace it
+		if p.txStore.allTxs[txAccount] != nil {
+			oldTx, exist := p.txStore.allTxs[txAccount].items[txNonce]
+			if exist {
+				if p.isValidPriceBump(oldTx.getGasPrice(), gasPrice) {
+					p.logger.Warningf("Receive duplicate nonce transaction [account: %s, nonce: %d, hash: %s],"+
+						" will replace old tx[hash: %s]", txAccount, txNonce, txHash, oldTx.getHash())
+					needReplace = true
+					err = nil
+				} else {
+					err = ErrBelowPriceBump
 				}
 			}
 		}
-		if err != nil {
-			traceRejectTx(err.Error())
-			errs[i] = err
-			return
-		}
+	}
+	if err != nil {
+		traceRejectTx(err.Error())
+		return false, err
+	}
 
-		// if we receive valid tx which we wanted, update currentSeqNo
-		if txNonce == currentSeqNo {
-			currentSeqNoMap[txAccount]++
-		}
-
+	if needReplace {
+		replaced = p.replaceTx(tx, local)
+	} else {
 		// 3. insert new tx into txHashMap、allTxs、localTTLIndex、removeTTLIndex
 		now := time.Now().UnixNano()
 		txItem := &internalTransaction[T, Constraint]{
@@ -894,9 +864,13 @@ func (p *txPoolImpl[T, Constraint]) addTxs(txs []*T, local bool) []error {
 			arrivedTime: now,
 		}
 		p.txStore.insertTxInPool(txItem, local)
-	})
 
-	return errs
+		// 4. update pending or queue
+		// if we receive valid tx which we wanted, update pendingNonce、priorityByTime or parkingLotIndex
+		p.processDirtyAccount(txAccount, txItem, txNonce == currentSeqNo)
+	}
+
+	return replaced, nil
 }
 
 func (p *txPoolImpl[T, Constraint]) validateTx(txHash string, txNonce, currentSeqNo uint64, gasPrice *big.Int) error {
@@ -1831,10 +1805,11 @@ func (p *txPoolImpl[T, Constraint]) isValidPriceBump(oldGasPrice, newGasPrice *b
 	return newPrice.Cmp(validPrice) >= 0
 }
 
-func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T) (replaced bool) {
+func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local bool) bool {
 	account := Constraint(tx).RbftGetFrom()
 	txNonce := Constraint(tx).RbftGetNonce()
 	pendingNonce := p.txStore.nonceCache.getPendingNonce(account)
+	var replaced bool
 
 	oldPoolTx := p.txStore.getPoolTxByTxnPointer(account, txNonce)
 	if oldPoolTx != nil {
@@ -1852,17 +1827,26 @@ func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T) (replaced bool) {
 		arrivedTime: now,
 	}
 
-	p.txStore.insertTxInPool(newPoolTx, false)
+	// 1. insert new tx to pool
+	p.txStore.insertTxInPool(newPoolTx, local)
+
+	// 2. replace old tx in priority queue or parking lot
 	if txNonce < pendingNonce {
 		if p.enablePricePriority {
 			p.txStore.priorityByPrice.replaceTx(newPoolTx)
 		} else {
 			p.txStore.priorityByTime.insertKey(newPoolTx)
 		}
+		if !replaced {
+			p.increasePriorityNonBatchSize(1)
+		}
 	} else {
+		// insert new tx to parking lot
 		p.txStore.parkingLotIndex.insertKey(newPoolTx)
+		p.txStore.increaseParkingLotSize(1)
 	}
-	return
+
+	return replaced
 }
 
 func (p *txPoolImpl[T, Constraint]) SendMissingRequests(batchHash string, missingHashList map[uint64]string) (txs map[uint64]*T, err error) {
@@ -2049,9 +2033,11 @@ func (p *txPoolImpl[T, Constraint]) handleFilterOutOfDateRequests(timeout bool) 
 		if !timeout || now-poolTx.lifeTime > p.toleranceTime.Nanoseconds() {
 			if p.enablePricePriority {
 				account := p.txStore.priorityByPrice.accountsM[orderedKey.account]
-				if orderedKey.nonce >= account.minNonceQueue.peek() {
-					if reBroadTx := account.items[orderedKey.nonce]; reBroadTx != nil {
-						forward = append(forward, reBroadTx)
+				if account != nil {
+					if orderedKey.nonce >= account.minNonceQueue.peek() {
+						if reBroadTx := account.items[orderedKey.nonce]; reBroadTx != nil {
+							forward = append(forward, reBroadTx)
+						}
 					}
 				}
 			} else {
@@ -2112,16 +2098,16 @@ func (p *txPoolImpl[T, Constraint]) removeHighNonceTxsByAccount(account string, 
 // =============================================================================
 // internal methods
 // =============================================================================
-func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string]int) {
-	for account, allNewCnt := range dirtyAccounts {
-		if list, ok := p.txStore.allTxs[account]; ok {
-			// search for related sequential txs in allTxs
-			// and add these txs into priorityByTime and parkingLotIndex.
+func (p *txPoolImpl[T, Constraint]) processDirtyAccount(account string, tx *internalTransaction[T, Constraint], pending bool) {
+	if list, ok := p.txStore.allTxs[account]; ok {
+		// search for related sequential txs in allTxs
+		// and add these txs into priorityByTime and parkingLotIndex.
+		if pending {
 			pendingNonce := p.txStore.nonceCache.getPendingNonce(account)
-			readyTxs, nonReadyTxs, nextDemandNonce := list.filterReady(pendingNonce)
+			readyTxs, nextDemandNonce := list.filterReady(pendingNonce)
 			p.txStore.nonceCache.setPendingNonce(account, nextDemandNonce)
 
-			// insert ready txs into priorityByTime
+			// insert ready txs into priority
 			for _, poolTx := range readyTxs {
 				if p.enablePricePriority {
 					p.txStore.priorityByPrice.push(poolTx)
@@ -2130,22 +2116,17 @@ func (p *txPoolImpl[T, Constraint]) processDirtyAccount(dirtyAccounts map[string
 				}
 			}
 
+			// update priorityNonBatchSize
 			p.increasePriorityNonBatchSize(uint64(len(readyTxs)))
 
-			newNonReadyCnt := 0
-			// insert non-ready txs into parkingLotIndex
-			for _, poolTx := range nonReadyTxs {
-				if replace := p.txStore.parkingLotIndex.insertKey(poolTx); !replace {
-					p.txStore.increaseParkingLotSize(1)
-					newNonReadyCnt++
-				}
-			}
-			newReadyCnt := allNewCnt - newNonReadyCnt
-			nonReady2ReadyCnt := len(readyTxs) - newReadyCnt
-
+			// because we insert ready tx, we should decrease the ParkingLotSize by length which covert non-ready txs to ready txs
+			nonReady2ReadyCnt := len(readyTxs) - 1
 			// update parkingLotSize
 			p.txStore.decreaseParkingLotSize(uint64(nonReady2ReadyCnt))
-
+		} else {
+			// if not pending, we should insert tx to the parkingLotIndex
+			p.txStore.parkingLotIndex.insertKey(tx)
+			p.txStore.increaseParkingLotSize(1)
 		}
 	}
 }

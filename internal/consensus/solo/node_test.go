@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
+	txpoolImpl "github.com/axiomesh/axiom-ledger/internal/txpool"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -18,7 +22,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
-	txpool2 "github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -86,6 +89,10 @@ func TestNode_Start(t *testing.T) {
 	txSubscribeCh := make(chan []*types.Transaction, 1)
 	sub := solo.SubscribeTxEvent(txSubscribeCh)
 	defer sub.Unsubscribe()
+
+	txSubscribeMockCh := make(chan events.ExecutedEvent, 1)
+	mockSub := solo.SubscribeMockBlockEvent(txSubscribeMockCh)
+	defer mockSub.Unsubscribe()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -174,7 +181,7 @@ func TestNode_ReportState(t *testing.T) {
 		err = node.Prepare(tx11)
 		ast.NotNil(err)
 		<-txSubscribeCh
-		ast.Contains(err.Error(), txpool2.ErrTxPoolFull.Error())
+		ast.Contains(err.Error(), txpoolImpl.ErrTxPoolFull.Error())
 		ast.Equal(10, len(node.batchDigestM), "the pool should be full, tx11 is not add in txpool successfully")
 
 		ast.NotNil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be in txpool")
@@ -275,55 +282,158 @@ func TestNode_GetLowWatermark(t *testing.T) {
 }
 
 func TestNode_Prepare(t *testing.T) {
-	ast := assert.New(t)
-	node, err := mockSoloNode(t, false)
-	ast.Nil(err)
-	ctrl := gomock.NewController(t)
-	wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
-	wrongPrecheckMgr.EXPECT().Start().AnyTimes()
-	wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-		event := ev.Event.(*common.TxWithResp)
-		event.CheckCh <- &common.TxResp{
-			Status:   false,
-			ErrorMsg: "check error",
+	t.Parallel()
+	t.Run("test prepare tx success, generate batch timeout", func(t *testing.T) {
+		ast := assert.New(t)
+		node, err := mockSoloNode(t, false)
+		ast.Nil(err)
+		ctrl := gomock.NewController(t)
+		wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
+		wrongPrecheckMgr.EXPECT().Start().AnyTimes()
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+			event := ev.Event.(*common.TxWithResp)
+			event.CheckCh <- &common.TxResp{
+				Status:   false,
+				ErrorMsg: "check error",
+			}
+		}).Times(1)
+		node.txPreCheck = wrongPrecheckMgr
+		tx, err := types.GenerateEmptyTransactionAndSigner()
+		require.Nil(t, err)
+
+		err = node.Start()
+		require.Nil(t, err)
+
+		err = node.Prepare(tx)
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "check error")
+
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+			event := ev.Event.(*common.TxWithResp)
+			event.CheckCh <- &common.TxResp{
+				Status: true,
+			}
+			event.PoolCh <- &common.TxResp{
+				Status:   false,
+				ErrorMsg: "add pool error",
+			}
+		}).Times(1)
+
+		err = node.Prepare(tx)
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "add pool error")
+
+		rightPrecheckMgr := mock_precheck.NewMockMinPreCheck(ctrl, validTxsCh)
+		node.txPreCheck = rightPrecheckMgr
+
+		txSubscribeCh := make(chan []*types.Transaction, 1)
+		sub := node.SubscribeTxEvent(txSubscribeCh)
+		defer sub.Unsubscribe()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		mockAddTx(node, ctx)
+		err = node.Prepare(tx)
+		<-txSubscribeCh
+		ast.Nil(err)
+		block := <-node.Commit()
+		ast.Equal(1, len(block.Block.Transactions))
+	})
+	t.Run("test prepare txs success, generate batch size", func(t *testing.T) {
+		ast := assert.New(t)
+
+		logger := log.NewWithModule("consensus")
+		repoRoot := t.TempDir()
+		r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
+		ast.Nil(err)
+		cfg := r.ConsensusConfig
+
+		recvCh := make(chan consensusEvent, maxChanSize)
+		mockCtl := gomock.NewController(t)
+		mockNetwork := mock_network.NewMockNetwork(mockCtl)
+		mockPrecheck := mock_precheck.NewMockMinPreCheck(mockCtl, validTxsCh)
+
+		batchSize := 4
+		txpoolConf := txpoolImpl.Config{
+			Logger:              &common.Logger{FieldLogger: log.NewWithModule("pool")},
+			PoolSize:            poolSize,
+			ToleranceRemoveTime: removeTxTimeout,
+			GetAccountNonce: func(address string) uint64 {
+				return 0
+			},
+			GetAccountBalance: func(address string) *big.Int {
+				maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
+				return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
+			},
+			ChainInfo: &txpool.ChainInfo{
+				Height:   1,
+				GasPrice: new(big.Int).Mul(big.NewInt(5000), big.NewInt(1e9)),
+				EpochConf: &txpool.EpochConfig{
+					EnableGenEmptyBatch: false,
+					BatchSize:           uint64(batchSize),
+				},
+			},
 		}
-	}).Times(1)
-	node.txPreCheck = wrongPrecheckMgr
-	tx, err := types.GenerateEmptyTransactionAndSigner()
-	require.Nil(t, err)
 
-	err = node.Start()
-	require.Nil(t, err)
+		txpoolInst, err := txpoolImpl.NewTxPool[types.Transaction, *types.Transaction](txpoolConf)
+		ast.Nil(err)
 
-	err = node.Prepare(tx)
-	ast.NotNil(err)
-	ast.Contains(err.Error(), "check error")
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
 
-	wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-		event := ev.Event.(*common.TxWithResp)
-		event.CheckCh <- &common.TxResp{
-			Status: true,
+		batchTime := 100 * time.Second // sleep 100s to ensure not to generate batch timeout
+
+		ctx, cancel := context.WithCancel(context.Background())
+		soloNode := &Node{
+			config: &common.Config{
+				Config:  r.ConsensusConfig,
+				PrivKey: s.Sk,
+			},
+			lastExec:         uint64(0),
+			noTxBatchTimeout: batchTime,
+			batchTimeout:     cfg.Solo.BatchTimeout.ToDuration(),
+			commitC:          make(chan *common.CommitEvent, maxChanSize),
+			blockCh:          make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
+			txpool:           txpoolInst,
+			network:          mockNetwork,
+			batchDigestM:     make(map[uint64]string),
+			recvCh:           recvCh,
+			logger:           logger,
+			ctx:              ctx,
+			cancel:           cancel,
+			txPreCheck:       mockPrecheck,
+			epcCnf: &epochConfig{
+				epochPeriod:         r.GenesisConfig.EpochInfo.EpochPeriod,
+				startBlock:          r.GenesisConfig.EpochInfo.StartBlock,
+				checkpoint:          r.GenesisConfig.EpochInfo.ConsensusParams.CheckpointPeriod,
+				enableGenEmptyBlock: txpoolConf.ChainInfo.EpochConf.EnableGenEmptyBatch,
+			},
 		}
-		event.PoolCh <- &common.TxResp{
-			Status:   false,
-			ErrorMsg: "add pool error",
-		}
-	}).Times(1)
 
-	err = node.Prepare(tx)
-	ast.NotNil(err)
-	ast.Contains(err.Error(), "add pool error")
+		soloNode.txpool = txpoolInst
+		batchTimerMgr := timer.NewTimerManager(logger)
+		err = batchTimerMgr.CreateTimer(timer.Batch, batchTime, soloNode.handleTimeoutEvent)
+		require.Nil(t, err)
+		err = batchTimerMgr.CreateTimer(timer.NoTxBatch, batchTime, soloNode.handleTimeoutEvent)
+		require.Nil(t, err)
+		soloNode.batchMgr = &batchTimerManager{Timer: batchTimerMgr}
 
-	rightPrecheckMgr := mock_precheck.NewMockMinPreCheck(ctrl, validTxsCh)
-	node.txPreCheck = rightPrecheckMgr
+		txSubscribeCh := make(chan []*types.Transaction, 1)
+		sub := soloNode.SubscribeTxEvent(txSubscribeCh)
+		defer sub.Unsubscribe()
 
-	txSubscribeCh := make(chan []*types.Transaction, 1)
-	sub := node.SubscribeTxEvent(txSubscribeCh)
-	defer sub.Unsubscribe()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	mockAddTx(node, ctx)
-	err = node.Prepare(tx)
-	<-txSubscribeCh
-	ast.Nil(err)
+		err = soloNode.Start()
+		require.Nil(t, err)
+		mockAddTx(soloNode, ctx)
+
+		txs := testutil.ConstructTxs(s, batchSize)
+
+		lo.ForEach(txs, func(tx *types.Transaction, _ int) {
+			err = soloNode.Prepare(tx)
+			<-txSubscribeCh
+			ast.Nil(err)
+		})
+		block := <-soloNode.Commit()
+		ast.Equal(batchSize, len(block.Block.Transactions))
+
+	})
 }

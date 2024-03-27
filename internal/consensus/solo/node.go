@@ -148,7 +148,6 @@ func (n *Node) Start() error {
 	}
 	n.txPreCheck.Start()
 	go n.listenEvent()
-	go n.listenReadyBlock()
 	n.started.Store(true)
 	n.logger.Info("Consensus started")
 	return nil
@@ -252,9 +251,12 @@ func (n *Node) listenEvent() {
 					// flatten batchDigestM{<height:> <digest>} to []digest, sort by height
 					heightList := make([]uint64, 0)
 					for h := range n.batchDigestM {
-						heightList = append(heightList, h)
-						sortkeys.Uint64s(heightList)
+						// remove batches which is less than current state height
+						if h <= e.Height {
+							heightList = append(heightList, h)
+						}
 					}
+					sortkeys.Uint64s(heightList)
 					lo.ForEach(heightList, func(height uint64, index int) {
 						digestList[index] = n.batchDigestM[height]
 						delete(n.batchDigestM, height)
@@ -319,7 +321,7 @@ func (n *Node) listenEvent() {
 				if err != nil {
 					n.logger.Errorf("Generate batch failed: %v", err)
 				} else if batch != nil {
-					n.postProposal(batch)
+					n.generateBlock(batch)
 					// start no-tx batch timer when this node handle the last transaction
 					if n.epcCnf.enableGenEmptyBlock && !n.txpool.HasPendingRequestInPool() {
 						if err = n.batchMgr.RestartTimer(timer.NoTxBatch); err != nil {
@@ -373,7 +375,7 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 					}
 				}
 				n.batchMgr.lastBatchTime = now
-				n.postProposal(batch)
+				n.generateBlock(batch)
 				n.logger.Debugf("batch timeout, post proposal: [batchHash: %s]", batch.BatchHash)
 			}
 		}
@@ -410,7 +412,7 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 			}
 			n.batchMgr.lastBatchTime = now
 
-			n.postProposal(batch)
+			n.generateBlock(batch)
 			n.logger.Debugf("batch no-tx timeout, post proposal: %v", batch)
 		}
 	}
@@ -418,44 +420,32 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 }
 
 // Schedule to collect txs to the listenReadyBlock channel
-func (n *Node) listenReadyBlock() {
-	for {
-		select {
-		case <-n.ctx.Done():
-			n.logger.Info("----- Exit listen ready block loop -----")
-			return
-		case e := <-n.blockCh:
-			n.logger.WithFields(logrus.Fields{
-				"batch_hash": e.BatchHash,
-				"tx_count":   len(e.TxList),
-			}).Debugf("Receive proposal from txcache")
-			n.logger.Infof("======== Call execute, height=%d", n.lastExec+1)
+func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *types.Transaction]) {
+	n.logger.WithFields(logrus.Fields{
+		"batch_hash": batch.BatchHash,
+		"tx_count":   len(batch.TxList),
+	}).Debugf("Receive proposal from txpool")
 
-			block := &types.Block{
-				Header: &types.BlockHeader{
-					Epoch:           1,
-					Number:          n.lastExec + 1,
-					Timestamp:       e.Timestamp / int64(time.Second),
-					ProposerAccount: n.proposerAccount,
-				},
-				Transactions: e.TxList,
-			}
-			localList := make([]bool, len(e.TxList))
-			for i := 0; i < len(e.TxList); i++ {
-				localList[i] = true
-			}
-			executeEvent := &common.CommitEvent{
-				Block: block,
-			}
-			n.batchDigestM[block.Height()] = e.BatchHash
-			n.lastExec++
-			n.commitC <- executeEvent
-		}
+	block := &types.Block{
+		Header: &types.BlockHeader{
+			Epoch:           1,
+			Number:          n.lastExec + 1,
+			Timestamp:       batch.Timestamp / int64(time.Second),
+			ProposerAccount: n.proposerAccount,
+		},
+		Transactions: batch.TxList,
 	}
-}
-
-func (n *Node) postProposal(batch *txpool.RequestHashBatch[types.Transaction, *types.Transaction]) {
-	n.blockCh <- batch
+	localList := make([]bool, len(batch.TxList))
+	for i := 0; i < len(batch.TxList); i++ {
+		localList[i] = true
+	}
+	executeEvent := &common.CommitEvent{
+		Block: block,
+	}
+	n.batchDigestM[block.Height()] = batch.BatchHash
+	n.lastExec++
+	n.commitC <- executeEvent
+	n.logger.Infof("======== Call execute, height=%d", n.lastExec)
 }
 
 func (n *Node) notifyGenerateBatch(typ int) {

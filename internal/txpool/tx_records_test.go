@@ -47,7 +47,10 @@ func TestTxRecords(t *testing.T) {
 	// test load
 	input, err := os.Open(records.filePath)
 	assert.Nil(t, err)
-	defer input.Close()
+	defer func() {
+		err = input.Close()
+		assert.Nil(t, err)
+	}()
 	taskDoneCh := make(chan struct{}, 1)
 	batchCh := records.load(input, taskDoneCh)
 	batch := <-batchCh
@@ -119,6 +122,7 @@ func TestTxRecords_load(t *testing.T) {
 	assert.Equal(t, TxRecordsBatchSize, len(batch))
 	batch = <-batchCh
 	assert.Equal(t, 1, len(batch))
+	assert.True(t, batch[0].RbftGetTimeStamp() > txs[len(txs)-1].RbftGetTimeStamp(), "load tx will reset tx time")
 	<-taskDoneCh
 	err = input.Close()
 	assert.Nil(t, err)
@@ -157,12 +161,14 @@ func TestTxRecords_Rotate(t *testing.T) {
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
 	tx1 := constructTx(s, 0)
+	_, err = pool.addTx(tx1, true)
+	assert.Nil(t, err)
 	tx2 := constructTx(s, 1)
-	pool.addTxs([]*types.Transaction{tx1, tx2}, true)
+	_, err = pool.addTx(tx2, true)
 	s2, err := types.GenerateSigner()
 	assert.Nil(t, err)
 	tx3 := constructTx(s2, 0)
-	pool.addTxs([]*types.Transaction{tx3}, false)
+	_, err = pool.addTx(tx3, false)
 
 	// test rotate for locals and unlocals
 	txs := pool.txStore.allTxs
@@ -173,14 +179,16 @@ func TestTxRecords_Rotate(t *testing.T) {
 func TestTxRecords_RotateMoreThanOneBatch(t *testing.T) {
 	// init pool and txs
 	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	pool.Start()
+	err := pool.Start()
+	assert.Nil(t, err)
 	defer pool.Stop()
 	s, err := types.GenerateSigner()
 	txs := constructTxs(s, TxRecordsBatchSize+1)
-	errs := pool.addTxs(txs, true)
-	for _, e := range errs {
-		assert.Nil(t, e)
+	for _, tx := range txs {
+		_, err = pool.addTx(tx, true)
+		assert.Nil(t, err)
 	}
+
 	err = os.Remove(pool.txRecords.filePath)
 	err = pool.txRecords.rotate(pool.txStore.allTxs)
 	records, err := GetAllTxRecords(pool.txRecords.filePath)

@@ -3,7 +3,7 @@ package testutil
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
@@ -182,11 +182,14 @@ func GetChainMetaFunc() *types.ChainMeta {
 	return mockChainMeta
 }
 
-func ConstructBlocks(height uint64, num int) []*types.Block {
-	blockHashStr := fmt.Sprintf("block%d", height)
-	blocks := make([]*types.Block, 0)
-	for i := 0; i < num; i++ {
-		blocks = append(blocks, ConstructBlock(blockHashStr, height+uint64(i)))
+func ConstructTxs(s *types.Signer, count int) []*types.Transaction {
+	txs := make([]*types.Transaction, count)
+	for i := 0; i < count; i++ {
+		tx, err := types.GenerateTransactionWithSigner(uint64(i), types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), big.NewInt(0), nil, s)
+		if err != nil {
+			panic(err)
+		}
+		txs[i] = tx
 	}
-	return blocks
+	return txs
 }
