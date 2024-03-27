@@ -66,8 +66,8 @@ github.com/axiomesh/axiom-kit v0.0.3-0.20240308082339-3490cc27c928 h1:ZB8rorTmdL
 github.com/axiomesh/axiom-kit v0.0.3-0.20240308082339-3490cc27c928/go.mod h1:ty61ZAbWrR+La8lSnuvRCO0JG0hEEkukcz+ZsHci/ps=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d h1:tOWrHY3ctc6hvOltNzpae63ZFdQQrsQnsj1U6NJSuDU=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d/go.mod h1:51V14XVL9rMae7qD8UVuswbx9Fq46/4uz9FgeMs2pCo=
-github.com/axiomesh/go-ethereum v1.12.0-1 h1:r3okDuiZKrWL1RYpZ6zhWxo4rHVKZRl9bYs8yZUGiNc=
-github.com/axiomesh/go-ethereum v1.12.0-1/go.mod h1:/oo2X/dZLJjf2mJ6YT9wcWxa4nNJDBKDBU6sFIpx1Gs=
+github.com/axiomesh/go-ethereum v1.12.0-2 h1:kZKegciJrpyoQpOv0W3iJ5DHX1cCa4Uo5DyuQ7eeGGA=
+github.com/axiomesh/go-ethereum v1.12.0-2/go.mod h1:/oo2X/dZLJjf2mJ6YT9wcWxa4nNJDBKDBU6sFIpx1Gs=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=

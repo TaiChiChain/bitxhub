@@ -95,6 +95,8 @@ func newMockMinLedger(t *testing.T) *mockLedger {
 		}
 		return mockLg.accountDb[address.String()].GetBalance()
 	}).AnyTimes()
+
+	mockLg.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 	//
 	//contractAccount := newMockAccount(types.NewAddressByStr(common.AXMManagerContractAddr))
 	//contractAccount.

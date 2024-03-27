@@ -54,20 +54,6 @@ const (
 	burnMethod         = "burn"
 )
 
-var Method2Sig = map[string]string{
-	totalSupplyMethod:  "totalSupply()",
-	balanceOfMethod:    "balanceOf(address)",
-	transferMethod:     "transfer(address,uint256)",
-	allowanceMethod:    "allowance(address,address)",
-	approveMethod:      "approve(address,uint256)",
-	transferFromMethod: "transferFrom(address,address,uint256)",
-	nameMethod:         "name()",
-	symbolMethod:       "symbol()",
-	decimalsMethod:     "decimals()",
-	mintMethod:         "mint(uint256)",
-	burnMethod:         "burn(uint256)",
-}
-
 func (am *Manager) checkBeforeMint(account ethcommon.Address, value *big.Int) error {
 	// todo: implement it
 	return nil

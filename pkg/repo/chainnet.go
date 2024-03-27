@@ -228,6 +228,7 @@ func AriesGenesisConfig() *GenesisConfig {
 				Name:    "Q2F0",
 			},
 		},
+		SmartAccountAdmin: "0xecFE18Dc453CCdF96f1b9b58ccb4db3c6115A1D0",
 		Axm: &Token{
 			Name:        "Axiom",
 			Symbol:      "Token",
@@ -505,6 +506,7 @@ func TaurusGenesisConfig() *GenesisConfig {
 				Name:    "Q2F0",
 			},
 		},
+		SmartAccountAdmin:      "0x83Db4fA2CbB682753C94ca8A809a4a321aA36e1b",
 		InitWhiteListProviders: []string{},
 		Accounts:               []*Account{},
 		EpochInfo: &rbft.EpochInfo{

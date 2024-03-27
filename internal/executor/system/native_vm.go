@@ -5,13 +5,14 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
+	"runtime"
 	"strings"
 
-	ethcommon "github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/crypto"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -20,12 +21,12 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/ethereum/go-ethereum/core/vm"
 )
 
 var (
@@ -51,6 +52,12 @@ var axmManagerABI string
 //go:embed sol/AxcManager.abi
 var axcManagerABI string
 
+//go:embed sol/saccount/IEntryPoint.abi
+var entryPointABI string
+
+//go:embed sol/saccount/SmartAccountFactory.abi
+var smartAccountFactoryABI string
+
 var _ common.VirtualMachine = (*NativeVM)(nil)
 
 // NativeVM handle abi decoding for parameters and abi encoding for return data
@@ -74,11 +81,13 @@ func New() common.VirtualMachine {
 	}
 
 	// deploy all system contract
-	nvm.Deploy(common.GovernanceContractAddr, governanceABI, governance.GovernanceMethod2Sig)
-	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI, base.EpochManagerMethod2Sig)
-	nvm.Deploy(common.WhiteListContractAddr, whiteListABI, access.WhiteListMethod2Sig)
-	nvm.Deploy(common.AXMContractAddr, axmManagerABI, axm.Method2Sig)
-	nvm.Deploy(common.AXCContractAddr, axcManagerABI, axc.Method2Sig)
+	nvm.Deploy(common.GovernanceContractAddr, governanceABI)
+	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI)
+	nvm.Deploy(common.WhiteListContractAddr, whiteListABI)
+	nvm.Deploy(common.AXMContractAddr, axmManagerABI)
+	nvm.Deploy(common.AXCContractAddr, axcManagerABI)
+	nvm.Deploy(common.EntryPointContractAddr, entryPointABI)
+	nvm.Deploy(common.AccountFactoryContractAddr, smartAccountFactoryABI)
 
 	return nvm
 }
@@ -92,7 +101,7 @@ func (nvm *NativeVM) View() common.VirtualMachine {
 	}
 }
 
-func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]string) {
+func (nvm *NativeVM) Deploy(addr string, abiFile string) {
 	// check system contract range
 	if addr < common.SystemContractStartAddr || addr > common.SystemContractEndAddr {
 		panic(fmt.Sprintf("this system contract %s is out of range", addr))
@@ -110,9 +119,10 @@ func (nvm *NativeVM) Deploy(addr string, abiFile string, method2Sig map[string]s
 	nvm.contract2ABI[addr] = contractABI
 
 	m2sig := make(map[string][]byte)
-	for methodName, methodSig := range method2Sig {
-		m2sig[methodName] = crypto.Keccak256([]byte(methodSig))
+	for methodName, method := range contractABI.Methods {
+		m2sig[methodName] = method.ID
 	}
+
 	nvm.contract2MethodSig[addr] = m2sig
 
 	nvm.setEVMPrecompiled(addr)
@@ -139,6 +149,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		CurrentHeight: statefulArgs.Height.Uint64(),
 		CurrentLogs:   &currentLogs,
 		CurrentUser:   &statefulArgs.From,
+		CurrentEVM:    statefulArgs.EVM,
 	}
 	contractInstance.SetContext(vmContext)
 
@@ -147,6 +158,29 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		if err := recover(); err != nil {
 			nvm.logger.Error(err)
 			execErr = fmt.Errorf("%s", err)
+
+			// get panic stack info
+			stack := make([]byte, 4096)
+			stack = stack[:runtime.Stack(stack, false)]
+
+			lines := bytes.Split(stack, []byte("\n"))
+			var errMsg []byte
+			isRecord := false
+			errLineNum := 0
+			for _, line := range lines {
+				if bytes.Contains(line, []byte("panic")) {
+					isRecord = true
+				}
+				if isRecord {
+					errMsg = append(errMsg, line...)
+					errMsg = append(errMsg, []byte("\n")...)
+					errLineNum++
+				}
+				if errLineNum > 20 {
+					break
+				}
+			}
+			nvm.logger.Errorf("panic stack info: %s", errMsg)
 		}
 	}()
 
@@ -173,6 +207,9 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	for _, arg := range args {
 		inputs = append(inputs, reflect.ValueOf(arg))
 	}
+	// convert input args, if input args contains slice struct which is defined in abi, convert to dest slice struct which is defined in golang
+	inputs = convertInputArgs(method, inputs)
+
 	// maybe panic when inputs mismatch, but we recover
 	results := method.Call(inputs)
 
@@ -198,6 +235,10 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	nvm.logger.Debugf("Contract addr: %s, method name: %s, return result: %+v, return error: %s", contractAddr, methodName, returnRes, returnErr)
 
 	if returnErr != nil {
+		// if err is execution reverted, get reason
+		if err, ok := returnErr.(*common.RevertError); ok {
+			return err.Data(), err.GetError()
+		}
 		return nil, returnErr
 	}
 
@@ -349,6 +390,17 @@ func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContr
 		return axm.New(cfg)
 	case common.AXCContractAddr:
 		return axc.New(cfg)
+	case common.EntryPointContractAddr:
+		return saccount.NewEntryPoint(cfg)
+	case common.AccountFactoryContractAddr:
+		entryPoint := saccount.NewEntryPoint(cfg)
+		return saccount.NewSmartAccountFactory(cfg, entryPoint)
+	case common.VerifyingPaymasterContractAddr:
+		entryPoint := saccount.NewEntryPoint(cfg)
+		return saccount.NewVerifyingPaymaster(entryPoint)
+	case common.TokenPaymasterContractAddr:
+		entryPoint := saccount.NewEntryPoint(cfg)
+		return saccount.NewTokenPaymaster(entryPoint)
 	}
 	return nil
 }
@@ -364,6 +416,11 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 	if err := governance.InitGasParam(lg, genesis.EpochInfo); err != nil {
+		return err
+	}
+	InitSystemContractCode(lg)
+
+	if err := saccount.Initialize(lg, genesis.SmartAccountAdmin); err != nil {
 		return err
 	}
 
@@ -398,4 +455,43 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 	return nil
+}
+
+// InitSystemContractCode init system contract code for compatible with ethereum abstract account
+func InitSystemContractCode(lg ledger.StateLedger) {
+	contractAddr := types.NewAddressByStr(common.SystemContractStartAddr)
+	contractAddrBig := contractAddr.ETHAddress().Big()
+	endContractAddrBig := types.NewAddressByStr(common.SystemContractEndAddr).ETHAddress().Big()
+	for contractAddrBig.Cmp(endContractAddrBig) <= 0 {
+		lg.SetCode(contractAddr, contractAddr.Bytes())
+
+		contractAddrBig.Add(contractAddrBig, big.NewInt(1))
+		contractAddr = types.NewAddress(contractAddrBig.Bytes())
+	}
+}
+
+func convertInputArgs(method reflect.Value, inputArgs []reflect.Value) []reflect.Value {
+	outputArgs := make([]reflect.Value, len(inputArgs))
+	copy(outputArgs, inputArgs)
+
+	rt := method.Type()
+	for i := 0; i < rt.NumIn(); i++ {
+		argType := rt.In(i)
+		if argType.Kind() == reflect.Slice && inputArgs[i].Type().Kind() == reflect.Slice {
+			if argType.Elem().Kind() == reflect.Struct && inputArgs[i].Type().Elem().Kind() == reflect.Struct {
+				slice := reflect.MakeSlice(argType, inputArgs[i].Len(), inputArgs[i].Len())
+				for j := 0; j < inputArgs[i].Len(); j++ {
+					v := reflect.New(argType.Elem()).Elem()
+					for k := 0; k < v.NumField(); k++ {
+						field := inputArgs[i].Index(j).Field(k)
+						v.Field(k).Set(field)
+					}
+					slice.Index(j).Set(v)
+				}
+
+				outputArgs[i] = slice
+			}
+		}
+	}
+	return outputArgs
 }

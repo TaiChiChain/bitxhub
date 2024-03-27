@@ -29,12 +29,6 @@ const (
 	HistoryEpochMethod = "historyEpoch"
 )
 
-var EpochManagerMethod2Sig = map[string]string{
-	CurrentEpochMethod: "currentEpoch()",
-	NextEpochMethod:    "nextEpoch()",
-	HistoryEpochMethod: "historyEpoch(uint64)",
-}
-
 type currentEpochMethodArgs struct {
 }
 
