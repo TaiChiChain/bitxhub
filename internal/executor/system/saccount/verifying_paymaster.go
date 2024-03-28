@@ -19,7 +19,7 @@ const (
 	VALID_TIMESTAMP_OFFSET = 20
 	SIGNATURE_OFFSET       = 84
 
-	verifyingPaymasterOwnerKey = "owner_key"
+	verifyingPaymasterOwnerKey = "verifying_owner_key"
 )
 
 var _ interfaces.IPaymaster = (*VerifyingPaymaster)(nil)
@@ -117,7 +117,7 @@ func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOper
 	}
 	// validate signature
 	// paymaster validate hash is not the user op hash
-	addr, err := recoveryAddrFromSignature(vp.getHash(userOp, validUntil, validAfter), userOp.Signature)
+	addr, err := recoveryAddrFromSignature(vp.getHash(userOp, validUntil, validAfter), signature)
 	if err != nil {
 		return []byte(""), validationData, common.NewRevertStringError("paymaster validate user op signature error")
 	}
@@ -140,6 +140,10 @@ func (vp *VerifyingPaymaster) getHash(userOp interfaces.UserOperation, validUnti
 }
 
 func parsePaymasterAndData(paymasterAndData []byte) (validUntil, validAfter *big.Int, signature []byte, err error) {
+	if len(paymasterAndData) < SIGNATURE_OFFSET {
+		return nil, nil, nil, common.NewRevertStringError("parse paymasterAndData failed, length is too short")
+	}
+
 	validTimeData := paymasterAndData[VALID_TIMESTAMP_OFFSET:SIGNATURE_OFFSET]
 
 	arg := abi.Arguments{

@@ -1,6 +1,10 @@
 package interfaces
 
-import "math/big"
+import (
+	"math/big"
+
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+)
 
 type PostOpMode uint
 
@@ -13,6 +17,8 @@ const (
 // IPaymaster is the interface exposed by a paymaster contract, who agrees to pay the gas for user's operations.
 // a paymaster must hold a stake to cover the required entrypoint stake and also the gas for the transaction.
 type IPaymaster interface {
+	common.SystemContract
+
 	// ValidatePaymasterUserOp check if paymaster agrees to pay.
 	// Must verify sender is the entryPoint.
 	// Revert to reject this request.

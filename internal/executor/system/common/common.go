@@ -47,23 +47,25 @@ const (
 	// AccountFactoryContractAddr is the address of account factory system contract
 	AccountFactoryContractAddr = "0x0000000000000000000000000000000000001009"
 	// VerifyingPaymasterContractAddr is the address of verifying paymaster system contract
-	VerifyingPaymasterContractAddr = "0x0000000000000000000000000000000000001010"
+	VerifyingPaymasterContractAddr = "0x000000000000000000000000000000000000100a"
 	// TokenPaymasterContractAddr is the address of token paymaster system contract
-	TokenPaymasterContractAddr = "0x0000000000000000000000000000000000001011"
+	TokenPaymasterContractAddr = "0x000000000000000000000000000000000000100b"
 
 	// SystemContractEndAddr is the end address of system contract
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
 )
 
 var (
-	BoolType, _    = abi.NewType("bool", "", nil)
-	BigIntType, _  = abi.NewType("uint256", "", nil)
-	UInt64Type, _  = abi.NewType("uint64", "", nil)
-	UInt48Type, _  = abi.NewType("uint48", "", nil)
-	StringType, _  = abi.NewType("string", "", nil)
-	AddressType, _ = abi.NewType("address", "", nil)
-	BytesType, _   = abi.NewType("bytes", "", nil)
-	Bytes32Type, _ = abi.NewType("bytes32", "", nil)
+	BoolType, _         = abi.NewType("bool", "", nil)
+	BigIntType, _       = abi.NewType("uint256", "", nil)
+	UInt64Type, _       = abi.NewType("uint64", "", nil)
+	UInt48Type, _       = abi.NewType("uint48", "", nil)
+	StringType, _       = abi.NewType("string", "", nil)
+	AddressType, _      = abi.NewType("address", "", nil)
+	BytesType, _        = abi.NewType("bytes", "", nil)
+	Bytes32Type, _      = abi.NewType("bytes32", "", nil)
+	AddressSliceType, _ = abi.NewType("address[]", "", nil)
+	BytesSliceType, _   = abi.NewType("bytes[]", "", nil)
 )
 
 type SystemContractConfig struct {

@@ -58,6 +58,9 @@ var entryPointABI string
 //go:embed sol/saccount/SmartAccountFactory.abi
 var smartAccountFactoryABI string
 
+//go:embed sol/saccount/IPaymaster.abi
+var paymasterABI string
+
 var _ common.VirtualMachine = (*NativeVM)(nil)
 
 // NativeVM handle abi decoding for parameters and abi encoding for return data
@@ -88,6 +91,8 @@ func New() common.VirtualMachine {
 	nvm.Deploy(common.AXCContractAddr, axcManagerABI)
 	nvm.Deploy(common.EntryPointContractAddr, entryPointABI)
 	nvm.Deploy(common.AccountFactoryContractAddr, smartAccountFactoryABI)
+	nvm.Deploy(common.VerifyingPaymasterContractAddr, paymasterABI)
+	nvm.Deploy(common.TokenPaymasterContractAddr, paymasterABI)
 
 	return nvm
 }
