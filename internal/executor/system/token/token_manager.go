@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -35,44 +34,12 @@ func Init(lg ledger.StateLedger, config Config) error {
 	return nil
 }
 
-func (am *Manager) Name() string {
-	ok, name := am.account.GetState([]byte(NameKey))
-	if !ok {
-		return ""
-	}
-	return string(name)
-}
-
-func (am *Manager) Symbol() string {
-	ok, symbol := am.account.GetState([]byte(SymbolKey))
-	if !ok {
-		return ""
-	}
-	return string(symbol)
-}
-
-func (am *Manager) Decimals() uint8 {
-	ok, decimals := am.account.GetState([]byte(DecimalsKey))
-	if !ok {
-		return 0
-	}
-	return decimals[0]
-}
-
 func (am *Manager) TotalSupply() *big.Int {
 	ok, totalSupply := am.account.GetState([]byte(TotalSupplyKey))
 	if !ok {
 		return big.NewInt(0)
 	}
 	return new(big.Int).SetBytes(totalSupply)
-}
-
-func (am *Manager) BalanceOf(account ethcommon.Address) *big.Int {
-	acc := am.stateLedger.GetAccount(types.NewAddressByStr(account.String()))
-	if acc == nil {
-		return big.NewInt(0)
-	}
-	return acc.GetBalance()
 }
 
 func (am *Manager) Mint(amount *big.Int) error {
@@ -142,69 +109,6 @@ func burn(contractAccount ledger.IAccount, value *big.Int) error {
 	}
 	contractAccount.SubBalance(value)
 
-	return nil
-}
-
-func (am *Manager) Allowance(owner, spender ethcommon.Address) *big.Int {
-	return am.getAllowance(owner, spender)
-}
-
-func (am *Manager) getAllowance(owner, spender ethcommon.Address) *big.Int {
-	ok, v := am.account.GetState([]byte(getAllowancesKey(owner, spender)))
-	if !ok {
-		return big.NewInt(0)
-	}
-	return new(big.Int).SetBytes(v)
-}
-
-func (am *Manager) Approve(spender ethcommon.Address, value *big.Int) error {
-	return am.approve(am.msgFrom, spender, value)
-}
-
-func (am *Manager) approve(owner, spender ethcommon.Address, value *big.Int) error {
-	var err error
-	if err = checkValue(value); err != nil {
-		return err
-	}
-
-	am.account.SetState([]byte(getAllowancesKey(owner, spender)), value.Bytes())
-	return nil
-}
-
-func (am *Manager) Transfer(recipient ethcommon.Address, value *big.Int) error {
-	fromAcc := am.stateLedger.GetAccount(types.NewAddressByStr(am.msgFrom.String()))
-	toAcc := am.stateLedger.GetOrCreateAccount(types.NewAddressByStr(recipient.String()))
-	return transfer(fromAcc, toAcc, value)
-}
-
-func (am *Manager) TransferFrom(sender, recipient ethcommon.Address, value *big.Int) error {
-	// get allowance for <sender, msgFrom>
-	allowance := am.getAllowance(sender, am.msgFrom)
-	if allowance.Cmp(value) < 0 {
-		return errors.New("not enough allowance")
-	}
-
-	fromAcc := am.stateLedger.GetAccount(types.NewAddressByStr(sender.String()))
-	toAcc := am.stateLedger.GetOrCreateAccount(types.NewAddressByStr(recipient.String()))
-	if err := transfer(fromAcc, toAcc, value); err != nil {
-		return err
-	}
-
-	return am.approve(sender, am.msgFrom, new(big.Int).Sub(allowance, value))
-}
-
-func transfer(sender, recipient ledger.IAccount, value *big.Int) error {
-	if sender == nil || recipient == nil {
-		return ErrEmptyAccount
-	}
-	senderBalance := sender.GetBalance()
-	if senderBalance.Cmp(value) < 0 {
-		return ErrInsufficientBalance
-	}
-
-	sender.SubBalance(value)
-
-	recipient.AddBalance(value)
 	return nil
 }
 

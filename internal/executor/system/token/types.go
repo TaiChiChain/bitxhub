@@ -35,23 +35,14 @@ var (
 const (
 	TotalSupplyKey = "totalSupplyKey"
 	DecimalsKey    = "decimalsKey"
-	decimal        = 10000
 
 	SymbolKey     = "symbolKey"
 	NameKey       = "nameKey"
 	AllowancesKey = "allowancesKey"
 
-	nameMethod         = "name"
-	symbolMethod       = "symbol"
-	totalSupplyMethod  = "totalSupply"
-	decimalsMethod     = "decimals"
-	balanceOfMethod    = "balanceOf"
-	transferMethod     = "transfer"
-	approveMethod      = "approve"
-	allowanceMethod    = "allowance"
-	transferFromMethod = "transferFrom"
-	mintMethod         = "mint"
-	burnMethod         = "burn"
+	totalSupplyMethod = "totalSupply"
+	mintMethod        = "mint"
+	burnMethod        = "burn"
 )
 
 func (am *Manager) checkBeforeMint(account ethcommon.Address, value *big.Int) error {

@@ -1,11 +1,12 @@
 package common
 
 import (
+	"reflect"
+	"testing"
+
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/stretchr/testify/assert"
-	"reflect"
-	"testing"
 )
 
 func TestVMMap(t *testing.T) {
@@ -75,7 +76,7 @@ func TestVMSlotStruct(t *testing.T) {
 	}
 
 	account := ledger.NewMockAccount(1, types.NewAddressByStr(ZeroAddress))
-	vmMap := NewVMSlotp[Value](account, "test")
+	vmMap := NewVMSlot[Value](account, "test")
 
 	assert.False(t, vmMap.Has())
 	exist, v, err := vmMap.Get()
@@ -121,7 +122,7 @@ func TestVMSlotStruct(t *testing.T) {
 
 func TestVMSlotString(t *testing.T) {
 	account := ledger.NewMockAccount(1, types.NewAddressByStr(ZeroAddress))
-	vmMap := NewVMSlotp[string](account, "test")
+	vmMap := NewVMSlot[string](account, "test")
 
 	assert.False(t, vmMap.Has())
 	exist, v, err := vmMap.Get()
