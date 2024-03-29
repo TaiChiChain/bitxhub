@@ -13,6 +13,7 @@ require (
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
+	github.com/dgraph-io/ristretto v0.1.1
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/gammazero/workerpool v1.1.3
 	github.com/gogo/protobuf v1.3.2
@@ -66,6 +67,7 @@ require (
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dop251/goja v0.0.0-20230122112309-96b1610dd4f7 // indirect
+	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
@@ -84,6 +86,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.3.0 // indirect
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
