@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 
@@ -60,7 +61,7 @@ type VMSlot[V any] struct {
 	slotName        string
 }
 
-func NewVMSlotp[V any](contractAccount ledger.IAccount, slotName string) *VMSlot[V] {
+func NewVMSlot[V any](contractAccount ledger.IAccount, slotName string) *VMSlot[V] {
 	return &VMSlot[V]{
 		contractAccount: contractAccount,
 		slotName:        slotName,

@@ -1,9 +1,10 @@
 package base
 
 import (
+	"math/big"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"math/big"
 )
 
 const (
@@ -66,7 +67,8 @@ type stakingPool struct {
 	currentEpoch *rbft.EpochInfo
 	stateLedger  ledger.StateLedger
 
-	NodeID uint64
+	// PoolID is the staking pool id, which is also the Node ID
+	PoolID uint64
 	// if false, the node cannot be elected as a validator, and will not be added stake to StakingPool
 	IsActive                      bool
 	ActiveStake                   *big.Int
@@ -81,8 +83,16 @@ type stakingPool struct {
 	OperatorLiquidStakingTokenID *big.Int
 }
 
-func NewStakingPool(stateLedger ledger.StateLedger, currentEpoch *rbft.EpochInfo, nodeID uint64) StakingPool {
-	return &stakingPool{}
+func GetStakingPool(stateLedger ledger.StateLedger, currentEpoch *rbft.EpochInfo, poolID uint64) (StakingPool, error) {
+	return nil, nil
+}
+
+func HasStakingPool(stateLedger ledger.StateLedger, poolId uint64) bool {
+	return false
+}
+
+func CreateStakingPool(stateLedger ledger.StateLedger, currentEpoch *rbft.EpochInfo, poolID uint64, commissionRate uint64) (StakingPool, error) {
+	return &stakingPool{}, nil
 }
 
 func (sp *stakingPool) AddStake(owner string, amount *big.Int) error {

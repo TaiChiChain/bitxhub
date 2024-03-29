@@ -1,11 +1,14 @@
 package common
 
 import (
+	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRevertError(t *testing.T) {
@@ -23,4 +26,41 @@ func TestRevertError(t *testing.T) {
 
 	reason, errUnpack := abi.UnpackRevert(revertErr.(*RevertError).Data())
 	t.Logf("reason: %s, data: %s, err: %s", reason, hexutil.Encode(revertErr.(*RevertError).Data()), errUnpack)
+}
+
+func TestEmitEvent(t *testing.T) {
+	mockAbi := `[{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "uint64",
+					"name": "poolID",
+					"type": "uint64"
+				},
+				{
+					"indexed": true,
+					"internalType": "address",
+					"name": "owner",
+					"type": "address"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "amount",
+					"type": "uint256"
+				}
+			],
+			"name": "Stake",
+			"type": "event"
+		}]`
+	parseAbi, err := abi.JSON(strings.NewReader(mockAbi))
+	assert.Nil(t, err)
+	log := EmitEvent(types.NewAddressByStr(ZeroAddress), parseAbi, "Stake",
+		big.NewInt(10).Bytes(), types.NewAddressByStr(ZeroAddress).Bytes(), big.NewInt(10).Bytes())
+	assert.NotNil(t, log)
+	assert.Equal(t, log.Address.String(), ZeroAddress)
+	assert.Equal(t, len(log.Topics), 3)
+	assert.Equal(t, log.Topics[0].String(), parseAbi.Events["Stake"].ID.String())
+	assert.Equal(t, []byte{log.Data[len(log.Data)-1]}, big.NewInt(10).Bytes())
 }

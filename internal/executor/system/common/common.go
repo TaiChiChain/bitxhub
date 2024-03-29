@@ -88,11 +88,28 @@ type VMContext struct {
 	CurrentLogs   *[]Log
 	CurrentUser   *ethcommon.Address
 	CurrentEVM    *vm.EVM
+	ABI           *abi.ABI
 }
 
 // SystemContract must be implemented by all system contract
 type SystemContract interface {
 	SetContext(*VMContext)
+}
+
+func EmitEvent(selfAddr *types.Address, abi abi.ABI, event string, args ...[]byte) Log {
+	currentLog := Log{
+		Address: selfAddr,
+	}
+	ev := abi.Events[event]
+	currentLog.Topics = append(currentLog.Topics, types.NewHash(ev.ID.Bytes()))
+	for i := 0; i < len(ev.Inputs); i++ {
+		if ev.Inputs[i].Indexed {
+			currentLog.Topics = append(currentLog.Topics, types.NewHash(args[i]))
+		} else {
+			currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(args[i], 32)...)
+		}
+	}
+	return currentLog
 }
 
 func IsInSlice[T ~uint8 | ~string](value T, slice []T) bool {

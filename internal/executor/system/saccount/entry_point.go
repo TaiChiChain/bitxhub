@@ -720,7 +720,7 @@ func (ep *EntryPoint) emitUserOperationRevertReason(userOpHash []byte, sender et
 		{Name: "nonce", Type: common.BigIntType},
 		{Name: "revertReason", Type: common.BytesType},
 	})
-
+	
 	currentLog := common.Log{
 		Address: ep.selfAddress(),
 	}

@@ -110,12 +110,8 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis.Accounts[0].Balance = "-10"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXCContractAddr {
-				return axmAccount
-			}
 			if address.String() == common.AXCContractAddr {
 				return axcAccount
 			}
@@ -150,14 +146,6 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	// WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
-	axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.AXCContractAddr {
-			return axmAccount
-		}
-		return account
-	}).AnyTimes()
-
 	axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
 		if address.String() == common.AXCContractAddr {
