@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -23,9 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -52,12 +48,8 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis := repo.DefaultGenesisConfig(false)
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXMContractAddr {
-				return axmAccount
-			}
 			if address.String() == common.AXCContractAddr {
 				return axcAccount
 			}
@@ -85,10 +77,10 @@ func TestContractInitGenesisData(t *testing.T) {
 		genesis.EpochInfo.ValidatorSet[0].AccountAddress = "wrong address"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
+		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXMContractAddr {
+			if address.String() == common.AXCContractAddr {
 				return axmAccount
 			}
 			if address.String() == common.AXCContractAddr {
@@ -115,15 +107,11 @@ func TestContractInitGenesisData(t *testing.T) {
 
 		genesis := repo.DefaultGenesisConfig(false)
 		// set wrong balance for token manager
-		genesis.Accounts[0].Balance = "wrong balance"
+		genesis.Accounts[0].Balance = "-10"
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-		axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 		stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-			if address.String() == common.AXMContractAddr {
-				return axmAccount
-			}
 			if address.String() == common.AXCContractAddr {
 				return axcAccount
 			}
@@ -139,10 +127,9 @@ func TestContractInitGenesisData(t *testing.T) {
 
 		genesis = repo.DefaultGenesisConfig(false)
 		// decrease total supply
-		genesis.Axm.TotalSupply = "10"
+		genesis.Axc.TotalSupply = "-10"
 		err = InitGenesisData(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), axm.ErrTotalSupply.Error())
 	})
 }
 
@@ -159,14 +146,6 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	// WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
-	axmAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXMContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.AXMContractAddr {
-			return axmAccount
-		}
-		return account
-	}).AnyTimes()
-
 	axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
 		if address.String() == common.AXCContractAddr {
@@ -195,52 +174,6 @@ func TestContractRun(t *testing.T) {
 	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
 	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
 	getIDData := hexutil.Bytes(generateGetLatestProposalIDData(t))
-	getUserOpHash := hexutil.Bytes(generateGetUserOpHashData(t))
-	entrypointAddr := types.NewAddressByStr(common.EntryPointContractAddr).ETHAddress()
-
-	coinbase := "0xed17543171C1459714cdC6519b58fFcC29A3C3c9"
-	blkCtx := vm.BlockContext{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
-		GetHash:     nil,
-		Coinbase:    ethcommon.HexToAddress(coinbase),
-		BlockNumber: new(big.Int).SetUint64(1),
-		Time:        uint64(time.Now().Unix()),
-		Difficulty:  big.NewInt(0x2000),
-		BaseFee:     big.NewInt(0),
-		GasLimit:    0x2fefd8,
-		Random:      &ethcommon.Hash{},
-	}
-
-	shanghaiTime := uint64(0)
-	CancunTime := uint64(0)
-	PragueTime := uint64(0)
-
-	evm := vm.NewEVM(blkCtx, vm.TxContext{
-		Origin:   entrypointAddr,
-		GasPrice: big.NewInt(100000000000),
-	}, &ledger.EvmStateDBAdaptor{
-		StateLedger: stateLedger,
-	}, &params.ChainConfig{
-		ChainID:                 big.NewInt(1356),
-		HomesteadBlock:          big.NewInt(0),
-		EIP150Block:             big.NewInt(0),
-		EIP155Block:             big.NewInt(0),
-		EIP158Block:             big.NewInt(0),
-		ByzantiumBlock:          big.NewInt(0),
-		ConstantinopleBlock:     big.NewInt(0),
-		PetersburgBlock:         big.NewInt(0),
-		IstanbulBlock:           big.NewInt(0),
-		MuirGlacierBlock:        big.NewInt(0),
-		BerlinBlock:             big.NewInt(0),
-		LondonBlock:             big.NewInt(0),
-		ArrowGlacierBlock:       big.NewInt(0),
-		MergeNetsplitBlock:      big.NewInt(0),
-		TerminalTotalDifficulty: big.NewInt(0),
-		ShanghaiTime:            &shanghaiTime,
-		CancunTime:              &CancunTime,
-		PragueTime:              &PragueTime,
-	}, vm.Config{})
 
 	nvm := New()
 
@@ -296,14 +229,6 @@ func TestContractRun(t *testing.T) {
 			},
 			IsExpectedErr: true,
 		},
-		{
-			Message: &core.Message{
-				From: from,
-				To:   &entrypointAddr,
-				Data: getUserOpHash,
-			},
-			IsExpectedErr: false,
-		},
 	}
 	for _, testcase := range testcases {
 		args := &vm.StatefulArgs{
@@ -313,7 +238,6 @@ func TestContractRun(t *testing.T) {
 			Height: big.NewInt(2),
 			From:   testcase.Message.From,
 			To:     testcase.Message.To,
-			EVM:    evm,
 		}
 		_, err := nvm.Run(testcase.Message.Data, args)
 		if testcase.IsExpectedErr {
@@ -338,11 +262,11 @@ func TestNativeVM_GetContractInstance(t *testing.T) {
 		},
 		{
 			ContractAddr: types.NewAddressByStr(common.AXCContractAddr),
-			expectType:   axc.New(cfg),
+			expectType:   token.New(cfg),
 		},
 		{
-			ContractAddr: types.NewAddressByStr(common.AXMContractAddr),
-			expectType:   axm.New(cfg),
+			ContractAddr: types.NewAddressByStr(common.AXCContractAddr),
+			expectType:   token.New(cfg),
 		},
 		{
 			ContractAddr: types.NewAddressByStr(common.WhiteListContractAddr),
@@ -359,17 +283,6 @@ func TestNativeVM_GetContractInstance(t *testing.T) {
 		// 使用 assert.IsType 来判断类型是否一致
 		assert.IsType(t, testCase.expectType, contractInstance)
 	}
-}
-
-func TestNativeVM_PackOutputArgs(t *testing.T) {
-	nvm := New().(*NativeVM)
-
-	data := "0x8e604d15a98b7f944a25c1d8e463c1583fb7a24bf222ad76ac3aae3079b135b2"
-	hash := crypto.Keccak256Hash([]byte(data))
-
-	outputs, err := nvm.PackOutputArgs(common.EntryPointContractAddr, "getUserOpHash", hash)
-	assert.Nil(t, err)
-	assert.NotNil(t, outputs)
 }
 
 func generateVoteData(t *testing.T, proposalID uint64, voteResult governance.VoteResult) []byte {
@@ -392,28 +305,10 @@ func generateGetLatestProposalIDData(t *testing.T) []byte {
 	return data
 }
 
-func generateGetUserOpHashData(t *testing.T) []byte {
-	gabi, err := abi.JSON(strings.NewReader(entryPointABI))
-	assert.Nil(t, err)
-
-	data, err := gabi.Pack("getUserOpHash", interfaces.UserOperation{
-		Sender:               types.NewAddressByStr(admin1).ETHAddress(),
-		Nonce:                big.NewInt(0),
-		CallGasLimit:         big.NewInt(100000),
-		VerificationGasLimit: big.NewInt(10000),
-		PreVerificationGas:   big.NewInt(10000),
-		MaxFeePerGas:         big.NewInt(10000),
-		MaxPriorityFeePerGas: big.NewInt(10000),
-	})
-	assert.Nil(t, err)
-
-	return data
-}
-
 func TestNativeVM_RequiredGas(t *testing.T) {
 	nvm := New()
 	gas := nvm.RequiredGas([]byte{1})
-	assert.Equal(t, uint64(RunSystemContractGas), gas)
+	assert.Equal(t, uint64(21016), gas)
 }
 
 func Test_convertInputArgs(t *testing.T) {
