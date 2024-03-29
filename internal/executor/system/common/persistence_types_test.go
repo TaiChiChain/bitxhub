@@ -77,7 +77,7 @@ func TestVMSlotStruct(t *testing.T) {
 	}
 
 	account := ledger.NewMockAccount(1, types.NewAddressByStr(ZeroAddress))
-	vmMap := NewVMSlotp[Value](account, "test")
+	vmMap := NewVMSlot[Value](account, "test")
 
 	assert.False(t, vmMap.Has())
 	exist, v, err := vmMap.Get()
@@ -123,7 +123,7 @@ func TestVMSlotStruct(t *testing.T) {
 
 func TestVMSlotString(t *testing.T) {
 	account := ledger.NewMockAccount(1, types.NewAddressByStr(ZeroAddress))
-	vmMap := NewVMSlotp[string](account, "test")
+	vmMap := NewVMSlot[string](account, "test")
 
 	assert.False(t, vmMap.Has())
 	exist, v, err := vmMap.Get()

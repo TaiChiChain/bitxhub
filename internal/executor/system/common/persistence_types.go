@@ -61,7 +61,7 @@ type VMSlot[V any] struct {
 	slotName        string
 }
 
-func NewVMSlotp[V any](contractAccount ledger.IAccount, slotName string) *VMSlot[V] {
+func NewVMSlot[V any](contractAccount ledger.IAccount, slotName string) *VMSlot[V] {
 	return &VMSlot[V]{
 		contractAccount: contractAccount,
 		slotName:        slotName,
