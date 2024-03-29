@@ -61,6 +61,9 @@ var smartAccountFactoryABI string
 //go:embed sol/saccount/IPaymaster.abi
 var paymasterABI string
 
+//go:embed sol/StakeManager.abi
+var stakeManagerABI string
+
 var _ common.VirtualMachine = (*NativeVM)(nil)
 
 // NativeVM handle abi decoding for parameters and abi encoding for return data
@@ -146,6 +149,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if contractInstance == nil {
 		return nil, ErrNotExistSystemContract
 	}
+	contractAbi := nvm.contract2ABI[contractAddr]
 	currentLogs := make([]common.Log, 0)
 	vmContext := &common.VMContext{
 		// set context first
@@ -154,6 +158,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		CurrentLogs:   &currentLogs,
 		CurrentUser:   &statefulArgs.From,
 		CurrentEVM:    statefulArgs.EVM,
+		ABI:           &contractAbi,
 	}
 	contractInstance.SetContext(vmContext)
 
@@ -438,11 +443,11 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 		return err
 	}
 
-	axmConfig, err := token.GenerateConfig(genesis)
+	axcConfig, err := token.GenerateConfig(genesis)
 	if err != nil {
 		return err
 	}
-	if err = token.Init(lg, axmConfig); err != nil {
+	if err = token.Init(lg, axcConfig); err != nil {
 		return err
 	}
 
