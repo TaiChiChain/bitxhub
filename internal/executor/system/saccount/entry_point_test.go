@@ -10,17 +10,17 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/params"
-	"go.uber.org/mock/gomock"
 )
 
 const (
@@ -28,41 +28,81 @@ const (
 	accountBalance = 3000000000000000000
 )
 
+type AccountMap struct {
+	accountMap map[string]*ledger.SimpleAccount
+}
+
+func newAccountMap() *AccountMap {
+	return &AccountMap{
+		accountMap: make(map[string]*ledger.SimpleAccount),
+	}
+}
+
+func (am *AccountMap) getAccount(addr string) *ledger.SimpleAccount {
+	account, ok := am.accountMap[addr]
+	if !ok {
+		acc := ledger.NewMockAccount(2, types.NewAddressByStr(addr))
+		acc.SetBalance(big.NewInt(accountBalance))
+		am.accountMap[addr] = acc
+		return acc
+	}
+	return account
+}
+
 func initEntryPoint(t *testing.T) (*EntryPoint, *SmartAccountFactory) {
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	accountMap := make(map[string]*ledger.SimpleAccount)
+	accountMap := newAccountMap()
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		account, ok := accountMap[address.String()]
-		if !ok {
-			acc := ledger.NewMockAccount(2, address)
-			acc.SetBalance(big.NewInt(accountBalance))
-			accountMap[address.String()] = acc
-			return acc
-		}
-		return account
+		return accountMap.getAccount(address.String())
 	}).AnyTimes()
 	stateLedger.EXPECT().GetBalance(gomock.Any()).DoAndReturn(func(address *types.Address) *big.Int {
-		account := accountMap[address.String()]
+		account := accountMap.getAccount(address.String())
 		return account.GetBalance()
 	}).AnyTimes()
 	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).DoAndReturn(func(address *types.Address, value *big.Int) {
-		account := accountMap[address.String()]
+		account := accountMap.getAccount(address.String())
 		account.SubBalance(value)
 	}).AnyTimes()
 	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).DoAndReturn(func(address *types.Address, value *big.Int) {
-		account := accountMap[address.String()]
+		account := accountMap.getAccount(address.String())
 		account.AddBalance(value)
 	}).AnyTimes()
+	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).DoAndReturn(func(address *types.Address, value *big.Int) {
+		account := accountMap.getAccount(address.String())
+		account.SetBalance(value)
+	}).AnyTimes()
+	stateLedger.EXPECT().GetCodeHash(gomock.Any()).DoAndReturn(func(address *types.Address) *types.Hash {
+		account := accountMap.getAccount(address.String())
+		return types.NewHash(account.CodeHash())
+	}).AnyTimes()
+	stateLedger.EXPECT().GetCode(gomock.Any()).DoAndReturn(func(address *types.Address) []byte {
+		account := accountMap.getAccount(address.String())
+		return account.Code()
+	}).AnyTimes()
+	stateLedger.EXPECT().AddressInAccessList(gomock.Any()).Return(true).AnyTimes()
+	stateLedger.EXPECT().SlotInAccessList(gomock.Any(), gomock.Any()).Return(true, true).AnyTimes()
+	stateLedger.EXPECT().GetState(gomock.Any(), gomock.Any()).DoAndReturn(func(a *types.Address, key []byte) (bool, []byte) {
+		account := accountMap.getAccount(a.String())
+		return account.GetState(key)
+	}).AnyTimes()
+	stateLedger.EXPECT().SetState(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(a *types.Address, key, value []byte) {
+		account := accountMap.getAccount(a.String())
+		account.SetState(key, value)
+	}).AnyTimes()
+	stateLedger.EXPECT().GetCommittedState(gomock.Any(), gomock.Any()).DoAndReturn(func(a *types.Address, b []byte) []byte {
+		account := accountMap.getAccount(a.String())
+		return account.GetCommittedState(b)
+	}).AnyTimes()
+	stateLedger.EXPECT().Exist(gomock.Any()).Return(true).AnyTimes()
 
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(0).AnyTimes()
 	stateLedger.EXPECT().Snapshot().AnyTimes()
 	stateLedger.EXPECT().Commit().Return(types.NewHash([]byte("")), nil).AnyTimes()
 	stateLedger.EXPECT().Clear().AnyTimes()
-	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
 	stateLedger.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().Finalise().AnyTimes()
 	stateLedger.EXPECT().Snapshot().Return(0).AnyTimes()
@@ -70,12 +110,9 @@ func initEntryPoint(t *testing.T) (*EntryPoint, *SmartAccountFactory) {
 	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().GetRefund().AnyTimes()
-	stateLedger.EXPECT().GetCode(gomock.Any()).AnyTimes()
 
 	coinbase := "0xed17543171C1459714cdC6519b58fFcC29A3C3c9"
 	blkCtx := vm.BlockContext{
@@ -83,7 +120,7 @@ func initEntryPoint(t *testing.T) (*EntryPoint, *SmartAccountFactory) {
 		Transfer:    core.Transfer,
 		GetHash:     nil,
 		Coinbase:    ethcommon.HexToAddress(coinbase),
-		BlockNumber: new(big.Int).SetUint64(0),
+		BlockNumber: new(big.Int).SetUint64(1),
 		Time:        uint64(time.Now().Unix()),
 		Difficulty:  big.NewInt(0x2000),
 		BaseFee:     big.NewInt(0),
@@ -91,13 +128,38 @@ func initEntryPoint(t *testing.T) (*EntryPoint, *SmartAccountFactory) {
 		Random:      &ethcommon.Hash{},
 	}
 
-	evm := vm.NewEVM(blkCtx, vm.TxContext{}, &ledger.EvmStateDBAdaptor{
-		StateLedger: stateLedger,
-	}, &params.ChainConfig{
-		ChainID: big.NewInt(1356),
-	}, vm.Config{})
+	shanghaiTime := uint64(0)
+	CancunTime := uint64(0)
+	PragueTime := uint64(0)
 
 	entryPoint := NewEntryPoint(&common.SystemContractConfig{})
+
+	evm := vm.NewEVM(blkCtx, vm.TxContext{
+		Origin:   entryPoint.selfAddress().ETHAddress(),
+		GasPrice: big.NewInt(100000000000),
+	}, &ledger.EvmStateDBAdaptor{
+		StateLedger: stateLedger,
+	}, &params.ChainConfig{
+		ChainID:                 big.NewInt(1356),
+		HomesteadBlock:          big.NewInt(0),
+		EIP150Block:             big.NewInt(0),
+		EIP155Block:             big.NewInt(0),
+		EIP158Block:             big.NewInt(0),
+		ByzantiumBlock:          big.NewInt(0),
+		ConstantinopleBlock:     big.NewInt(0),
+		PetersburgBlock:         big.NewInt(0),
+		IstanbulBlock:           big.NewInt(0),
+		MuirGlacierBlock:        big.NewInt(0),
+		BerlinBlock:             big.NewInt(0),
+		LondonBlock:             big.NewInt(0),
+		ArrowGlacierBlock:       big.NewInt(0),
+		MergeNetsplitBlock:      big.NewInt(0),
+		TerminalTotalDifficulty: big.NewInt(0),
+		ShanghaiTime:            &shanghaiTime,
+		CancunTime:              &CancunTime,
+		PragueTime:              &PragueTime,
+	}, vm.Config{})
+
 	context := &common.VMContext{
 		CurrentEVM:    evm,
 		CurrentHeight: 1,
@@ -107,7 +169,7 @@ func initEntryPoint(t *testing.T) (*EntryPoint, *SmartAccountFactory) {
 	}
 	entryPoint.SetContext(context)
 
-	accountFactory := NewSmartAccountFactory(&common.SystemContractConfig{entryPoint.logger}, entryPoint)
+	accountFactory := NewSmartAccountFactory(&common.SystemContractConfig{Logger: entryPoint.logger}, entryPoint)
 	entryPointAddr := entryPoint.selfAddress().ETHAddress()
 	context.CurrentUser = &entryPointAddr
 	accountFactory.SetContext(context)
@@ -136,7 +198,7 @@ func buildUserOp(t *testing.T, entryPoint *EntryPoint, accountFactory *SmartAcco
 		PaymasterAndData:     nil,
 	}
 	userOpHash := entryPoint.GetUserOpHash(*userOp)
-	hash := accounts.TextHash(userOpHash)
+	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -156,7 +218,7 @@ func TestEntryPoint_SimulateHandleOp(t *testing.T) {
 	userOp.InitCode = nil
 	userOp.VerificationGasLimit = big.NewInt(90000)
 	userOpHash := entryPoint.GetUserOpHash(*userOp)
-	hash := accounts.TextHash(userOpHash)
+	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -264,6 +326,15 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 		{
 			// not enough token balance to pay gas
 			BeforeRun: func(userOp *interfaces.UserOperation) {
+				// deploy oracle
+				oracleContractAddr := ethcommon.HexToAddress("0x3EBD66861C1d8F298c20ED56506b063206103227")
+				contractAccount := entryPoint.stateLedger.GetOrCreateAccount(types.NewAddress(oracleContractAddr.Bytes()))
+				contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(oracleBytecode))
+				// deploy erc20
+				erc20ContractAddr := ethcommon.HexToAddress("0x82C6D3ed4cD33d8EC1E51d0B5Cc1d822Eaa0c3dC")
+				contractAccount = entryPoint.stateLedger.GetOrCreateAccount(types.NewAddress(erc20ContractAddr.Bytes()))
+				contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(erc20bytecode))
+
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.InitCode = nil
 				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
@@ -276,37 +347,22 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 				tokenPaymaster.SetContext(&common.VMContext{
 					CurrentEVM:  entryPoint.currentEVM,
 					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
+					CurrentUser: &owner,
 					CurrentLogs: entryPoint.currentLogs,
 				})
+				err := tokenPaymaster.AddToken(erc20ContractAddr, oracleContractAddr)
+				assert.Nil(t, err)
+
+				// reset caller
+				tokenPaymaster.currentUser = &entryPointAddr
 				paymasterAndData := ethcommon.HexToAddress(common.TokenPaymasterContractAddr).Bytes()
-				tokenAddr := ethcommon.HexToAddress(common.AXCContractAddr).Bytes()
+				tokenAddr := erc20ContractAddr.Bytes()
 				userOp.PaymasterAndData = append(paymasterAndData, tokenAddr...)
 			},
 			ErrMsg: "not enough token balance",
 		},
 		{
-			// use session key
-			// out of session key spending limit
-			BeforeRun: func(userOp *interfaces.UserOperation) {
-				userOp.VerificationGasLimit = big.NewInt(90000)
-				userOp.InitCode = nil
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
-				sessionPriv, _ := crypto.GenerateKey()
-				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
-				userOp.CallData = append([]byte{}, setSessionSig...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(owner.Bytes(), 32)...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
-				validUntil := big.NewInt(time.Now().Add(10 * time.Second).Unix())
-				validAfter := big.NewInt(time.Now().Add(-time.Second).Unix())
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validAfter.Bytes(), 32)...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validUntil.Bytes(), 32)...)
-			},
-			ErrMsg: "spent amount exceeds session spending limit",
-		},
-		{
-			// use session key
-			// out of date
+			// session key validAfter > validUntil
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.InitCode = nil
@@ -321,7 +377,7 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validAfter.Bytes(), 32)...)
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validUntil.Bytes(), 32)...)
 			},
-			ErrMsg: "session valid time is out of date",
+			ErrMsg: "session key validAfter must less than validUntil",
 		},
 		{
 			// execute batch error
@@ -347,7 +403,7 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 
 		if !testcase.IsSkipSign {
 			userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
-			hash := accounts.TextHash(userOpHash)
+			hash := accounts.TextHash(userOpHash.Bytes())
 			sig, err := crypto.Sign(hash, sk)
 			assert.Nil(t, err)
 			tmpUserOp.Signature = sig
@@ -475,11 +531,12 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 					CurrentUser: &entryPointAddr,
 					CurrentLogs: entryPoint.currentLogs,
 				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{})
+				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
 				session := sa.getSession()
 				t.Logf("after run, session: %v", session)
 				assert.NotNil(t, session)
-				assert.Greater(t, session.SpentAmount.Uint64(), uint64(0))
+				assert.Equal(t, session.SpentAmount.Uint64(), uint64(0))
+				assert.Equal(t, session.SpendingLimit.Uint64(), uint64(1000000000000000000))
 			},
 		},
 		{
@@ -508,7 +565,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 					CurrentUser: &entryPointAddr,
 					CurrentLogs: entryPoint.currentLogs,
 				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{})
+				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
 
 				g := sa.getGuardian()
 				assert.Equal(t, g, guardian)
@@ -541,7 +598,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 					CurrentUser: &entryPointAddr,
 					CurrentLogs: entryPoint.currentLogs,
 				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{})
+				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
 
 				g := sa.getGuardian()
 				assert.Equal(t, g, userOp.Sender)
@@ -574,7 +631,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 					CurrentUser: &entryPointAddr,
 					CurrentLogs: entryPoint.currentLogs,
 				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{})
+				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
 
 				owner := sa.getOwner()
 				assert.Equal(t, owner, newOwner)
@@ -595,8 +652,9 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
 
 				userOp.CallData = append([]byte{}, executeSig...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(entryPoint.selfAddr.Bytes(), 32)...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
+				data, err := executeMethod.Pack(entryPoint.selfAddress().ETHAddress(), big.NewInt(100000), []byte{})
+				assert.Nil(t, err)
+				userOp.CallData = append(userOp.CallData, data...)
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
@@ -624,8 +682,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.CallData = append(userOp.CallData, data...)
 				return sk
 			},
-			AfterRun: func(userOp *interfaces.UserOperation) {
-			},
+			AfterRun: func(userOp *interfaces.UserOperation) {},
 		},
 	}
 
@@ -641,7 +698,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 		}
 
 		userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
-		hash := accounts.TextHash(userOpHash)
+		hash := accounts.TextHash(userOpHash.Bytes())
 		sig, err := crypto.Sign(hash, priv)
 		assert.Nil(t, err)
 		tmpUserOp.Signature = sig
@@ -671,15 +728,16 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	sessionPriv, _ := crypto.GenerateKey()
 	sessionOwner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
 	userOp.CallData = append([]byte{}, setSessionSig...)
+	sessionKeyLimit := big.NewInt(1000000000000000000)
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(sessionOwner.Bytes(), 32)...)
-	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(1000000000000000000).Bytes(), 32)...)
+	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(sessionKeyLimit.Bytes(), 32)...)
 	validUntil := big.NewInt(time.Now().Add(10 * time.Second).Unix())
 	validAfter := big.NewInt(time.Now().Add(-time.Second).Unix())
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validAfter.Bytes(), 32)...)
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validUntil.Bytes(), 32)...)
 
 	userOpHash := entryPoint.GetUserOpHash(*userOp)
-	hash := accounts.TextHash(userOpHash)
+	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -690,10 +748,12 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	sessionUserOp.InitCode = nil
 	sessionUserOp.Nonce = new(big.Int).Add(userOp.Nonce, big.NewInt(1))
 	sessionUserOp.CallData = append([]byte{}, executeSig...)
-	sessionUserOp.CallData = append(sessionUserOp.CallData, ethcommon.LeftPadBytes(entryPoint.selfAddr.Bytes(), 32)...)
-	sessionUserOp.CallData = append(sessionUserOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
+	transferAmount := big.NewInt(100000)
+	data, err := executeMethod.Pack(entryPoint.selfAddress().ETHAddress(), transferAmount, []byte{})
+	assert.Nil(t, err)
+	sessionUserOp.CallData = append(sessionUserOp.CallData, data...)
 	userOpHash = entryPoint.GetUserOpHash(sessionUserOp)
-	hash = accounts.TextHash(userOpHash)
+	hash = accounts.TextHash(userOpHash.Bytes())
 	sessionKeySig, err := crypto.Sign(hash, sessionPriv)
 	assert.Nil(t, err)
 	sessionUserOp.Signature = sessionKeySig
@@ -704,6 +764,20 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	// after set session key effect, use session key to sign
 	err = entryPoint.HandleOps([]interfaces.UserOperation{sessionUserOp}, beneficiary)
 	assert.Nil(t, err)
+
+	// get session key spend limit
+	sa := NewSmartAccount(entryPoint.logger, entryPoint)
+	entryPointAddr := entryPoint.selfAddress().ETHAddress()
+	sa.SetContext(&common.VMContext{
+		CurrentEVM:  entryPoint.currentEVM,
+		StateLedger: entryPoint.stateLedger,
+		CurrentUser: &entryPointAddr,
+		CurrentLogs: entryPoint.currentLogs,
+	})
+	sa.InitializeOrLoad(sessionUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, big.NewInt(MaxCallGasLimit))
+	session := sa.getSession()
+	assert.Greater(t, session.SpentAmount.Uint64(), transferAmount.Uint64())
+	assert.EqualValues(t, sessionKeyLimit.Uint64(), session.SpendingLimit.Uint64())
 }
 
 func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
@@ -730,7 +804,7 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(guardianOwner.Bytes(), 32)...)
 
 	userOpHash := entryPoint.GetUserOpHash(*userOp)
-	hash := accounts.TextHash(userOpHash)
+	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -748,7 +822,7 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 
 	// guardian sign
 	userOpHash = entryPoint.GetUserOpHash(*userOp)
-	hash = accounts.TextHash(userOpHash)
+	hash = accounts.TextHash(userOpHash.Bytes())
 	sig, err = crypto.Sign(hash, guardianPriv)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -766,7 +840,7 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	userOp.CallData = append([]byte{}, setGuardianSig...)
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(guardianOwner.Bytes(), 32)...)
 	userOpHash = entryPoint.GetUserOpHash(*userOp)
-	hash = accounts.TextHash(userOpHash)
+	hash = accounts.TextHash(userOpHash.Bytes())
 	sig, err = crypto.Sign(hash, newOwnerPriv)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -779,7 +853,7 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	entryPoint.currentEVM.Context.Time = uint64(time.Now().Unix())
 	userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
 	userOpHash = entryPoint.GetUserOpHash(*userOp)
-	hash = accounts.TextHash(userOpHash)
+	hash = accounts.TextHash(userOpHash.Bytes())
 	sig, err = crypto.Sign(hash, newOwnerPriv)
 	assert.Nil(t, err)
 	userOp.Signature = sig
@@ -837,9 +911,9 @@ func TestEntryPoint_GetUserOpHash(t *testing.T) {
 	userOpHash := entryPoint.GetUserOpHash(*userOp)
 	t.Logf("op hash: %x", userOpHash)
 	t.Logf("chain id: %s", entryPoint.currentEVM.ChainConfig().ChainID.Text(10))
-	assert.Equal(t, ethcommon.Hex2Bytes(dstUserOpHash), userOpHash)
+	assert.Equal(t, ethcommon.Hex2Bytes(dstUserOpHash), userOpHash.Bytes())
 
-	hash := accounts.TextHash(userOpHash)
+	hash := accounts.TextHash(userOpHash.Bytes())
 	// 0xc911ab31b05daa531d9ef77fc2670e246a9489610e48e88d8296604c26dcd5c4
 	t.Logf("eth hash: %x", hash)
 	sig, err := crypto.Sign(hash, sk)

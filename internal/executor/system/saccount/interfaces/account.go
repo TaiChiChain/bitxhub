@@ -55,7 +55,7 @@ func ParseValidationData(validationData *big.Int) *Validation {
 
 	sigValidation := new(big.Int).And(validationData, MaxUint160)
 	validUntil := new(big.Int).And(new(big.Int).Rsh(validationData, 160), MaxUint48)
-	if validUntil.Cmp(big.NewInt(0)) == 0 {
+	if validUntil.Sign() == 0 {
 		validUntil = new(big.Int).SetBytes(MaxUint48.Bytes())
 	}
 

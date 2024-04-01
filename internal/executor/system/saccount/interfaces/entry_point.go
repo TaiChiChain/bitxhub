@@ -61,7 +61,7 @@ type IEntryPoint interface {
 
 	// GetUserOpHash generate a request Id - unique identifier for this request.
 	// the request ID is a hash over the content of the userOp (except the signature), the entrypoint and the chainid.
-	GetUserOpHash(userOp UserOperation) []byte
+	GetUserOpHash(userOp UserOperation) ethcommon.Hash
 
 	// SimulateValidation simulate a call to account.validateUserOp and paymaster.validatePaymasterUserOp.
 	// @dev this method always revert. Successful result is ValidationResult error. other errors are failures.

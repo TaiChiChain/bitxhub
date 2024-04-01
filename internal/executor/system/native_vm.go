@@ -37,6 +37,10 @@ var (
 	ErrInvalidStateDB                 = errors.New("invalid statedb")
 )
 
+const (
+	RunSystemContractGas = 50000
+)
+
 //go:embed sol/Governance.abi
 var governanceABI string
 
@@ -193,6 +197,12 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if err != nil {
 		return nil, err
 	}
+
+	// maybe transfer to system contract
+	if methodName == "" {
+		return nil, nil
+	}
+
 	// method name may be proposed, but we implement Propose
 	// capitalize the first letter of a function
 	funcName := methodName
@@ -222,7 +232,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	var returnErr error
 	for _, result := range results {
 		// basic type(such as bool, number, string, can't call isNil)
-		if result.CanInt() || result.CanFloat() || result.CanUint() || result.Kind() == reflect.Bool || result.Kind() == reflect.String {
+		if result.CanInt() || result.CanFloat() || result.CanUint() || result.Kind() == reflect.Bool || result.Kind() == reflect.String || result.Kind() == reflect.Array || result.CanComplex() {
 			returnRes = append(returnRes, result.Interface())
 			continue
 		}
@@ -255,7 +265,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 
 // RequiredGas used in Inter-contract calls for EVM
 func (nvm *NativeVM) RequiredGas(input []byte) uint64 {
-	return common.CalculateDynamicGas(input)
+	return RunSystemContractGas
 }
 
 // getMethodName quickly returns the name of a method of specified contract.
@@ -263,7 +273,13 @@ func (nvm *NativeVM) RequiredGas(input []byte) uint64 {
 // The method name is the first 4 bytes of the keccak256 hash of the method signature.
 // If the method name is not found, the empty string is returned.
 func (nvm *NativeVM) getMethodName(contractAddr string, data []byte) (string, error) {
+	// data is empty, maybe transfer to system contract
+	if len(data) == 0 {
+		return "", nil
+	}
+
 	if len(data) < 4 {
+		nvm.logger.Errorf("system contract abi: data length is less than 4, %x", data)
 		return "", ErrNotExistMethodName
 	}
 
@@ -279,6 +295,7 @@ func (nvm *NativeVM) getMethodName(contractAddr string, data []byte) (string, er
 		}
 	}
 
+	nvm.logger.Errorf("system contract abi: could not locate method name, %x", data)
 	return "", ErrNotExistMethodName
 }
 
@@ -468,7 +485,7 @@ func InitSystemContractCode(lg ledger.StateLedger) {
 	contractAddrBig := contractAddr.ETHAddress().Big()
 	endContractAddrBig := types.NewAddressByStr(common.SystemContractEndAddr).ETHAddress().Big()
 	for contractAddrBig.Cmp(endContractAddrBig) <= 0 {
-		lg.SetCode(contractAddr, contractAddr.Bytes())
+		lg.SetCode(contractAddr, ethcommon.Hex2Bytes(common.EmptyContractBinCode))
 
 		contractAddrBig.Add(contractAddrBig, big.NewInt(1))
 		contractAddr = types.NewAddress(contractAddrBig.Bytes())

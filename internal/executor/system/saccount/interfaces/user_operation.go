@@ -3,11 +3,11 @@ package interfaces
 import (
 	"math/big"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 )
 
 type UserOperation struct {
@@ -62,6 +62,9 @@ func GetUserOpHash(userOp *UserOperation, entryPoint ethcommon.Address, chainID 
 	)
 }
 
+// TODO: use evm gas price?
 func GetGasPrice(userOp *UserOperation) *big.Int {
-	return math.BigMin(userOp.MaxFeePerGas, userOp.MaxPriorityFeePerGas)
+	// no basefee, direct return MaxFeePerGas
+	// return math.BigMin(userOp.MaxFeePerGas, userOp.MaxPriorityFeePerGas)
+	return userOp.MaxFeePerGas
 }

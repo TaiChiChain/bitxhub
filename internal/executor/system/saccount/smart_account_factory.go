@@ -60,7 +60,7 @@ func (factory *SmartAccountFactory) CreateAccount(owner ethcommon.Address, salt 
 		CurrentEVM:  factory.currentEVM,
 	})
 	// initialize account or load account data
-	sa.InitializeOrLoad(addr, owner, guardian)
+	sa.InitializeOrLoad(addr, owner, guardian, nil)
 
 	return sa
 }

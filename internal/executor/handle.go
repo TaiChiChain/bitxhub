@@ -296,6 +296,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	gp := new(core.GasPool).AddGas(exec.gasLimit)
 	txContext := core.NewEVMTxContext(msg)
 	exec.evm.Reset(txContext, evmStateDB)
+	exec.logger.Infof("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
 
 	if err != nil {

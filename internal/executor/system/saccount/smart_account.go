@@ -41,6 +41,12 @@ var (
 
 	setSessionSig = crypto.Keccak256([]byte("setSession(address,uint256,uint64,uint64)"))[:4]
 
+	executeMethod = abi.Arguments{
+		{Name: "address", Type: common.AddressType},
+		{Name: "value", Type: common.BigIntType},
+		{Name: "callFunc", Type: common.BytesType},
+	}
+
 	executeBatchMethod = abi.Arguments{
 		{Name: "dest", Type: common.AddressSliceType},
 		{Name: "callFunc", Type: common.BytesSliceType},
@@ -85,6 +91,9 @@ type SmartAccount struct {
 	currentLogs *[]common.Log
 	stateLedger ledger.StateLedger
 	currentEVM  *vm.EVM
+
+	// remaining gas
+	remainingGas *big.Int
 }
 
 func NewSmartAccount(logger logrus.FieldLogger, entryPoint interfaces.IEntryPoint) *SmartAccount {
@@ -103,7 +112,7 @@ func (sa *SmartAccount) SetContext(context *common.VMContext) {
 
 // InitializeOrLoad must be called after SetContext
 // InitializeOrLoad can call anytimes, only initialize once
-func (sa *SmartAccount) InitializeOrLoad(selfAddr, owner, guardian ethcommon.Address) {
+func (sa *SmartAccount) InitializeOrLoad(selfAddr, owner, guardian ethcommon.Address, gas *big.Int) {
 	if sa.currentUser.Hex() != common.EntryPointContractAddr && sa.currentUser.Hex() != common.AccountFactoryContractAddr {
 		return
 	}
@@ -116,7 +125,7 @@ func (sa *SmartAccount) InitializeOrLoad(selfAddr, owner, guardian ethcommon.Add
 		sa.owner = ethcommon.BytesToAddress(ownerBytes)
 	} else if owner != (ethcommon.Address{}) {
 		sa.account.SetState([]byte(ownerKey), owner.Bytes())
-		sa.account.SetCodeAndHash(selfAddr.Bytes())
+		sa.account.SetCodeAndHash(ethcommon.Hex2Bytes(common.EmptyContractBinCode))
 		sa.owner = owner
 
 		entryPointAddr := types.NewAddressByStr(common.EntryPointContractAddr)
@@ -128,6 +137,17 @@ func (sa *SmartAccount) InitializeOrLoad(selfAddr, owner, guardian ethcommon.Add
 	if err := sa.SetGuardian(guardian); err != nil {
 		sa.logger.Warnf("initialize smart account failed: set guardian error: %v", err)
 	}
+
+	if gas == nil || gas.Sign() == 0 {
+		sa.remainingGas = big.NewInt(MaxCallGasLimit)
+	} else {
+		sa.remainingGas = gas
+	}
+}
+
+// nolint
+func (sa *SmartAccount) getRemainingGas() *big.Int {
+	return sa.remainingGas
 }
 
 func (sa *SmartAccount) selfAddress() *types.Address {
@@ -252,13 +272,17 @@ func (sa *SmartAccount) Execute(dest ethcommon.Address, value *big.Int, callFunc
 		return big.NewInt(0), common.NewRevertStringError("only entrypoint can call smart account execute")
 	}
 
-	gas := big.NewInt(MaxCallGasLimit)
-	_, gasLeft, err := callWithValue(sa.stateLedger, sa.currentEVM, gas, value, sa.selfAddress(), &dest, callFunc)
-	if err != nil {
-		return nil, common.NewRevertStringError(fmt.Sprintf("execute smart account callWithValue failed: %v", err))
-	}
+	sa.logger.Infof("execute smart account, dest %s, value: %s, callFunc: %x, remainingGas: %s", dest.Hex(), value.Text(10), callFunc, sa.remainingGas.Text(10))
 
-	return gas.Sub(gas, big.NewInt(int64(gasLeft))), nil
+	// use left gas to call
+	_, gasLeft, err := callWithValue(sa.stateLedger, sa.currentEVM, sa.remainingGas, value, sa.selfAddress(), &dest, callFunc)
+	if err != nil {
+		return big.NewInt(0), common.NewRevertStringError(fmt.Sprintf("execute smart account callWithValue failed: %v", err))
+	}
+	gasCost := new(big.Int).Sub(sa.remainingGas, big.NewInt(int64(gasLeft)))
+	sa.remainingGas = big.NewInt(int64(gasLeft))
+
+	return gasCost, nil
 }
 
 func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte) (*big.Int, error) {
@@ -362,9 +386,8 @@ func (sa *SmartAccount) SetSession(addr ethcommon.Address, spendingLimit *big.In
 	if sa.currentUser.Hex() != common.EntryPointContractAddr {
 		return common.NewRevertStringError("only entrypoint can call SetSession")
 	}
-	blockTime := sa.currentEVM.Context.Time
-	if blockTime < validAfter || blockTime > validUntil {
-		return common.NewRevertStringError("session valid time is out of date")
+	if validAfter >= validUntil {
+		return common.NewRevertStringError("session key validAfter must less than validUntil")
 	}
 
 	session := sa.getSession()
@@ -399,9 +422,14 @@ func (sa *SmartAccount) getSession() *Session {
 	return nil
 }
 
-func (sa *SmartAccount) postUserOp(actualGasCost *big.Int) error {
+func (sa *SmartAccount) postUserOp(UseSessionKey bool, actualGasCost *big.Int) error {
 	if sa.currentUser.Hex() != common.EntryPointContractAddr {
 		return common.NewRevertStringError("only entrypoint can call SetSession")
+	}
+
+	// is not use session key, no need to update spent amount
+	if !UseSessionKey {
+		return nil
 	}
 
 	session := sa.getSession()
@@ -427,7 +455,7 @@ func recoveryAddrFromSignature(hash, signature []byte) (ethcommon.Address, error
 	ethHash := accounts.TextHash(hash)
 	// ethers js return r|s|v, v only 1 byte
 	// golang return rid, v = rid +27
-	if signature[64] > 27 {
+	if signature[64] >= 27 {
 		signature[64] -= 27
 	}
 
@@ -453,12 +481,20 @@ func JudgeOrCallInnerMethod(callData []byte, sa *SmartAccount) (bool, uint64, er
 	methodSig := callData[:4]
 	switch string(methodSig) {
 	case string(executeSig):
-		if len(callData) < 68 {
+		if len(callData) < 36 {
 			return false, 0, common.NewRevertStringError("call smart account execute, callData length is too short")
 		}
-		dest := ethcommon.BytesToAddress(callData[4:36])
-		value := new(big.Int).SetBytes(callData[36:68])
-		callFunc := callData[68:]
+		var res []any
+		res, err = executeMethod.Unpack(callData[4:])
+		if err != nil {
+			return false, 0, common.NewRevertStringError(fmt.Sprintf("call smart account execute, unpack error: %v", err))
+		}
+		if len(res) != 3 {
+			return false, 0, common.NewRevertStringError("call smart account execute error, unpack result length is not 3")
+		}
+		dest := res[0].(ethcommon.Address)
+		value := res[1].(*big.Int)
+		callFunc := res[2].([]byte)
 		gas, err = sa.Execute(dest, value, callFunc)
 	case string(executeBatchSig):
 		var res []any
@@ -493,6 +529,10 @@ func JudgeOrCallInnerMethod(callData []byte, sa *SmartAccount) (bool, uint64, er
 		)
 	default:
 		return false, 0, nil
+	}
+
+	if gas == nil {
+		gas = big.NewInt(0)
 	}
 
 	usedGas.Add(usedGas, gas)

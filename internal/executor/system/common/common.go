@@ -44,15 +44,22 @@ const (
 	// Smart account contract
 	// EntryPointContractAddr is the address of entry point system contract
 	EntryPointContractAddr = "0x0000000000000000000000000000000000001008"
+
 	// AccountFactoryContractAddr is the address of account factory system contract
 	AccountFactoryContractAddr = "0x0000000000000000000000000000000000001009"
+
 	// VerifyingPaymasterContractAddr is the address of verifying paymaster system contract
 	VerifyingPaymasterContractAddr = "0x000000000000000000000000000000000000100a"
+
 	// TokenPaymasterContractAddr is the address of token paymaster system contract
 	TokenPaymasterContractAddr = "0x000000000000000000000000000000000000100b"
 
 	// SystemContractEndAddr is the end address of system contract
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
+
+	// empty contract bin code
+	// Attention: this is runtime bin code
+	EmptyContractBinCode = "608060405260043610601e575f3560e01c8063f2a75fe4146028575f80fd5b36602457005b5f80fd5b3480156032575f80fd5b00fea26469706673582212200b18a08a695e9b66c6e7f5c4186fd44f80415402a02823d06bc183192f130e1b64736f6c63430008180033"
 )
 
 var (
@@ -139,8 +146,10 @@ var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 
 type RevertError struct {
 	err error
+
 	// data is encoded reverted reason, or result
 	data []byte
+
 	// reverted result
 	str string
 }
