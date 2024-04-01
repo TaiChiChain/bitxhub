@@ -118,8 +118,12 @@ type NodeManager interface {
 	GetDataSyncerSet() (infos []NodeInfo, err error)
 	// GetCandidateSet returns all candidate
 	GetCandidateSet() (infos []NodeInfo, err error)
+	// GetPendingInactiveSet returns all pending inactive nodes
+	GetPendingInactiveSet() (infos []NodeInfo, err error)
 	// GetExitedSet returns all exited node
 	GetExitedSet() (infos []NodeInfo, err error)
+
+	SetContext(ctx *common.VMContext)
 }
 
 type nodeManager struct {
@@ -143,13 +147,14 @@ type nodeManager struct {
 	ActiveValidatorVotingPowers *common.VMSlot[[]ConsensusVotingPower]
 }
 
-func NewNodeManager(currentEpoch *rbft.EpochInfo) NodeManager {
-	return &nodeManager{
-		currentEpoch: currentEpoch,
-	}
+func NewNodeManager(cfg *common.SystemContractConfig) NodeManager {
+	return &nodeManager{}
 }
 
 func (n *nodeManager) InternalRegisterNode(info NodeInfo) (id uint64, err error) {
+	if n.msgSender.String() != common.EpochManagerContractAddr {
+		return 0, ErrPermissionDenied
+	}
 	isExist := n.NodeRegistry.Has(info.ID)
 	if isExist {
 		return 0, ErrRepeatOperation
@@ -241,6 +246,47 @@ func (n *nodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
 }
 
 func (n *nodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowers []ConsensusVotingPower) error {
+	if n.msgSender.String() != common.EpochManagerContractAddr {
+		return ErrPermissionDenied
+	}
+	allValidaNodes, err := n.InternalGetConsensusCandidateNodeIDs()
+	if err != nil {
+		return err
+	}
+	validatorMap := make(map[uint64]struct{}, len(ActiveValidatorVotingPowers))
+	validators := make([]uint64, 0, len(ActiveValidatorVotingPowers))
+	candidates := make([]uint64, 0, len(allValidaNodes)-len(ActiveValidatorVotingPowers))
+	for _, votingPower := range ActiveValidatorVotingPowers {
+		nodeId := votingPower.NodeID
+		isExist, nodeInfo, err := n.NodeRegistry.Get(nodeId)
+		if err != nil {
+			return err
+		}
+		if !isExist {
+			return ErrNodeNotFound
+		}
+		nodeInfo.Status = StatusActive
+		if err = n.NodeRegistry.Put(nodeId, nodeInfo); err != nil {
+			return err
+		}
+		if _, ok := validatorMap[nodeId]; ok {
+			return errors.New("duplicated node id")
+		}
+		validatorMap[nodeId] = struct{}{}
+		validators = append(validators, nodeId)
+	}
+	for _, nodeId := range allValidaNodes {
+		if _, ok := validatorMap[nodeId]; !ok {
+			candidates = append(candidates, nodeId)
+		}
+	}
+	if err = n.getStatusSet(StatusCandidate).Put(candidates); err != nil {
+		return err
+	}
+	if err = n.getStatusSet(StatusActive).Put(validators); err != nil {
+		return err
+	}
+
 	return n.ActiveValidatorVotingPowers.Put(ActiveValidatorVotingPowers)
 }
 
@@ -367,6 +413,17 @@ func (n *nodeManager) GetDataSyncerSet() (infos []NodeInfo, err error) {
 
 func (n *nodeManager) GetCandidateSet() (infos []NodeInfo, err error) {
 	isExists, nodes, err := n.StatusIDSet(StatusCandidate).Get()
+	if err != nil {
+		return nil, err
+	}
+	if !isExists {
+		return nil, nil
+	}
+	return n.GetNodeInfos(nodes)
+}
+
+func (n *nodeManager) GetPendingInactiveSet() (infos []NodeInfo, err error) {
+	isExists, nodes, err := n.StatusIDSet(StatusPendingInactive).Get()
 	if err != nil {
 		return nil, err
 	}
