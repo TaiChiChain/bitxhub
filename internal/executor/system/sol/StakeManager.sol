@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-interface IStake {
+interface IStakeManager {
     event Stake(uint64 indexed poolID, address indexed owner, uint256 amount);
 
     event Unlock(uint64 indexed poolID, address indexed owner, uint256 liquidStakingTokenID, uint256 amount);
