@@ -1,6 +1,10 @@
 package interfaces
 
-import "math/big"
+import (
+	"math/big"
+
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+)
 
 const (
 	SigValidationSucceeded = 0
@@ -27,6 +31,7 @@ type Validation struct {
 }
 
 type IAccount interface {
+	common.SystemContract
 	// validateUserOp validate user's signature and nonce
 	// the entryPoint will make the call to the recipient only if this validation call returns successfully.
 	// signature failure should be reported by returning SIG_VALIDATION_FAILED (1).

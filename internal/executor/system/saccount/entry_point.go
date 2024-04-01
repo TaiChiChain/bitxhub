@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/sirupsen/logrus"
 
@@ -22,7 +21,7 @@ import (
 const (
 	CreateAccountGas        = 10000
 	RecoveryAccountOwnerGas = 10000
-	MaxCallGasLimit         = 5000000000000000
+	MaxCallGasLimit         = 500000
 )
 
 type MemoryUserOp struct {
@@ -85,6 +84,7 @@ func (ep *EntryPoint) SetContext(context *common.VMContext) {
 	ep.account = ep.stateLedger.GetOrCreateAccount(addr)
 
 	ep.StakeManager.Init(ep.stateLedger)
+	ep.NonceManager.Init(ep.account)
 
 	ep.logger.Infof("EntryPoint SetContext")
 }
@@ -121,7 +121,9 @@ func (ep *EntryPoint) compensate(beneficiary ethcommon.Address, amount *big.Int)
 		return errors.New("AA90 invalid beneficiary")
 	}
 
-	ep.addBalance(beneficiary, amount)
+	// TODO: maybe no need to compensate?
+	// collected used gas is not equals to bundler used gas
+	// ep.addBalance(beneficiary, amount)
 	return nil
 }
 
@@ -138,12 +140,11 @@ func (ep *EntryPoint) HandleOps(ops []interfaces.UserOperation, beneficiary ethc
 
 	opInfos := make([]UserOpInfo, len(ops))
 	for i := 0; i < len(ops); i++ {
-		opInfo := opInfos[i]
-		validateData, paymasterValidationData, err := ep.validatePrepayment(big.NewInt(int64(i)), &ops[i], &opInfo)
+		validateData, paymasterValidationData, err := ep.validatePrepayment(big.NewInt(int64(i)), &ops[i], &opInfos[i])
 		if err != nil {
 			return err
 		}
-		err = ep.validateAccountAndPaymasterValidationData(big.NewInt(int64(i)), validateData, paymasterValidationData, &opInfo)
+		err = ep.validateAccountAndPaymasterValidationData(big.NewInt(int64(i)), validateData, paymasterValidationData, &opInfos[i])
 		if err != nil {
 			return err
 		}
@@ -184,12 +185,12 @@ func (ep *EntryPoint) SimulateHandleOp(op interfaces.UserOperation, target ethco
 	}
 
 	if target != (ethcommon.Address{}) {
-		result, err := call(ep.stateLedger, ep.currentEVM, op.CallGasLimit, ep.selfAddress(), &target, targetCallData)
-		if err != nil || result.Err != nil {
+		result, _, err := call(ep.stateLedger, ep.currentEVM, op.CallGasLimit, ep.selfAddress(), &target, targetCallData)
+		if err != nil {
 			targetSuccess = false
 		}
 
-		targetResult = result.ReturnData
+		targetResult = result
 	}
 
 	return interfaces.ExecutionResult(opInfo.PreOpGas, paid, big.NewInt(int64(data.ValidAfter)), big.NewInt(int64(data.ValidUntil)), targetSuccess, targetResult)
@@ -334,10 +335,11 @@ func (ep *EntryPoint) validateAccountPrepayment(opIndex *big.Int, op *interfaces
 		if depositInfo.Deposit.Cmp(requiredPrefund) == -1 {
 			return big.NewInt(int64(usedGas)), nil, interfaces.FailedOp(opIndex, "AA21 didn't pay prefund")
 		}
-	}
 
-	// first, sub gas, after execute userOp, compensate left to sender
-	ep.subBalance(sender, requiredPrefund)
+		// if no paymaster set, just use sender balance
+		// first, sub gas, after execute userOp, compensate left to sender
+		ep.subBalance(sender, requiredPrefund)
+	}
 
 	// validate user operation
 	entryPointAddr := ep.selfAddress().ETHAddress()
@@ -377,6 +379,15 @@ func (ep *EntryPoint) validatePaymasterPrepayment(opIndex *big.Int, op *interfac
 	// first, sub gas, after execute userOp, compensate left to paymaster
 	ep.subBalance(paymasterAddr, requiredPrefund)
 
+	// set paymaster context
+	entrypointAddr := ep.selfAddress().ETHAddress()
+	paymaster.SetContext(&common.VMContext{
+		StateLedger: ep.stateLedger,
+		CurrentLogs: ep.currentLogs,
+		CurrentEVM:  ep.currentEVM,
+		CurrentUser: &entrypointAddr,
+	})
+
 	context, validationData, err = paymaster.ValidatePaymasterUserOp(*op, opInfo.UserOpHash, requiredPrefund)
 	if err != nil {
 		return nil, nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA33 reverted: %s", err.Error()))
@@ -411,19 +422,39 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 	mode := interfaces.OpSucceeded
 	usedGas := big.NewInt(0)
 	if len(callData) > 0 {
-		result, _ := call(ep.stateLedger, ep.currentEVM, mUserOp.CallGasLimit, ep.selfAddress(), &mUserOp.Sender, callData)
-		if result != nil && result.Failed() {
-			if len(result.Revert()) > 0 {
-				ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, result.Revert())
-			}
-			mode = interfaces.OpReverted
+		// check if call smart account method, directly call. otherwise, call evm
+		if len(callData) < 4 {
+			return nil, interfaces.FailedOp(opIndex, "callData length not enough")
+		}
+		sa := NewSmartAccount(ep.logger, ep)
+		entryPointAddr := ep.selfAddress().ETHAddress()
+		sa.SetContext(&common.VMContext{
+			CurrentUser: &entryPointAddr,
+			StateLedger: ep.stateLedger,
+			CurrentLogs: ep.currentLogs,
+			CurrentEVM:  ep.currentEVM,
+		})
+		sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{})
+
+		isInnerMethod, callGas, err := JudgeOrCallInnerMethod(callData, sa)
+		if err != nil {
+			return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA42 reverted: %s", err.Error()))
 		}
 
-		if result != nil {
-			usedGas = big.NewInt(int64(result.UsedGas))
+		usedGas.Add(usedGas, big.NewInt(int64(callGas)))
+		if !isInnerMethod {
+			// call evm if not inner method
+			_, callGas, err := call(ep.stateLedger, ep.currentEVM, mUserOp.CallGasLimit, ep.selfAddress(), &mUserOp.Sender, callData)
+			if err != nil {
+				ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
+				mode = interfaces.OpReverted
+			}
+
+			usedGas.Add(usedGas, big.NewInt(int64(callGas)))
 		}
 	}
 
+	ep.logger.Infof("handle op, opIndex: %s, mode: %s, usedGas: %s, preOpGas: %s", opIndex.Text(10), mode, usedGas.Text(10), opInfo.PreOpGas.Text(10))
 	actualGas := new(big.Int).Add(usedGas, opInfo.PreOpGas)
 	return ep.handlePostOp(opIndex, mode, opInfo, context, actualGas)
 }
@@ -443,9 +474,21 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 	gasPrice := getUserOpGasPrice(&mUserOp)
 
 	paymaster := mUserOp.Paymaster
+	entrypointAddr := ep.selfAddress().ETHAddress()
 	actualGasCost := new(big.Int).Mul(actualGas, gasPrice)
 	if paymaster == (ethcommon.Address{}) {
 		refundAddress = mUserOp.Sender
+		sa := NewSmartAccount(ep.logger, ep)
+		sa.SetContext(&common.VMContext{
+			StateLedger: ep.stateLedger,
+			CurrentLogs: ep.currentLogs,
+			CurrentEVM:  ep.currentEVM,
+			CurrentUser: &entrypointAddr,
+		})
+		sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{})
+		if err := sa.postUserOp(actualGasCost); err != nil {
+			return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("post user op reverted: %s", err.Error()))
+		}
 	} else {
 		refundAddress = paymaster
 		if len(context) > 0 {
@@ -453,6 +496,13 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 			if err != nil {
 				return nil, interfaces.FailedOp(opIndex, err.Error())
 			}
+			// set paymaster context
+			paymaster.SetContext(&common.VMContext{
+				StateLedger: ep.stateLedger,
+				CurrentLogs: ep.currentLogs,
+				CurrentEVM:  ep.currentEVM,
+				CurrentUser: &entrypointAddr,
+			})
 			if err := paymaster.PostOp(mode, context, actualGasCost); err != nil {
 				return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA50 postOp reverted: %s", err.Error()))
 			}
@@ -474,6 +524,7 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 func (ep *EntryPoint) GetUserOpHash(userOp interfaces.UserOperation) []byte {
 	return ep.getUserOpHash(&userOp)
 }
+
 func (ep *EntryPoint) getUserOpHash(userOp *interfaces.UserOperation) []byte {
 	return interfaces.GetUserOpHash(userOp, ep.selfAddr.ETHAddress(), ep.currentEVM.ChainConfig().ChainID).Bytes()
 }
@@ -569,7 +620,8 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 	for i := 0; i < len(ops); i++ {
 		// judge if account exist
 		sender := types.NewAddress(ops[i].Sender.Bytes())
-		if code := ep.stateLedger.GetCode(sender); len(code) == 0 {
+		account := ep.stateLedger.GetOrCreateAccount(sender)
+		if code := account.Code(); len(code) == 0 {
 			return common.NewRevertStringError("smart account is not initialized")
 		}
 
@@ -588,12 +640,7 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 			return interfaces.FailedOp(big.NewInt(int64(i)), fmt.Sprintf("validate guardian signature reverted: %s", err.Error()))
 		}
 
-		opInfo := opInfos[i]
-		validateData, paymasterValidationData, err := ep.validatePrepayment(big.NewInt(int64(i)), &ops[i], &opInfo)
-		if err != nil {
-			return err
-		}
-		err = ep.validateAccountAndPaymasterValidationData(big.NewInt(int64(i)), validateData, paymasterValidationData, &opInfo)
+		_, _, err = ep.validatePrepayment(big.NewInt(int64(i)), &ops[i], &opInfos[i])
 		if err != nil {
 			return err
 		}
@@ -615,18 +662,18 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 		})
 		sa.InitializeOrLoad(sender.ETHAddress(), ethcommon.Address{}, ethcommon.Address{})
 
-		opInfo := opInfos[i]
 		if len(op.CallData) < 20 {
-			ep.emitUserOperationRevertReason(opInfo.UserOpHash, op.Sender, op.Nonce, []byte("callData is less than 20 bytes, should be contain address"))
+			ep.emitUserOperationRevertReason(opInfos[i].UserOpHash, op.Sender, op.Nonce, []byte("callData is less than 20 bytes, should be contain address"))
 		}
 
+		// 20 bytes for owner address
 		owner := ethcommon.BytesToAddress(op.CallData[:20])
-		if err := sa.ResetOwner(owner); err != nil {
+		if err := sa.ResetAndLockOwner(owner); err != nil {
 			return interfaces.FailedOp(big.NewInt(int64(i)), fmt.Sprintf("reset owner reverted: %s", err.Error()))
 		}
 
 		actualGas := big.NewInt(int64(RecoveryAccountOwnerGas))
-		actualGasCost, err := ep.handlePostOp(big.NewInt(int64(i)), interfaces.OpSucceeded, &opInfo, []byte(""), actualGas)
+		actualGasCost, err := ep.handlePostOp(big.NewInt(int64(i)), interfaces.OpSucceeded, &opInfos[i], []byte(""), actualGas)
 		if err != nil {
 			return err
 		}
@@ -774,6 +821,7 @@ func (ep *EntryPoint) emitBeforeExecution() {
 	*ep.currentLogs = append(*ep.currentLogs, currentLog)
 }
 
+// TODO: use evm context gas price?
 func getUserOpGasPrice(mUserOp *MemoryUserOp) *big.Int {
 	return math.BigMin(mUserOp.MaxFeePerGas, mUserOp.MaxPriorityFeePerGas)
 }
@@ -828,39 +876,21 @@ func getRequiredPrefund(mUserOp *MemoryUserOp) *big.Int {
 	return requiredPrefund
 }
 
-func call(stateLedger ledger.StateLedger, evm *vm.EVM, callGasLimit *big.Int, from *types.Address, to *ethcommon.Address, callData []byte) (*core.ExecutionResult, error) {
-	return callWithValue(stateLedger, evm, callGasLimit, big.NewInt(0), from, to, callData)
+// call return call result, left over gas and error
+func call(stateLedger ledger.StateLedger, evm *vm.EVM, gas *big.Int, from *types.Address, to *ethcommon.Address, callData []byte) (returnData []byte, gasLeft uint64, err error) {
+	return callWithValue(stateLedger, evm, gas, big.NewInt(0), from, to, callData)
 }
 
-func callWithValue(stateLedger ledger.StateLedger, evm *vm.EVM, callGasLimit, value *big.Int, from *types.Address, to *ethcommon.Address, callData []byte) (*core.ExecutionResult, error) {
-	// new evm and call
-	gasLimit := callGasLimit
-	if callGasLimit == nil || callGasLimit.Cmp(big.NewInt(0)) <= 0 {
+// callWithValue return call result, left over gas and error
+// nolint
+func callWithValue(stateLedger ledger.StateLedger, evm *vm.EVM, gas, value *big.Int, from *types.Address, to *ethcommon.Address, callData []byte) (returnData []byte, gasLeft uint64, err error) {
+	gasLimit := gas
+	if gasLimit == nil || gasLimit.Cmp(big.NewInt(0)) <= 0 {
 		gasLimit = big.NewInt(MaxCallGasLimit)
 	}
-	gp := new(core.GasPool).AddGas(gasLimit.Uint64())
-	msg := &core.Message{
-		From:      from.ETHAddress(),
-		To:        to,
-		Nonce:     stateLedger.GetNonce(from),
-		Value:     value,
-		Data:      callData,
-		GasLimit:  gasLimit.Uint64(),
-		GasPrice:  big.NewInt(0),
-		GasFeeCap: big.NewInt(0),
-		GasTipCap: big.NewInt(0),
-	}
-	txContext := core.NewEVMTxContext(msg)
-	evmStateDB := &ledger.EvmStateDBAdaptor{StateLedger: stateLedger}
-	snapshot := stateLedger.Snapshot()
-	evm.Reset(txContext, evmStateDB)
 
-	result, err := core.ApplyMessage(evm, msg, gp)
-	if err != nil {
-		stateLedger.RevertToSnapshot(snapshot)
-	}
-
-	return result, err
+	result, gasLeft, err := evm.Call(vm.AccountRef(from.ETHAddress()), *to, callData, gasLimit.Uint64(), value)
+	return result, gasLeft, err
 }
 
 // Initialize in genesis

@@ -47,6 +47,7 @@ type ReturnInfo struct {
 }
 
 type IEntryPoint interface {
+	common.SystemContract
 	IStakeManager
 	INonceManager
 

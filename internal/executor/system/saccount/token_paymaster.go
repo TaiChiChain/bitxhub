@@ -53,14 +53,9 @@ func NewTokenPaymaster(entryPoint interfaces.IEntryPoint) *TokenPaymaster {
 	}
 }
 
-// TODO add paymaster abi
 func InitializeTokenPaymaster(stateLedger ledger.StateLedger, owner ethcommon.Address) {
 	account := stateLedger.GetOrCreateAccount(types.NewAddressByStr(common.TokenPaymasterContractAddr))
 	account.SetState([]byte(tokenOwnerKey), owner.Bytes())
-}
-
-func (tp *TokenPaymaster) SetOwner(owner ethcommon.Address) {
-	tp.account.SetState([]byte(tokenOwnerKey), owner.Bytes())
 }
 
 func (tp *TokenPaymaster) GetOwner() ethcommon.Address {
@@ -136,26 +131,30 @@ func (tp *TokenPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperatio
 
 // nolint
 func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validation *interfaces.Validation, err error) {
+	validation = &interfaces.Validation{SigValidation: interfaces.SigValidationFailed}
 	paymasterAndData := userOp.PaymasterAndData
 	if len(paymasterAndData) < 20+20 {
-		return nil, nil, common.NewRevertStringError("token paymaster: paymasterAndData must specify token")
+		return nil, validation, common.NewRevertStringError("token paymaster: paymasterAndData must specify token")
 	}
 
 	tokenAddr := ethcommon.BytesToAddress(paymasterAndData[20:40])
 	maxTokenCost, err := tp.getTokenValueOfAxc(tokenAddr, maxCost)
 	if err != nil {
-		return nil, nil, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token value failed: %s", err.Error()))
+		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token value failed: %s", err.Error()))
 	}
 	balance, err := tp.getTokenBalance(userOp.Sender, tokenAddr)
 	if err != nil {
-		return nil, nil, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token balance failed: %s", err.Error()))
+		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token balance failed: %s", err.Error()))
 	}
-
 	if balance.Cmp(maxTokenCost) < 0 {
-		return nil, nil, common.NewRevertStringError("token paymaster: not enough token balance")
+		return nil, validation, common.NewRevertStringError("token paymaster: not enough token balance")
 	}
 	context, err = encodeContext(userOp.Sender, tokenAddr, interfaces.GetGasPrice(&userOp), maxTokenCost, maxCost)
-	return context, &interfaces.Validation{SigValidation: interfaces.SigValidationSucceeded}, err
+	if err != nil {
+		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: encode context failed: %s", err.Error()))
+	}
+	validation.SigValidation = interfaces.SigValidationSucceeded
+	return context, validation, err
 }
 
 // nolint
@@ -167,29 +166,21 @@ func (tp *TokenPaymaster) getTokenValueOfAxc(token ethcommon.Address, value *big
 
 func (tp *TokenPaymaster) getTokenBalance(account, token ethcommon.Address) (*big.Int, error) {
 	callData := append(balanceOfSig, ethcommon.LeftPadBytes(account.Bytes(), 32)...)
-	result, err := call(tp.stateLedger, tp.currentEVM, nil, tp.selfAddress(), &token, callData)
+	result, _, err := call(tp.stateLedger, tp.currentEVM, nil, tp.selfAddress(), &token, callData)
 	if err != nil {
 		return nil, err
 	}
 
-	if result.Err != nil {
-		return nil, result.Err
-	}
-
-	return new(big.Int).SetBytes(result.ReturnData), nil
+	return new(big.Int).SetBytes(result), nil
 }
 
 func (tp *TokenPaymaster) transferFrom(account, token ethcommon.Address, tokenValue *big.Int) error {
 	callData := append(transferFromSig, ethcommon.LeftPadBytes(account.Bytes(), 32)...)
 	callData = append(callData, ethcommon.LeftPadBytes(tp.selfAddress().Bytes(), 32)...)
 	callData = append(callData, ethcommon.LeftPadBytes(tokenValue.Bytes(), 32)...)
-	result, err := call(tp.stateLedger, tp.currentEVM, nil, tp.selfAddress(), &token, callData)
+	_, _, err := call(tp.stateLedger, tp.currentEVM, nil, tp.selfAddress(), &token, callData)
 	if err != nil {
 		return common.NewRevertStringError(fmt.Sprintf("token paymaster: call transferFrom failed: %s", err.Error()))
-	}
-
-	if result.Err != nil {
-		return common.NewRevertStringError(fmt.Sprintf("token paymaster: transferFrom failed: %s", result.Err.Error()))
 	}
 
 	return nil
