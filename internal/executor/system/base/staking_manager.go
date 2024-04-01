@@ -42,9 +42,8 @@ type stakingManager struct {
 	RewardPerBlock        *common.VMSlot[*big.Int]
 }
 
-func NewStakingManager(currentEpoch *rbft.EpochInfo) StakingManager {
+func NewStakingManager(cfg *common.SystemContractConfig) StakingManager {
 	return &stakingManager{
-		currentEpoch: currentEpoch,
 		config: &config{
 			CommissionRate: 5000,
 		},
@@ -315,4 +314,6 @@ type StakingManager interface {
 	// GetPoolCumulativeReward returns cumulative reward for staking pool
 	// call StakingPool.GetCumulativeReward
 	GetPoolCumulativeReward(poolID uint64) *big.Int
+
+	SetContext(ctx *common.VMContext)
 }
