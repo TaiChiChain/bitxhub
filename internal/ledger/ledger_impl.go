@@ -87,7 +87,7 @@ func (l *Ledger) PersistBlockData(blockData *BlockData) {
 	if err := l.ChainLedger.PersistExecutionResult(block, receipts); err != nil {
 		panic(err)
 	}
-
+	getTransactionCounter.Set(0)
 	persistBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 	blockHeightMetric.Set(float64(block.Header.Number))
 }
@@ -127,9 +127,15 @@ func (l *Ledger) NewView() *Ledger {
 		snapBlockHeader := snap.(SnapInfo).SnapBlockHeader
 		var sm atomic.Value
 		sm.Store(snap)
+
+		sl, err := l.StateLedger.NewView(snapBlockHeader, false)
+		if err != nil {
+			panic(err)
+		}
+
 		return &Ledger{
 			ChainLedger: l.ChainLedger,
-			StateLedger: l.StateLedger.NewView(snapBlockHeader, false),
+			StateLedger: sl,
 			SnapMeta:    sm,
 		}
 	}
@@ -139,20 +145,30 @@ func (l *Ledger) NewView() *Ledger {
 	if err != nil {
 		panic(err)
 	}
+	sl, err := l.StateLedger.NewView(block, true)
+	if err != nil {
+		panic(err)
+	}
 	return &Ledger{
 		ChainLedger: l.ChainLedger,
-		StateLedger: l.StateLedger.NewView(block, true),
+		StateLedger: sl,
 	}
 }
 
+// NewViewWithoutCache loads the latest state ledger and chain ledger by default
 func (l *Ledger) NewViewWithoutCache() *Ledger {
 	meta := l.ChainLedger.GetChainMeta()
 	blockHeader, err := l.ChainLedger.GetBlockHeader(meta.Height)
 	if err != nil {
 		panic(err)
 	}
+
+	sl, err := l.StateLedger.NewViewWithoutCache(blockHeader, true)
+	if err != nil {
+		panic(err)
+	}
 	return &Ledger{
 		ChainLedger: l.ChainLedger,
-		StateLedger: l.StateLedger.NewViewWithoutCache(blockHeader, true),
+		StateLedger: sl,
 	}
 }

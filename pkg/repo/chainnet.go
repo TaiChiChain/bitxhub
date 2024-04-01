@@ -101,9 +101,9 @@ func AriesConfig() *Config {
 			KvType: KVStorageTypeLeveldb,
 		},
 		Ledger: Ledger{
-			ChainLedgerCacheSize:           100,
-			StateLedgerCacheMegabytesLimit: 128,
-			StateLedgerAccountCacheSize:    1024,
+			ChainLedgerCacheSize: 100,
+			//StateLedgerCacheMegabytesLimit: 128,
+			StateLedgerAccountCacheSize: 1024,
 		},
 		Executor: Executor{
 			Type:            ExecTypeNative,
@@ -383,9 +383,9 @@ func TaurusConfig() *Config {
 			Sync:        true,
 		},
 		Ledger: Ledger{
-			ChainLedgerCacheSize:           100,
-			StateLedgerCacheMegabytesLimit: 128,
-			StateLedgerAccountCacheSize:    1024,
+			ChainLedgerCacheSize: 100,
+			//StateLedgerCacheMegabytesLimit: 128,
+			StateLedgerAccountCacheSize: 1024,
 		},
 		Executor: Executor{
 			Type:            ExecTypeNative,

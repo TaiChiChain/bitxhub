@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 
@@ -57,6 +58,9 @@ func start(ctx *cli.Context) error {
 	r.PrintNodeInfo(func(c string) {
 		log.Info(c)
 	})
+
+	runtime.SetMutexProfileFraction(1)
+	runtime.SetBlockProfileRate(1)
 
 	var wg sync.WaitGroup
 	err = func() error {

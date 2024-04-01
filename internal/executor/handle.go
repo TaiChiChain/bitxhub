@@ -55,7 +55,7 @@ func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
 	// query last checked block for generating right parent blockHash
 	lastCheckedBlockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(newBlock.Height() - 1)
 	if err != nil {
-		return errors.Wrapf(err, "get last checked block from ledger error, height: %d", lastCheckedBlockHeader.Number)
+		return errors.Wrapf(err, "get last checked block from ledger error at height: %d", newBlock.Height()-1)
 	}
 	// rollback currentHeight and currentBlockHash
 	exec.currentHeight = newBlock.Height() - 1
@@ -120,7 +120,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.logger.WithFields(logrus.Fields{
 		"time":  time.Since(current),
 		"count": len(block.Transactions),
-	}).Debug("Apply transactions elapsed")
+	}).Info("[Execute-Block] Apply transactions elapsed")
 
 	calcMerkleStart := time.Now()
 	txRoot, err := exec.buildTxMerkleTree(block.Transactions)
@@ -180,7 +180,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"tx_root":          block.Header.TxRoot.String(),
 		"receipt_root":     block.Header.ReceiptRoot.String(),
 		"state_root":       block.Header.StateRoot.String(),
-	}).Info("Block meta")
+	}).Info("[Execute-Block] Block meta")
 
 	calcBlockSize.Observe(float64(block.Size()))
 	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
@@ -198,7 +198,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"height": commitEvent.Block.Header.Number,
 		"count":  len(commitEvent.Block.Transactions),
 		"elapse": time.Since(current),
-	}).Info("Executed block")
+	}).Info("[Execute-Block] Executed block")
 
 	now := time.Now()
 	exec.ledger.PersistBlockData(data)
@@ -215,7 +215,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"hash":     data.Block.Hash().String(),
 		"count":    len(data.Block.Transactions),
 		"elapse":   time.Since(now),
-	}).Info("Persisted block")
+	}).Info("[Execute-Block] Persisted block")
 
 	exec.currentHeight = block.Header.Number
 	exec.currentBlockHash = block.Hash()

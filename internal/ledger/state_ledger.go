@@ -15,6 +15,7 @@ import (
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -37,10 +38,15 @@ type revision struct {
 }
 
 type StateLedgerImpl struct {
-	logger        logrus.FieldLogger
-	cachedDB      storage.Storage
-	accountCache  *AccountCache
-	accountTrie   *jmt.JMT // keep track of the latest world state (dirty or committed)
+	logger       logrus.FieldLogger
+	accountCache *AccountCache // todo remove this
+	accountTrie  *jmt.JMT      // keep track of the latest world state (dirty or committed)
+
+	pruneCache       *prune.PruneCache
+	backend          storage.Storage
+	accountTrieCache *storagemgr.CacheWrapper
+	storageTrieCache *storagemgr.CacheWrapper
+
 	triePreloader *triePreloader
 	accounts      map[string]IAccount
 	repo          *repo.Repo
@@ -75,13 +81,22 @@ type SnapshotMeta struct {
 }
 
 // NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
-func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger {
+func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error) {
 	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
-	// TODO(zqr): multi snapshot layers can also support view ledger
+	if l.repo.Config.Ledger.EnablePrune {
+		min, max := l.GetHistoryRange()
+		if blockHeader.Number < min || blockHeader.Number > max {
+			return nil, fmt.Errorf("history at target block %v is invalid, the valid range is from %v to %v", blockHeader.Number, min, max)
+		}
+	}
+
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
 		logger:                l.logger,
-		cachedDB:              l.cachedDB,
+		backend:               l.backend,
+		pruneCache:            l.pruneCache,
+		accountTrieCache:      l.accountTrieCache,
+		storageTrieCache:      l.storageTrieCache,
 		accountCache:          l.accountCache,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -94,18 +109,27 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 		lg.snapshot = l.snapshot
 	}
 	lg.refreshAccountTrie(blockHeader.StateRoot)
-	return lg
+	return lg, nil
 }
 
 // NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
-func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) StateLedger {
+func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error) {
 	l.logger.Debugf("[NewViewWithoutCache] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
+	if l.repo.Config.Ledger.EnablePrune {
+		min, max := l.GetHistoryRange()
+		if blockHeader.Number < min || blockHeader.Number > max {
+			return nil, fmt.Errorf("history at target block %v is invalid, the valid range is from %v to %v", blockHeader.Number, min, max)
+		}
+	}
+
 	ac, _ := NewAccountCache(0, true)
-	// TODO(zqr): multi snapshot layers can also support historical view ledger
 	lg := &StateLedgerImpl{
 		repo:                  l.repo,
 		logger:                l.logger,
-		cachedDB:              l.cachedDB,
+		backend:               l.backend,
+		pruneCache:            l.pruneCache,
+		accountTrieCache:      l.accountTrieCache,
+		storageTrieCache:      l.storageTrieCache,
 		accountCache:          ac,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -118,7 +142,24 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 		lg.snapshot = l.snapshot
 	}
 	lg.refreshAccountTrie(blockHeader.StateRoot)
-	return lg
+	return lg, nil
+}
+
+func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
+	minHeight := uint64(0)
+	maxHeight := uint64(0)
+
+	data := l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr))
+	if data != nil {
+		minHeight = utils.UnmarshalHeight(data)
+	}
+
+	data = l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr))
+	if data != nil {
+		maxHeight = utils.UnmarshalHeight(data)
+	}
+
+	return minHeight, maxHeight
 }
 
 func (l *StateLedgerImpl) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {
@@ -151,7 +192,7 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 	batch := kv.NewBatch()
 	for len(queue) > 0 {
 		trieRoot := queue[0]
-		iter := jmt.NewIterator(trieRoot, l.cachedDB, 100, time.Second)
+		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 100, time.Second)
 		l.logger.Debugf("[IterateTrie] trie root=%v", trieRoot)
 		go iter.Iterate()
 
@@ -181,14 +222,14 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 				if acc.StorageRoot != (common.Hash{}) {
 					// set contract code
 					codeKey := utils.CompositeCodeKey(types.NewAddress(types.HexToBytes(node.LeafKey)), acc.CodeHash)
-					batch.Put(codeKey, l.cachedDB.Get(codeKey))
+					batch.Put(codeKey, l.backend.Get(codeKey))
 					// prepare storage trie root
 					queue = append(queue, acc.StorageRoot)
 				}
 			}
 		}
 		queue = queue[1:]
-		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
+		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
 
 	blockData, err := blockHeader.Marshal()
@@ -224,9 +265,9 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 }
 
 func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
-	rawBlock := l.cachedDB.Get([]byte(utils.TrieBlockHeaderKey))
-	rawEpochInfo := l.cachedDB.Get([]byte(utils.TrieNodeInfoKey))
-	rawNodes := l.cachedDB.Get([]byte(utils.TrieNodeIdKey))
+	rawBlock := l.backend.Get([]byte(utils.TrieBlockHeaderKey))
+	rawEpochInfo := l.backend.Get([]byte(utils.TrieNodeInfoKey))
+	rawNodes := l.backend.Get([]byte(utils.TrieNodeIdKey))
 	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 || len(rawNodes) == 0 {
 		return nil, ErrNotFound
 	}
@@ -262,7 +303,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 	batch := l.snapshot.Batch()
 	for len(queue) > 0 {
 		trieRoot := queue[0]
-		iter := jmt.NewIterator(trieRoot, l.cachedDB, 100, time.Second)
+		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 100, time.Second)
 		l.logger.Debugf("[GenerateSnapshot] trie root=%v", trieRoot)
 		go iter.IterateLeaf()
 
@@ -296,7 +337,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 			}
 		}
 		queue = queue[1:]
-		batch.Put(trieRoot[:], l.cachedDB.Get(trieRoot[:]))
+		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
 	batch.Commit()
 	l.logger.Infof("[GenerateSnapshot] generate snapshot successfully")
@@ -307,7 +348,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 func (l *StateLedgerImpl) VerifyTrie(blockHeader *types.BlockHeader) (bool, error) {
 	l.logger.Infof("[VerifyTrie] start verifying blockNumber: %v, rootHash: %v", blockHeader.Number, blockHeader.StateRoot.String())
 	defer l.logger.Infof("[VerifyTrie] finish VerifyTrie")
-	return jmt.VerifyTrie(blockHeader.StateRoot.ETHHash(), l.cachedDB)
+	return jmt.VerifyTrie(blockHeader.StateRoot.ETHHash(), l.backend, l.pruneCache)
 }
 
 func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofResult, error) {
@@ -316,7 +357,7 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 		trie = l.accountTrie
 		return trie.Prove(key)
 	}
-	trie, err := jmt.New(rootHash, l.cachedDB, l.logger)
+	trie, err := jmt.New(rootHash, l.backend, nil, l.pruneCache, l.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +365,9 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 }
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
-	cachedStateStorage := storagemgr.NewCachedStorage(stateStorage, rep.Config.Ledger.StateLedgerCacheMegabytesLimit)
+	stateCachedStorage := storagemgr.NewCachedStorage(stateStorage, 128).(*storagemgr.CachedStorage)
+	accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
+	storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
 
 	accountCache, err := NewAccountCache(rep.Config.Ledger.StateLedgerAccountCacheSize, false)
 	if err != nil {
@@ -335,7 +378,10 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	ledger := &StateLedgerImpl{
 		repo:                  rep,
 		logger:                loggers.Logger(loggers.Storage),
-		cachedDB:              cachedStateStorage,
+		backend:               stateCachedStorage,
+		accountTrieCache:      accountTrieCache,
+		storageTrieCache:      storageTrieCache,
+		pruneCache:            prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
 		accountCache:          accountCache,
 		accounts:              make(map[string]IAccount),
 		preimages:             make(map[types.Hash][]byte),
@@ -346,8 +392,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storag
 	}
 
 	if snapshotStorage != nil {
-		snapshotCachedStorage := storagemgr.NewCachedStorage(snapshotStorage, rep.Config.Snapshot.DiskCacheMegabytesLimit)
-		ledger.snapshot = snapshot.NewSnapshot(snapshotCachedStorage, ledger.logger)
+		ledger.snapshot = snapshot.NewSnapshot(rep, snapshotStorage, ledger.logger)
 	}
 
 	ledger.refreshAccountTrie(nil)
@@ -385,6 +430,6 @@ func (l *StateLedgerImpl) SetTxContext(thash *types.Hash, ti int) {
 
 // Close close the ledger instance
 func (l *StateLedgerImpl) Close() {
-	_ = l.cachedDB.Close()
+	_ = l.backend.Close()
 	l.triePreloader.close()
 }

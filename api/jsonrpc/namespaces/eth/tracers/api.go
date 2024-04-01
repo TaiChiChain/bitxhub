@@ -191,7 +191,10 @@ func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.Blo
 		return nil, err
 	}
 
-	statedb := api.api.Broker().GetViewStateLedger().NewViewWithoutCache(blockHeader, false)
+	statedb, err := api.api.Broker().GetViewStateLedger().NewViewWithoutCache(blockHeader, false)
+	if err != nil {
+		return nil, err
+	}
 
 	vmctx := executor.NewEVMBlockContextAdaptor(blockHeader.Number, uint64(blockHeader.Timestamp), blockHeader.ProposerAccount, nil)
 	// Apply the customization rules if required.

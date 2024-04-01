@@ -64,8 +64,8 @@ func (ac *AccountCache) exportMetrics() {
 		return
 	}
 
-	accountCacheHitCounterPerBlock.Set(float64(ac.cacheHitCountPerBlock))
-	accountCacheMissCounterPerBlock.Set(float64(ac.cacheMissCountPerBlock))
+	//accountCacheHitCounterPerBlock.Set(float64(ac.cacheHitCountPerBlock))
+	//accountCacheMissCounterPerBlock.Set(float64(ac.cacheMissCountPerBlock))
 }
 
 func (ac *AccountCache) add(accounts map[string]IAccount) {

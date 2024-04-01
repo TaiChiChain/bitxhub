@@ -164,7 +164,7 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 	}, nil).AnyTimes()
 
 	chainLedger.EXPECT().GetTransaction(gomock.Any()).Return(&types.Transaction{}, nil).AnyTimes()
-	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
+	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger, nil).AnyTimes()
 	chainLedger.EXPECT().GetChainMeta().Return(&types.ChainMeta{Height: 1, BlockHash: types.NewHashByStr("")}).AnyTimes()
 	stateLedger.EXPECT().GetState(gomock.Any(), gomock.Any()).DoAndReturn(func(addr *types.Address, key []byte) (bool, []byte) {
 		return false, nil

@@ -79,7 +79,7 @@ func TestGetEvm(t *testing.T) {
 	}
 	// mock block for ledger
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger).AnyTimes()
+	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger, nil).AnyTimes()
 	blockHeader := &types.BlockHeader{
 		Number:         0,
 		StateRoot:      &types.Hash{},
@@ -274,13 +274,11 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 		remoteBlockRes := <-remoteCh
 		assert.Equal(t, blockRes, remoteBlockRes)
 
-		errorRollbackStateLedger := errors.New("rollback state to height 0 failed")
-
 		// handle panic error
 		defer func() {
 			if r := recover(); r != nil {
 				assert.NotNil(t, r)
-				assert.Contains(t, fmt.Sprintf("%v", r), errorRollbackStateLedger.Error())
+				assert.Contains(t, fmt.Sprintf("%v", r), "get block header with height 0 from blockfile failed")
 			}
 		}()
 
@@ -290,12 +288,11 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	})
 
 	t.Run("test rollback block with error", func(t *testing.T) {
-		errorGetBlock := errors.New("rollback state to height 0 failed")
 		// handle panic error
 		defer func() {
 			if r := recover(); r != nil {
 				assert.NotNil(t, r)
-				assert.Contains(t, fmt.Sprintf("%v", r), errorGetBlock.Error())
+				assert.Contains(t, fmt.Sprintf("%v", r), "get block header with height 0 from blockfile failed")
 			}
 		}()
 		// send rollback block to executor, but rollback error

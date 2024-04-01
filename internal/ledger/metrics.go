@@ -26,34 +26,6 @@ var (
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
 	})
 
-	accountFlushSize = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "flush_dirty_account_size",
-		Help:      "The size of flush dirty account into db",
-	})
-
-	stateFlushSize = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "flush_dirty_state_size",
-		Help:      "The size of flush dirty state into db",
-	})
-
-	accountCacheHitCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "account_cache_hit_counter_per_block",
-		Help:      "The total number of account cache hit per block",
-	})
-
-	accountCacheMissCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "account_cache_miss_counter_per_block",
-		Help:      "The total number of account cache miss per block",
-	})
-
 	accountReadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
@@ -77,17 +49,80 @@ var (
 		Help:      "The total latency of read a contract code from db",
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
+
+	accountTrieCacheMissCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "account_trie_cache_miss_counter_per_block",
+		Help:      "The total number of account trie cache miss per block",
+	})
+
+	accountTrieCacheHitCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "account_trie_cache_hit_counter_per_block",
+		Help:      "The total number of account trie cache hit per block",
+	})
+
+	accountTrieCacheSize = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "account_trie_cache_size",
+		Help:      "The total size of account trie cache (MB)",
+	})
+
+	storageTrieCacheMissCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "storage_trie_cache_miss_counter_per_block",
+		Help:      "The total number of storage trie cache miss per block",
+	})
+
+	storageTrieCacheHitCounterPerBlock = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "storage_trie_cache_hit_counter_per_block",
+		Help:      "The total number of storage trie cache hit per block",
+	})
+
+	storageTrieCacheSize = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "storage_trie_cache_size",
+		Help:      "The total size of storage trie cache (MB)",
+	})
+
+	getTransactionCounter = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "axiom_ledger",
+			Subsystem: "ledger",
+			Name:      "get_transaction_counter",
+			Help:      "the total times of query GetTransaction",
+		},
+	)
+
+	getTransactionDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "get_transaction_duration",
+		Help:      "The total latency of get a transaction from db",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
 )
 
 func init() {
 	prometheus.MustRegister(persistBlockDuration)
 	prometheus.MustRegister(blockHeightMetric)
 	prometheus.MustRegister(flushDirtyWorldStateDuration)
-	prometheus.MustRegister(accountCacheHitCounterPerBlock)
-	prometheus.MustRegister(accountCacheMissCounterPerBlock)
 	prometheus.MustRegister(accountReadDuration)
 	prometheus.MustRegister(stateReadDuration)
-	prometheus.MustRegister(accountFlushSize)
-	prometheus.MustRegister(stateFlushSize)
 	prometheus.MustRegister(codeReadDuration)
+	prometheus.MustRegister(accountTrieCacheMissCounterPerBlock)
+	prometheus.MustRegister(accountTrieCacheHitCounterPerBlock)
+	prometheus.MustRegister(accountTrieCacheSize)
+	prometheus.MustRegister(storageTrieCacheMissCounterPerBlock)
+	prometheus.MustRegister(storageTrieCacheHitCounterPerBlock)
+	prometheus.MustRegister(storageTrieCacheSize)
+	prometheus.MustRegister(getTransactionCounter)
+	prometheus.MustRegister(getTransactionDuration)
 }

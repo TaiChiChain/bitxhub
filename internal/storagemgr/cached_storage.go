@@ -2,9 +2,8 @@ package storagemgr
 
 import (
 	"github.com/VictoriaMetrics/fastcache"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -60,9 +59,6 @@ func (c *CachedStorage) Get(key []byte) []byte {
 	value, ok := c.cache.HasGet(nil, key)
 	if ok {
 		kvCacheHitCountPerBlock++
-		if value == nil {
-			return []byte{}
-		}
 		return value
 	}
 	v := c.Storage.Get(key)
@@ -84,11 +80,11 @@ func (c *CachedStorage) Has(key []byte) bool {
 }
 
 func (c *CachedStorage) Put(key, value []byte) {
-	if value == nil {
-		value = []byte{}
+	if len(value) == 0 {
+		value = nil
 	}
-	c.cache.Set(key, value)
 	c.Storage.Put(key, value)
+	c.cache.Set(key, value)
 }
 
 func (c *CachedStorage) Delete(key []byte) {
@@ -116,11 +112,13 @@ type BatchWrapper struct {
 }
 
 func (w *BatchWrapper) Put(key, value []byte) {
-	if value == nil {
-		value = []byte{}
+	if len(value) == 0 {
+		w.finalState[string(key)] = nil
+		w.Batch.Delete(key)
+	} else {
+		w.finalState[string(key)] = value
+		w.Batch.Put(key, value)
 	}
-	w.finalState[string(key)] = value
-	w.Batch.Put(key, value)
 }
 
 func (w *BatchWrapper) Delete(key []byte) {
@@ -145,6 +143,5 @@ func (w *BatchWrapper) Size() int {
 
 func (w *BatchWrapper) Reset() {
 	w.Batch.Reset()
-	w.cache.Reset()
 	w.finalState = make(map[string][]byte)
 }
