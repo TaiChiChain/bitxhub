@@ -791,6 +791,9 @@ func prepareRepo(ctx *cli.Context) (*repo.Repo, error) {
 		return nil, err
 	}
 
+	// close monitor in offline mode
+	r.Config.Monitor.Enable = false
+
 	fmt.Printf("%s-repo: %s\n", repo.AppName, r.RepoRoot)
 
 	if err := loggers.Initialize(ctx.Context, r, false); err != nil {
