@@ -84,7 +84,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 			assert.Equal(t, uint64(0), pool.GetTotalPendingTxCount())
 
 			assert.Equal(t, 1, len(pool.txStore.nonceCache.commitNonces))
-			assert.Equal(t, 1, len(pool.txStore.nonceCache.pendingNonces))
+			assert.Equal(t, 0, len(pool.txStore.nonceCache.pendingNonces))
 			assert.Equal(t, 1, len(pool.txStore.allTxs))
 		}
 
@@ -127,7 +127,8 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		ast.True(len(records2) == 0)
 
 		// case pool has tx
-		pool.addTxs([]*types.Transaction{tx}, true)
+		_, err = pool.addTx(tx, true)
+		ast.Nil(err)
 		removeErr := os.Remove(pool.txRecordsFile)
 		ast.Nil(removeErr)
 		pool.handleRemoveTimeout(timer.RotateTxLocals)

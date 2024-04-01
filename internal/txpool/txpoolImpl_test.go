@@ -396,6 +396,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 			ast.Equal(1, getPrioritySize(pool))
+			ast.Equal(1, pool.txStore.removeTTLIndex.size())
 			newPoolTx := pool.txStore.getPoolTxByTxnPointer(oldPoolTx.getAccount(), oldPoolTx.getNonce())
 			ast.Equal(newTx.getGasPrice(), newPoolTx.getGasPrice())
 
@@ -866,41 +867,54 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
 			tx01 := constructTx(s, 0)
-			tx02, err := types.GenerateTransactionWithSigner(0, to, big.NewInt(1000), nil, s)
+			replaceWrongTx0, err := types.GenerateTransactionWithSigner(0, to, big.NewInt(1000), nil, s)
 			ast.Nil(err)
 
-			poolTx := constructPoolTxByGas(s, 0, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(2)))
-			tx03 := poolTx.rawTx
-			txs := []*types.Transaction{tx01, tx02, tx03}
+			poolTx2 := constructPoolTxByGas(s, 0, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(2)))
+			poolTx3 := constructPoolTxByGas(s, 0, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(3)))
+			poolTx4 := constructPoolTxByGas(s, 0, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(4)))
+			poolTx5 := constructPoolTxByGas(s, 0, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(5)))
+			tx02 := poolTx2.rawTx
+			tx03 := poolTx3.rawTx
+			tx04 := poolTx4.rawTx
+			tx05 := poolTx5.rawTx
+
+			txs := []*types.Transaction{tx01, replaceWrongTx0, tx02, tx03, tx04, tx05}
 			pool.AddRemoteTxs(txs)
 			ast.Equal(uint64(1), pool.GetTotalPendingTxCount())
-			ast.NotNil(pool.GetPendingTxByHash(tx03.RbftGetTxHash()), "tx03 replace tx01")
+			ast.NotNil(pool.GetPendingTxByHash(tx05.RbftGetTxHash()), "tx05 replace tx01")
 			ast.Equal(0, pool.txStore.localTTLIndex.size())
 			ast.Equal(1, pool.txStore.removeTTLIndex.size())
 			ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 			if pool.enablePricePriority {
-				ast.Equal(0, tx03.GetGasPrice().Cmp(pool.txStore.priorityByPrice.peek().getGasPrice()))
+				ast.Equal(0, tx05.GetGasPrice().Cmp(pool.txStore.priorityByPrice.peek().getGasPrice()))
 			} else {
-				data := pool.txStore.priorityByTime.data.Get(&orderedIndexKey{time: poolTx.getRawTimestamp(), account: poolTx.getAccount(), nonce: poolTx.getNonce()})
+				data := pool.txStore.priorityByTime.data.Get(&orderedIndexKey{time: poolTx5.getRawTimestamp(), account: poolTx5.getAccount(), nonce: poolTx5.getNonce()})
 				ast.NotNil(data)
 				ast.Equal(1, pool.txStore.priorityByTime.size())
 			}
 
 			tx21 := constructTx(s, 2)
-			tx22, err := types.GenerateTransactionWithSigner(2, to, big.NewInt(1000), nil, s)
+			replaceWrongTx2, err := types.GenerateTransactionWithSigner(2, to, big.NewInt(1000), nil, s)
 			ast.Nil(err)
 
-			poolTx = constructPoolTxByGas(s, 2, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(2)))
-			tx23 := poolTx.rawTx
-			txs = []*types.Transaction{tx21, tx22, tx23}
+			poolTx2 = constructPoolTxByGas(s, 2, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(2)))
+			poolTx3 = constructPoolTxByGas(s, 2, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(3)))
+			poolTx4 = constructPoolTxByGas(s, 2, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(4)))
+			poolTx5 = constructPoolTxByGas(s, 2, new(big.Int).Mul(tx01.RbftGetGasPrice(), big.NewInt(5)))
+			tx22 := poolTx2.rawTx
+			tx23 := poolTx3.rawTx
+			tx24 := poolTx4.rawTx
+			tx25 := poolTx5.rawTx
+			txs = []*types.Transaction{tx21, replaceWrongTx2, tx22, tx23, tx24, tx25}
 			pool.AddRemoteTxs(txs)
 			ast.Nil(pool.GetPendingTxByHash(tx21.RbftGetTxHash()), "tx21 not exist in txpool")
-			ast.Equal(tx23.RbftGetTxHash(), pool.GetPendingTxByHash(tx23.RbftGetTxHash()).RbftGetTxHash())
+			ast.Equal(tx25.RbftGetTxHash(), pool.GetPendingTxByHash(tx25.RbftGetTxHash()).RbftGetTxHash())
 			ast.Equal(0, pool.txStore.localTTLIndex.size())
 			ast.Equal(2, pool.txStore.removeTTLIndex.size())
 			ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
-			ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx22 exist in parking lot")
+			ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx25 exist in parking lot")
 		}
 	})
 
@@ -1100,13 +1114,22 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
 
+			notifySignalCh := make(chan string, 1)
+			pool.notifyFindNextBatchFn = func(hashes ...string) {
+				notifySignalCh <- hashes[0]
+			}
+			s, err = types.GenerateSigner()
+			ast.Nil(err)
+
 			txs := constructTxs(s, 4)
 			txHashList := make([]string, len(txs))
 			txsM := make(map[uint64]*types.Transaction)
+			missingHashList := make(map[uint64]string)
 
 			lo.ForEach(txs, func(tx *types.Transaction, index int) {
 				txHashList[index] = tx.RbftGetTxHash()
 				txsM[uint64(index)] = tx
+				missingHashList[uint64(index)] = tx.RbftGetTxHash()
 			})
 			newBatch := &commonpool.RequestHashBatch[types.Transaction, *types.Transaction]{
 				TxList:     txs,
@@ -1116,31 +1139,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			}
 
 			batchDigest := newBatch.GenerateBatchHash()
-			notifySignalCh := make(chan string, 1)
-			pool.notifyFindNextBatchFn = func(hashes ...string) {
-				notifySignalCh <- hashes[0]
-			}
-			s, err = types.GenerateSigner()
-			ast.Nil(err)
-
-			txs = constructTxs(s, 4)
-			txHashList = make([]string, len(txs))
-			txsM = make(map[uint64]*types.Transaction)
-			missingHashList := make(map[uint64]string)
-
-			lo.ForEach(txs, func(tx *types.Transaction, index int) {
-				txHashList[index] = tx.RbftGetTxHash()
-				txsM[uint64(index)] = tx
-				missingHashList[uint64(index)] = tx.RbftGetTxHash()
-			})
-			newBatch = &commonpool.RequestHashBatch[types.Transaction, *types.Transaction]{
-				TxList:     txs,
-				LocalList:  []bool{true, true, true, true},
-				TxHashList: txHashList,
-				Timestamp:  time.Now().UnixNano(),
-			}
-
-			batchDigest = newBatch.GenerateBatchHash()
 			pool.txStore.missingBatch[batchDigest] = missingHashList
 			pool.AddRemoteTxs(txs)
 			ast.NotNil(pool.GetPendingTxByHash(txs[0].RbftGetTxHash()))
@@ -2052,8 +2050,6 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 			poolTx := pool.txStore.getPoolTxByTxnPointer(from, 0)
 			ast.NotNil(poolTx)
 			firstTime := poolTx.lifeTime
-			// sleep a while to trigger update lifeTime
-			time.Sleep(1 * time.Millisecond)
 
 			txs := pool.FilterOutOfDateRequests(true)
 			ast.Equal(0, len(txs))
@@ -2361,7 +2357,7 @@ func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 		err = pool.Start()
 		assert.Nil(t, err)
 		defer pool.Stop()
-		pool.addTxs([]*types.Transaction{tx}, true)
+		_, err = pool.addTx(tx, true)
 		localTxs := pool.GetLocalTxs()
 		tx2 := &types.Transaction{}
 		err = tx2.RbftUnmarshal(localTxs[0])
@@ -2411,6 +2407,7 @@ func TestTPSWithLocalTx(t *testing.T) {
 
 	for _, tc := range testcase {
 		pool := tc
+		pool.logger.(*logrus.Entry).Logger.SetLevel(logrus.ErrorLevel)
 		pool.chainInfo.EpochConf.BatchSize = 500
 
 		batchesCache := make(chan *commonpool.RequestHashBatch[types.Transaction, *types.Transaction], 10240)

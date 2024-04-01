@@ -220,10 +220,10 @@ func (m *txSortedMap[T, Constraint]) checkIfGc(now, cleanTimeout int64) bool {
 	return m.isEmpty() && now-m.getEmptyTime() > cleanTimeout
 }
 
-func (m *txSortedMap[T, Constraint]) filterReady(demandNonce uint64) ([]*internalTransaction[T, Constraint], []*internalTransaction[T, Constraint], uint64) {
-	var readyTxs, nonReadyTxs []*internalTransaction[T, Constraint]
+func (m *txSortedMap[T, Constraint]) filterReady(demandNonce uint64) ([]*internalTransaction[T, Constraint], uint64) {
+	var readyTxs []*internalTransaction[T, Constraint]
 	if m.index.data.Len() == 0 {
-		return nil, nil, demandNonce
+		return nil, demandNonce
 	}
 	demandKey := makeSortedNonceKey(demandNonce)
 	m.index.data.AscendGreaterOrEqual(demandKey, func(i btree.Item) bool {
@@ -231,13 +231,12 @@ func (m *txSortedMap[T, Constraint]) filterReady(demandNonce uint64) ([]*interna
 		if nonce == demandNonce {
 			readyTxs = append(readyTxs, m.items[demandNonce])
 			demandNonce++
-		} else {
-			nonReadyTxs = append(nonReadyTxs, m.items[nonce])
+			return true
 		}
-		return true
+		return false
 	})
 
-	return readyTxs, nonReadyTxs, demandNonce
+	return readyTxs, demandNonce
 }
 
 // forward removes all allTxs from the map with a nonce lower than the
