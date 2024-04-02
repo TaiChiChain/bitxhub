@@ -28,10 +28,11 @@ func NewCacheWrapper(megabytesLimit int, enableMetric bool) *CacheWrapper {
 
 	maxCost = uint64(megabytesLimit * (1 << 20))
 	cache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 1e8,            // number of keys to track frequency of (100M).
-		MaxCost:     int64(maxCost), // maximum cost of cache (MB).
-		BufferItems: 64,             // default config, no need to change
-		Metrics:     true,
+		NumCounters:        1e8,            // number of keys to track frequency of (10M).
+		MaxCost:            int64(maxCost), // maximum cost of cache (bytes).
+		BufferItems:        64,             // default config, no need to change
+		Metrics:            true,
+		IgnoreInternalCost: true,
 	})
 	if err != nil {
 		panic(err)

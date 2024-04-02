@@ -123,7 +123,7 @@ func (p *prunner) pruning() {
 		for k := range accountTriePruneSet {
 			if _, has := accountTrieWriteSet[k]; !has {
 				pendingBatch.Delete([]byte(k))
-				p.accountTrieCache.Del([]byte(k))
+				//p.accountTrieCache.Del([]byte(k))
 			}
 		}
 
@@ -137,7 +137,7 @@ func (p *prunner) pruning() {
 		for k := range storageTriePruneSet {
 			if _, has := storageTrieWriteSet[k]; !has {
 				pendingBatch.Delete([]byte(k))
-				p.storageTrieCache.Del([]byte(k))
+				//p.storageTrieCache.Del([]byte(k))
 			}
 		}
 
