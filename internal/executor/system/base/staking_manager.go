@@ -18,6 +18,8 @@ import (
 var (
 	ErrStakingPoolNotExist    = errors.New("staking pool not exist")
 	ErrRewardPerBlockNotFound = errors.New("reward per block not found")
+	ErrStakeValue             = errors.New("total supply smaller than total stake")
+	ErrZeroAXC                = errors.New("AXC total supply is 0")
 )
 
 const (
@@ -133,8 +135,14 @@ func (s *stakingManager) InternalRecordReward(poolID uint64) (reward *big.Int, e
 func (s *stakingManager) InternalCalculateStakeReward() error {
 	axc := GetAXCContract(s.stateLedger, s.currentHeight, s.currentLogs)
 	totalSupply := axc.TotalSupply()
+	if totalSupply.Cmp(big.NewInt(0)) == 0 {
+		return ErrZeroAXC
+	}
 	totalStake := s.stateLedger.GetBalance(types.NewAddressByStr(common.StakingManagerContractAddr))
-	denominator := 0.18 * (1 + math.Exp(10*divideBigInt(totalStake, totalSupply)))
+	if totalSupply.Cmp(totalStake) < 0 {
+		return ErrStakeValue
+	}
+	denominator := 5.5 * (1 + math.Exp(10*divideBigInt(totalStake, totalSupply)))
 	ratio := 1/denominator + 0.03
 	baseFloat := new(big.Float).SetInt(totalStake)
 	multiplied := new(big.Float).Mul(
