@@ -75,7 +75,7 @@ const (
 
 	DefaultStartGasPrice = 5000000000000
 	DefaultMaxGasPrice   = 10000000000000
-	DefaultMinGasPrice   = 1000000000000
+	DefaultMinGasPrice   = 1000_000_000_000
 )
 
 const (
