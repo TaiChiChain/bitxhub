@@ -11,7 +11,6 @@ import (
 
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -92,10 +91,10 @@ func (tc *PruneCache) addNewDiff(batch storage.Batch, height uint64, ledgerStora
 		storageDiff:   make(map[string]types.Node),
 	}
 	if persist {
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, height), stateDelta.Encode())
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
-		if height == 1 {
-			batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(height))
+
+		err := tc.prunner.blockJournal.Append(height, stateDelta.Encode())
+		if err != nil {
+			panic(err)
 		}
 	}
 
@@ -164,7 +163,7 @@ func (tc *PruneCache) Rollback(height uint64) error {
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
-	minHeight, maxHeight := tc.GetRange()
+	minHeight, maxHeight := tc.prunner.blockJournal.GetJournalRange()
 
 	tc.logger.Infof("[PruneCache-Rollback] minHeight=%v, maxHeight=%v, targetHeight=%v", minHeight, maxHeight, height)
 
@@ -186,7 +185,10 @@ func (tc *PruneCache) Rollback(height uint64) error {
 
 	batch := tc.ledgerStorage.NewBatch()
 	for i := minHeight; i <= height; i++ {
-		trieJournal := tc.GetPruneJournal(i)
+		trieJournal, err := tc.GetPruneJournal(i)
+		if err != nil {
+			return err
+		}
 		tc.logger.Debugf("[PruneCache-Rollback] apply trie journal of height=%v, trieJournal=%v", i, trieJournal)
 		if trieJournal == nil {
 			tc.logger.Warnf("[PruneCache-Rollback] trie journal is empty at height: %v", i)
@@ -194,10 +196,10 @@ func (tc *PruneCache) Rollback(height uint64) error {
 		}
 		tc.addNewDiff(batch, i, tc.ledgerStorage, trieJournal, false)
 	}
-	batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
 
-	for i := height + 1; i <= maxHeight; i++ {
-		batch.Delete(utils.CompositeKey(utils.PruneJournalKey, i))
+	err := tc.prunner.blockJournal.Truncate(height)
+	if err != nil {
+		return err
 	}
 
 	batch.Commit()
@@ -207,26 +209,16 @@ func (tc *PruneCache) Rollback(height uint64) error {
 }
 
 func (tc *PruneCache) GetRange() (uint64, uint64) {
-	minHeight := uint64(0)
-	maxHeight := uint64(0)
-
-	data := tc.ledgerStorage.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr))
-	if data != nil {
-		minHeight = utils.UnmarshalHeight(data)
-	}
-
-	data = tc.ledgerStorage.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr))
-	if data != nil {
-		maxHeight = utils.UnmarshalHeight(data)
-	}
-
-	return minHeight, maxHeight
+	return tc.prunner.blockJournal.GetJournalRange()
 }
 
-func (tc *PruneCache) GetPruneJournal(height uint64) *types.StateDelta {
-	data := tc.ledgerStorage.Get(utils.CompositeKey(utils.PruneJournalKey, height))
+func (tc *PruneCache) GetPruneJournal(height uint64) (*types.StateDelta, error) {
+	data, err := tc.prunner.blockJournal.Retrieve(height)
+	if err != nil {
+		return nil, err
+	}
 	if data == nil {
-		return nil
+		return nil, nil
 	}
 
 	res, err := types.DecodeStateDelta(data)
@@ -234,7 +226,7 @@ func (tc *PruneCache) GetPruneJournal(height uint64) *types.StateDelta {
 		panic(err)
 	}
 
-	return res
+	return res, nil
 }
 
 // for debug

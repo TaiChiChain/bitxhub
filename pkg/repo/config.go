@@ -209,9 +209,16 @@ type Consensus struct {
 }
 
 type Storage struct {
-	KvType      string `mapstructure:"kv_type" toml:"kv_type"`
-	KvCacheSize int    `mapstructure:"kv_cache_size" toml:"kv_cache_size"`
-	Sync        bool   `mapstructure:"sync" toml:"sync"`
+	KvType string `mapstructure:"kv_type" toml:"kv_type"`
+	Pebble Pebble `mapstructure:"pebble" toml:"pebble"`
+}
+
+type Pebble struct {
+	Sync                        bool  `mapstructure:"sync" toml:"sync"`
+	MaxOpenFiles                int   `mapstructure:"max_open_files" toml:"max_open_files"`
+	MemTableSize                int   `mapstructure:"mem_table_size" toml:"memtable_size"`
+	MemTableStopWritesThreshold int   `mapstructure:"mem_table_stop_writes_threshold" toml:"mem_table_stop_writes_threshold"`
+	KVCacheSize                 int64 `mapstructure:"kv_cache_size" toml:"kv_cache_size"`
 }
 
 type Ledger struct {
@@ -322,9 +329,14 @@ func DefaultConfig() *Config {
 			StorageType: ConsensusStorageTypeMinifile,
 		},
 		Storage: Storage{
-			KvType:      KVStorageTypePebble,
-			KvCacheSize: 128,
-			Sync:        true,
+			KvType: KVStorageTypePebble,
+			Pebble: Pebble{
+				Sync:                        true,
+				MaxOpenFiles:                1000,
+				MemTableSize:                4,
+				MemTableStopWritesThreshold: 2,
+				KVCacheSize:                 128,
+			},
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize:                      100,

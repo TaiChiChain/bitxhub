@@ -382,7 +382,12 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 
 	for kvType := range testcase {
 		t.Run(kvType, func(t *testing.T) {
-			err = storagemgr.Initialize(kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+			repoConfig := &repo.Config{Storage: repo.Storage{
+				KvType: kvType,
+				Sync:   false,
+				Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+			}, Monitor: repo.Monitor{Enable: false}}
+			err = storagemgr.Initialize(repoConfig)
 			require.Nil(t, err)
 			ldg, err := ledger.NewLedger(createMockRepo(t))
 			require.Nil(t, err)

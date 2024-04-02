@@ -1,13 +1,15 @@
 package prune
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/storage"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
+	"github.com/axiomesh/axiom-kit/storage/blockjournal"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -22,6 +24,8 @@ type prunner struct {
 	logger logrus.FieldLogger
 
 	lastPruneTime time.Time
+
+	blockJournal *blockjournal.BlockJournal
 }
 
 var (
@@ -33,7 +37,7 @@ var (
 )
 
 func NewPrunner(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, states *states, logger logrus.FieldLogger) *prunner {
-	return &prunner{
+	p := &prunner{
 		rep:                  rep,
 		ledgerStorageBackend: ledgerStorage,
 		accountTrieCache:     accountTrieCache,
@@ -42,6 +46,14 @@ func NewPrunner(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieCache 
 		logger:               logger,
 		lastPruneTime:        time.Now(),
 	}
+	if rep.Config.Ledger.EnablePrune {
+		var err error
+		p.blockJournal, err = blockjournal.NewBlockJournal(repo.GetStoragePath(rep.RepoRoot, storagemgr.BlockJournal), storagemgr.BlockJournalTrieName, loggers.Logger(loggers.Storage))
+		if err != nil {
+			panic(fmt.Errorf("create block  err:%s", err))
+		}
+	}
+	return p
 }
 
 func (p *prunner) pruning() {
@@ -68,6 +80,7 @@ func (p *prunner) pruning() {
 		}
 
 		pendingStales := p.states.diffs[pendingFlushBlockNum : len(p.states.diffs)-reserve]
+
 		if len(pendingStales) > 0 {
 			if from == 0 {
 				from = pendingStales[0].height
@@ -98,7 +111,7 @@ func (p *prunner) pruning() {
 						pendingFlushSize += len(k) + len(blob)
 					}
 				}
-				pendingBatch.Delete(utils.CompositeKey(utils.PruneJournalKey, diff.height))
+
 			}
 			pendingFlushBlockNum += len(pendingStales)
 		}
@@ -141,8 +154,12 @@ func (p *prunner) pruning() {
 			}
 		}
 
-		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
 		pendingBatch.Commit()
+
+		err := p.blockJournal.RemoveJournalsBeforeBlock(p.states.diffs[pendingFlushBlockNum].height)
+		if err != nil {
+			panic(err)
+		}
 
 		//reset states diff
 		p.states.lock.Lock()

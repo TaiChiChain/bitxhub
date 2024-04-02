@@ -8,10 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -27,13 +25,19 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var validTxsCh = make(chan *precheck.ValidTxs, 1024)
 
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+	repoConfig := &repo.Config{Storage: repo.Storage{
+		KvType: repo.KVStorageTypeLeveldb,
+		Sync:   false,
+		Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(repoConfig)
 	assert.Nil(t, err)
 	mockRbft := rbft.NewMockMinimalNode[types.Transaction, *types.Transaction](ctrl)
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
@@ -150,6 +154,14 @@ func TestInit(t *testing.T) {
 }
 
 func TestNewNode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repoConfig := &repo.Config{Storage: repo.Storage{
+		KvType: repo.KVStorageTypeLeveldb,
+		Sync:   false,
+		Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(repoConfig)
+	assert.Nil(t, err)
 	testCase := []struct {
 		name           string
 		setupMocks     func(consensusConf *common.Config, ctrl *gomock.Controller)

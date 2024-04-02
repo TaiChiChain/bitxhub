@@ -423,9 +423,12 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 
 	// rollback world state trie
 	if height != 0 {
-		if err := l.pruneCache.Rollback(height); err != nil {
-			return err
+		if l.repo.Config.Ledger.EnablePrune {
+			if err := l.pruneCache.Rollback(height); err != nil {
+				return err
+			}
 		}
+
 		l.refreshAccountTrie(stateRoot)
 	}
 

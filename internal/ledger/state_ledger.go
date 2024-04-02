@@ -146,20 +146,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 }
 
 func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
-	minHeight := uint64(0)
-	maxHeight := uint64(0)
-
-	data := l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr))
-	if data != nil {
-		minHeight = utils.UnmarshalHeight(data)
-	}
-
-	data = l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr))
-	if data != nil {
-		maxHeight = utils.UnmarshalHeight(data)
-	}
-
-	return minHeight, maxHeight
+	return l.pruneCache.GetRange()
 }
 
 func (l *StateLedgerImpl) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {

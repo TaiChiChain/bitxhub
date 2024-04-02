@@ -280,7 +280,7 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.NotEqual(t, stateRoot4, stateRoot5)
 
 			minHeight, maxHeight := sl.snapshot.GetJournalRange()
-			journal5 := sl.snapshot.GetBlockJournal(maxHeight)
+			journal5, _ := sl.snapshot.GetBlockJournal(maxHeight)
 			assert.Equal(t, uint64(1), minHeight)
 			assert.Equal(t, uint64(5), maxHeight)
 			assert.Equal(t, 1, len(journal5.Journals))
