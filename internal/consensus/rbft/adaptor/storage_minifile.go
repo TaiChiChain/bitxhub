@@ -1,7 +1,9 @@
 package adaptor
 
 import (
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/storage/minifile"
+	"strings"
 )
 
 type MinifileAdaptor struct {
@@ -19,11 +21,17 @@ func OpenMinifile(path string) (*MinifileAdaptor, error) {
 }
 
 func (a *MinifileAdaptor) StoreState(key string, value []byte) error {
-	return a.store.Put(key, value)
+	if strings.Contains(key, rbft.EpochStatePrefix) || strings.Contains(key, rbft.EpochIndexKey) {
+		return a.store.Put(key, value)
+	}
+	return nil
 }
 
 func (a *MinifileAdaptor) DelState(key string) error {
-	return a.store.Delete(key)
+	if strings.Contains(key, rbft.EpochStatePrefix) || strings.Contains(key, rbft.EpochIndexKey) {
+		return a.store.Delete(key)
+	}
+	return nil
 }
 
 func (a *MinifileAdaptor) ReadState(key string) ([]byte, error) {

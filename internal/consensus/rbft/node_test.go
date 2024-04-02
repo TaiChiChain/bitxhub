@@ -3,6 +3,7 @@ package rbft
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -152,6 +153,15 @@ func TestInit(t *testing.T) {
 }
 
 func TestNewNode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repoConfig := &repo.Config{Storage: repo.Storage{
+		KvType:      repo.KVStorageTypeLeveldb,
+		Sync:        false,
+		KVCacheSize: repo.KVStorageCacheSize,
+		Pebble:      repo.Pebble{},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(repoConfig)
+	assert.Nil(t, err)
 	testCase := []struct {
 		name           string
 		setupMocks     func(consensusConf *common.Config, ctrl *gomock.Controller)

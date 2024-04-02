@@ -8,10 +8,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-kit/storage/blockjournal"
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -21,6 +23,7 @@ type Snapshot struct {
 	accountSnapshotCache  *storagemgr.CacheWrapper
 	contractSnapshotCache *storagemgr.CacheWrapper
 	backend               kv.Storage
+	blockjournal          *blockjournal.BlockJournal
 
 	lock sync.RWMutex
 
@@ -37,18 +40,24 @@ var (
 const maxBatchSize = 64 * 1024 * 1024
 
 func NewSnapshot(rep *repo.Repo, backend kv.Storage, logger logrus.FieldLogger) *Snapshot {
-	return &Snapshot{
+	s := &Snapshot{
 		rep:                   rep,
 		accountSnapshotCache:  storagemgr.NewCacheWrapper(rep.Config.Snapshot.AccountSnapshotCacheMegabytesLimit, true),
 		contractSnapshotCache: storagemgr.NewCacheWrapper(rep.Config.Snapshot.ContractSnapshotCacheMegabytesLimit, true),
 		backend:               backend,
 		logger:                logger,
 	}
+	bj, err := blockjournal.NewBlockJournal(repo.GetStoragePath(rep.RepoRoot, storagemgr.BlockJournal), storagemgr.BlockJournalSnapshotName, loggers.Logger(loggers.Storage))
+	if err != nil {
+		panic(fmt.Errorf("Create BlockJournalSnapshot err:%s", err))
+	}
+	s.blockjournal = bj
+	return s
 }
 
 // RemoveJournalsBeforeBlock removes snapshot journals whose block number < height
 func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
-	minHeight, maxHeight := snap.GetJournalRange()
+	minHeight, maxHeight := snap.blockjournal.GetJournalRange()
 	if height > maxHeight {
 		return ErrorRemoveJournalOutOfRange
 	}
@@ -56,15 +65,7 @@ func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 	if height <= minHeight {
 		return nil
 	}
-
-	batch := snap.backend.NewBatch()
-	for i := minHeight; i < height; i++ {
-		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
-	}
-	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalHeight(height))
-	batch.Commit()
-
-	return nil
+	return snap.blockjournal.RemoveJournalsBeforeBlock(height)
 }
 
 func (snap *Snapshot) Account(addr *types.Address) (*types.InnerAccount, error) {
@@ -103,7 +104,6 @@ func (snap *Snapshot) Account(addr *types.Address) (*types.InnerAccount, error) 
 	return innerAccount, nil
 }
 
-// todo check correctness
 func (snap *Snapshot) Storage(addr *types.Address, key []byte) ([]byte, error) {
 	snap.lock.RLock()
 	defer snap.lock.RUnlock()
@@ -163,13 +163,9 @@ func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, dest
 	}
 	snap.logger.Infof("[Snapshot-Update] journal size = %v", len(data))
 
-	batch.Put(utils.CompositeKey(utils.SnapshotKey, height), data)
-	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(height))
-	if height == 0 {
-		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalHeight(height))
-	}
 	batch.Commit()
-	return nil
+
+	return snap.blockjournal.Append(height, data)
 }
 
 // Rollback removes snapshot journals whose block number < height
@@ -182,7 +178,7 @@ func (snap *Snapshot) Rollback(height uint64) error {
 		snap.accountSnapshotCache.Reset()
 	}
 
-	minHeight, maxHeight := snap.GetJournalRange()
+	minHeight, maxHeight := snap.blockjournal.GetJournalRange()
 	snap.logger.Infof("[Snapshot-Rollback] minHeight=%v,maxHeight=%v,height=%v", minHeight, maxHeight, height)
 
 	if maxHeight < height {
@@ -200,7 +196,10 @@ func (snap *Snapshot) Rollback(height uint64) error {
 	batch := snap.backend.NewBatch()
 	for i := maxHeight; i > height; i-- {
 		snap.logger.Infof("[Snapshot-Rollback] try executing snapshot journal of height %v", i)
-		blockJournal := snap.GetBlockJournal(i)
+		blockJournal, err := snap.GetBlockJournal(i)
+		if err != nil {
+			return err
+		}
 		if blockJournal == nil {
 			snap.logger.Warnf("[Snapshot-Rollback] snapshot journal is empty at height: %v", i)
 		} else {
@@ -209,15 +208,14 @@ func (snap *Snapshot) Rollback(height uint64) error {
 				revertJournal(entry, batch)
 			}
 		}
-		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
-		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(i-1))
-		if batch.Size() > maxBatchSize {
-			batch.Commit()
-			batch.Reset()
-			snap.logger.Infof("[Snapshot-Rollback] write batch periodically")
-		}
+
 	}
 	batch.Commit()
+
+	err := snap.blockjournal.Truncate(height)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

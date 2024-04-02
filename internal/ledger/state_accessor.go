@@ -319,9 +319,9 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 				}
 				storageSet[addr][key] = valBytes
 				if account.storageTrie.Root() != nil {
-					l.logger.Debugf("[Commit-Update-After][%v] after updating storage trie, addr: %v, key: %v, origin state: %v, "+
-						"dirty state: %v, root node: %v", stateSize, account.Addr, &bytesLazyLogger{bytes: utils.CompositeStorageKey(account.Addr, []byte(key))},
-						&bytesLazyLogger{bytes: origValBytes}, &bytesLazyLogger{bytes: valBytes}, account.storageTrie.Root().String())
+					l.logger.Debugf("[Commit-Update-After][%v] after updating storage trie, addr: %v, key: %v, origin state: %v, dirty state: %v",
+						stateSize, account.Addr, &bytesLazyLogger{bytes: utils.CompositeStorageKey(account.Addr, []byte(key))},
+						&bytesLazyLogger{bytes: origValBytes}, &bytesLazyLogger{bytes: valBytes})
 				}
 				stateSize++
 			}

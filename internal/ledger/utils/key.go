@@ -3,9 +3,10 @@ package utils
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/axiomesh/axiom-kit/hexutil"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"strconv"
 
-	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
@@ -26,17 +27,31 @@ const (
 	MaxHeightStr = "maxHeight"
 )
 
+var keyCache = storagemgr.NewCacheWrapper(64, false)
+
 func CompositeKey(prefix string, value any) []byte {
 	return append([]byte(prefix), []byte(fmt.Sprintf("%v", value))...)
 }
 
 func CompositeAccountKey(addr *types.Address) []byte {
-	return hexutil.EncodeToNibbles(addr.String())
+	k := addr.Bytes()
+	if res, ok := keyCache.Get(k); ok {
+		return res
+	}
+	res := hexutil.EncodeToNibbles(addr.String())
+	keyCache.Set(k, res)
+	return res
 }
 
 func CompositeStorageKey(addr *types.Address, key []byte) []byte {
-	keyHash := sha256.Sum256(append(addr.Bytes(), key...))
-	return hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
+	k := append(addr.Bytes(), key...)
+	if res, ok := keyCache.Get(k); ok {
+		return res
+	}
+	keyHash := sha256.Sum256(k)
+	res := hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
+	keyCache.Set(k, res)
+	return res
 }
 
 func CompositeCodeKey(addr *types.Address, codeHash []byte) []byte {

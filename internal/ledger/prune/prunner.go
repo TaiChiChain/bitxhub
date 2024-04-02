@@ -1,13 +1,17 @@
 package prune
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
+	"github.com/axiomesh/axiom-kit/storage/blockjournal"
+	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -33,7 +37,7 @@ var (
 )
 
 func NewPrunner(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, states *states, logger logrus.FieldLogger) *prunner {
-	return &prunner{
+	p := &prunner{
 		rep:                  rep,
 		ledgerStorageBackend: ledgerStorage,
 		accountTrieCache:     accountTrieCache,
@@ -149,6 +153,15 @@ func (p *prunner) pruning() {
 
 		// reset states diff
 		p.states.lock.Lock()
+		stales := p.states.diffs[:pendingFlushBlockNum]
+		for _, d := range stales {
+			for _, node := range d.accountDiff {
+				types.RecycleTrieNode(node)
+			}
+			for _, node := range d.storageDiff {
+				types.RecycleTrieNode(node)
+			}
+		}
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
 		p.states.rebuildAllKeyMap()
 		p.states.lock.Unlock()

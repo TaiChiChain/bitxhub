@@ -178,9 +178,25 @@ type Consensus struct {
 }
 
 type Storage struct {
-	KvType      string `mapstructure:"kv_type" toml:"kv_type"`
-	KvCacheSize int    `mapstructure:"kv_cache_size" toml:"kv_cache_size"`
-	Sync        bool   `mapstructure:"sync" toml:"sync"`
+	KvType string `mapstructure:"kv_type" toml:"kv_type"`
+	// 写是否同步写
+	Sync bool `mapstructure:"sync" toml:"sync"`
+	// 底层kv缓存大小
+	KVCacheSize int64  `mapstructure:"kv_cache_size" toml:"kv_cache_size"` //unit mb
+	Pebble      Pebble `mapstructure:"pebble" toml:"pebble"`
+}
+
+type Pebble struct {
+	// 最大打开文件数，在文件数量比较多的情况，可减少频繁的文件打开关闭操作
+	MaxOpenFiles int `mapstructure:"max_open_files" toml:"max_open_files"`
+	// 内存表大小
+	MemTableSize int `mapstructure:"mem_table_size" toml:"memtable_size"` //unit mb
+	// 内存表停止写入阈值（太小可能会导致写比较快的情况导致写暂停）
+	MemTableStopWritesThreshold int `mapstructure:"mem_table_stop_writes_threshold" toml:"mem_table_stop_writes_threshold"`
+	// L0合并到的LBase层的最大大小，（太小会导致合并比较频繁，太大会导致合并比较集中，短时磁盘写压力会比较大）
+	LBaseMaxSize int64 `mapstructure:"lbase_max_size" toml:"lbase_max_size"` //unit mb
+	// L0合并文件数据量阈值，超过这个值就会触发L0合并
+	L0CompactionFileThreshold int `mapstructure:"l0_cmpaction_file_threshold" toml:"l0_cmpaction_file_threshold"`
 }
 
 type Ledger struct {
@@ -307,8 +323,15 @@ func defaultConfig() *Config {
 		},
 		Storage: Storage{
 			KvType:      KVStorageTypePebble,
-			KvCacheSize: 128,
 			Sync:        true,
+			KVCacheSize: 128,
+			Pebble: Pebble{
+				MaxOpenFiles:                10000,
+				MemTableSize:                32,
+				MemTableStopWritesThreshold: 2,
+				LBaseMaxSize:                64,
+				L0CompactionFileThreshold:   500,
+			},
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize:                      100,

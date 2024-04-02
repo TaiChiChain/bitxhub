@@ -310,7 +310,7 @@ func TestRollback(t *testing.T) {
 			"key1": []byte("val1"),
 			"key2": []byte("val2"),
 			"key3": nil,
-			// "key4": make([]byte, maxBatchSize+1),
+			"key4": make([]byte, maxBatchSize+1),
 		},
 	})
 

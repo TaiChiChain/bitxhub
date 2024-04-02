@@ -751,6 +751,9 @@ func copyDir(src, dest string) error {
 		destPath := filepath.Join(dest, file.Name())
 
 		if file.IsDir() {
+			if err := os.MkdirAll(destPath, os.ModePerm); err != nil {
+				return errors.Errorf("mkdir %s dir error: %v", destPath, err.Error())
+			}
 			if err := copyDir(srcPath, destPath); err != nil {
 				return err
 			}

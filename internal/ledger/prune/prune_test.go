@@ -19,6 +19,7 @@ import (
 func makeLeafNode(str string) *types.LeafNode {
 	return &types.LeafNode{
 		Val: []byte(str),
+		Key: []byte{},
 	}
 }
 

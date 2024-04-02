@@ -30,26 +30,16 @@ func revertJournal(journal *types.SnapshotJournalEntry, batch kv.Batch) {
 }
 
 func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
-	minHeight := uint64(0)
-	maxHeight := uint64(0)
-
-	data := snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr))
-	if data != nil {
-		minHeight = utils.UnmarshalHeight(data)
-	}
-
-	data = snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr))
-	if data != nil {
-		maxHeight = utils.UnmarshalHeight(data)
-	}
-
-	return minHeight, maxHeight
+	return snap.blockjournal.GetJournalRange()
 }
 
-func (snap *Snapshot) GetBlockJournal(height uint64) *types.SnapshotJournal {
-	data := snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, height))
+func (snap *Snapshot) GetBlockJournal(height uint64) (*types.SnapshotJournal, error) {
+	data, err := snap.blockjournal.Retrieve(height)
+	if err != nil {
+		return nil, err
+	}
 	if data == nil {
-		return nil
+		return nil, nil
 	}
 
 	journal, err := types.DecodeSnapshotJournal(data)
@@ -57,5 +47,5 @@ func (snap *Snapshot) GetBlockJournal(height uint64) *types.SnapshotJournal {
 		panic(err)
 	}
 
-	return journal
+	return journal, nil
 }
