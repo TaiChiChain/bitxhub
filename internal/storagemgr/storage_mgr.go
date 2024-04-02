@@ -25,6 +25,11 @@ const (
 	Epoch      = "epoch"
 	TxPool     = "txpool"
 	Sync       = "sync"
+
+	// for block journal
+	BlockJournal             = "blockjournal"
+	BlockJournalTrieName     = "trie"
+	BlockJournalSnapshotName = "snapshot"
 )
 
 var globalStorageMgr = &storageMgr{
@@ -38,6 +43,7 @@ type storageMgr struct {
 	storages          map[string]storage.Storage
 	defaultKVType     string
 	lock              *sync.Mutex
+	rep               *repo.Config
 }
 
 var defaultPebbleOptions = &pebbledb.Options{
@@ -70,30 +76,33 @@ func (m *storageMgr) open(typ string, p string, metricsPrefixName string) (stora
 	return builder(p, metricsPrefixName)
 }
 
-func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableMetrics bool) error {
+func Initialize(repoConfig *repo.Config) error {
+	storageConfig := repoConfig.Storage
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string, _ string) (storage.Storage, error) {
 		return leveldb.New(p, nil)
 	}
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (storage.Storage, error) {
-		defaultPebbleOptions.Cache = pebbledb.NewCache(int64(defaultKvCacheSize * 1024 * 1024))
-		defaultPebbleOptions.MemTableSize = defaultKvCacheSize * 1024 * 1024 / 4 // The size of single memory table
+		defaultPebbleOptions.Cache = pebbledb.NewCache(storageConfig.Pebble.KVCacheSize * 1024 * 1024)
+		defaultPebbleOptions.MemTableSize = storageConfig.Pebble.MemTableSize * 1024 * 1024 // The size of single memory table
+		defaultPebbleOptions.MemTableStopWritesThreshold = storageConfig.Pebble.MemTableStopWritesThreshold
+		defaultPebbleOptions.MaxOpenFiles = storageConfig.Pebble.MaxOpenFiles
 		namespace := "axiom_ledger"
 		subsystem := "ledger"
 		var metricOpts []pebble.MetricsOption
-		if enableMetrics && model.IsValidMetricName(model.LabelValue(metricsPrefixName)) {
+		if repoConfig.Monitor.Enable && model.IsValidMetricName(model.LabelValue(metricsPrefixName)) {
 			metricOpts = append(metricOpts,
 				pebble.WithDiskSizeGauge(namespace, subsystem, metricsPrefixName),
 				pebble.WithDiskWriteThroughput(namespace, subsystem, metricsPrefixName),
 				pebble.WithWalWriteThroughput(namespace, subsystem, metricsPrefixName),
 				pebble.WithEffectiveWriteThroughput(namespace, subsystem, metricsPrefixName))
 		}
-		return pebble.New(p, defaultPebbleOptions, &pebbledb.WriteOptions{Sync: sync}, loggers.Logger(loggers.Storage), metricOpts...)
+		return pebble.New(p, defaultPebbleOptions, &pebbledb.WriteOptions{Sync: storageConfig.Pebble.Sync}, loggers.Logger(loggers.Storage), metricOpts...)
 	}
-	_, ok := globalStorageMgr.storageBuilderMap[defaultKVType]
+	_, ok := globalStorageMgr.storageBuilderMap[storageConfig.KvType]
 	if !ok {
-		return fmt.Errorf("unknow kv type %s, expect leveldb or pebble", defaultKVType)
+		return fmt.Errorf("unknow kv type %s, expect leveldb or pebble", storageConfig.KvType)
 	}
-	globalStorageMgr.defaultKVType = defaultKVType
+	globalStorageMgr.defaultKVType = storageConfig.KvType
 	return nil
 }
 

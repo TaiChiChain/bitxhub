@@ -522,6 +522,7 @@ func rollback(ctx *cli.Context) error {
 	originBlockchainDir := repo.GetStoragePath(r.RepoRoot, storagemgr.BlockChain)
 	originBlockfileDir := repo.GetStoragePath(r.RepoRoot, storagemgr.Blockfile)
 	originStateLedgerDir := repo.GetStoragePath(r.RepoRoot, storagemgr.Ledger)
+	originBlocJournalDir := repo.GetStoragePath(r.RepoRoot, storagemgr.BlockJournal)
 
 	originChainLedger, err := ledger.NewChainLedger(r, "")
 	if err != nil {
@@ -618,6 +619,16 @@ func rollback(ctx *cli.Context) error {
 		return errors.Errorf("copy blockfile dir to rollback dir error: %v", err.Error())
 	}
 	logger.Infof("copy blockfile dir to rollback dir success")
+
+	// copy blockjournal dir
+	targetBlockJournalDir := path.Join(rollbackDir, storagemgr.BlockJournal)
+	if err := os.MkdirAll(targetBlockfileDir, os.ModePerm); err != nil {
+		return errors.Errorf("mkdir blockjournal dir error: %v", err.Error())
+	}
+	if err := copyDir(originBlocJournalDir, targetBlockJournalDir); err != nil {
+		return errors.Errorf("copy blockjournal dir to rollback dir error: %v", err.Error())
+	}
+	logger.Infof("copy blockjournal dir to rollback dir success")
 
 	// copy state ledger dir
 	targetStateLedgerDir := path.Join(rollbackDir, storagemgr.Ledger)
@@ -837,6 +848,9 @@ func copyDir(src, dest string) error {
 		destPath := filepath.Join(dest, file.Name())
 
 		if file.IsDir() {
+			if err := os.MkdirAll(destPath, os.ModePerm); err != nil {
+				return errors.Errorf("mkdir %s dir error: %v", destPath, err.Error())
+			}
 			if err := copyDir(srcPath, destPath); err != nil {
 				return err
 			}

@@ -22,7 +22,12 @@ import (
 )
 
 func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+	repoConfig := repo.Config{Storage: repo.Storage{
+		KvType: repo.KVStorageTypeLeveldb,
+		Sync:   false,
+		Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(&repoConfig)
 	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	cfg, _ := testutil.MockConsensusConfig(logger, ctrl, t)
@@ -44,7 +49,12 @@ func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
 }
 
 func mockAdaptorWithStorageType(ctrl *gomock.Controller, t *testing.T, typ string) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+	repoConfig := repo.Config{Storage: repo.Storage{
+		KvType: repo.KVStorageTypeLeveldb,
+		Sync:   false,
+		Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(&repoConfig)
 	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	cfg, _ := testutil.MockConsensusConfig(logger, ctrl, t)
