@@ -16,7 +16,7 @@ func newMockLedger(t *testing.T) ledger.StateLedger {
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
 
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
+	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
 	account.SetBalance(big.NewInt(3000000000000000000))
 
 	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
