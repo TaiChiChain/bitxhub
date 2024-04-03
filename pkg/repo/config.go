@@ -216,9 +216,11 @@ type Storage struct {
 type Pebble struct {
 	Sync                        bool  `mapstructure:"sync" toml:"sync"`
 	MaxOpenFiles                int   `mapstructure:"max_open_files" toml:"max_open_files"`
-	MemTableSize                int   `mapstructure:"mem_table_size" toml:"memtable_size"`
+	MemTableSize                int   `mapstructure:"mem_table_size" toml:"memtable_size"` //unit mb
 	MemTableStopWritesThreshold int   `mapstructure:"mem_table_stop_writes_threshold" toml:"mem_table_stop_writes_threshold"`
-	KVCacheSize                 int64 `mapstructure:"kv_cache_size" toml:"kv_cache_size"`
+	KVCacheSize                 int64 `mapstructure:"kv_cache_size" toml:"kv_cache_size"`   //unit mb
+	LBaseMaxSize                int64 `mapstructure:"lbase_max_size" toml:"lbase_max_size"` //unit mb
+	L0CompactionFileThreshold   int   `mapstructure:"l0_cmpaction_file_threshold" toml:"l0_cmpaction_file_threshold"`
 }
 
 type Ledger struct {
@@ -334,8 +336,10 @@ func DefaultConfig() *Config {
 				Sync:                        true,
 				MaxOpenFiles:                1000,
 				MemTableSize:                4,
-				MemTableStopWritesThreshold: 2,
+				MemTableStopWritesThreshold: 4,
 				KVCacheSize:                 128,
+				LBaseMaxSize:                1024,
+				L0CompactionFileThreshold:   25,
 			},
 		},
 		Ledger: Ledger{
