@@ -3,6 +3,8 @@ package rbft
 import (
 	"context"
 	"fmt"
+	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
+	"github.com/samber/lo"
 	"math/big"
 	"strings"
 	"testing"
@@ -25,7 +27,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -33,9 +34,10 @@ var validTxsCh = make(chan *precheck.ValidTxs, 1024)
 
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 	repoConfig := &repo.Config{Storage: repo.Storage{
-		KvType: repo.KVStorageTypeLeveldb,
-		Sync:   false,
-		Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+		KvType:      repo.KVStorageTypeLeveldb,
+		Sync:        false,
+		KVCacheSize: repo.KVStorageCacheSize,
+		Pebble:      repo.Pebble{},
 	}, Monitor: repo.Monitor{Enable: false}}
 	err := storagemgr.Initialize(repoConfig)
 	assert.Nil(t, err)
@@ -156,9 +158,10 @@ func TestInit(t *testing.T) {
 func TestNewNode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repoConfig := &repo.Config{Storage: repo.Storage{
-		KvType: repo.KVStorageTypeLeveldb,
-		Sync:   false,
-		Pebble: repo.Pebble{KVCacheSize: repo.KVStorageCacheSize},
+		KvType:      repo.KVStorageTypeLeveldb,
+		Sync:        false,
+		KVCacheSize: repo.KVStorageCacheSize,
+		Pebble:      repo.Pebble{},
 	}, Monitor: repo.Monitor{Enable: false}}
 	err := storagemgr.Initialize(repoConfig)
 	assert.Nil(t, err)

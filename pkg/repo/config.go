@@ -210,17 +210,24 @@ type Consensus struct {
 
 type Storage struct {
 	KvType string `mapstructure:"kv_type" toml:"kv_type"`
-	Pebble Pebble `mapstructure:"pebble" toml:"pebble"`
+	// 写是否同步写
+	Sync bool `mapstructure:"sync" toml:"sync"`
+	// 底层kv缓存大小
+	KVCacheSize int64  `mapstructure:"kv_cache_size" toml:"kv_cache_size"` //unit mb
+	Pebble      Pebble `mapstructure:"pebble" toml:"pebble"`
 }
 
 type Pebble struct {
-	Sync                        bool  `mapstructure:"sync" toml:"sync"`
-	MaxOpenFiles                int   `mapstructure:"max_open_files" toml:"max_open_files"`
-	MemTableSize                int   `mapstructure:"mem_table_size" toml:"memtable_size"` //unit mb
-	MemTableStopWritesThreshold int   `mapstructure:"mem_table_stop_writes_threshold" toml:"mem_table_stop_writes_threshold"`
-	KVCacheSize                 int64 `mapstructure:"kv_cache_size" toml:"kv_cache_size"`   //unit mb
-	LBaseMaxSize                int64 `mapstructure:"lbase_max_size" toml:"lbase_max_size"` //unit mb
-	L0CompactionFileThreshold   int   `mapstructure:"l0_cmpaction_file_threshold" toml:"l0_cmpaction_file_threshold"`
+	// 最大打开文件数，在文件数量比较多的情况，可减少频繁的文件打开关闭操作
+	MaxOpenFiles int `mapstructure:"max_open_files" toml:"max_open_files"`
+	// 内存表大小
+	MemTableSize int `mapstructure:"mem_table_size" toml:"memtable_size"` //unit mb
+	// 内存表停止写入阈值（太小可能会导致写比较快的情况导致写暂停）
+	MemTableStopWritesThreshold int `mapstructure:"mem_table_stop_writes_threshold" toml:"mem_table_stop_writes_threshold"`
+	// L0合并到的LBase层的最大大小，（太小会导致合并比较频繁，太大会导致合并比较集中，短时磁盘写压力会比较大）
+	LBaseMaxSize int64 `mapstructure:"lbase_max_size" toml:"lbase_max_size"` //unit mb
+	// L0合并文件数据量阈值，超过这个值就会触发L0合并
+	L0CompactionFileThreshold int `mapstructure:"l0_cmpaction_file_threshold" toml:"l0_cmpaction_file_threshold"`
 }
 
 type Ledger struct {
@@ -331,15 +338,17 @@ func DefaultConfig() *Config {
 			StorageType: ConsensusStorageTypeMinifile,
 		},
 		Storage: Storage{
-			KvType: KVStorageTypePebble,
+			KvType:      KVStorageTypePebble,
+			Sync:        true,
+			KVCacheSize: 128,
 			Pebble: Pebble{
-				Sync:                        true,
+
 				MaxOpenFiles:                1000,
 				MemTableSize:                4,
 				MemTableStopWritesThreshold: 4,
-				KVCacheSize:                 128,
-				LBaseMaxSize:                1024,
-				L0CompactionFileThreshold:   25,
+
+				LBaseMaxSize:              1024,
+				L0CompactionFileThreshold: 25,
 			},
 		},
 		Ledger: Ledger{

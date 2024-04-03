@@ -387,13 +387,13 @@ func TaurusConfig() *Config {
 			StorageType: ConsensusStorageTypeMinifile,
 		},
 		Storage: Storage{
-			KvType: KVStorageTypePebble,
+			KvType:      KVStorageTypePebble,
+			Sync:        true,
+			KVCacheSize: 128,
 			Pebble: Pebble{
-				Sync:                        true,
 				MaxOpenFiles:                1000,
 				MemTableSize:                4,
 				MemTableStopWritesThreshold: 4,
-				KVCacheSize:                 128,
 				LBaseMaxSize:                1024,
 				L0CompactionFileThreshold:   25,
 			},

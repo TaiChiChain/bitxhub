@@ -58,7 +58,7 @@ var defaultPebbleOptions = &pebbledb.Options{
 	// options for the last level are used for all subsequent levels.
 	// This option is the same with Ethereum.
 	Levels: []pebbledb.LevelOptions{
-		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
@@ -82,7 +82,7 @@ func Initialize(repoConfig *repo.Config) error {
 		return leveldb.New(p, nil)
 	}
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (storage.Storage, error) {
-		defaultPebbleOptions.Cache = pebbledb.NewCache(storageConfig.Pebble.KVCacheSize * 1024 * 1024)
+		defaultPebbleOptions.Cache = pebbledb.NewCache(storageConfig.KVCacheSize * 1024 * 1024)
 		defaultPebbleOptions.MemTableSize = storageConfig.Pebble.MemTableSize * 1024 * 1024 // The size of single memory table
 		defaultPebbleOptions.MemTableStopWritesThreshold = storageConfig.Pebble.MemTableStopWritesThreshold
 		defaultPebbleOptions.MaxOpenFiles = storageConfig.Pebble.MaxOpenFiles
@@ -98,7 +98,7 @@ func Initialize(repoConfig *repo.Config) error {
 				pebble.WithWalWriteThroughput(namespace, subsystem, metricsPrefixName),
 				pebble.WithEffectiveWriteThroughput(namespace, subsystem, metricsPrefixName))
 		}
-		return pebble.New(p, defaultPebbleOptions, &pebbledb.WriteOptions{Sync: storageConfig.Pebble.Sync}, loggers.Logger(loggers.Storage), metricOpts...)
+		return pebble.New(p, defaultPebbleOptions, &pebbledb.WriteOptions{Sync: storageConfig.Sync}, loggers.Logger(loggers.Storage), metricOpts...)
 	}
 	_, ok := globalStorageMgr.storageBuilderMap[storageConfig.KvType]
 	if !ok {
