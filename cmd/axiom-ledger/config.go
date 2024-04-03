@@ -30,6 +30,7 @@ func passwordFlag() *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "password",
 		Usage:       "Generate or decode p2p.key with password",
+		EnvVars:     []string{"AXIOM_LEDGER_KEY_PASSWORD"},
 		Destination: &configGenerateArgs.Auth,
 		Aliases:     []string{"p", "P", "pwd"},
 		Required:    false,
