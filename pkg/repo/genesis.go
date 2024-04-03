@@ -19,7 +19,6 @@ type GenesisConfig struct {
 	Axm                    *Token          `mapstructure:"axm" toml:"axm"`
 	Axc                    *Token          `mapstructure:"axc" toml:"axc"`
 	Incentive              *Incentive      `mapstructure:"incentive" toml:"incentive"`
-	Balance                string          `mapstructure:"balance" toml:"balance"`
 	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
 	SmartAccountAdmin      string          `mapstructure:"smart_account_admin" toml:"smart_account_admin"`
 	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`

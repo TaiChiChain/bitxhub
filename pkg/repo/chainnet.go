@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/samber/lo"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	network "github.com/axiomesh/axiom-p2p"
 )
@@ -785,7 +787,38 @@ func GeminiConsensusConfig() *ConsensusConfig {
 func GeminiGenesisConfig() *GenesisConfig {
 	// nolint
 	return &GenesisConfig{
-		ChainID: 23413,
+		ChainID:   23413,
+		Timestamp: 1712592000,
+		Axm: &Token{
+			Name:        "Axiom",
+			Symbol:      "AXM",
+			Decimals:    DefaultDecimals,
+			TotalSupply: "4000000000000000000000000000",
+		},
+		Axc: &Token{
+			Name:        "Axiomesh Credit",
+			Symbol:      "axc",
+			Decimals:    DefaultDecimals,
+			TotalSupply: DefaultAXCTotalSupply,
+		},
+		Accounts: []*Account{
+			{
+				Address: "0xB37cF4c055A454EEc7d7e141eA03fFFaa979b27E",
+				Balance: "1000000000000000000000000000",
+			},
+			{
+				Address: "0xeF95F6fDF32250553bD6fb90c4c86DC8Ff1707fd",
+				Balance: "1000000000000000000000000000",
+			},
+			{
+				Address: "0x204B723dCBdFF60d32EA4888D618Dd1E256d1a93",
+				Balance: "1000000000000000000000000000",
+			},
+			{
+				Address: "0xEDbc7AE5605BA4ACc53085C4094648e8DB2172b5",
+				Balance: "1000000000000000000000000000",
+			},
+		},
 		Admins: []*Admin{
 			{
 				Address: "0xB37cF4c055A454EEc7d7e141eA03fFFaa979b27E",
@@ -808,9 +841,28 @@ func GeminiGenesisConfig() *GenesisConfig {
 				Name:    "Q2F0",
 			},
 		},
+		Incentive: &Incentive{
+			Mining: &Mining{
+				BlockNumToHalf: 126144000,
+				BlockNumToNone: 630720001,
+				TotalAmount:    "40000000000000000000000000",
+			},
+			UserAcquisition: &UserAcquisition{
+				AvgBlockReward: "126000000000000000",
+				BlockToNone:    315360000,
+			},
+			Distributions: lo.Map(DefaultAXCDistribution, func(item Distribution, _ int) *Distribution {
+				return &Distribution{
+					Name:         item.Name,
+					Addr:         item.Addr,
+					Percentage:   item.Percentage,
+					InitEmission: item.InitEmission,
+					Locked:       item.Locked,
+				}
+			}),
+		},
 		SmartAccountAdmin:      "0x83Db4fA2CbB682753C94ca8A809a4a321aA36e1b",
 		InitWhiteListProviders: []string{},
-		Accounts:               []*Account{},
 		EpochInfo: &rbft.EpochInfo{
 			Version:                   1,
 			Epoch:                     1,
