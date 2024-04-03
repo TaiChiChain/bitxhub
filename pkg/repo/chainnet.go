@@ -392,8 +392,10 @@ func TaurusConfig() *Config {
 				Sync:                        true,
 				MaxOpenFiles:                1000,
 				MemTableSize:                4,
-				MemTableStopWritesThreshold: 2,
+				MemTableStopWritesThreshold: 4,
 				KVCacheSize:                 128,
+				LBaseMaxSize:                1024,
+				L0CompactionFileThreshold:   25,
 			},
 		},
 		Ledger: Ledger{

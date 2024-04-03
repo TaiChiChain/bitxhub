@@ -86,6 +86,8 @@ func Initialize(repoConfig *repo.Config) error {
 		defaultPebbleOptions.MemTableSize = storageConfig.Pebble.MemTableSize * 1024 * 1024 // The size of single memory table
 		defaultPebbleOptions.MemTableStopWritesThreshold = storageConfig.Pebble.MemTableStopWritesThreshold
 		defaultPebbleOptions.MaxOpenFiles = storageConfig.Pebble.MaxOpenFiles
+		defaultPebbleOptions.L0CompactionFileThreshold = storageConfig.Pebble.L0CompactionFileThreshold
+		defaultPebbleOptions.LBaseMaxBytes = storageConfig.Pebble.LBaseMaxSize * 1024 * 1024
 		namespace := "axiom_ledger"
 		subsystem := "ledger"
 		var metricOpts []pebble.MetricsOption
