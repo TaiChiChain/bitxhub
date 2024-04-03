@@ -27,14 +27,12 @@ import (
 var _ commonpool.TxPool[types.Transaction, *types.Transaction] = (*txPoolImpl[types.Transaction, *types.Transaction])(nil)
 
 var (
-	ErrTxPoolFull          = errors.New("tx pool full")
-	ErrNonceTooLow         = errors.New("nonce too low")
-	ErrNonceTooHigh        = errors.New("nonce too high")
-	ErrDuplicateTx         = errors.New("duplicate tx")
-	ErrGasPriceTooLow      = errors.New("gas price too low")
-	ErrReplaceQueueOldTx   = errors.New("replaced old tx which belong to queue")
-	ErrReplacePendingOldTx = errors.New("replaced old tx which belong to pending")
-	ErrBelowPriceBump      = errors.New("replace old tx err, gas price is below price bump")
+	ErrTxPoolFull     = errors.New("tx pool full")
+	ErrNonceTooLow    = errors.New("nonce too low")
+	ErrNonceTooHigh   = errors.New("nonce too high")
+	ErrDuplicateTx    = errors.New("duplicate tx")
+	ErrGasPriceTooLow = errors.New("gas price too low")
+	ErrBelowPriceBump = errors.New("replace old tx err, gas price is below price bump")
 )
 
 // txPoolImpl contains all currently known transactions.
@@ -63,6 +61,7 @@ type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
 
 	timerMgr  timer.Timer
 	statusMgr *PoolStatusMgr
+	started   atomic.Bool
 	txRecords *txRecords[T, Constraint]
 
 	revCh  chan txPoolEvent
@@ -76,6 +75,9 @@ func NewTxPool[T any, Constraint types.TXConstraint[T]](config Config) (commonpo
 }
 
 func (p *txPoolImpl[T, Constraint]) Start() error {
+	if p.started.Load() {
+		return fmt.Errorf("txpool already started")
+	}
 	go p.listenEvent()
 
 	if p.enableLocalsPersist {
@@ -102,6 +104,7 @@ func (p *txPoolImpl[T, Constraint]) Start() error {
 		}
 	}
 
+	p.started.Store(true)
 	p.logger.Info("txpool started")
 	return nil
 }
@@ -289,7 +292,6 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 			}
 		}
 
-		//errs := p.addTxs(txs, false)
 		lo.ForEach(txs, func(tx *T, i int) {
 			replaced, err := p.addTx(tx, false)
 
@@ -303,7 +305,6 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 				traceRejectTx(err.Error())
 			} else {
 				p.updateValidTxs(&validTxs, tx, replaced)
-				p.logger.Infof("update valid txs: %d", len(validTxs))
 			}
 		})
 
@@ -315,7 +316,6 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 		validTxs, err := p.validateReceiveMissingRequests(req.batchHash, req.txs)
 		if err == nil {
 			lo.ForEach(validTxs, func(tx *T, _ int) {
-
 				p.replaceTx(tx, false)
 			})
 			delete(p.txStore.missingBatch, req.batchHash)
@@ -983,6 +983,7 @@ func (p *txPoolImpl[T, Constraint]) Stop() {
 			p.logger.Errorf("Failed to close txRecords: %v", err)
 		}
 	}
+	p.started.Store(false)
 	p.logger.Infof("TxPool stopped!!!")
 }
 
@@ -1830,6 +1831,11 @@ func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local bool) bool {
 	// 1. insert new tx to pool
 	p.txStore.insertTxInPool(newPoolTx, local)
 
+	// if tx is the pending tx, update pending nonce
+	if txNonce == pendingNonce {
+		p.processDirtyAccount(account, newPoolTx, true)
+	}
+
 	// 2. replace old tx in priority queue or parking lot
 	if txNonce < pendingNonce {
 		if p.enablePricePriority {
@@ -1840,10 +1846,13 @@ func (p *txPoolImpl[T, Constraint]) replaceTx(tx *T, local bool) bool {
 		if !replaced {
 			p.increasePriorityNonBatchSize(1)
 		}
-	} else {
+	} else if txNonce > pendingNonce {
 		// insert new tx to parking lot
 		p.txStore.parkingLotIndex.insertKey(newPoolTx)
-		p.txStore.increaseParkingLotSize(1)
+		// replace old tx in parking lot is not needed to update parking lot size
+		if !replaced {
+			p.txStore.increaseParkingLotSize(1)
+		}
 	}
 
 	return replaced
