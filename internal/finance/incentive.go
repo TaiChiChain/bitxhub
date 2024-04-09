@@ -3,14 +3,15 @@ package finance
 import (
 	"math/big"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
+
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
 )
 
 type Incentive struct {
@@ -20,8 +21,10 @@ type Incentive struct {
 	userAcquisitionAddr ethcommon.Address
 
 	totalAmount *big.Int
+
 	// todo: change the remaining in memory to the receiver address in the future, in case restart vanish the data
-	remaining    *big.Int
+	remaining *big.Int
+
 	blockNumHalf uint64
 	rules        []MiningRules
 
@@ -53,8 +56,10 @@ func (in *Incentive) SetMiningRewards(receiver ethcommon.Address, ledger ledger.
 		CurrentHeight: blockHeight,
 		CurrentUser:   &msgFrom,
 	})
-	value := in.calculateMiningRewards(blockHeight)
-	return in.axc.Transfer(receiver, value)
+	// value := in.calculateMiningRewards(blockHeight)
+	// TODO
+	panic("implement me")
+	// return in.axc.Transfer(receiver, value)
 }
 
 func (in *Incentive) calculateMiningRewards(currentBlock uint64) *big.Int {

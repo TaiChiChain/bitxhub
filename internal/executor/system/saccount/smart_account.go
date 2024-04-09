@@ -121,7 +121,7 @@ func (sa *SmartAccount) InitializeOrLoad(selfAddr, owner, guardian ethcommon.Add
 
 	sa.selfAddr = types.NewAddress(selfAddr.Bytes())
 	sa.account = sa.stateLedger.GetOrCreateAccount(sa.selfAddr)
-	sa.sessionSlot = common.NewVMSlotp[Session](sa.account, sessionKey)
+	sa.sessionSlot = common.NewVMSlot[Session](sa.account, sessionKey)
 
 	if isExist, ownerBytes := sa.account.GetState([]byte(ownerKey)); isExist {
 		sa.owner = ethcommon.BytesToAddress(ownerBytes)
