@@ -221,7 +221,7 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 				}
 				if acc.StorageRoot != (common.Hash{}) {
 					// set contract code
-					codeKey := utils.CompositeCodeKey(types.NewAddress(types.HexToBytes(node.LeafKey)), acc.CodeHash)
+					codeKey := utils.CompositeCodeKey(types.NewAddress(node.LeafKey), acc.CodeHash)
 					batch.Put(codeKey, l.backend.Get(codeKey))
 					// prepare storage trie root
 					queue = append(queue, acc.StorageRoot)

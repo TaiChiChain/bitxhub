@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
@@ -31,12 +30,14 @@ func CompositeKey(prefix string, value any) []byte {
 }
 
 func CompositeAccountKey(addr *types.Address) []byte {
-	return hexutil.EncodeToNibbles(addr.String())
+	return addr.Bytes()
+	//return hexutil.EncodeToNibbles(addr.String())
 }
 
 func CompositeStorageKey(addr *types.Address, key []byte) []byte {
 	keyHash := sha256.Sum256(append(addr.Bytes(), key...))
-	return hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
+	return types.NewHash(keyHash[:]).Bytes()
+	//return hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
 }
 
 func CompositeCodeKey(addr *types.Address, codeHash []byte) []byte {
