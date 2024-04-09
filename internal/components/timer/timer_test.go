@@ -15,10 +15,29 @@ var (
 	handler = func(name TimeoutEvent) {
 		eventCh <- name
 	}
+
+	Batch     TimeoutEvent = "batch"
+	NoTxBatch TimeoutEvent = "noTxBatch"
 )
 
 func resetCh() {
 	eventCh = make(chan any, 1)
+}
+
+func TestTimerManager_CreateTimer(t *testing.T) {
+	logger := log.NewWithModule("timer")
+	tm := NewTimerManager(logger)
+	defer resetCh()
+	err := tm.CreateTimer(Batch, 1000*time.Second, handler)
+	require.Nil(t, err)
+	err = tm.CreateTimer(Batch, 10*time.Millisecond, handler)
+	require.Nil(t, err)
+	now := time.Now()
+	err = tm.StartTimer(Batch)
+	require.Nil(t, err)
+	ev := <-eventCh
+	require.Equal(t, Batch, ev)
+	require.True(t, time.Since(now) < 1000*time.Second)
 }
 
 func TestBatchTimer_StartBatchTimer(t *testing.T) {
@@ -30,6 +49,7 @@ func TestBatchTimer_StartBatchTimer(t *testing.T) {
 		batchEnd     time.Duration
 		noTxBatchEnd time.Duration
 	)
+
 	batchTimeout := 500 * time.Millisecond
 	noTxBatchTimeout := 1 * time.Second
 	err := tm.CreateTimer(Batch, 0, handler)
@@ -151,4 +171,19 @@ func TestBatchTimer_RestartTimer(t *testing.T) {
 	require.Nil(t, err)
 	<-ch
 	require.True(t, time.Since(start) > batchTimeout+waitTime)
+}
+
+func TestTimerManager_RemoveTimer(t *testing.T) {
+	defer resetCh()
+	logger := log.NewWithModule("timer")
+	batchTimer := NewTimerManager(logger)
+	batchTimeout := 10 * time.Millisecond
+	err := batchTimer.RemoveTimer(Batch)
+	require.NotNil(t, err)
+
+	err = batchTimer.CreateTimer(Batch, batchTimeout, handler)
+	require.Nil(t, err)
+	err = batchTimer.RemoveTimer(Batch)
+	require.Nil(t, err)
+
 }

@@ -6,6 +6,21 @@ import (
 
 	common_pool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/status"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
+)
+
+const (
+	ReadyGenerateBatch status.StatusType = iota
+	HasPendingRequest
+	PoolFull
+	PoolEmpty
+)
+
+const (
+	RemoveTx          timer.TimeoutEvent = "RemoveTx"
+	CleanEmptyAccount timer.TimeoutEvent = "CleanEmptyAccount"
+	RotateTxLocals    timer.TimeoutEvent = "RotateTxLocals"
 )
 
 // nolint

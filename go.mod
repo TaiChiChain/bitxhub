@@ -7,9 +7,9 @@ replace github.com/ethereum/go-ethereum v1.13.14 => github.com/axiomesh/go-ether
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
-	github.com/axiomesh/axiom-bft v0.0.3-0.20240513015234-74c1fc365382
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240511111426-0c64cf298940
-	github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d
+	github.com/axiomesh/axiom-bft v0.0.3-0.20240515080344-6803db935ae4
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240514061514-4806bfc8e3a0
+	github.com/axiomesh/axiom-p2p v0.0.3-0.20240422040321-23fa5d2b5cbf
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a

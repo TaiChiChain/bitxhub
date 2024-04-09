@@ -98,9 +98,11 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	a.currentSyncHeight = startHeight
 
 	a.logger.WithFields(logrus.Fields{
-		"target":      a.StateUpdateHeight,
-		"target_hash": digest,
-		"start":       startHeight,
+		"target":       a.StateUpdateHeight,
+		"target_hash":  digest,
+		"start":        startHeight,
+		"checkpoints":  checkpoints,
+		"epochChanges": epochChanges,
 	}).Info("State update start")
 
 	syncTaskDoneCh := make(chan error, 1)

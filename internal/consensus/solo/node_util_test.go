@@ -73,9 +73,9 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		},
 	}
 	batchTimerMgr := timer.NewTimerManager(logger)
-	err = batchTimerMgr.CreateTimer(timer.Batch, batchTimeout, soloNode.handleTimeoutEvent)
+	err = batchTimerMgr.CreateTimer(common.Batch, batchTimeout, soloNode.handleTimeoutEvent)
 	require.Nil(t, err)
-	err = batchTimerMgr.CreateTimer(timer.NoTxBatch, noTxBatchTimeout, soloNode.handleTimeoutEvent)
+	err = batchTimerMgr.CreateTimer(common.NoTxBatch, noTxBatchTimeout, soloNode.handleTimeoutEvent)
 	require.Nil(t, err)
 	soloNode.batchMgr = &batchTimerManager{Timer: batchTimerMgr}
 	return soloNode, nil

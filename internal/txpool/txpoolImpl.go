@@ -15,6 +15,7 @@ import (
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components"
+	"github.com/axiomesh/axiom-ledger/internal/components/status"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -60,7 +61,7 @@ type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
 	notifyFindNextBatchFn func(completionMissingBatchHashes ...string) // notify consensus that it can find next batch
 
 	timerMgr  timer.Timer
-	statusMgr *PoolStatusMgr
+	statusMgr *status.StatusMgr
 	started   atomic.Bool
 	txRecords *txRecords[T, Constraint]
 
@@ -89,16 +90,16 @@ func (p *txPoolImpl[T, Constraint]) Start() error {
 		}
 	}
 
-	err := p.timerMgr.StartTimer(timer.RemoveTx)
+	err := p.timerMgr.StartTimer(RemoveTx)
 	if err != nil {
 		return err
 	}
-	err = p.timerMgr.StartTimer(timer.CleanEmptyAccount)
+	err = p.timerMgr.StartTimer(CleanEmptyAccount)
 	if err != nil {
 		return err
 	}
 	if p.enableLocalsPersist {
-		err = p.timerMgr.StartTimer(timer.RotateTxLocals)
+		err = p.timerMgr.StartTimer(RotateTxLocals)
 		if err != nil {
 			return err
 		}
@@ -1026,7 +1027,7 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 		rotateTxLocalsInterval: config.RotateTxLocalsInterval,
 		PriceBump:              config.PriceBump,
 
-		statusMgr: newPoolStatusMgr(),
+		statusMgr: status.NewStatusMgr(),
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -1045,11 +1046,11 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 
 	// init timer for remove tx
 	txpoolImp.timerMgr = timer.NewTimerManager(txpoolImp.logger)
-	err := txpoolImp.timerMgr.CreateTimer(timer.RemoveTx, txpoolImp.toleranceRemoveTime, txpoolImp.handleRemoveTimeout)
+	err := txpoolImp.timerMgr.CreateTimer(RemoveTx, txpoolImp.toleranceRemoveTime, txpoolImp.handleRemoveTimeout)
 	if err != nil {
 		return nil, err
 	}
-	err = txpoolImp.timerMgr.CreateTimer(timer.CleanEmptyAccount, txpoolImp.cleanEmptyAccountTime, txpoolImp.handleRemoveTimeout)
+	err = txpoolImp.timerMgr.CreateTimer(CleanEmptyAccount, txpoolImp.cleanEmptyAccountTime, txpoolImp.handleRemoveTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -1067,7 +1068,7 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config) (*txP
 				return nil, err
 			}
 		}
-		err = txpoolImp.timerMgr.CreateTimer(timer.RotateTxLocals, txpoolImp.rotateTxLocalsInterval, txpoolImp.handleRemoveTimeout)
+		err = txpoolImp.timerMgr.CreateTimer(RotateTxLocals, txpoolImp.rotateTxLocalsInterval, txpoolImp.handleRemoveTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -2104,7 +2105,7 @@ func (p *txPoolImpl[T, Constraint]) handleFilterOutOfDateRequests(timeout bool) 
 			if p.enablePricePriority {
 				account := p.txStore.priorityByPrice.accountsM[orderedKey.account]
 				if account != nil {
-					if orderedKey.nonce >= account.minNonceQueue.peek() {
+					if orderedKey.nonce >= account.minNonceQueue.PeekItem() {
 						if reBroadTx := account.items[orderedKey.nonce]; reBroadTx != nil {
 							forward = append(forward, reBroadTx)
 						}

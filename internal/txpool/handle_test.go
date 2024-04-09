@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
 
 func TestHandleRemoveTimeoutEvent(t *testing.T) {
@@ -49,7 +48,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		}
 		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 
-		pool.handleRemoveTimeout(timer.RemoveTx)
+		pool.handleRemoveTimeout(RemoveTx)
 		ast.Equal(uint64(5), pool.GetTotalPendingTxCount(), "ignore batched and priority txs")
 	})
 
@@ -80,7 +79,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 
 			// sleep a while to trigger the remove timeout event
 			time.Sleep(6 * time.Millisecond)
-			pool.handleRemoveTimeout(timer.RemoveTx)
+			pool.handleRemoveTimeout(RemoveTx)
 			assert.Equal(t, uint64(0), pool.GetTotalPendingTxCount())
 
 			assert.Equal(t, 1, len(pool.txStore.nonceCache.commitNonces))
@@ -91,7 +90,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		pool.cleanEmptyAccountTime = 5 * time.Millisecond
 		// sleep a while to trigger the clean empty account timeout event
 		time.Sleep(6 * time.Millisecond)
-		pool.handleRemoveTimeout(timer.CleanEmptyAccount)
+		pool.handleRemoveTimeout(CleanEmptyAccount)
 		assert.Equal(t, uint64(0), pool.GetTotalPendingTxCount())
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.commitNonces))
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.pendingNonces))
@@ -120,7 +119,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		ast.Nil(err)
 		records, err := GetAllTxRecords(pool.txRecordsFile)
 		ast.True(len(records) == 1)
-		pool.handleRemoveTimeout(timer.RotateTxLocals)
+		pool.handleRemoveTimeout(RotateTxLocals)
 		time.Sleep(2 * time.Millisecond)
 		ast.Equal(uint64(0), pool.GetTotalPendingTxCount())
 		records2, err := GetAllTxRecords(pool.txRecordsFile)
@@ -131,7 +130,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		ast.Nil(err)
 		removeErr := os.Remove(pool.txRecordsFile)
 		ast.Nil(removeErr)
-		pool.handleRemoveTimeout(timer.RotateTxLocals)
+		pool.handleRemoveTimeout(RotateTxLocals)
 		time.Sleep(2 * time.Millisecond)
 		ast.Equal(uint64(1), pool.GetTotalPendingTxCount())
 		records3, err := GetAllTxRecords(pool.txRecordsFile)

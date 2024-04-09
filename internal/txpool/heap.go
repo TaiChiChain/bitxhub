@@ -5,20 +5,21 @@ import (
 	"math"
 
 	"github.com/axiomesh/axiom-kit/types"
+	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/heap"
 )
 
 // A thread-safe wrapper of a nonceHeap.
 // All methods assume the (correct) lock is held.
 type accountQueue[T any, Constraint types.TXConstraint[T]] struct {
 	items         map[uint64]*internalTransaction[T, Constraint]
-	minNonceQueue *nonceHeap
+	minNonceQueue *axm_heap.NumberHeap
 	lastNonce     uint64
 }
 
 func newAccountQueue[T any, Constraint types.TXConstraint[T]](latestNonce uint64) *accountQueue[T, Constraint] {
 	q := &accountQueue[T, Constraint]{
 		items:         make(map[uint64]*internalTransaction[T, Constraint]),
-		minNonceQueue: new(nonceHeap),
+		minNonceQueue: new(axm_heap.NumberHeap),
 		lastNonce:     latestNonce,
 	}
 	*q.minNonceQueue = make([]uint64, 0)
@@ -43,7 +44,7 @@ func (q *accountQueue[T, Constraint]) updateLastNonce(nonce uint64) {
 }
 
 func (q *accountQueue[T, Constraint]) isValidPush(nonce uint64) bool {
-	if nonce < q.minNonceQueue.peek() {
+	if nonce < q.minNonceQueue.PeekItem() {
 		return true
 	}
 
@@ -77,7 +78,7 @@ func (q *accountQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint
 		return true
 	}
 	q.items[tx.getNonce()] = tx
-	q.minNonceQueue.push(tx.getNonce())
+	q.minNonceQueue.PushItem(tx.getNonce())
 	if q.lastNonce < tx.getNonce() {
 		q.lastNonce = tx.getNonce()
 	}
@@ -86,7 +87,7 @@ func (q *accountQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint
 
 // peek returns the first transaction from the minNonceQueue without removing it.
 func (q *accountQueue[T, Constraint]) peek() *internalTransaction[T, Constraint] {
-	return q.items[q.minNonceQueue.peek()]
+	return q.items[q.minNonceQueue.PeekItem()]
 }
 
 // pop removes the first transactions from the minNonceQueue and returns it.
@@ -95,7 +96,7 @@ func (q *accountQueue[T, Constraint]) pop() *internalTransaction[T, Constraint] 
 		return nil
 	}
 
-	nonce := q.minNonceQueue.pop()
+	nonce := q.minNonceQueue.PopItem()
 
 	tx := q.items[nonce]
 	delete(q.items, nonce)
@@ -129,58 +130,6 @@ func (q *accountQueue[T, Constraint]) removeBehind(nonce uint64) ([]*internalTra
 // length returns the number of transactions in the minNonceQueue.
 func (q *accountQueue[T, Constraint]) length() uint64 {
 	return uint64(q.minNonceQueue.Len())
-}
-
-// transactions sorted by nonce (ascending)
-type nonceHeap []uint64
-
-/* Queue methods required by the heap interface */
-
-func (n *nonceHeap) peek() uint64 {
-	if n.Len() == 0 {
-		return math.MaxUint64
-	}
-
-	return (*n)[0]
-}
-
-func (n *nonceHeap) Len() int {
-	return len(*n)
-}
-
-func (n *nonceHeap) Swap(i, j int) {
-	(*n)[i], (*n)[j] = (*n)[j], (*n)[i]
-}
-
-func (n *nonceHeap) Less(i, j int) bool {
-	return (*n)[i] < (*n)[j]
-}
-
-func (n *nonceHeap) Push(x any) {
-	nonce, ok := x.(uint64)
-	if !ok {
-		return
-	}
-
-	*n = append(*n, nonce)
-}
-
-func (n *nonceHeap) push(x uint64) {
-	heap.Push(n, x)
-}
-
-func (n *nonceHeap) Pop() any {
-	old := *n
-	num := len(old)
-	item := old[num-1]
-	old[num-1] = 0 // avoid memory leak
-	*n = old[0 : num-1]
-
-	return item
-}
-
-func (n *nonceHeap) pop() uint64 {
-	return heap.Pop(n).(uint64)
 }
 
 // TxByPriceAndTime implements both the sort and the heap interface, making it useful

@@ -35,9 +35,8 @@ func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
 		assert.Nil(t, err)
 		consensusMsgPipes[id] = msgPipe
 	}
-	globalMsgPipe, err := stack.config.Network.CreatePipe(context.Background(), "test_pipe_global")
-	assert.Nil(t, err)
-	stack.SetMsgPipes(consensusMsgPipes, globalMsgPipe)
+
+	stack.SetMsgPipes(consensusMsgPipes)
 	err = stack.UpdateEpoch()
 	assert.Nil(t, err)
 	return stack
@@ -58,9 +57,8 @@ func mockAdaptorWithStorageType(ctrl *gomock.Controller, t *testing.T, typ strin
 		assert.Nil(t, err)
 		consensusMsgPipes[id] = msgPipe
 	}
-	globalMsgPipe, err := stack.config.Network.CreatePipe(context.Background(), "test_pipe_global")
-	assert.Nil(t, err)
-	stack.SetMsgPipes(consensusMsgPipes, globalMsgPipe)
+
+	stack.SetMsgPipes(consensusMsgPipes)
 	err = stack.UpdateEpoch()
 	assert.Nil(t, err)
 	return stack
@@ -280,14 +278,12 @@ func TestNetwork(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	adaptor := mockAdaptor(ctrl, t)
-	adaptor.config.Config.Rbft.EnableMultiPipes = false
 	msg := &consensus.ConsensusMessage{}
 	err := adaptor.Unicast(context.Background(), msg, "1")
 	ast.Nil(err)
 	err = adaptor.Broadcast(context.Background(), msg)
 	ast.Nil(err)
 
-	adaptor.config.Config.Rbft.EnableMultiPipes = true
 	msg = &consensus.ConsensusMessage{}
 	err = adaptor.Unicast(context.Background(), msg, "1")
 	ast.Nil(err)

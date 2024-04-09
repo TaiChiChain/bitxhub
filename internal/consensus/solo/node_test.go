@@ -323,9 +323,9 @@ func TestNode_Prepare(t *testing.T) {
 		}
 
 		batchTimerMgr := timer.NewTimerManager(logger)
-		err = batchTimerMgr.CreateTimer(timer.Batch, batchTime, soloNode.handleTimeoutEvent)
+		err = batchTimerMgr.CreateTimer(common.Batch, batchTime, soloNode.handleTimeoutEvent)
 		require.Nil(t, err)
-		err = batchTimerMgr.CreateTimer(timer.NoTxBatch, batchTime, soloNode.handleTimeoutEvent)
+		err = batchTimerMgr.CreateTimer(common.NoTxBatch, batchTime, soloNode.handleTimeoutEvent)
 		require.Nil(t, err)
 		soloNode.batchMgr = &batchTimerManager{Timer: batchTimerMgr}
 

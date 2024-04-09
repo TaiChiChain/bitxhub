@@ -183,7 +183,6 @@ func AriesConsensusConfig() *ConsensusConfig {
 			SetTimeout: Duration(100 * time.Millisecond),
 		},
 		Rbft: RBFT{
-			EnableMultiPipes:          false,
 			EnableMetrics:             true,
 			CommittedBlockCacheNumber: 10,
 			Timeout: RBFTTimeout{
@@ -468,7 +467,6 @@ func TaurusConsensusConfig() *ConsensusConfig {
 			SetTimeout: Duration(100 * time.Millisecond),
 		},
 		Rbft: RBFT{
-			EnableMultiPipes:          false,
 			EnableMetrics:             true,
 			CommittedBlockCacheNumber: 10,
 			Timeout: RBFTTimeout{
@@ -762,7 +760,6 @@ func GeminiConsensusConfig() *ConsensusConfig {
 			SetTimeout: Duration(100 * time.Millisecond),
 		},
 		Rbft: RBFT{
-			EnableMultiPipes:          false,
 			EnableMetrics:             true,
 			CommittedBlockCacheNumber: 10,
 			Timeout: RBFTTimeout{

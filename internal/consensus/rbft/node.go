@@ -8,6 +8,7 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/archive"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -40,17 +41,18 @@ func init() {
 }
 
 type Node struct {
-	config                 *common.Config
-	txpool                 txpool.TxPool[types.Transaction, *types.Transaction]
-	n                      rbft.Node[types.Transaction, *types.Transaction]
-	stack                  *adaptor.RBFTAdaptor
-	logger                 logrus.FieldLogger
-	network                network.Network
-	consensusMsgPipes      map[int32]p2p.Pipe
-	consensusGlobalMsgPipe p2p.Pipe
-	txsBroadcastMsgPipe    p2p.Pipe
-	receiveMsgLimiter      *rate.Limiter
-	started                atomic.Bool
+	archiveMode             func() bool
+	config                  *common.Config
+	txpool                  txpool.TxPool[types.Transaction, *types.Transaction]
+	n                       rbft.InboundNode
+	stack                   *adaptor.RBFTAdaptor
+	logger                  logrus.FieldLogger
+	network                 network.Network
+	consensusMsgPipes       map[int32]p2p.Pipe
+	listenConsensusMsgPipes map[int32]p2p.Pipe
+	txsBroadcastMsgPipe     p2p.Pipe
+	receiveMsgLimiter       *rate.Limiter
+	started                 atomic.Bool
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -67,13 +69,19 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	rbftAdaptor, err := adaptor.NewRBFTAdaptor(config)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 
-	n, err := rbft.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.TxPool)
+	var n rbft.InboundNode
+	if config.GetArchiveModeFunc() {
+		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.GetChainMetaFunc, config.TxPool, config.GenesisDigest, config.Logger)
+	} else {
+		n, err = rbft.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.TxPool)
+	}
 	if err != nil {
 		cancel()
 		return nil, err
@@ -85,6 +93,7 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	return &Node{
+		archiveMode:       config.GetArchiveModeFunc,
 		config:            config,
 		n:                 n,
 		logger:            config.Logger,
@@ -101,23 +110,25 @@ func NewNode(config *common.Config) (*Node, error) {
 
 func (n *Node) initConsensusMsgPipes() error {
 	n.consensusMsgPipes = make(map[int32]p2p.Pipe, len(consensus.Type_name))
-	if n.config.Config.Rbft.EnableMultiPipes {
-		for id, name := range consensus.Type_name {
-			msgPipe, err := n.network.CreatePipe(n.ctx, consensusMsgPipeIDPrefix+name)
-			if err != nil {
-				return err
-			}
-			n.consensusMsgPipes[id] = msgPipe
-		}
-	} else {
-		globalMsgPipe, err := n.network.CreatePipe(n.ctx, consensusMsgPipeIDPrefix+"global")
+
+	for id, name := range consensus.Type_name {
+		msgPipe, err := n.network.CreatePipe(n.ctx, consensusMsgPipeIDPrefix+name)
 		if err != nil {
 			return err
 		}
-		n.consensusGlobalMsgPipe = globalMsgPipe
+		n.consensusMsgPipes[id] = msgPipe
 	}
 
-	n.stack.SetMsgPipes(n.consensusMsgPipes, n.consensusGlobalMsgPipe)
+	n.stack.SetMsgPipes(n.consensusMsgPipes)
+
+	if n.archiveMode() {
+		archivePipeIds := lo.FlatMap(common.ArchivePipeName, func(name string, _ int) []int32 {
+			return []int32{consensus.Type_value[name]}
+		})
+		n.listenConsensusMsgPipes = lo.PickByKeys(n.consensusMsgPipes, archivePipeIds)
+	} else {
+		n.listenConsensusMsgPipes = n.consensusMsgPipes
+	}
 	return nil
 }
 
@@ -166,7 +177,10 @@ func (n *Node) Start() error {
 	go n.listenConsensusMsg()
 	go n.listenTxsBroadcastMsg()
 
-	// start consensus engine
+	// start inbound node engine
+	if err = n.n.Init(); err != nil {
+		return err
+	}
 	if err = n.n.Start(); err != nil {
 		return err
 	}
@@ -195,12 +209,12 @@ func (n *Node) Start() error {
 	}
 
 	n.started.Store(true)
-	n.logger.Info("=====Consensus started=========")
+	n.logger.Infof("=====Consensus started, Archive Mode: %v===========", n.archiveMode())
 	return nil
 }
 
 func (n *Node) listenConsensusMsg() {
-	for _, pipe := range n.consensusMsgPipes {
+	for _, pipe := range n.listenConsensusMsgPipes {
 		pipe := pipe
 		go func() {
 			for {
@@ -211,22 +225,6 @@ func (n *Node) listenConsensusMsg() {
 
 				if err := n.Step(msg.Data); err != nil {
 					n.logger.WithFields(logrus.Fields{"pipe": pipe.String(), "err": err, "from": msg.From}).Warn("Process consensus message failed")
-					continue
-				}
-			}
-		}()
-	}
-
-	if n.consensusGlobalMsgPipe != nil {
-		go func() {
-			for {
-				msg := n.consensusGlobalMsgPipe.Receive(n.ctx)
-				if msg == nil {
-					return
-				}
-
-				if err := n.Step(msg.Data); err != nil {
-					n.logger.WithFields(logrus.Fields{"pipe": n.consensusGlobalMsgPipe.String(), "err": err, "from": msg.From}).Warn("Process consensus message failed")
 					continue
 				}
 			}
@@ -401,6 +399,9 @@ func (n *Node) Step(msg []byte) error {
 	if err := m.UnmarshalVT(msg); err != nil {
 		return err
 	}
+	if m.Type != consensus.Type_NULL_REQUEST {
+		n.logger.Infof("receive consensus message: %s", m.Type)
+	}
 	n.n.Step(context.Background(), m)
 
 	return nil
@@ -420,16 +421,25 @@ func (n *Node) GetLowWatermark() uint64 {
 }
 
 func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint, needRemoveTxs bool) {
-	// need update cached epoch info
+	n.logger.Infof("Receive report state: height = %d, blockHash = %s, ckp = %v, needRemoveTxs = %v", height, blockHash, ckp, needRemoveTxs)
+	// need update cached epoch info, old epochInfo
 	epochInfo := n.stack.EpochInfo
 	epochChanged := false
 	if common.NeedChangeEpoch(height, epochInfo) {
-		n.txPreCheck.UpdateEpochInfo(epochInfo)
+		// not support which automatic switch archive mode to miner
+		// todo: modify it when stake supported
+		if err := n.switchInBoundNode(); err != nil {
+			n.logger.Error(err)
+			panic(err)
+		}
+
 		err := n.stack.UpdateEpoch()
 		if err != nil {
 			panic(err)
 		}
 		epochChanged = true
+		// update new epoch info
+		n.txPreCheck.UpdateEpochInfo(n.stack.EpochInfo)
 		n.logger.Debugf("Finished execute block %d, update epoch to %d", height, n.stack.EpochInfo.Epoch)
 	}
 	currentEpoch := n.stack.EpochInfo.Epoch
@@ -524,6 +534,14 @@ func (n *Node) checkQuorum() error {
 
 func (n *Node) SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscription {
 	return n.txFeed.Subscribe(events)
+}
+
+// not implemented yet
+func (n *Node) switchInBoundNode() error {
+	if n.n.ArchiveMode() != n.archiveMode() {
+		return fmt.Errorf("archive mode changed from %t to %t", n.n.ArchiveMode(), n.archiveMode())
+	}
+	return nil
 }
 
 // status2String returns a long description of SystemStatus

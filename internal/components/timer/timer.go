@@ -9,18 +9,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	Batch             TimeoutEvent = "Batch"
-	NoTxBatch         TimeoutEvent = "NoTxBatch"
-	RemoveTx          TimeoutEvent = "RemoveTx"
-	CleanEmptyAccount TimeoutEvent = "CleanEmptyAccount"
-	RotateTxLocals    TimeoutEvent = "RotateTxLocals"
-)
-
 type TimeoutEvent string
 
 type Timer interface {
 	CreateTimer(name TimeoutEvent, d time.Duration, handler func(name TimeoutEvent)) error
+
+	RemoveTimer(name TimeoutEvent) error
+
 	StartTimer(name TimeoutEvent) error
 
 	RestartTimer(name TimeoutEvent) error
@@ -77,6 +72,14 @@ func (tm *TimerManager) CreateTimer(name TimeoutEvent, d time.Duration, handler 
 		handler:   handler,
 	}
 	return nil
+}
+
+func (tm *TimerManager) RemoveTimer(name TimeoutEvent) error {
+	if _, exist := tm.timersM[name]; exist {
+		delete(tm.timersM, name)
+		return nil
+	}
+	return fmt.Errorf("timer %s doesn't exist", name)
 }
 
 // Stop stops all timers managed by TimerManager
