@@ -1,6 +1,7 @@
 package prune
 
 import (
+	"github.com/axiomesh/axiom-kit/types"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -146,6 +147,15 @@ func (p *prunner) pruning() {
 
 		//reset states diff
 		p.states.lock.Lock()
+		stales := p.states.diffs[:pendingFlushBlockNum]
+		for _, d := range stales {
+			for _, node := range d.accountDiff {
+				types.RecycleTrieNode(node)
+			}
+			for _, node := range d.storageDiff {
+				types.RecycleTrieNode(node)
+			}
+		}
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
 		p.states.rebuildAllKeyMap()
 		p.states.lock.Unlock()
