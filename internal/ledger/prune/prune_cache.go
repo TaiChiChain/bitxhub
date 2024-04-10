@@ -69,6 +69,9 @@ func (s *states) rebuildAllKeyMap() {
 }
 
 func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, logger logrus.FieldLogger) *PruneCache {
+	if !rep.Config.Ledger.EnablePrune {
+		return nil
+	}
 	tc := &PruneCache{
 		rep:           rep,
 		ledgerStorage: ledgerStorage,
@@ -78,9 +81,7 @@ func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *s
 
 	p := NewPrunner(rep, ledgerStorage, accountTrieCache, storageTrieCache, tc.states, logger)
 	tc.prunner = p
-	if rep.Config.Ledger.EnablePrune {
-		go p.pruning()
-	}
+	go p.pruning()
 	return tc
 }
 
@@ -160,7 +161,7 @@ func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {
 }
 
 // Rollback rebuilds pruneCache from pruneJournal at target height.
-func (tc *PruneCache) Rollback(height uint64) error {
+func (tc *PruneCache) Rollback(height uint64, persist bool) error {
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
@@ -181,7 +182,7 @@ func (tc *PruneCache) Rollback(height uint64) error {
 
 	batch := tc.ledgerStorage.NewBatch()
 	for i := minHeight; i <= height; i++ {
-		trieJournal := tc.GetPruneJournal(i)
+		trieJournal := tc.GetStateDelta(i)
 		tc.logger.Debugf("[PruneCache-Rollback] apply trie journal of height=%v, trieJournal=%v", i, trieJournal)
 		if trieJournal == nil {
 			tc.logger.Warnf("[PruneCache-Rollback] trie journal is empty at height: %v", i)
@@ -195,7 +196,9 @@ func (tc *PruneCache) Rollback(height uint64) error {
 		batch.Delete(utils.CompositeKey(utils.PruneJournalKey, i))
 	}
 
-	batch.Commit()
+	if persist {
+		batch.Commit()
+	}
 	tc.states.rebuildAllKeyMap()
 
 	return nil
@@ -218,7 +221,7 @@ func (tc *PruneCache) GetRange() (uint64, uint64) {
 	return minHeight, maxHeight
 }
 
-func (tc *PruneCache) GetPruneJournal(height uint64) *types.StateDelta {
+func (tc *PruneCache) GetStateDelta(height uint64) *types.StateDelta {
 	data := tc.ledgerStorage.Get(utils.CompositeKey(utils.PruneJournalKey, height))
 	if data == nil {
 		return nil

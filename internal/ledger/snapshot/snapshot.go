@@ -223,6 +223,9 @@ func (snap *Snapshot) Rollback(height uint64) error {
 }
 
 func (snap *Snapshot) ExportMetrics() {
+	if snap == nil {
+		return
+	}
 	accountCacheMetrics := snap.accountSnapshotCache.ExportMetrics()
 	snapshotAccountCacheMissCounterPerBlock.Set(float64(accountCacheMetrics.CacheMissCounter))
 	snapshotAccountCacheHitCounterPerBlock.Set(float64(accountCacheMetrics.CacheHitCounter))
@@ -230,7 +233,11 @@ func (snap *Snapshot) ExportMetrics() {
 }
 
 func (snap *Snapshot) ResetMetrics() {
+	if snap == nil {
+		return
+	}
 	snap.accountSnapshotCache.ResetCounterMetrics()
+	snap.contractSnapshotCache.ResetCounterMetrics()
 }
 
 func (snap *Snapshot) Batch() kv.Batch {

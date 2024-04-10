@@ -1804,6 +1804,44 @@ func (c *MockStateLedgerGetStateCall) DoAndReturn(f func(*types.Address, []byte)
 	return c
 }
 
+// GetStateDelta mocks base method.
+func (m *MockStateLedger) GetStateDelta(blockNumber uint64) *types.StateDelta {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStateDelta", blockNumber)
+	ret0, _ := ret[0].(*types.StateDelta)
+	return ret0
+}
+
+// GetStateDelta indicates an expected call of GetStateDelta.
+func (mr *MockStateLedgerMockRecorder) GetStateDelta(blockNumber any) *StateLedgerGetStateDeltaCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStateDelta", reflect.TypeOf((*MockStateLedger)(nil).GetStateDelta), blockNumber)
+	return &StateLedgerGetStateDeltaCall{Call: call}
+}
+
+// StateLedgerGetStateDeltaCall wrap *gomock.Call
+type StateLedgerGetStateDeltaCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerGetStateDeltaCall) Return(arg0 *types.StateDelta) *StateLedgerGetStateDeltaCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerGetStateDeltaCall) Do(f func(uint64) *types.StateDelta) *StateLedgerGetStateDeltaCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerGetStateDeltaCall) DoAndReturn(f func(uint64) *types.StateDelta) *StateLedgerGetStateDeltaCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetTrieSnapshotMeta mocks base method.
 func (m *MockStateLedger) GetTrieSnapshotMeta() (*ledger.SnapshotMeta, error) {
 	m.ctrl.T.Helper()

@@ -104,6 +104,8 @@ type StateLedger interface {
 	GetHistoryRange() (uint64, uint64)
 
 	CurrentBlockHeight() uint64
+
+	GetStateDelta(blockNumber uint64) *types.StateDelta
 }
 
 // StateAccessor manipulates the state data

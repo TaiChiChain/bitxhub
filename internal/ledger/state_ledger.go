@@ -219,6 +219,10 @@ func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
 	return minHeight, maxHeight
 }
 
+func (l *StateLedgerImpl) GetStateDelta(blockNumber uint64) *types.StateDelta {
+	return l.pruneCache.GetStateDelta(blockNumber)
+}
+
 func (l *StateLedgerImpl) Finalise() {
 	for _, account := range l.accounts {
 		keys := account.Finalise()
@@ -238,12 +242,20 @@ func (l *StateLedgerImpl) Finalise() {
 func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage, errC chan error) {
 	stateRoot := snapshotMeta.BlockHeader.StateRoot.ETHHash()
 	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", snapshotMeta.BlockHeader.Hash(), stateRoot)
+	batch := kv.NewBatch()
+
+	if l.pruneCache != nil {
+		if err := l.pruneCache.Rollback(blockHeader.Number, false); err != nil {
+			errC <- err
+		}
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(blockHeader.Number))
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(blockHeader.Number))
+	}
 
 	queue := []common.Hash{stateRoot}
-	batch := kv.NewBatch()
 	for len(queue) > 0 {
 		trieRoot := queue[0]
-		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 100, time.Second)
+		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 10000, 300*time.Second)
 		l.logger.Debugf("[IterateTrie] trie root=%v", trieRoot)
 		go iter.Iterate()
 
@@ -280,6 +292,7 @@ func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage,
 			}
 		}
 		queue = queue[1:]
+		l.logger.Infof("[IterateTrie] trieRoot=%v, rootNodeKey from kv=%v", trieRoot, l.backend.Get(trieRoot[:]))
 		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
 
@@ -317,7 +330,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 	batch := l.snapshot.Batch()
 	for len(queue) > 0 {
 		trieRoot := queue[0]
-		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 100, time.Second)
+		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 10000, 300*time.Second)
 		l.logger.Debugf("[GenerateSnapshot] trie root=%v", trieRoot)
 		go iter.IterateLeaf()
 
