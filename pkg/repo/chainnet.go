@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/samber/lo"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	network "github.com/axiomesh/axiom-p2p"
 )
@@ -11,26 +13,31 @@ import (
 const (
 	AriesTestnetName  = "aries"
 	TaurusTestnetName = "taurus"
+	GeminiTestnetName = "gemini"
 )
 
 var (
 	TestNetConfigBuilderMap = map[string]func() *Config{
 		AriesTestnetName:  AriesConfig,
 		TaurusTestnetName: TaurusConfig,
+		GeminiTestnetName: GeminiConfig,
 	}
 
 	TestNetConsensusConfigBuilderMap = map[string]func() *ConsensusConfig{
 		AriesTestnetName:  AriesConsensusConfig,
 		TaurusTestnetName: TaurusConsensusConfig,
+		GeminiTestnetName: GeminiConsensusConfig,
 	}
 
 	TestNetGenesisConfigBuilderMap = map[string]func() *GenesisConfig{
 		AriesTestnetName:  AriesGenesisConfig,
 		TaurusTestnetName: TaurusGenesisConfig,
+		GeminiTestnetName: GeminiGenesisConfig,
 	}
 )
 
 func AriesConfig() *Config {
+	// nolint
 	return &Config{
 		Ulimit: 65535,
 		Access: Access{
@@ -102,7 +109,7 @@ func AriesConfig() *Config {
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize: 100,
-			//StateLedgerCacheMegabytesLimit: 128,
+			// StateLedgerCacheMegabytesLimit: 128,
 			StateLedgerAccountCacheSize: 1024,
 		},
 		Executor: Executor{
@@ -204,6 +211,7 @@ func AriesGenesisConfig() *GenesisConfig {
 	balance := new(big.Int).Mul(axmBalance, big.NewInt(10).Exp(big.NewInt(10), big.NewInt(int64(DefaultDecimals)), nil))
 	adminLen := 4
 	totalSupply := new(big.Int).Mul(balance, big.NewInt(int64(adminLen)))
+	// nolint
 	return &GenesisConfig{
 		ChainID: 23411,
 		Admins: []*Admin{
@@ -305,6 +313,7 @@ func AriesGenesisConfig() *GenesisConfig {
 }
 
 func TaurusConfig() *Config {
+	// nolint
 	return &Config{
 		Ulimit: 65535,
 		Access: Access{
@@ -384,7 +393,7 @@ func TaurusConfig() *Config {
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize: 100,
-			//StateLedgerCacheMegabytesLimit: 128,
+			// StateLedgerCacheMegabytesLimit: 128,
 			StateLedgerAccountCacheSize: 1024,
 		},
 		Executor: Executor{
@@ -482,6 +491,7 @@ func TaurusConsensusConfig() *ConsensusConfig {
 }
 
 func TaurusGenesisConfig() *GenesisConfig {
+	// nolint
 	return &GenesisConfig{
 		ChainID: 23412,
 		Admins: []*Admin{
@@ -586,6 +596,361 @@ func TaurusGenesisConfig() *GenesisConfig {
 			{
 				ID:   4,
 				Name: "Q2F0",
+			},
+		},
+	}
+}
+
+func GeminiConfig() *Config {
+	// nolint
+	return &Config{
+		Ulimit: 65535,
+		Port: Port{
+			JsonRpc:   8881,
+			WebSocket: 9991,
+			P2P:       4001,
+			PProf:     53121,
+			Monitor:   40011,
+		},
+		JsonRPC: JsonRPC{
+			GasCap:     300000000,
+			EVMTimeout: Duration(5 * time.Second),
+			ReadLimiter: JLimiter{
+				Interval: 50,
+				Quantum:  500,
+				Capacity: 10000,
+				Enable:   true,
+			},
+			WriteLimiter: JLimiter{
+				Interval: 50,
+				Quantum:  500,
+				Capacity: 10000,
+				Enable:   true,
+			},
+			RejectTxsIfConsensusAbnormal: false,
+			QueryLimit: QueryLimit{
+				GetLogsBlockRangeLimit: 2000,
+			},
+		},
+		P2P: P2P{
+			Security:        P2PSecurityTLS,
+			SendTimeout:     Duration(5 * time.Second),
+			ReadTimeout:     Duration(5 * time.Second),
+			CompressionAlgo: network.SnappyCompression,
+			EnableMetrics:   true,
+			Pipe: P2PPipe{
+				ReceiveMsgCacheSize: 10240,
+				BroadcastType:       P2PPipeBroadcastGossip,
+				SimpleBroadcast: P2PPipeSimpleBroadcast{
+					WorkerCacheSize:        1024,
+					WorkerConcurrencyLimit: 20,
+				},
+				Gossipsub: P2PPipeGossipsub{
+					SubBufferSize:          10240,
+					PeerOutboundBufferSize: 10240,
+					ValidateBufferSize:     10240,
+					SeenMessagesTTL:        Duration(120 * time.Second),
+					EnableMetrics:          true,
+				},
+				UnicastReadTimeout:       Duration(5 * time.Second),
+				UnicastSendRetryNumber:   5,
+				UnicastSendRetryBaseTime: Duration(100 * time.Millisecond),
+				FindPeerTimeout:          Duration(10 * time.Second),
+				ConnectTimeout:           Duration(1 * time.Second),
+			},
+		},
+		Sync: Sync{
+			WaitStatesTimeout:     Duration(30 * time.Second),
+			RequesterRetryTimeout: Duration(5 * time.Second),
+			TimeoutCountLimit:     uint64(10),
+			ConcurrencyLimit:      1000,
+		},
+		Consensus: Consensus{
+			Type:        ConsensusTypeRbft,
+			StorageType: ConsensusStorageTypeMinifile,
+		},
+		Storage: Storage{
+			KvType:      KVStorageTypePebble,
+			KvCacheSize: 128,
+			Sync:        true,
+		},
+		Ledger: Ledger{
+			ChainLedgerCacheSize:                      100,
+			StateLedgerAccountTrieCacheMegabytesLimit: 128,
+			StateLedgerStorageTrieCacheMegabytesLimit: 128,
+			StateLedgerAccountCacheSize:               1024,
+			EnablePrune:                               true,
+			StateLedgerReservedHistoryBlockNum:        256,
+		},
+		Snapshot: Snapshot{
+			AccountSnapshotCacheMegabytesLimit:  128,
+			ContractSnapshotCacheMegabytesLimit: 128,
+		},
+		Executor: Executor{
+			Type:            ExecTypeNative,
+			DisableRollback: false,
+		},
+		PProf: PProf{
+			Enable:   true,
+			PType:    PprofTypeHTTP,
+			Mode:     PprofModeMem,
+			Duration: Duration(30 * time.Second),
+		},
+		Monitor: Monitor{
+			Enable:          true,
+			EnableExpensive: true,
+		},
+		Log: Log{
+			Level:            "info",
+			Filename:         "axiom-ledger",
+			ReportCaller:     false,
+			EnableCompress:   false,
+			EnableColor:      true,
+			DisableTimestamp: false,
+			MaxAge:           10,
+			MaxSize:          128,
+			RotationTime:     Duration(24 * time.Hour),
+			Module: LogModule{
+				P2P:            "info",
+				Consensus:      "debug",
+				Executor:       "info",
+				Governance:     "info",
+				API:            "info",
+				CoreAPI:        "info",
+				Storage:        "info",
+				Profile:        "info",
+				Finance:        "error",
+				BlockSync:      "info",
+				APP:            "info",
+				Access:         "info",
+				TxPool:         "info",
+				Epoch:          "info",
+				SystemContract: "info",
+			},
+		},
+		Access: Access{
+			EnableWhiteList: false,
+		},
+	}
+}
+
+func GeminiConsensusConfig() *ConsensusConfig {
+	// nolint
+	return &ConsensusConfig{
+		TimedGenBlock: TimedGenBlock{
+			NoTxBatchTimeout: Duration(2 * time.Second),
+		},
+		Limit: ReceiveMsgLimiter{
+			Enable: false,
+			Limit:  10000,
+			Burst:  10000,
+		},
+		TxPool: TxPool{
+			PoolSize:               50000,
+			ToleranceTime:          Duration(5 * time.Minute),
+			ToleranceRemoveTime:    Duration(15 * time.Minute),
+			CleanEmptyAccountTime:  Duration(10 * time.Minute),
+			RotateTxLocalsInterval: Duration(1 * time.Hour),
+			ToleranceNonceGap:      1000,
+			EnableLocalsPersist:    true,
+			PriceLimit:             1000_000_000_000,
+			PriceBump:              10,
+			GenerateBatchType:      GenerateBatchByTime,
+		},
+		TxCache: TxCache{
+			SetSize:    50,
+			SetTimeout: Duration(100 * time.Millisecond),
+		},
+		Rbft: RBFT{
+			EnableMultiPipes:          false,
+			EnableMetrics:             true,
+			CommittedBlockCacheNumber: 10,
+			Timeout: RBFTTimeout{
+				NullRequest:      Duration(3 * time.Second),
+				Request:          Duration(2 * time.Second),
+				ResendViewChange: Duration(10 * time.Second),
+				CleanViewChange:  Duration(60 * time.Second),
+				NewView:          Duration(8 * time.Second),
+				SyncState:        Duration(1 * time.Second),
+				SyncStateRestart: Duration(10 * time.Minute),
+				FetchCheckpoint:  Duration(5 * time.Second),
+				FetchView:        Duration(1 * time.Second),
+				BatchTimeout:     Duration(500 * time.Millisecond),
+			},
+		},
+		Solo: Solo{
+			BatchTimeout: Duration(500 * time.Millisecond),
+		},
+	}
+}
+
+func GeminiGenesisConfig() *GenesisConfig {
+	// nolint
+	return &GenesisConfig{
+		ChainID:   23413,
+		Timestamp: 1712592000,
+		Axm: &Token{
+			Name:        "Axiom",
+			Symbol:      "AXM",
+			Decimals:    DefaultDecimals,
+			TotalSupply: "4000000000000000000000000000",
+		},
+		Axc: &Token{
+			Name:        "Axiomesh Credit",
+			Symbol:      "axc",
+			Decimals:    DefaultDecimals,
+			TotalSupply: DefaultAXCTotalSupply,
+		},
+		Accounts: []*Account{
+			{
+				Address: "0xB37cF4c055A454EEc7d7e141eA03fFFaa979b27E",
+				Balance: "1000000000000000000000000000",
+			},
+			{
+				Address: "0xeF95F6fDF32250553bD6fb90c4c86DC8Ff1707fd",
+				Balance: "1000000000000000000000000000",
+			},
+			{
+				Address: "0x204B723dCBdFF60d32EA4888D618Dd1E256d1a93",
+				Balance: "1000000000000000000000000000",
+			},
+			{
+				Address: "0xEDbc7AE5605BA4ACc53085C4094648e8DB2172b5",
+				Balance: "1000000000000000000000000000",
+			},
+		},
+		Admins: []*Admin{
+			{
+				Address: "0xB37cF4c055A454EEc7d7e141eA03fFFaa979b27E",
+				Weight:  1,
+				Name:    "S2luZw==",
+			},
+			{
+				Address: "0xeF95F6fDF32250553bD6fb90c4c86DC8Ff1707fd",
+				Weight:  1,
+				Name:    "UmVk",
+			},
+			{
+				Address: "0x204B723dCBdFF60d32EA4888D618Dd1E256d1a93",
+				Weight:  1,
+				Name:    "QXBwbGU=",
+			},
+			{
+				Address: "0xEDbc7AE5605BA4ACc53085C4094648e8DB2172b5",
+				Weight:  1,
+				Name:    "Q2F0",
+			},
+		},
+		Incentive: &Incentive{
+			Mining: &Mining{
+				BlockNumToHalf: 126144000,
+				BlockNumToNone: 630720001,
+				TotalAmount:    "40000000000000000000000000",
+			},
+			UserAcquisition: &UserAcquisition{
+				AvgBlockReward: "126000000000000000",
+				BlockToNone:    315360000,
+			},
+			Distributions: lo.Map(DefaultAXCDistribution, func(item Distribution, _ int) *Distribution {
+				return &Distribution{
+					Name:         item.Name,
+					Addr:         item.Addr,
+					Percentage:   item.Percentage,
+					InitEmission: item.InitEmission,
+					Locked:       item.Locked,
+				}
+			}),
+		},
+		SmartAccountAdmin:      "0x83Db4fA2CbB682753C94ca8A809a4a321aA36e1b",
+		InitWhiteListProviders: []string{},
+		EpochInfo: &rbft.EpochInfo{
+			Version:                   1,
+			Epoch:                     1,
+			EpochPeriod:               1800,
+			StartBlock:                1,
+			P2PBootstrapNodeAddresses: []string{},
+			ConsensusParams: rbft.ConsensusParams{
+				ValidatorElectionType:         rbft.ValidatorElectionTypeWRF,
+				ProposerElectionType:          rbft.ProposerElectionTypeWRF,
+				CheckpointPeriod:              1,
+				HighWatermarkCheckpointPeriod: 10,
+				MaxValidatorNum:               8,
+				BlockMaxTxNum:                 500,
+				EnableTimedGenEmptyBlock:      false,
+				NotActiveWeight:               1,
+				AbnormalNodeExcludeView:       100,
+				AgainProposeIntervalBlockInValidatorsNumPercentage: 30,
+				ContinuousNullRequestToleranceNumber:               3,
+				ReBroadcastToleranceNumber:                         2,
+			},
+			FinanceParams: rbft.FinanceParams{
+				GasLimit:               100000000,
+				StartGasPriceAvailable: true,
+				StartGasPrice:          5000000000000,
+				MaxGasPrice:            10000000000000,
+				MinGasPrice:            1000000000000,
+				GasChangeRateValue:     1250,
+				GasChangeRateDecimals:  4,
+			},
+			MiscParams: rbft.MiscParams{
+				TxMaxSize: DefaultTxMaxSize,
+			},
+			ValidatorSet: []rbft.NodeInfo{
+				{
+					ID:                   1,
+					AccountAddress:       "0xB37cF4c055A454EEc7d7e141eA03fFFaa979b27E",
+					P2PNodeID:            "16Uiu2HAmDXvQN7tu9ufpoCfEbjF34ZH7XeghJdqwJHfd8comLPyj",
+					ConsensusVotingPower: 1000,
+				},
+				{
+					ID:                   2,
+					AccountAddress:       "0xeF95F6fDF32250553bD6fb90c4c86DC8Ff1707fd",
+					P2PNodeID:            "16Uiu2HAmL1xr5VjULUPobWyFsUqnx4Cw8Fw3zHPxaahQqc1LSmtA",
+					ConsensusVotingPower: 1000,
+				},
+				{
+					ID:                   3,
+					AccountAddress:       "0x204B723dCBdFF60d32EA4888D618Dd1E256d1a93",
+					P2PNodeID:            "16Uiu2HAmRXGApoLQ49tn3wJH52ywhNUoGgxZsnT676k6FpZWw117",
+					ConsensusVotingPower: 1000,
+				},
+				{
+					ID:                   4,
+					AccountAddress:       "0xEDbc7AE5605BA4ACc53085C4094648e8DB2172b5",
+					P2PNodeID:            "16Uiu2HAmAnxJJoXBKJXg9rSp7LdAPcW83rTU7nuvb9gCShPwS8qb",
+					ConsensusVotingPower: 1000,
+				},
+			},
+			CandidateSet: []rbft.NodeInfo{},
+			DataSyncerSet: []rbft.NodeInfo{
+				{
+					ID:                   5,
+					AccountAddress:       "0x967BD1E74829866d7b84b22b61a033d2Aa12422e",
+					P2PNodeID:            "16Uiu2HAmF4DcwTqdBo4RscLcPS7VwvoGs18sXmcV3pWiqHZA9UD4",
+					ConsensusVotingPower: 0,
+				},
+			},
+		},
+		NodeNames: []*NodeName{
+			{
+				ID:   1,
+				Name: "S2luZw==",
+			},
+			{
+				ID:   2,
+				Name: "UmVk",
+			},
+			{
+				ID:   3,
+				Name: "QXBwbGU=",
+			},
+			{
+				ID:   4,
+				Name: "Q2F0",
+			},
+			{
+				ID:   5,
+				Name: "bm9kZTU=",
 			},
 		},
 	}

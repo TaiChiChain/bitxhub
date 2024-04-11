@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
@@ -21,10 +22,15 @@ var configGenerateArgs = struct {
 	Auth             string
 }{}
 
+var writeAccountKeyFileArgs = struct {
+	PrivateKey string
+}{}
+
 func passwordFlag() *cli.StringFlag {
 	return &cli.StringFlag{
 		Name:        "password",
 		Usage:       "Generate or decode p2p.key with password",
+		EnvVars:     []string{"AXIOM_LEDGER_KEY_PASSWORD"},
 		Destination: &configGenerateArgs.Auth,
 		Aliases:     []string{"p", "P", "pwd"},
 		Required:    false,
@@ -67,6 +73,20 @@ var configCMD = &cli.Command{
 			Action: generateAccountKey,
 			Flags: []cli.Flag{
 				passwordFlag(),
+			},
+		},
+		{
+			Name:   "write-account-key-file",
+			Usage:  "Write account private key string to file",
+			Action: writeAccountKeyFile,
+			Flags: []cli.Flag{
+				passwordFlag(),
+				&cli.StringFlag{
+					Name:        "private-key",
+					Usage:       "private key string",
+					Destination: &writeAccountKeyFileArgs.PrivateKey,
+					Required:    true,
+				},
 			},
 		},
 		{
@@ -180,6 +200,65 @@ func generateAccountKey(ctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("generate account-addr:", addr)
+
+	return nil
+}
+
+func writeAccountKeyFile(ctx *cli.Context) error {
+	p, err := getRootPath(ctx)
+	if err != nil {
+		return err
+	}
+	if !fileutil.Exist(filepath.Join(p, repo.CfgFileName)) {
+		fmt.Println("axiom-ledger repo not exist")
+		return nil
+	}
+
+	privateKeyStr := strings.TrimPrefix(writeAccountKeyFileArgs.PrivateKey, "0x")
+	sk, err := ethcrypto.HexToECDSA(privateKeyStr)
+	if err != nil {
+		return errors.Wrap(err, "invalid private key")
+	}
+	keyPath := path.Join(p, repo.P2PKeyFileName)
+	if fileutil.Exist(keyPath) {
+		fmt.Printf("%s exists, do you want to overwrite it? y/n\n", keyPath)
+		var choice string
+		if _, err := fmt.Scanln(&choice); err != nil {
+			return err
+		}
+		if choice != "y" {
+			return errors.New("interrupt by user")
+		}
+	} else if configGenerateArgs.Auth != "" { // Designed to automate deployment scripts
+		addr, err := repo.GenerateP2PKeyJson(configGenerateArgs.Auth, p, sk)
+		if err != nil {
+			return err
+		}
+		fmt.Println("write account-addr:", addr)
+		return nil
+	}
+
+	fmt.Println("Enter the password to generate the secret key: ")
+	var password string
+	if _, err := fmt.Scanln(&password); err != nil {
+		return err
+	}
+	if len(password) == 0 {
+		return errors.New("password cannot be empty")
+	}
+	fmt.Println("Enter the password again: ")
+	var password2 string
+	if _, err := fmt.Scanln(&password2); err != nil {
+		return err
+	}
+	if password != password2 {
+		return errors.New("password not match")
+	}
+	addr, err := repo.GenerateP2PKeyJson(password, p, sk)
+	if err != nil {
+		return err
+	}
+	fmt.Println("write account-addr:", addr)
 
 	return nil
 }
