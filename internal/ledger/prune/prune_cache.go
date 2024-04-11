@@ -125,7 +125,7 @@ func (tc *PruneCache) Update(batch storage.Batch, height uint64, trieJournals *t
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
-	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
+	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v", height)
 
 	tc.addNewDiff(batch, height, tc.ledgerStorage, trieJournals, true)
 }

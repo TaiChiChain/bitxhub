@@ -3,9 +3,9 @@ package utils
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/axiomesh/axiom-kit/hexutil"
 	"strconv"
 
-	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
