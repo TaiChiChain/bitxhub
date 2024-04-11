@@ -677,9 +677,9 @@ func GeminiConfig() *Config {
 			StorageType: ConsensusStorageTypeMinifile,
 		},
 		Storage: Storage{
-			KvType:      KVStorageTypePebble,
-			KvCacheSize: 128,
-			Sync:        true,
+			KvType: KVStorageTypePebble,
+			//KvCacheSize: 128,
+			Sync: true,
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize:                      100,

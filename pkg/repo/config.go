@@ -342,13 +342,11 @@ func DefaultConfig() *Config {
 			Sync:        true,
 			KVCacheSize: 128,
 			Pebble: Pebble{
-
-				MaxOpenFiles:                1000,
-				MemTableSize:                4,
-				MemTableStopWritesThreshold: 4,
-
-				LBaseMaxSize:              1024,
-				L0CompactionFileThreshold: 25,
+				MaxOpenFiles:                10000,
+				MemTableSize:                32,
+				MemTableStopWritesThreshold: 2,
+				LBaseMaxSize:                64,
+				L0CompactionFileThreshold:   500,
 			},
 		},
 		Ledger: Ledger{

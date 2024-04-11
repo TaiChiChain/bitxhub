@@ -8,7 +8,7 @@ require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240407065819-b0f188f6bf44
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240408071218-da414dd99db1
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240415073736-198fc47a6667
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
@@ -210,3 +210,5 @@ require (
 	lukechampine.com/blake3 v1.2.1 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )
+
+//replace github.com/axiomesh/axiom-kit => /Users/zhangqirui/workplace/axiom-kit

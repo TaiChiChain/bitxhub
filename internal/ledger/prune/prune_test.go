@@ -22,6 +22,7 @@ import (
 func makeLeafNode(str string) *types.LeafNode {
 	return &types.LeafNode{
 		Val: []byte(str),
+		Key: []byte{},
 	}
 }
 
@@ -387,7 +388,7 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 		},
 	}
 	pruneCache.Update(batch, uint64(pruneCache.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), trieJournal2)
-	time.Sleep(2*checkFlushTimeInterval + 300*time.Millisecond)
+	time.Sleep(5*checkFlushTimeInterval + 300*time.Millisecond)
 	v, ok = pruneCache.Get(uint64(pruneCache.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), []byte("k1"))
 	require.True(t, ok)
 	require.Equal(t, makeLeafNode("v11"), v)
@@ -455,7 +456,7 @@ func createMockRepo(t *testing.T) *repo.Repo {
 	r.Config.Ledger.StateLedgerReservedHistoryBlockNum = 10
 	// speed up unit test
 	{
-		checkFlushTimeInterval = 50 * time.Millisecond
+		checkFlushTimeInterval = 10 * time.Millisecond
 		maxFlushBlockNum = 5
 		maxFlushTimeInterval = 5 * time.Second
 		maxFlushBatchSizeThreshold = 1 * 1024 * 1024 // 1MB

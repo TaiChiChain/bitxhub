@@ -124,7 +124,7 @@ func (tc *PruneCache) Update(batch storage.Batch, height uint64, trieJournals *t
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
-	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
+	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v", height)
 
 	tc.addNewDiff(batch, height, tc.ledgerStorage, trieJournals, true)
 }
@@ -147,11 +147,18 @@ func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {
 		if tc.states.diffs[i].height > version {
 			continue
 		}
+		// the origin trie node may be recycled later, so we must deep-copy it here.
 		if v, ok := tc.states.diffs[i].accountDiff[k]; ok {
-			return v, true
+			if v == nil {
+				return v, ok
+			}
+			return v.Copy(), true
 		}
 		if v, ok := tc.states.diffs[i].storageDiff[k]; ok {
-			return v, true
+			if v == nil {
+				return v, ok
+			}
+			return v.Copy(), true
 		}
 	}
 

@@ -58,7 +58,7 @@ var defaultPebbleOptions = &pebbledb.Options{
 	// options for the last level are used for all subsequent levels.
 	// This option is the same with Ethereum.
 	Levels: []pebbledb.LevelOptions{
-		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},

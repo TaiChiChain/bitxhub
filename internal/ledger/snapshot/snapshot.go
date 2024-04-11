@@ -104,7 +104,6 @@ func (snap *Snapshot) Account(addr *types.Address) (*types.InnerAccount, error) 
 	return innerAccount, nil
 }
 
-// todo check correctness
 func (snap *Snapshot) Storage(addr *types.Address, key []byte) ([]byte, error) {
 	snap.lock.RLock()
 	defer snap.lock.RUnlock()
