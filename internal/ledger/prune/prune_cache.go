@@ -148,11 +148,18 @@ func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {
 		if tc.states.diffs[i].height > version {
 			continue
 		}
+		// the origin trie node may be recycled later, so we must deep-copy it here.
 		if v, ok := tc.states.diffs[i].accountDiff[k]; ok {
-			return v, true
+			if v == nil {
+				return v, ok
+			}
+			return v.Copy(), true
 		}
 		if v, ok := tc.states.diffs[i].storageDiff[k]; ok {
-			return v, true
+			if v == nil {
+				return v, ok
+			}
+			return v.Copy(), true
 		}
 	}
 

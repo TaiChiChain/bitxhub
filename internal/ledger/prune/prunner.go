@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -146,26 +147,26 @@ func (p *prunner) pruning() {
 
 		//reset states diff
 		p.states.lock.Lock()
-		//stales := p.states.diffs[:pendingFlushBlockNum]
-		//for _, d := range stales {
-		//	for _, node := range d.accountDiff {
-		//		types.RecycleTrieNode(node)
-		//	}
-		//	for _, node := range d.storageDiff {
-		//		types.RecycleTrieNode(node)
-		//	}
-		//}
+		stales := p.states.diffs[:pendingFlushBlockNum]
+		for _, d := range stales {
+			for _, node := range d.accountDiff {
+				types.RecycleTrieNode(node)
+			}
+			for _, node := range d.storageDiff {
+				types.RecycleTrieNode(node)
+			}
+		}
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
 		p.states.rebuildAllKeyMap()
 		p.states.lock.Unlock()
-		p.logger.Infof("[Prune] prune state from block %v to block %v", from, to)
+		p.logger.Infof("[Prune] prune state from block %v to block %v, size(bytes)=%v", from, to, pendingFlushSize)
 
 		pendingBatch.Reset()
 		from, to = 0, 0
 		p.lastPruneTime = time.Now()
 		accountTriePruneSet, storageTriePruneSet = make(map[string]struct{}), make(map[string]struct{})
 		accountTrieWriteSet, storageTrieWriteSet = make(map[string][]byte), make(map[string][]byte)
-		pendingFlushBlockNum = 0
+		pendingFlushBlockNum, pendingFlushSize = 0, 0
 	}
 
 }
