@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 
 const (
@@ -20,8 +21,10 @@ const (
 )
 
 var (
-	balanceOfSig    = crypto.Keccak256([]byte("balanceOf(address)"))[:4]
-	transferFromSig = crypto.Keccak256([]byte("transferFrom(address,address,uint256)"))[:4]
+	balanceOfSig          = crypto.Keccak256([]byte("balanceOf(address)"))[:4]
+	transferFromSig       = crypto.Keccak256([]byte("transferFrom(address,address,uint256)"))[:4]
+	getTokenValueOfAxcSig = crypto.Keccak256([]byte("getTokenValueOfAXC(address,uint256)"))[:4]
+	decimalsSig           = crypto.Keccak256([]byte("decimals()"))[:4]
 
 	contextArg = abi.Arguments{
 		{Name: "account", Type: common.AddressType},
@@ -39,8 +42,10 @@ type TokenPaymaster struct {
 	selfAddr   *types.Address
 
 	account ledger.IAccount
+
 	// context fields
 	currentUser *ethcommon.Address
+
 	currentLogs *[]common.Log
 	stateLedger ledger.StateLedger
 	currentEVM  *vm.EVM
@@ -140,14 +145,14 @@ func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperatio
 	tokenAddr := ethcommon.BytesToAddress(paymasterAndData[20:40])
 	maxTokenCost, err := tp.getTokenValueOfAxc(tokenAddr, maxCost)
 	if err != nil {
-		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token value failed: %s", err.Error()))
+		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token %s value failed: %s", tokenAddr.String(), err.Error()))
 	}
 	balance, err := tp.getTokenBalance(userOp.Sender, tokenAddr)
 	if err != nil {
 		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token balance failed: %s", err.Error()))
 	}
 	if balance.Cmp(maxTokenCost) < 0 {
-		return nil, validation, common.NewRevertStringError("token paymaster: not enough token balance")
+		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: not enough token balance, balance: %s, maxTokenCost: %s", balance.String(), maxTokenCost.String()))
 	}
 	context, err = encodeContext(userOp.Sender, tokenAddr, interfaces.GetGasPrice(&userOp), maxTokenCost, maxCost)
 	if err != nil {
@@ -160,13 +165,40 @@ func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperatio
 // nolint
 // getTokenValueOfAxc translate the give axc value to token value
 func (tp *TokenPaymaster) getTokenValueOfAxc(token ethcommon.Address, value *big.Int) (*big.Int, error) {
-	// TODO get token value from oracle
-	return new(big.Int).SetBytes(value.Bytes()), nil
+	key := append([]byte(tokenOracleKey), token.Bytes()...)
+	if isExist, oracleBytes := tp.account.GetState(key); isExist {
+		oracleAddr := ethcommon.BytesToAddress(oracleBytes)
+		callData := append(getTokenValueOfAxcSig, ethcommon.LeftPadBytes(token.Bytes(), 32)...)
+		callData = append(callData, ethcommon.LeftPadBytes(value.Bytes(), 32)...)
+		// return value of token is 10 decimals
+		tokenValueRes, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &oracleAddr, callData)
+		if err != nil {
+			return nil, err
+		}
+		tokenValue := new(big.Int).SetBytes(tokenValueRes)
+
+		// get token decimals
+		callData = decimalsSig
+		tokenDecimalsRes, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &token, callData)
+		if err != nil {
+			return nil, err
+		}
+		tokenDecimals := new(big.Int).SetBytes(tokenDecimalsRes)
+
+		// tokenValue / 10^10 * 10^tokenDecimals = tokenValue * 10^(tokenDecimals - 10)
+		if tokenDecimals.Cmp(big.NewInt(10)) >= 0 {
+			return new(big.Int).Mul(tokenValue, new(big.Int).Exp(big.NewInt(10), new(big.Int).Sub(tokenDecimals, big.NewInt(10)), nil)), nil
+		}
+		// tokenValue * 10^(tokenDecimals - 10) = tokenValue / 10^(10 - tokenDecimals)
+		return new(big.Int).Div(tokenValue, new(big.Int).Exp(big.NewInt(10), new(big.Int).Sub(big.NewInt(10), tokenDecimals), nil)), nil
+	}
+
+	return big.NewInt(0), common.NewRevertStringError(fmt.Sprintf("token paymaster: token %s not set oracle", token.String()))
 }
 
 func (tp *TokenPaymaster) getTokenBalance(account, token ethcommon.Address) (*big.Int, error) {
 	callData := append(balanceOfSig, ethcommon.LeftPadBytes(account.Bytes(), 32)...)
-	result, _, err := call(tp.stateLedger, tp.currentEVM, nil, tp.selfAddress(), &token, callData)
+	result, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &token, callData)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +210,7 @@ func (tp *TokenPaymaster) transferFrom(account, token ethcommon.Address, tokenVa
 	callData := append(transferFromSig, ethcommon.LeftPadBytes(account.Bytes(), 32)...)
 	callData = append(callData, ethcommon.LeftPadBytes(tp.selfAddress().Bytes(), 32)...)
 	callData = append(callData, ethcommon.LeftPadBytes(tokenValue.Bytes(), 32)...)
-	_, _, err := call(tp.stateLedger, tp.currentEVM, nil, tp.selfAddress(), &token, callData)
+	_, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &token, callData)
 	if err != nil {
 		return common.NewRevertStringError(fmt.Sprintf("token paymaster: call transferFrom failed: %s", err.Error()))
 	}
