@@ -14,8 +14,8 @@ import (
 
 	types "github.com/axiomesh/axiom-kit/types"
 	api "github.com/axiomesh/axiom-ledger/internal/coreapi/api"
-	common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
+	common "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	events "github.com/axiomesh/axiom-ledger/pkg/events"
 	core "github.com/ethereum/go-ethereum/core"
 	vm "github.com/ethereum/go-ethereum/core/vm"
@@ -45,6 +45,11 @@ func NewMockCoreAPI(ctrl *gomock.Controller) *MockCoreAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCoreAPI) EXPECT() *MockCoreAPIMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockCoreAPI) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // Broker mocks base method.
@@ -258,6 +263,11 @@ func NewMockBrokerAPI(ctrl *gomock.Controller) *MockBrokerAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBrokerAPI) EXPECT() *MockBrokerAPIMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockBrokerAPI) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // ChainConfig mocks base method.
@@ -531,44 +541,6 @@ func (c *MockBrokerAPIGetEvmCall) DoAndReturn(f func(*core.Message, *vm.Config) 
 	return c
 }
 
-// GetNativeVm mocks base method.
-func (m *MockBrokerAPI) GetNativeVm() common.VirtualMachine {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNativeVm")
-	ret0, _ := ret[0].(common.VirtualMachine)
-	return ret0
-}
-
-// GetNativeVm indicates an expected call of GetNativeVm.
-func (mr *MockBrokerAPIMockRecorder) GetNativeVm() *MockBrokerAPIGetNativeVmCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNativeVm", reflect.TypeOf((*MockBrokerAPI)(nil).GetNativeVm))
-	return &MockBrokerAPIGetNativeVmCall{Call: call}
-}
-
-// MockBrokerAPIGetNativeVmCall wrap *gomock.Call
-type MockBrokerAPIGetNativeVmCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockBrokerAPIGetNativeVmCall) Return(arg0 common.VirtualMachine) *MockBrokerAPIGetNativeVmCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockBrokerAPIGetNativeVmCall) Do(f func() common.VirtualMachine) *MockBrokerAPIGetNativeVmCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBrokerAPIGetNativeVmCall) DoAndReturn(f func() common.VirtualMachine) *MockBrokerAPIGetNativeVmCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetReceipt mocks base method.
 func (m *MockBrokerAPI) GetReceipt(arg0 *types.Hash) (*types.Receipt, error) {
 	m.ctrl.T.Helper()
@@ -604,6 +576,44 @@ func (c *MockBrokerAPIGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, er
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockBrokerAPIGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *MockBrokerAPIGetReceiptCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetSyncProgress mocks base method.
+func (m *MockBrokerAPI) GetSyncProgress() *common.SyncProgress {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSyncProgress")
+	ret0, _ := ret[0].(*common.SyncProgress)
+	return ret0
+}
+
+// GetSyncProgress indicates an expected call of GetSyncProgress.
+func (mr *MockBrokerAPIMockRecorder) GetSyncProgress() *MockBrokerAPIGetSyncProgressCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSyncProgress", reflect.TypeOf((*MockBrokerAPI)(nil).GetSyncProgress))
+	return &MockBrokerAPIGetSyncProgressCall{Call: call}
+}
+
+// MockBrokerAPIGetSyncProgressCall wrap *gomock.Call
+type MockBrokerAPIGetSyncProgressCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockBrokerAPIGetSyncProgressCall) Return(arg0 *common.SyncProgress) *MockBrokerAPIGetSyncProgressCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockBrokerAPIGetSyncProgressCall) Do(f func() *common.SyncProgress) *MockBrokerAPIGetSyncProgressCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockBrokerAPIGetSyncProgressCall) DoAndReturn(f func() *common.SyncProgress) *MockBrokerAPIGetSyncProgressCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -826,6 +836,11 @@ func (m *MockNetworkAPI) EXPECT() *MockNetworkAPIMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockNetworkAPI) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // PeerInfo mocks base method.
 func (m *MockNetworkAPI) PeerInfo() ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -886,6 +901,11 @@ func NewMockChainAPI(ctrl *gomock.Controller) *MockChainAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockChainAPI) EXPECT() *MockChainAPIMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockChainAPI) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // Meta mocks base method.
@@ -1025,6 +1045,11 @@ func NewMockFeedAPI(ctrl *gomock.Controller) *MockFeedAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockFeedAPI) EXPECT() *MockFeedAPIMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockFeedAPI) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // BloomStatus mocks base method.
@@ -1203,6 +1228,11 @@ func (m *MockGasAPI) EXPECT() *MockGasAPIMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockGasAPI) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // GetCurrentGasPrice mocks base method.
 func (m *MockGasAPI) GetCurrentGasPrice(blockHeight uint64) (uint64, error) {
 	m.ctrl.T.Helper()
@@ -1302,6 +1332,11 @@ func NewMockTxPoolAPI(ctrl *gomock.Controller) *MockTxPoolAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTxPoolAPI) EXPECT() *MockTxPoolAPIMockRecorder {
 	return m.recorder
+}
+
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockTxPoolAPI) ISGOMOCK() struct{} {
+	return struct{}{}
 }
 
 // GetAccountMeta mocks base method.
@@ -1528,6 +1563,44 @@ func (c *MockTxPoolAPIGetTransactionCall) Do(f func(*types.Hash) *types.Transact
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockTxPoolAPIGetTransactionCall) DoAndReturn(f func(*types.Hash) *types.Transaction) *MockTxPoolAPIGetTransactionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IsStarted mocks base method.
+func (m *MockTxPoolAPI) IsStarted() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsStarted")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsStarted indicates an expected call of IsStarted.
+func (mr *MockTxPoolAPIMockRecorder) IsStarted() *MockTxPoolAPIIsStartedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsStarted", reflect.TypeOf((*MockTxPoolAPI)(nil).IsStarted))
+	return &MockTxPoolAPIIsStartedCall{Call: call}
+}
+
+// MockTxPoolAPIIsStartedCall wrap *gomock.Call
+type MockTxPoolAPIIsStartedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockTxPoolAPIIsStartedCall) Return(arg0 bool) *MockTxPoolAPIIsStartedCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockTxPoolAPIIsStartedCall) Do(f func() bool) *MockTxPoolAPIIsStartedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockTxPoolAPIIsStartedCall) DoAndReturn(f func() bool) *MockTxPoolAPIIsStartedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -1,13 +1,13 @@
 package ledger
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 
+	"github.com/axiomesh/axiom-kit/intutil"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
@@ -15,16 +15,18 @@ func (esa EvmStateDBAdaptor) CreateAccount(address common.Address) {
 	esa.StateLedger.GetOrCreateAccount(types.NewAddress(address.Bytes()))
 }
 
-func (esa EvmStateDBAdaptor) SubBalance(addr common.Address, amount *big.Int) {
-	esa.StateLedger.SubBalance(types.NewAddress(addr.Bytes()), amount)
+func (esa EvmStateDBAdaptor) SubBalance(addr common.Address, amount *uint256.Int) {
+	esa.StateLedger.SubBalance(types.NewAddress(addr.Bytes()), intutil.Uint256ToBigInt(amount))
 }
 
-func (esa EvmStateDBAdaptor) AddBalance(addr common.Address, amount *big.Int) {
-	esa.StateLedger.AddBalance(types.NewAddress(addr.Bytes()), amount)
+func (esa EvmStateDBAdaptor) AddBalance(addr common.Address, amount *uint256.Int) {
+	esa.StateLedger.AddBalance(types.NewAddress(addr.Bytes()), intutil.Uint256ToBigInt(amount))
 }
 
-func (esa EvmStateDBAdaptor) GetBalance(addr common.Address) *big.Int {
-	return esa.StateLedger.GetBalance(types.NewAddress(addr.Bytes()))
+func (esa EvmStateDBAdaptor) GetBalance(addr common.Address) *uint256.Int {
+	bigIntBalance := esa.StateLedger.GetBalance(types.NewAddress(addr.Bytes()))
+	uintBalance, _ := intutil.BigIntToUint256(bigIntBalance)
+	return uintBalance
 }
 
 func (esa EvmStateDBAdaptor) GetNonce(addr common.Address) uint64 {
@@ -101,14 +103,6 @@ func (esa EvmStateDBAdaptor) SetTransientState(addr common.Address, key, value c
 		})
 		impl.setTransientState(*types.NewAddress(addr.Bytes()), key.Bytes(), value.Bytes())
 	}
-}
-
-func (esa EvmStateDBAdaptor) Suicide(addr common.Address) bool {
-	return esa.StateLedger.Suicide(types.NewAddress(addr.Bytes()))
-}
-
-func (esa EvmStateDBAdaptor) HasSuicided(addr common.Address) bool {
-	return esa.StateLedger.HasSuicide(types.NewAddress(addr.Bytes()))
 }
 
 func (esa EvmStateDBAdaptor) Exist(addr common.Address) bool {
@@ -222,6 +216,18 @@ func (esa EvmStateDBAdaptor) PrepareEVMAccessList(sender common.Address, dest *c
 	}
 
 	l.PrepareAccessList(*types.NewAddress(sender.Bytes()), types.NewAddress(dest.Bytes()), precompiles, txAccesses)
+}
+
+func (esa EvmStateDBAdaptor) SelfDestruct(addr common.Address) {
+	esa.StateLedger.SelfDestruct(types.NewAddress(addr.Bytes()))
+}
+
+func (esa EvmStateDBAdaptor) HasSelfDestructed(addr common.Address) bool {
+	return esa.StateLedger.HasSelfDestructed(types.NewAddress(addr.Bytes()))
+}
+
+func (esa EvmStateDBAdaptor) Selfdestruct6780(addr common.Address) {
+	esa.StateLedger.Selfdestruct6780(types.NewAddress(addr.Bytes()))
 }
 
 type evmLogs struct {

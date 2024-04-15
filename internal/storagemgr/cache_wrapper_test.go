@@ -1,9 +1,10 @@
 package storagemgr
 
 import (
-	"golang.org/x/exp/rand"
 	"testing"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 func TestCacheWrapperSpaceAmplify(t *testing.T) {

@@ -26,6 +26,7 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	account := l.GetAccount(addr)
 	if account == nil {
 		account = NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, l.accountCache, addr, l.changer, l.snapshot)
+		account.SetCreated(true)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
@@ -37,7 +38,7 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	return account
 }
 
-// GetAccount get account info using account Address, if not found, create a new account
+// GetAccount get account info using account Address
 func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 	addr := address.String()
 
@@ -282,7 +283,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	updateTriesTime := time.Now()
 	for _, acc := range accounts {
 		account := acc.(*SimpleAccount)
-		if account.Suicided() {
+		if account.SelfDestructed() {
 			accSize++
 			data, err := l.accountTrie.Get(utils.CompositeAccountKey(account.Addr))
 			if err != nil {
@@ -432,28 +433,39 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 	return nil
 }
 
-func (l *StateLedgerImpl) Suicide(addr *types.Address) bool {
+func (l *StateLedgerImpl) SelfDestruct(addr *types.Address) bool {
 	account := l.GetOrCreateAccount(addr)
 	l.changer.append(suicideChange{
 		account:     addr,
-		prev:        account.Suicided(),
+		prev:        account.SelfDestructed(),
 		prevbalance: new(big.Int).Set(account.GetBalance()),
 	})
-	l.logger.Debugf("[Suicide] addr: %v, before balance: %v", addr, account.GetBalance())
-	account.SetSuicided(true)
+	l.logger.Debugf("[SelfDestruct] addr: %v, before balance: %v", addr, account.GetBalance())
+	account.SetSelfDestructed(true)
 	account.SetBalance(new(big.Int))
 
 	return true
 }
 
-func (l *StateLedgerImpl) HasSuicide(addr *types.Address) bool {
+func (l *StateLedgerImpl) HasSelfDestructed(addr *types.Address) bool {
 	account := l.GetOrCreateAccount(addr)
 	if account.IsEmpty() {
-		l.logger.Debugf("[HasSuicide] addr: %v, is empty, suicide: false", addr)
+		l.logger.Debugf("[HasSelfDestructed] addr: %v, is empty, selfDestructed: false", addr)
 		return false
 	}
-	l.logger.Debugf("[HasSuicide] addr: %v, suicide: %v", addr, account.Suicided())
-	return account.Suicided()
+	l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
+	return account.SelfDestructed()
+}
+
+func (l *StateLedgerImpl) Selfdestruct6780(addr *types.Address) {
+	account := l.GetAccount(addr)
+	if account == nil {
+		return
+	}
+
+	if account.IsCreated() {
+		l.SelfDestruct(addr)
+	}
 }
 
 func (l *StateLedgerImpl) Exist(addr *types.Address) bool {

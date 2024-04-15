@@ -401,6 +401,9 @@ func newEvm(number uint64, timestamp uint64, chainCfg *params.ChainConfig, db le
 }
 
 func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error) {
+	if vmConfig.NoBaseFee && txCtx.GasPrice == nil {
+		txCtx.GasPrice = big.NewInt(0)
+	}
 	var blkCtx vm.BlockContext
 	meta := exec.ledger.ChainLedger.GetChainMeta()
 	blockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(meta.Height)
