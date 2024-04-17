@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -426,6 +427,7 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 	mUserOp := opInfo.MUserOp
 	mode := interfaces.OpSucceeded
 	usedGas := big.NewInt(0)
+	totalValue := big.NewInt(0)
 	if len(callData) > 0 {
 		// check if call smart account method, directly call. otherwise, call evm
 		if len(callData) < 4 {
@@ -441,9 +443,14 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		})
 		sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, mUserOp.CallGasLimit)
 
-		isInnerMethod, callGas, err := JudgeOrCallInnerMethod(callData, sa)
+		isInnerMethod, callGas, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
 		if err != nil {
-			return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA42 reverted: %s", err.Error()))
+			ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
+			mode = interfaces.OpReverted
+		}
+
+		if totalUsedValue != nil {
+			totalValue.Add(totalValue, totalUsedValue)
 		}
 
 		usedGas.Add(usedGas, big.NewInt(int64(callGas)))
@@ -451,6 +458,9 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 			// call evm if not inner method
 			_, callGas, err := call(ep.stateLedger, ep.currentEVM, mUserOp.CallGasLimit, ep.selfAddress(), &mUserOp.Sender, callData)
 			if err != nil {
+				if strings.Contains(err.Error(), "out of gas") {
+					return nil, interfaces.FailedOp(opIndex, "AA95 out of gas")
+				}
 				ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
 				mode = interfaces.OpReverted
 			}
@@ -461,7 +471,7 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 
 	ep.logger.Infof("handle op, opIndex: %s, mode: %s, usedGas: %s, preOpGas: %s", opIndex.Text(10), mode, usedGas.Text(10), opInfo.PreOpGas.Text(10))
 	actualGas := new(big.Int).Add(usedGas, opInfo.PreOpGas)
-	return ep.handlePostOp(opIndex, mode, opInfo, context, actualGas)
+	return ep.handlePostOp(opIndex, mode, opInfo, context, actualGas, totalValue)
 }
 
 // nolint
@@ -473,7 +483,7 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 // @param mode - whether is called from innerHandleOp, or outside (postOpReverted)
 // @param opInfo userOp fields and info collected during validation
 // @param context the context returned in validatePaymasterUserOp
-func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode, opInfo *UserOpInfo, context []byte, actualGas *big.Int) (*big.Int, error) {
+func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode, opInfo *UserOpInfo, context []byte, actualGas *big.Int, totalValue *big.Int) (*big.Int, error) {
 	var refundAddress ethcommon.Address
 	mUserOp := opInfo.MUserOp
 	gasPrice := getUserOpGasPrice(&mUserOp)
@@ -483,17 +493,6 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 	actualGasCost := new(big.Int).Mul(actualGas, gasPrice)
 	if paymaster == (ethcommon.Address{}) {
 		refundAddress = mUserOp.Sender
-		sa := NewSmartAccount(ep.logger, ep)
-		sa.SetContext(&common.VMContext{
-			StateLedger: ep.stateLedger,
-			CurrentLogs: ep.currentLogs,
-			CurrentEVM:  ep.currentEVM,
-			CurrentUser: &entrypointAddr,
-		})
-		sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, mUserOp.VerificationGasLimit)
-		if err := sa.postUserOp(opInfo.UseSessionKey, actualGasCost); err != nil {
-			return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("post user op reverted: %s", err.Error()))
-		}
 	} else {
 		refundAddress = paymaster
 		if len(context) > 0 {
@@ -512,6 +511,18 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 				return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA50 postOp reverted: %s", err.Error()))
 			}
 		}
+	}
+
+	sa := NewSmartAccount(ep.logger, ep)
+	sa.SetContext(&common.VMContext{
+		StateLedger: ep.stateLedger,
+		CurrentLogs: ep.currentLogs,
+		CurrentEVM:  ep.currentEVM,
+		CurrentUser: &entrypointAddr,
+	})
+	sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, mUserOp.VerificationGasLimit)
+	if err := sa.postUserOp(opInfo.UseSessionKey, actualGasCost, totalValue); err != nil {
+		return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("post user op reverted: %s", err.Error()))
 	}
 
 	if opInfo.Prefund.Cmp(actualGasCost) == -1 {
@@ -678,7 +689,7 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 		}
 
 		actualGas := big.NewInt(int64(RecoveryAccountOwnerGas))
-		actualGasCost, err := ep.handlePostOp(big.NewInt(int64(i)), interfaces.OpSucceeded, &opInfos[i], []byte(""), actualGas)
+		actualGasCost, err := ep.handlePostOp(big.NewInt(int64(i)), interfaces.OpSucceeded, &opInfos[i], []byte(""), actualGas, big.NewInt(0))
 		if err != nil {
 			return err
 		}

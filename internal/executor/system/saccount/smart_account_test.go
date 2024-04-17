@@ -22,10 +22,28 @@ func TestSmartAccount_Execute(t *testing.T) {
 	erc20ContractAddr := ethcommon.HexToAddress("0x82C6D3ed4cD33d8EC1E51d0B5Cc1d822Eaa0c3dC")
 	contractAccount := entrypoint.stateLedger.GetOrCreateAccount(types.NewAddress(erc20ContractAddr.Bytes()))
 	contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(erc20bytecode))
+	// deploy oracle
+	oracleContractAddr := ethcommon.HexToAddress("0x3EBD66861C1d8F298c20ED56506b063206103227")
+	contractAccount = entrypoint.stateLedger.GetOrCreateAccount(types.NewAddress(oracleContractAddr.Bytes()))
+	contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(oracleBytecode))
 
 	sk, _ := crypto.GenerateKey()
 	owner := crypto.PubkeyToAddress(sk.PublicKey)
 	accountAddr := factory.GetAddress(owner, big.NewInt(1))
+
+	InitializeTokenPaymaster(entrypoint.stateLedger, owner)
+
+	tp := NewTokenPaymaster(entrypoint)
+	// owner set oracle
+	tp.SetContext(&common.VMContext{
+		StateLedger:   entrypoint.stateLedger,
+		CurrentHeight: 1,
+		CurrentLogs:   entrypoint.currentLogs,
+		CurrentUser:   &owner,
+		CurrentEVM:    entrypoint.currentEVM,
+	})
+	err := tp.AddToken(erc20ContractAddr, oracleContractAddr)
+	assert.Nil(t, err)
 
 	t.Logf("account address: %s", accountAddr)
 
@@ -42,29 +60,31 @@ func TestSmartAccount_Execute(t *testing.T) {
 
 	// no callFunc
 	callData := ethcommon.Hex2Bytes("b61d27f600000000000000000000000082c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000")
-	isExist, _, err := JudgeOrCallInnerMethod(callData, sa)
+	isExist, _, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
 	assert.Nil(t, err)
 	assert.True(t, isExist)
+	assert.Equal(t, uint64(10), totalUsedValue.Uint64())
 
 	// totalSupply
 	callData = ethcommon.Hex2Bytes("18160ddd")
-	_, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+	_, totalUsedValue, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
+	assert.EqualValues(t, 0, totalUsedValue.Uint64())
 
 	// balanceOf
 	callData = ethcommon.Hex2Bytes("70a082310000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b6650")
-	_, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+	_, _, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
 
 	// mint erc20
 	// 0x40c10f190000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b66500000000000000000000000000000000000000000000000000000000000002710
 	callData = ethcommon.Hex2Bytes("40c10f190000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b66500000000000000000000000000000000000000000000000000000000000002710")
-	_, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+	_, _, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
 
 	// balanceOf after mint
 	callData = ethcommon.Hex2Bytes("70a082310000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b6650")
-	_, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+	_, _, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
 
 	// transfer erc20
@@ -72,9 +92,10 @@ func TestSmartAccount_Execute(t *testing.T) {
 	// replace caller to smart account address
 	sa.selfAddr.SetBytes(ethcommon.Hex2Bytes("1cd68912e00c5a02ea0b8b2d972a9c13906b6650"))
 	sa.remainingGas = big.NewInt(MaxCallGasLimit)
-	isExist, _, err = JudgeOrCallInnerMethod(callData, sa)
+	isExist, _, totalUsedValue, err = JudgeOrCallInnerMethod(callData, sa)
 	assert.Nil(t, err)
 	assert.True(t, isExist)
+	assert.Equal(t, uint64(7), totalUsedValue.Uint64())
 
 	// test smart account
 	sa2 := NewSmartAccount(entrypoint.logger, entrypoint)
@@ -95,7 +116,8 @@ func TestSmartAccount_Execute(t *testing.T) {
 	str := "b61d27f600000000000000000000000082c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
 	dest := strings.ReplaceAll(str, "82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc", strings.TrimLeft(accountAddr.Hex(), "0x"))
 	callData = ethcommon.Hex2Bytes(dest)
-	isExist, _, err = JudgeOrCallInnerMethod(callData, sa2)
+	isExist, _, totalUsedValue, err = JudgeOrCallInnerMethod(callData, sa2)
 	assert.Nil(t, err)
 	assert.True(t, isExist)
+	assert.Equal(t, uint64(10), totalUsedValue.Uint64())
 }

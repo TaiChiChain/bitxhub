@@ -3,6 +3,7 @@ package saccount
 import (
 	"crypto/ecdsa"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -361,11 +362,41 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 			},
 			ErrMsg: "not enough token balance",
 		},
+	}
+
+	for _, testcase := range testcases {
+		tmpUserOp := *userOp
+
+		testcase.BeforeRun(&tmpUserOp)
+
+		if !testcase.IsSkipSign {
+			userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
+			hash := accounts.TextHash(userOpHash.Bytes())
+			sig, err := crypto.Sign(hash, sk)
+			assert.Nil(t, err)
+			tmpUserOp.Signature = sig
+		}
+
+		err := entryPoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, ethcommon.Address{})
+		executeResultErr, ok := err.(*common.RevertError)
+		assert.True(t, ok, "can't convert err to RevertError")
+		assert.Equal(t, executeResultErr.GetError(), vm.ErrExecutionReverted)
+		assert.Contains(t, executeResultErr.Error(), testcase.ErrMsg)
+	}
+}
+
+func TestEntryPoint_HandleOp_UserOperationRevert(t *testing.T) {
+	entryPoint, accountFactory := initEntryPoint(t)
+	userOp, sk := buildUserOp(t, entryPoint, accountFactory)
+
+	testcases := []struct {
+		BeforeRun func(userOp *interfaces.UserOperation)
+		ErrMsg    string
+	}{
 		{
 			// session key validAfter > validUntil
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
-				userOp.InitCode = nil
 				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				sessionPriv, _ := crypto.GenerateKey()
 				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
@@ -396,24 +427,42 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 		},
 	}
 
+	beneficiaryPriv, _ := crypto.GenerateKey()
+	beneficiary := crypto.PubkeyToAddress(beneficiaryPriv.PublicKey)
 	for _, testcase := range testcases {
 		tmpUserOp := *userOp
 
 		testcase.BeforeRun(&tmpUserOp)
 
-		if !testcase.IsSkipSign {
-			userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
-			hash := accounts.TextHash(userOpHash.Bytes())
-			sig, err := crypto.Sign(hash, sk)
-			assert.Nil(t, err)
-			tmpUserOp.Signature = sig
-		}
+		userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
+		hash := accounts.TextHash(userOpHash.Bytes())
+		sig, err := crypto.Sign(hash, sk)
+		assert.Nil(t, err)
+		tmpUserOp.Signature = sig
 
-		err := entryPoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, ethcommon.Address{})
-		executeResultErr, ok := err.(*common.RevertError)
-		assert.True(t, ok, "can't convert err to RevertError")
-		assert.Equal(t, executeResultErr.GetError(), vm.ErrExecutionReverted)
-		assert.Contains(t, executeResultErr.Error(), testcase.ErrMsg)
+		err = entryPoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, beneficiary)
+		assert.Nil(t, err)
+		assert.Greater(t, len(*entryPoint.currentLogs), 1)
+		// get log
+		userOpRevertEvent := abi.NewEvent("UserOperationRevertReason", "UserOperationRevertReason", false, abi.Arguments{
+			{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
+			{Name: "sender", Type: common.AddressType, Indexed: true},
+			{Name: "nonce", Type: common.BigIntType},
+			{Name: "revertReason", Type: common.BytesType},
+		})
+		hasUserOpRevertEvent := false
+		for _, currentLog := range *entryPoint.currentLogs {
+			topicOne := *currentLog.Topics[0]
+			if topicOne.ETHHash() == userOpRevertEvent.ID {
+				revertReason := string(currentLog.Data[32:])
+				if strings.Contains(revertReason, testcase.ErrMsg) {
+					hasUserOpRevertEvent = true
+				}
+			}
+		}
+		// reset log
+		entryPoint.currentLogs = &[]common.Log{}
+		assert.True(t, hasUserOpRevertEvent, "must have UserOperationRevertReason event")
 	}
 }
 
@@ -877,7 +926,7 @@ func TestEntryPoint_call(t *testing.T) {
 
 func TestEntryPoint_GetUserOpHash(t *testing.T) {
 	entryPoint, _ := initEntryPoint(t)
-	dstUserOpHash := "c02fe0170a5402c0d08502e2140d43803ce1672500b9100ac95aea6e7e2bd508"
+	dstUserOpHash := "8ecc047965a0ba0f814465f3152cbba2420b6d3fb97fea3d9e1332fc47040b54"
 	sk, err := crypto.HexToECDSA("8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba")
 	assert.Nil(t, err)
 	owner := crypto.PubkeyToAddress(sk.PublicKey)
@@ -905,7 +954,7 @@ func TestEntryPoint_GetUserOpHash(t *testing.T) {
 		MaxFeePerGas:         big.NewInt(5875226332498),
 		MaxPriorityFeePerGas: big.NewInt(0),
 		PaymasterAndData:     nil,
-		Signature:            ethcommon.Hex2Bytes("70aae8a31ee824b05e449e082f9fcf848218fe4563988d426e72d4675d1179b9735c026f847eb22e6b0f1a8dc81825678f383b07189c5df6a4a513a972ad71191c"),
+		Signature:            ethcommon.Hex2Bytes("e00bd84bf950f07cfde52f7726bc33b8e1afd5bc709f00a58c0e1fa4b19cd0c21c4784569452603a608ebc338a99a9428cb25922acc71936befaf4d7b90925311b"),
 	}
 
 	userOpHash := entryPoint.GetUserOpHash(*userOp)
@@ -923,6 +972,7 @@ func TestEntryPoint_GetUserOpHash(t *testing.T) {
 	msgSig := make([]byte, 65)
 	copy(msgSig, sig)
 	msgSig[64] += 27
+	t.Logf("msg sig: %x", msgSig)
 	assert.Equal(t, msgSig, userOp.Signature)
 
 	recoveredPub, err := crypto.Ecrecover(hash, sig)
