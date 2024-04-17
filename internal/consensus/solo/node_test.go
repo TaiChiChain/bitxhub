@@ -7,9 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
-	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,9 +15,13 @@ import (
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
+	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -36,6 +37,7 @@ func TestNode_Start(t *testing.T) {
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
 	config, err := common.GenerateConfig(
+		common.WithChainState(&chainstate.ChainState{}),
 		common.WithPrivKey(s.Sk),
 		common.WithConfig(r.RepoRoot, r.ConsensusConfig),
 		common.WithGenesisEpochInfo(r.GenesisConfig.EpochInfo),
@@ -56,7 +58,7 @@ func TestNode_Start(t *testing.T) {
 			}
 		}),
 		common.WithTxPool(mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, mockCtl)),
-		common.WithGetCurrentEpochInfoFromEpochMgrContractFunc(func() (*rbft.EpochInfo, error) {
+		common.WithGetCurrentEpochInfoFromEpochMgrContractFunc(func() (*types.EpochInfo, error) {
 			return r.GenesisConfig.EpochInfo, nil
 		}),
 	)
@@ -170,8 +172,8 @@ func TestNode_ReportState(t *testing.T) {
 			Account: txList[9].RbftGetFrom(),
 			Nonce:   txList[9].RbftGetNonce(),
 		}
-		node.getCurrentEpochInfoFunc = func() (*rbft.EpochInfo, error) {
-			return &rbft.EpochInfo{Epoch: 2, StartBlock: 10, EpochPeriod: 10, ConsensusParams: rbft.ConsensusParams{EnableTimedGenEmptyBlock: true}}, nil
+		node.getCurrentEpochInfoFunc = func() (*types.EpochInfo, error) {
+			return &types.EpochInfo{Epoch: 2, StartBlock: 10, EpochPeriod: 10, ConsensusParams: rbft.ConsensusParams{EnableTimedGenEmptyBlock: true}}, nil
 		}
 		node.epcCnf.epochPeriod = 10
 		node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
@@ -345,6 +347,5 @@ func TestNode_Prepare(t *testing.T) {
 		})
 		block := <-soloNode.Commit()
 		ast.Equal(batchSize, len(block.Block.Transactions))
-
 	})
 }

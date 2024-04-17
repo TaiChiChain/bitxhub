@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
 	"github.com/axiomesh/axiom-kit/types"
@@ -72,10 +71,6 @@ func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, 
 
 func NewLedger(rep *repo.Repo) (*Ledger, error) {
 	return NewLedgerWithStores(rep, nil, nil, nil, nil)
-}
-
-func (l *Ledger) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {
-	l.StateLedger.(*StateLedgerImpl).WithGetEpochInfoFunc(f)
 }
 
 // PersistBlockData persists block data

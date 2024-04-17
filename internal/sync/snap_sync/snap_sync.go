@@ -10,12 +10,13 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 )
 
 var _ common.ISyncConstructor = (*SnapSync)(nil)
@@ -184,7 +185,6 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 					"epoch": epoch,
 				}).Info("Receive fetch epoch state response")
 				return nil
-
 			}, strategy.Limit(uint(len(s.cnf.Peers))), strategy.Wait(200*time.Millisecond)); err != nil {
 				err = fmt.Errorf("retry send fetch epoch state request failed, all peers invalid: %v", s.cnf.Peers)
 				s.logger.WithFields(logrus.Fields{

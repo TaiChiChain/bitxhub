@@ -1,34 +1,36 @@
 package executor
 
 import (
-	"encoding/binary"
-
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 )
 
 func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 	// check need turn into NewEpoch
-	epochInfo := exec.rep.EpochInfo
+	epochInfo := exec.chainState.EpochInfo
 	if block.Header.Number == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
-		var seed []byte
-		seed = append(seed, []byte(exec.currentBlockHash.String())...)
-		seed = append(seed, []byte(block.Header.ProposerAccount)...)
-		seed = binary.BigEndian.AppendUint64(seed, block.Header.Number)
-		seed = binary.BigEndian.AppendUint64(seed, block.Header.Epoch)
-		seed = binary.BigEndian.AppendUint64(seed, uint64(block.Header.Timestamp))
-		for _, tx := range block.Transactions {
-			seed = append(seed, []byte(tx.GetHash().String())...)
-		}
-
-		newEpoch, err := base.TurnIntoNewEpoch(seed, exec.ledger.StateLedger)
+		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+		votingPowers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
 		if err != nil {
 			panic(err)
 		}
-		exec.rep.EpochInfo = newEpoch
-		exec.epochExchange = true
+
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
+		if err != nil {
+			panic(err)
+		}
+
+		if err := exec.chainState.UpdateByEpochInfo(newEpoch, lo.SliceToMap(votingPowers, func(item framework.ConsensusVotingPower) (uint64, int64) {
+			return item.NodeID, item.ConsensusVotingPower
+		})); err != nil {
+			panic(err)
+		}
+
 		exec.logger.WithFields(logrus.Fields{
 			"height":                block.Header.Number,
 			"new_epoch":             newEpoch.Epoch,
@@ -39,7 +41,7 @@ func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 
 func (exec *BlockExecutor) updateMiningInfo(block *types.Block) {
 	// calculate mining rewards and transfer the mining reward
-	receiver := types.NewAddressByStr(block.Header.ProposerAccount).ETHAddress()
+	receiver := types.NewAddressByStr(syscommon.StakingManagerContractAddr).ETHAddress()
 	if err := exec.incentive.SetMiningRewards(receiver, exec.ledger.StateLedger,
 		exec.currentHeight); err != nil {
 		exec.logger.WithFields(logrus.Fields{

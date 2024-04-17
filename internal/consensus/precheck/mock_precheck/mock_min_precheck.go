@@ -1,12 +1,12 @@
 package mock_precheck
 
 import (
-	"github.com/axiomesh/axiom-kit/txpool"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"go.uber.org/mock/gomock"
 
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 )
 
 type miniPreCheck struct {

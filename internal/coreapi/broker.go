@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -14,7 +13,9 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 )
 
 type BrokerAPI CoreAPI
@@ -128,7 +129,7 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 		msg := executor.TransactionToMessage(tx)
 		txContext := core.NewEVMTxContext(msg)
 
-		context := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.Header.Timestamp), block.Header.ProposerAccount, getBlockHashFunc(block))
+		context := executor.NewEVMBlockContextAdaptor(block.Height(), uint64(block.Header.Timestamp), syscommon.StakingManagerContractAddr, getBlockHashFunc(block))
 		if idx == txIndex {
 			return msg, context, &statedb, nil
 		}

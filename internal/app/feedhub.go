@@ -1,8 +1,6 @@
 package app
 
 import (
-	"math/big"
-
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/txpool"
@@ -45,14 +43,13 @@ func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool)
 
 	// update txpool chain info
 	newChainInfo := &txpool.ChainInfo{
-		Height:   ev.Block.Height(),
-		GasPrice: new(big.Int).SetInt64(ev.Block.Header.GasPrice),
+		Height: ev.Block.Height(),
 	}
 
-	if common.NeedChangeEpoch(ev.Block.Height(), axm.Repo.EpochInfo) {
+	if common.NeedChangeEpoch(ev.Block.Height(), axm.ChainState.EpochInfo) {
 		newChainInfo.EpochConf = &txpool.EpochConfig{
-			EnableGenEmptyBatch: axm.Repo.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
-			BatchSize:           axm.Repo.EpochInfo.ConsensusParams.BlockMaxTxNum,
+			EnableGenEmptyBatch: axm.ChainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
+			BatchSize:           axm.ChainState.EpochInfo.ConsensusParams.BlockMaxTxNum,
 		}
 	}
 	axm.TxPool.UpdateChainInfo(newChainInfo)

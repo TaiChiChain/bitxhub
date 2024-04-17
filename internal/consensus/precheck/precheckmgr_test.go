@@ -92,7 +92,7 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		// assign txMaxSize to 0
 		cnf := &common2.Config{
 			Logger: lg,
-			GenesisEpochInfo: &rbft.EpochInfo{
+			GenesisEpochInfo: &types.EpochInfo{
 				MiscParams: rbft.MiscParams{
 					TxMaxSize: 0,
 				},
@@ -496,7 +496,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 func TestTxPreCheckMgr_UpdateEpochInfo(t *testing.T) {
 	tp, _, _ := newMockPreCheckMgr(nil, t)
 	oldTxMaxSize := tp.txMaxSize.Load()
-	tp.UpdateEpochInfo(&rbft.EpochInfo{
+	tp.UpdateEpochInfo(&types.EpochInfo{
 		MiscParams: rbft.MiscParams{
 			TxMaxSize: oldTxMaxSize + 1,
 		},

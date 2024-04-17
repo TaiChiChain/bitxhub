@@ -318,7 +318,7 @@ func TestRollback(t *testing.T) {
 			"key1": []byte("val1"),
 			"key2": []byte("val2"),
 			"key3": nil,
-			//"key4": make([]byte, maxBatchSize+1),
+			// "key4": make([]byte, maxBatchSize+1),
 		},
 	})
 
@@ -347,7 +347,6 @@ func TestRollback(t *testing.T) {
 	require.Equal(t, a2k3, []byte("val3"))
 
 	t.Run("rollback to state 1", func(t *testing.T) {
-
 		err = snapshot.Rollback(1)
 		require.Nil(t, err)
 

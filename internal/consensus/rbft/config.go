@@ -46,12 +46,10 @@ func defaultRbftConfig() rbft.Config {
 }
 
 func generateRbftConfig(config *common.Config) (rbft.Config, error) {
-	readConfig := config.Config
+	readConfig := config.Repo.ConsensusConfig
 
-	currentEpoch, err := config.GetCurrentEpochInfoFromEpochMgrContractFunc()
-	if err != nil {
-		return rbft.Config{}, err
-	}
+	currentEpoch := config.ChainState.EpochInfo
+
 	defaultConfig := defaultRbftConfig()
 	defaultConfig.GenesisEpochInfo = config.GenesisEpochInfo
 	defaultConfig.SelfP2PNodeID = config.Network.PeerID()

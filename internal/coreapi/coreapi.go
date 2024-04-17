@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-ledger/internal/app"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
@@ -40,4 +41,8 @@ func (api *CoreAPI) Gas() api.GasAPI {
 
 func (api *CoreAPI) TxPool() api.TxPoolAPI {
 	return (*TxPoolAPI)(api)
+}
+
+func (api *CoreAPI) ChainState() *chainstate.ChainState {
+	return api.axiomLedger.ChainState
 }

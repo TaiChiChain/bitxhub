@@ -5,18 +5,18 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 type Gas struct {
-	repo   *repo.Repo
-	logger logrus.FieldLogger
+	chainState *chainstate.ChainState
+	logger     logrus.FieldLogger
 }
 
-func NewGas(repo *repo.Repo) *Gas {
+func NewGas(chainState *chainstate.ChainState) *Gas {
 	logger := loggers.Logger(loggers.Finance)
-	return &Gas{repo: repo, logger: logger}
+	return &Gas{chainState: chainState, logger: logger}
 }
 
 // CalNextGasPrice returns the current block gas price, based on the formula:
@@ -27,14 +27,15 @@ func NewGas(repo *repo.Repo) *Gas {
 //
 // if G_c >= maxGasPrice, G_c = maxGasPrice
 func (gas *Gas) CalNextGasPrice(parentGasPrice uint64, txs int) (uint64, error) {
-	currentEpoch := gas.repo.EpochInfo
-	max := currentEpoch.FinanceParams.MaxGasPrice
-	min := currentEpoch.FinanceParams.MinGasPrice
+	// TODO: use big.Int
+	currentEpoch := gas.chainState.EpochInfo
+	max := currentEpoch.FinanceParams.MaxGasPrice.ToBigInt().Uint64()
+	min := currentEpoch.FinanceParams.MinGasPrice.ToBigInt().Uint64()
 	if parentGasPrice < min || parentGasPrice > max {
 		gas.logger.Errorf("gas price is out of range, parent gas price is %d, min is %d, max is %d", parentGasPrice, min, max)
 		return 0, ErrGasOutOfRange
 	}
-	total := int(gas.repo.EpochInfo.ConsensusParams.BlockMaxTxNum)
+	total := int(gas.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum)
 	if txs > total {
 		return 0, ErrTxsOutOfRange
 	}

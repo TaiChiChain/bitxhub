@@ -24,6 +24,7 @@ type Validation struct {
 
 	// valid time range
 	ValidUntil uint64
+
 	ValidAfter uint64
 
 	// remaining limit to spend
@@ -32,6 +33,7 @@ type Validation struct {
 
 type IAccount interface {
 	common.SystemContract
+
 	// validateUserOp validate user's signature and nonce
 	// the entryPoint will make the call to the recipient only if this validation call returns successfully.
 	// signature failure should be reported by returning SIG_VALIDATION_FAILED (1).

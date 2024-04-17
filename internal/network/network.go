@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/connmgr"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types/pb"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	network "github.com/axiomesh/axiom-p2p"
 )
@@ -47,9 +47,6 @@ type Network interface {
 
 	PeerID() string
 
-	// CountConnectedValidators counts connected validator numbers
-	CountConnectedValidators() uint64
-
 	// RegisterMsgHandler registers one message type handler
 	RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error
 
@@ -61,7 +58,6 @@ var _ Network = (*networkImpl)(nil)
 
 type networkImpl struct {
 	repo   *repo.Repo
-	ledger *ledger.Ledger
 	p2p    network.Network
 	logger logrus.FieldLogger
 	ctx    context.Context
@@ -72,13 +68,13 @@ type networkImpl struct {
 	msgHandlers sync.Map // map[pb.Message_Type]MessageHandler
 }
 
-func New(repoConfig *repo.Repo, logger logrus.FieldLogger, ledger *ledger.Ledger) (Network, error) {
-	return newNetworkImpl(repoConfig, logger, ledger)
+func New(repoConfig *repo.Repo, logger logrus.FieldLogger) (Network, error) {
+	return newNetworkImpl(repoConfig, logger)
 }
 
-func newNetworkImpl(repoConfig *repo.Repo, logger logrus.FieldLogger, ledger *ledger.Ledger) (*networkImpl, error) {
+func newNetworkImpl(rep *repo.Repo, logger logrus.FieldLogger) (*networkImpl, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	swarm := &networkImpl{repo: repoConfig, logger: logger, ledger: ledger, ctx: ctx, cancel: cancel}
+	swarm := &networkImpl{repo: rep, logger: logger, ctx: ctx, cancel: cancel}
 	if err := swarm.init(); err != nil {
 		return nil, err
 	}
@@ -89,8 +85,8 @@ func newNetworkImpl(repoConfig *repo.Repo, logger logrus.FieldLogger, ledger *le
 func (swarm *networkImpl) init() error {
 	// init peers with ips and hosts
 	bootstrap := make([]string, 0)
-	for _, a := range lo.Uniq(append(swarm.repo.GenesisConfig.EpochInfo.P2PBootstrapNodeAddresses, swarm.repo.Config.P2P.BootstrapNodeAddresses...)) {
-		if !strings.Contains(a, swarm.repo.P2PID) {
+	for _, a := range lo.Uniq(swarm.repo.Config.P2P.BootstrapNodeAddresses) {
+		if !strings.Contains(a, swarm.repo.P2PKeystore.P2PID()) {
 			bootstrap = append(bootstrap, a)
 		}
 	}
@@ -105,23 +101,13 @@ func (swarm *networkImpl) init() error {
 		securityType = network.SecurityNoise
 	}
 
-	var pipeBroadcastType network.PipeBroadcastType
-	switch swarm.repo.Config.P2P.Pipe.BroadcastType {
-	case repo.P2PPipeBroadcastSimple:
-		pipeBroadcastType = network.PipeBroadcastSimple
-	case repo.P2PPipeBroadcastGossip:
-		pipeBroadcastType = network.PipeBroadcastGossip
-	default:
-		return fmt.Errorf("unsupported p2p pipe broadcast type: %v", swarm.repo.Config.P2P.Pipe.BroadcastType)
-	}
-
-	libp2pKey, err := repo.Libp2pKeyFromECDSAKey(swarm.repo.P2PKey)
+	libp2pKey, err := libp2pcrypto.UnmarshalEd25519PrivateKey(swarm.repo.P2PKeystore.PrivateKey.PrivateKey)
 	if err != nil {
-		return fmt.Errorf("failed to convert ecdsa p2pKey: %w", err)
+		return fmt.Errorf("failed to convert to libp2p key from p2p keystore: %v", err)
 	}
 	protocolIDWithVersion := fmt.Sprintf("%s-%x", protocolID, sha256.Sum256([]byte(repo.BuildVersionSecret)))
 
-	gater := newConnectionGater(swarm.logger, swarm.ledger)
+	gater := newConnectionGater(swarm.logger)
 	opts := []network.Option{
 		network.WithLocalAddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", swarm.repo.Config.Port.P2P)),
 		network.WithPrivateKey(libp2pKey),
@@ -130,12 +116,8 @@ func (swarm *networkImpl) init() error {
 		network.WithTimeout(10*time.Second, swarm.repo.Config.P2P.SendTimeout.ToDuration(), swarm.repo.Config.P2P.ReadTimeout.ToDuration()),
 		network.WithSecurity(securityType),
 		network.WithPipe(network.PipeConfig{
-			BroadcastType:       pipeBroadcastType,
+			BroadcastType:       network.PipeBroadcastGossip,
 			ReceiveMsgCacheSize: swarm.repo.Config.P2P.Pipe.ReceiveMsgCacheSize,
-			SimpleBroadcast: network.PipeSimpleConfig{
-				WorkerCacheSize:        swarm.repo.Config.P2P.Pipe.SimpleBroadcast.WorkerCacheSize,
-				WorkerConcurrencyLimit: swarm.repo.Config.P2P.Pipe.SimpleBroadcast.WorkerConcurrencyLimit,
-			},
 			Gossipsub: network.PipeGossipsubConfig{
 				SubBufferSize:          swarm.repo.Config.P2P.Pipe.Gossipsub.SubBufferSize,
 				PeerOutboundBufferSize: swarm.repo.Config.P2P.Pipe.Gossipsub.PeerOutboundBufferSize,
@@ -206,17 +188,6 @@ func (swarm *networkImpl) Send(to string, msg *pb.Message) (*pb.Message, error) 
 	}
 
 	return m, nil
-}
-
-func (swarm *networkImpl) CountConnectedValidators() uint64 {
-	var cnt uint64
-	validatorSet := swarm.repo.EpochInfo.ValidatorSet
-	for _, n := range validatorSet {
-		if swarm.p2p.IsConnected(n.P2PNodeID) {
-			cnt++
-		}
-	}
-	return cnt
 }
 
 func (swarm *networkImpl) PeerID() string {

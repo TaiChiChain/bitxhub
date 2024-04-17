@@ -2,9 +2,8 @@
 
 set -e
 
-source x.sh
-
 CURRENT_PATH=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
+source ${CURRENT_PATH}/x.sh
 PROJECT_PATH=$(dirname "${CURRENT_PATH}")
 BUILD_PATH=${CURRENT_PATH}/build_solo
 

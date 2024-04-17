@@ -2,10 +2,8 @@ package repo
 
 import (
 	"bytes"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rand"
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,15 +11,11 @@ import (
 	"strconv"
 	"strings"
 
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-
-	rbft "github.com/axiomesh/axiom-bft"
 )
 
 type Repo struct {
@@ -29,35 +23,22 @@ type Repo struct {
 	Config          *Config
 	ConsensusConfig *ConsensusConfig
 	GenesisConfig   *GenesisConfig
-	P2PAddress      string
-	P2PKey          *ecdsa.PrivateKey
-	P2PID           string
 
-	// TODO: Move to epoch manager service
-	// Track current epoch info, will be updated bt executor
-	EpochInfo *rbft.EpochInfo
-
-	StartArgs *StartArgs
+	ConsensusKeystore *ConsensusKeystore
+	P2PKeystore       *P2PKeystore
+	StartArgs         *StartArgs
 }
 
 func (r *Repo) PrintNodeInfo(writer func(c string)) {
-	writer(fmt.Sprintf("%s-repo: %s", AppName, r.RepoRoot))
-	writer(fmt.Sprintf("node-key-addr: %s", r.P2PAddress))
-	writer(fmt.Sprintf("p2p-id: %s", r.P2PID))
-	writer(fmt.Sprintf("p2p-addr: /ip4/0.0.0.0/tcp/%d/p2p/%s", r.Config.Port.P2P, r.P2PID))
-}
+	writer(fmt.Sprintf("Repo-root: %s", r.RepoRoot))
+	writer(fmt.Sprintf("consensus-pubkey: %s", r.ConsensusKeystore.PublicKey.String()))
+	writer(fmt.Sprintf("p2p-id: %s", r.P2PKeystore.P2PID()))
 
-type signerOpts struct {
-}
-
-func (*signerOpts) HashFunc() crypto.Hash {
-	return crypto.SHA3_256
-}
-
-var signOpt = &signerOpts{}
-
-func (r *Repo) P2PKeySign(data []byte) ([]byte, error) {
-	return r.P2PKey.Sign(rand.Reader, data, signOpt)
+	localIP, err := getLocalIP()
+	if err != nil {
+		localIP = "127.0.0.1"
+	}
+	writer(fmt.Sprintf("p2p-addr: /ip4/%s/tcp/%d/p2p/%s", localIP, r.Config.Port.P2P, r.P2PKeystore.P2PID()))
 }
 
 func (r *Repo) Flush() error {
@@ -73,15 +54,37 @@ func (r *Repo) Flush() error {
 	return nil
 }
 
-func writeConfigWithEnv(cfgPath string, config any) error {
-	if err := writeConfig(cfgPath, config); err != nil {
-		return err
+func (r *Repo) ReadKeystore() error {
+	var err error
+	r.ConsensusKeystore, err = ReadConsensusKeystore(r.RepoRoot)
+	if err != nil {
+		return errors.Wrap(err, "failed to read consensus keystore")
 	}
-	// write back environment variables first
-	// TODO: wait viper support read from environment variables
-	if err := readConfigFromFile(cfgPath, config); err != nil {
+
+	r.P2PKeystore, err = ReadP2PKeystore(r.RepoRoot)
+	if err != nil {
+		return errors.Wrap(err, "failed to read p2p keystore")
+	}
+	return nil
+}
+
+func (r *Repo) DecryptKeystore(password string) error {
+	if err := r.ConsensusKeystore.DecryptPrivateKey(password); err != nil {
+		return errors.Wrap(err, "failed to decrypt consensus private key")
+	}
+	if err := r.P2PKeystore.DecryptPrivateKey(password); err != nil {
+		return errors.Wrap(err, "failed to decrypt p2p private key")
+	}
+
+	return nil
+}
+
+func writeConfigWithEnv(cfgPath string, config any) error {
+	// read from environment
+	if err := ReadConfigFromEnv(config); err != nil {
 		return errors.Wrapf(err, "failed to read cfg from environment")
 	}
+	// write back environment variables first
 	if err := writeConfig(cfgPath, config); err != nil {
 		return err
 	}
@@ -114,56 +117,17 @@ func MarshalConfig(config any) (string, error) {
 }
 
 func Default(repoRoot string) (*Repo, error) {
-	return DefaultWithNodeIndex(repoRoot, 0, false, DefaultKeyJsonPassword)
-}
-
-func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth string) (*Repo, error) {
-	var p2pKey *ecdsa.PrivateKey
-	var err error
-	var p2pAddress string
-	if nodeIndex < 0 || nodeIndex > len(DefaultNodeKeys)-1 {
-		p2pKey, err = fromP2PKeyJson(auth, repoRoot)
-		if err != nil {
-			return nil, err
-		}
-		nodeIndex = 0
-	} else {
-		p2pKey, err = ParseKey([]byte(DefaultNodeKeys[nodeIndex]))
-		if err != nil {
-			return nil, err
-		}
-		_, err = GenerateP2PKeyJson(auth, repoRoot, p2pKey)
-		if err != nil {
-			return nil, err
-		}
-	}
-	p2pAddress = ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String()
-
-	id, err := KeyToNodeID(p2pKey)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := DefaultConfig()
-	cfg.Port.P2P = int64(4001 + nodeIndex)
-
-	genesisCfg := DefaultGenesisConfig(epochEnable)
-
 	return &Repo{
 		RepoRoot:        repoRoot,
-		Config:          cfg,
+		Config:          DefaultConfig(),
 		ConsensusConfig: DefaultConsensusConfig(),
-		GenesisConfig:   genesisCfg,
-		P2PAddress:      p2pAddress,
-		P2PKey:          p2pKey,
-		P2PID:           id,
-		EpochInfo:       genesisCfg.EpochInfo,
+		GenesisConfig:   DefaultGenesisConfig(),
 		StartArgs:       &StartArgs{ReadonlyMode: false, SnapshotMode: false},
 	}, nil
 }
 
 // Load config from the repo, which is automatically initialized when the repo is empty
-func Load(auth string, repoRoot string, needAuth bool) (*Repo, error) {
+func Load(repoRoot string) (*Repo, error) {
 	repoRoot, err := LoadRepoRootFromEnv(repoRoot)
 	if err != nil {
 		return nil, err
@@ -184,37 +148,11 @@ func Load(auth string, repoRoot string, needAuth bool) (*Repo, error) {
 		return nil, err
 	}
 
-	var p2pKey *ecdsa.PrivateKey
-	var p2pAddress string
-	var p2pId string
-	if needAuth {
-		p2pKey, err = fromP2PKeyJson(auth, repoRoot)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load node p2pKey: %w", err)
-		}
-		p2pAddress = ethcrypto.PubkeyToAddress(p2pKey.PublicKey).String()
-		p2pId, err = KeyToNodeID(p2pKey)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		customKeyJson, err := GetCustomKeyJson(path.Join(repoRoot, P2PKeyFileName))
-		if err != nil {
-			return nil, err
-		}
-		p2pId = customKeyJson.NodeP2PId
-		p2pAddress = ethcommon.HexToAddress(customKeyJson.Address).String()
-	}
-
 	repo := &Repo{
 		RepoRoot:        repoRoot,
 		Config:          cfg,
 		ConsensusConfig: consensusCfg,
 		GenesisConfig:   genesisCfg,
-		P2PAddress:      p2pAddress,
-		P2PKey:          p2pKey, // maybe nil
-		P2PID:           p2pId,
-		EpochInfo:       genesisCfg.EpochInfo,
 		StartArgs:       &StartArgs{ReadonlyMode: false, SnapshotMode: false},
 	}
 
@@ -242,7 +180,12 @@ func LoadRepoRootFromEnv(repoRoot string) (string, error) {
 	return repoRoot, err
 }
 
-func readConfigFromFile(cfgFilePath string, config any) error {
+func ReadConfigFromEnv(config any) error {
+	vp := viper.New()
+	return readConfig(vp, config, false)
+}
+
+func ReadConfigFromFile(cfgFilePath string, config any) error {
 	vp := viper.New()
 	vp.SetConfigFile(cfgFilePath)
 	vp.SetConfigType("toml")
@@ -263,10 +206,10 @@ func readConfigFromFile(cfgFilePath string, config any) error {
 		return errors.Wrapf(err, "check config formater failed from %s", cfgFilePath)
 	}
 
-	return readConfig(vp, config)
+	return readConfig(vp, config, true)
 }
 
-func readConfig(vp *viper.Viper, config any) error {
+func readConfig(vp *viper.Viper, config any, fromFile bool) error {
 	vp.AutomaticEnv()
 	if _, ok := config.(*GenesisConfig); ok {
 		vp.SetEnvPrefix("AXIOM_LEDGER_GENESIS")
@@ -278,13 +221,16 @@ func readConfig(vp *viper.Viper, config any) error {
 	replacer := strings.NewReplacer(".", "_")
 	vp.SetEnvKeyReplacer(replacer)
 
-	err := vp.ReadInConfig()
-	if err != nil {
-		return err
+	if fromFile {
+		err := vp.ReadInConfig()
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := vp.Unmarshal(config, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		StringToTimeDurationHookFunc(),
+		StringToCoinNumberHookFunc(),
 		func(
 			f reflect.Kind,
 			t reflect.Kind,
@@ -348,4 +294,20 @@ func CheckWritable(dir string) error {
 	}
 
 	return err
+}
+
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range addrs {
+		ipNet, isIpNet := addr.(*net.IPNet)
+		if isIpNet && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil {
+				return ipNet.IP.String(), nil
+			}
+		}
+	}
+	return "", errors.New("not found local ip")
 }

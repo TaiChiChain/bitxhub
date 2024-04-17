@@ -6,22 +6,24 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 
 var _ interfaces.IStakeManager = (*StakeManager)(nil)
 
 type StakeManager struct {
-	stateLedger ledger.StateLedger
+	common.SystemContractBase
 }
 
-func NewStakeManager() *StakeManager {
-	return &StakeManager{}
+func NewStakeManager(systemContractBase common.SystemContractBase) *StakeManager {
+	return &StakeManager{
+		SystemContractBase: systemContractBase,
+	}
 }
 
-func (sm *StakeManager) Init(stateLedger ledger.StateLedger) {
-	sm.stateLedger = stateLedger
+func (sm *StakeManager) SetContext(context *common.VMContext) {
+	sm.SystemContractBase.SetContext(context)
 }
 
 func (sm *StakeManager) GetDepositInfo(account ethcommon.Address) *interfaces.DepositInfo {
@@ -30,7 +32,7 @@ func (sm *StakeManager) GetDepositInfo(account ethcommon.Address) *interfaces.De
 		Stake:        big.NewInt(0),
 		WithdrawTime: big.NewInt(0),
 	}
-	depositInfo.Deposit = sm.stateLedger.GetBalance(types.NewAddress(account.Bytes()))
+	depositInfo.Deposit = sm.Ctx.StateLedger.GetBalance(types.NewAddress(account.Bytes()))
 	return depositInfo
 }
 
@@ -44,7 +46,7 @@ func (sm *StakeManager) getStakeInfo(addr ethcommon.Address) (info *interfaces.S
 }
 
 func (sm *StakeManager) BalanceOf(account ethcommon.Address) *big.Int {
-	return sm.stateLedger.GetBalance(types.NewAddress(account.Bytes()))
+	return sm.Ctx.StateLedger.GetBalance(types.NewAddress(account.Bytes()))
 }
 
 func (sm *StakeManager) DepositTo(account ethcommon.Address) {

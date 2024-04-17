@@ -6,8 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Rican7/retry"
-	"github.com/Rican7/retry/strategy"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -80,8 +78,8 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	var receiveMsgLimiter *rate.Limiter
-	if config.Config.Limit.Enable {
-		receiveMsgLimiter = rate.NewLimiter(rate.Limit(config.Config.Limit.Limit), int(config.Config.Limit.Burst))
+	if config.Repo.ConsensusConfig.Limit.Enable {
+		receiveMsgLimiter = rate.NewLimiter(rate.Limit(config.Repo.ConsensusConfig.Limit.Limit), int(config.Repo.ConsensusConfig.Limit.Burst))
 	}
 
 	return &Node{
@@ -92,7 +90,7 @@ func NewNode(config *common.Config) (*Node, error) {
 		receiveMsgLimiter: receiveMsgLimiter,
 		ctx:               ctx,
 		cancel:            cancel,
-		txCache:           txcache.NewTxCache(config.Config.TxCache.SetTimeout.ToDuration(), uint64(config.Config.TxCache.SetSize), config.Logger),
+		txCache:           txcache.NewTxCache(config.Repo.ConsensusConfig.TxCache.SetTimeout.ToDuration(), uint64(config.Repo.ConsensusConfig.TxCache.SetSize), config.Logger),
 		network:           config.Network,
 		txPreCheck:        precheck.NewTxPreCheckMgr(ctx, config),
 		txpool:            config.TxPool,
@@ -101,7 +99,7 @@ func NewNode(config *common.Config) (*Node, error) {
 
 func (n *Node) initConsensusMsgPipes() error {
 	n.consensusMsgPipes = make(map[int32]p2p.Pipe, len(consensus.Type_name))
-	if n.config.Config.Rbft.EnableMultiPipes {
+	if n.config.Repo.ConsensusConfig.Rbft.EnableMultiPipes {
 		for id, name := range consensus.Type_name {
 			msgPipe, err := n.network.CreatePipe(n.ctx, consensusMsgPipeIDPrefix+name)
 			if err != nil {
@@ -144,18 +142,6 @@ func (n *Node) Start() error {
 		return err
 	}
 	n.txsBroadcastMsgPipe = txsBroadcastMsgPipe
-
-	if err := retry.Retry(func(attempt uint) error {
-		err = n.checkQuorum()
-		if err != nil {
-			return err
-		}
-		return nil
-	},
-		strategy.Wait(1*time.Second),
-	); err != nil {
-		n.logger.Error(err)
-	}
 
 	go n.txPreCheck.Start()
 	go n.txCache.ListenEvent()
@@ -278,11 +264,10 @@ func (n *Node) listenExecutedBlockToReport() {
 		case r := <-n.stack.ReadyC:
 			block := &types.Block{
 				Header: &types.BlockHeader{
-					Epoch:           n.stack.EpochInfo.Epoch,
-					Number:          r.Height,
-					Timestamp:       r.Timestamp / int64(time.Second),
-					ProposerAccount: r.ProposerAccount,
-					ProposerNodeID:  r.ProposerNodeID,
+					Epoch:          n.stack.EpochInfo.Epoch,
+					Number:         r.Height,
+					Timestamp:      r.Timestamp / int64(time.Second),
+					ProposerNodeID: r.ProposerNodeID,
 				},
 				Transactions: r.Txs,
 			}
@@ -305,9 +290,7 @@ func (n *Node) broadcastTxs(txSetData [][]byte) error {
 		return err
 	}
 
-	return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), lo.Map(lo.Flatten([][]rbft.NodeInfo{n.stack.EpochInfo.ValidatorSet, n.stack.EpochInfo.CandidateSet}), func(item rbft.NodeInfo, index int) string {
-		return item.P2PNodeID
-	}), data)
+	return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), nil, data)
 }
 
 func (n *Node) listenBatchMemTxsToBroadcast() {
@@ -514,11 +497,6 @@ func (n *Node) Quorum(totalNum uint64) uint64 {
 }
 
 func (n *Node) checkQuorum() error {
-	totalNum := uint64(len(n.stack.EpochInfo.ValidatorSet))
-	n.logger.Infof("=======Quorum = %d, connected validators = %d", n.Quorum(totalNum), n.network.CountConnectedValidators()+1)
-	if n.network.CountConnectedValidators()+1 < n.Quorum(totalNum) {
-		return errors.New("the number of connected validators don't reach Quorum")
-	}
 	return nil
 }
 

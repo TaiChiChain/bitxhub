@@ -1,7 +1,7 @@
 package precheck
 
 import (
-	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 )
 
@@ -13,5 +13,5 @@ type PreCheck interface {
 	// PostUncheckedTxEvent posts unchecked tx event to precheckMgr
 	PostUncheckedTxEvent(ev *common.UncheckedTxEvent)
 
-	UpdateEpochInfo(epoch *rbft.EpochInfo)
+	UpdateEpochInfo(epoch *types.EpochInfo)
 }

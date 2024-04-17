@@ -1,16 +1,16 @@
 package adaptor
 
 import (
-	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 )
 
-func (a *RBFTAdaptor) GetCurrentEpochInfo() (*rbft.EpochInfo, error) {
-	return a.config.GetCurrentEpochInfoFromEpochMgrContractFunc()
+func (a *RBFTAdaptor) GetCurrentEpochInfo() (*types.EpochInfo, error) {
+	return a.config.ChainState.EpochInfo, nil
 }
 
-func (a *RBFTAdaptor) GetEpochInfo(epoch uint64) (*rbft.EpochInfo, error) {
-	return a.config.GetEpochInfoFromEpochMgrContractFunc(epoch)
+func (a *RBFTAdaptor) GetEpochInfo(epoch uint64) (*types.EpochInfo, error) {
+	return a.config.ChainState.GetEpochInfo(epoch)
 }
 
 func (a *RBFTAdaptor) StoreEpochState(key string, value []byte) error {

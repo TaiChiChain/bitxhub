@@ -3,15 +3,24 @@ package saccount
 import (
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/sirupsen/logrus"
+
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_factory"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
+
+var SmartAccountFactoryBuildConfig = &common.SystemContractBuildConfig[*SmartAccountFactory]{
+	Name:    "saccount_account_factory",
+	Address: common.AccountFactoryContractAddr,
+	AbiStr:  smart_account_factory.BindingContractMetaData.ABI,
+	Constructor: func(systemContractBase common.SystemContractBase) *SmartAccountFactory {
+		return &SmartAccountFactory{
+			SystemContractBase: systemContractBase,
+		}
+	},
+}
 
 /**
  * A sample factory contract for SimpleAccount
@@ -20,53 +29,30 @@ import (
  * This way, the entryPoint.getSenderAddress() can be called either before or after the account is created.
  */
 type SmartAccountFactory struct {
-	entryPoint  interfaces.IEntryPoint
-	factoryAddr *types.Address
-	logger      logrus.FieldLogger
-
-	account     ledger.IAccount
-	currentUser *ethcommon.Address
-	currentLogs *[]common.Log
-	stateLedger ledger.StateLedger
-	currentEVM  *vm.EVM
+	common.SystemContractBase
 }
 
-func NewSmartAccountFactory(cfg *common.SystemContractConfig, entryPoint interfaces.IEntryPoint) *SmartAccountFactory {
-	return &SmartAccountFactory{
-		entryPoint:  entryPoint,
-		factoryAddr: types.NewAddressByStr(common.AccountFactoryContractAddr),
-		logger:      cfg.Logger,
-	}
+func (factory *SmartAccountFactory) GenesisInit(genesis *repo.GenesisConfig) error {
+	return nil
 }
 
-func (factory *SmartAccountFactory) SetContext(context *common.VMContext) {
-	factory.currentUser = context.CurrentUser
-	factory.currentLogs = context.CurrentLogs
-	factory.stateLedger = context.StateLedger
-	factory.currentEVM = context.CurrentEVM
-
-	factory.account = factory.stateLedger.GetOrCreateAccount(factory.factoryAddr)
+func (factory *SmartAccountFactory) SetContext(ctx *common.VMContext) {
+	factory.SystemContractBase.SetContext(ctx)
 }
 
-func (factory *SmartAccountFactory) CreateAccount(owner ethcommon.Address, salt *big.Int, guardian ethcommon.Address) *SmartAccount {
+func (factory *SmartAccountFactory) CreateAccount(owner ethcommon.Address, salt *big.Int, guardian ethcommon.Address) (*SmartAccount, error) {
 	addr := factory.GetAddress(owner, salt)
 
-	sa := NewSmartAccount(factory.logger, factory.entryPoint)
-	currentUser := factory.factoryAddr.ETHAddress()
-	sa.SetContext(&common.VMContext{
-		CurrentUser: &currentUser,
-		StateLedger: factory.stateLedger,
-		CurrentLogs: factory.currentLogs,
-		CurrentEVM:  factory.currentEVM,
-	})
-	// initialize account or load account data
-	sa.InitializeOrLoad(addr, owner, guardian, nil)
+	sa := SmartAccountBuildConfig.BuildWithAddress(factory.CrossCallSystemContractContext(), addr)
+	if err := sa.Initialize(owner, guardian); err != nil {
+		return nil, err
+	}
 
-	return sa
+	return sa, nil
 }
 
 func (factory *SmartAccountFactory) GetAddress(owner ethcommon.Address, salt *big.Int) ethcommon.Address {
 	var saltBytes [32]byte
 	copy(saltBytes[:], ethcommon.LeftPadBytes(salt.Bytes(), 32))
-	return crypto.CreateAddress2(owner, saltBytes, factory.factoryAddr.Bytes())
+	return crypto.CreateAddress2(owner, saltBytes, factory.EthAddress.Bytes())
 }

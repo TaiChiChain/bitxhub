@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -13,7 +14,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 func TestGovernance_Propose(t *testing.T) {
@@ -31,7 +31,7 @@ func TestGovernance_Propose(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -170,13 +170,13 @@ func TestGovernance_Propose(t *testing.T) {
 
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 1,
-			CurrentUser:   &ethaddr,
-			CurrentLogs:   &logs,
+			StateLedger: stateLedger,
+			BlockNumber: 1,
+			From:        &ethaddr,
+			CurrentLogs: &logs,
 		})
 
-		arg := UpgradeExtraArgs{
+		arg := NodeUpgradeExtraArgs{
 			DownloadUrls: []string{"http://127.0.0.1:10000"},
 			CheckHash:    "",
 		}
@@ -211,7 +211,7 @@ func TestGovernance_Vote(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -241,7 +241,7 @@ func TestGovernance_Vote(t *testing.T) {
 	admin4Addr := types.NewAddressByStr(admin4).ETHAddress()
 	addr := types.NewAddressByStr("0x10010000000").ETHAddress()
 
-	arg := UpgradeExtraArgs{
+	arg := NodeUpgradeExtraArgs{
 		DownloadUrls: []string{"http://127.0.0.1:10000"},
 		CheckHash:    "",
 	}
@@ -250,10 +250,10 @@ func TestGovernance_Vote(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &admin1Addr,
-		CurrentHeight: 1,
-		StateLedger:   stateLedger,
-		CurrentLogs:   &logs,
+		From:        &admin1Addr,
+		BlockNumber: 1,
+		StateLedger: stateLedger,
+		CurrentLogs: &logs,
 	})
 	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
 	assert.Nil(t, err)
@@ -314,10 +314,10 @@ func TestGovernance_Vote(t *testing.T) {
 	for _, test := range testcases {
 		logs = make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			CurrentUser:   test.from,
+			StateLedger: stateLedger,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			From:        test.from,
 		})
 
 		err := gov.Vote(test.id, test.result)
@@ -348,7 +348,7 @@ func TestGovernance_GetLatestProposalID(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -374,7 +374,7 @@ func TestGovernance_GetLatestProposalID(t *testing.T) {
 
 	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
 
-	arg := UpgradeExtraArgs{
+	arg := NodeUpgradeExtraArgs{
 		DownloadUrls: []string{"http://127.0.0.1:10000"},
 		CheckHash:    "",
 	}
@@ -383,10 +383,10 @@ func TestGovernance_GetLatestProposalID(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &admin1Addr,
-		CurrentHeight: 1,
-		StateLedger:   stateLedger,
-		CurrentLogs:   &logs,
+		From:        &admin1Addr,
+		BlockNumber: 1,
+		StateLedger: stateLedger,
+		CurrentLogs: &logs,
 	})
 
 	proposalID := gov.GetLatestProposalID()
@@ -414,7 +414,7 @@ func TestGovernance_Proposal(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -442,7 +442,7 @@ func TestGovernance_Proposal(t *testing.T) {
 	admin2Addr := types.NewAddressByStr(admin2).ETHAddress()
 	admin3Addr := types.NewAddressByStr(admin3).ETHAddress()
 
-	arg := UpgradeExtraArgs{
+	arg := NodeUpgradeExtraArgs{
 		DownloadUrls: []string{"http://127.0.0.1:10000"},
 		CheckHash:    "",
 	}
@@ -451,10 +451,10 @@ func TestGovernance_Proposal(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &admin1Addr,
-		CurrentHeight: 1,
-		StateLedger:   stateLedger,
-		CurrentLogs:   &logs,
+		From:        &admin1Addr,
+		BlockNumber: 1,
+		StateLedger: stateLedger,
+		CurrentLogs: &logs,
 	})
 	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
 	assert.Nil(t, err)
@@ -490,10 +490,10 @@ func TestGovernance_Proposal(t *testing.T) {
 	for _, test := range testcases {
 		logs = make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 2,
-			CurrentLogs:   &logs,
-			CurrentUser:   test.from,
+			StateLedger: stateLedger,
+			BlockNumber: 2,
+			CurrentLogs: &logs,
+			From:        test.from,
 		})
 
 		err := gov.Vote(test.id, test.result)

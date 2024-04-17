@@ -182,6 +182,7 @@ func (n *nonceHeap) pop() uint64 {
 type TxByPriceAndTime[T any, Constraint types.TXConstraint[T]] []*internalTransaction[T, Constraint]
 
 func (tp *TxByPriceAndTime[T, Constraint]) Len() int { return len(*tp) }
+
 func (tp *TxByPriceAndTime[T, Constraint]) Less(i, j int) bool {
 	// If the prices are equal, use the time the transaction was first seen for
 	// deterministic sorting
@@ -191,6 +192,7 @@ func (tp *TxByPriceAndTime[T, Constraint]) Less(i, j int) bool {
 	}
 	return cmp > 0
 }
+
 func (tp *TxByPriceAndTime[T, Constraint]) Swap(i, j int) { (*tp)[i], (*tp)[j] = (*tp)[j], (*tp)[i] }
 
 func (tp *TxByPriceAndTime[T, Constraint]) Push(x any) {

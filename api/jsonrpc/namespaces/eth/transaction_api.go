@@ -16,6 +16,7 @@ import (
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -233,6 +234,7 @@ func (api *TransactionAPI) GetTransactionReceipt(hash common.Hash) (ret map[stri
 		"blockNumber":       hexutil.Uint64(meta.BlockHeight),
 		"transactionIndex":  hexutil.Uint64(meta.Index),
 		"from":              common.BytesToAddress(tx.GetFrom().Bytes()),
+		"effectiveGasPrice": (*hexutil.Big)(receipt.EffectiveGasPrice),
 	}
 	if receipt.Bloom == nil {
 		emptyBloom := types.Bloom{}
@@ -303,7 +305,7 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 		return [32]byte{}, err
 	}
 
-	if api.rep.Config.Access.EnableWhiteList {
+	if api.rep.Config.Access.EnableWhitelist {
 		from := tx.GetFrom()
 		if from == nil {
 			return [32]byte{}, errors.New("verify tx err")
@@ -312,7 +314,9 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 		if err != nil {
 			return [32]byte{}, err
 		}
-		if err := access.Verify(stateLedger, from.String()); err != nil {
+
+		whitelistContract := access.WhitelistBuildConfig.Build(syscommon.NewViewVMContext(stateLedger))
+		if err := whitelistContract.Verify(from.ETHAddress()); err != nil {
 			return [32]byte{}, err
 		}
 	}

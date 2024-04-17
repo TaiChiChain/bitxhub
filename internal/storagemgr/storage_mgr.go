@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	pebbledb "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/prometheus/common/model"
@@ -13,6 +12,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/leveldb"
 	"github.com/axiomesh/axiom-kit/storage/pebble"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 

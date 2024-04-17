@@ -13,7 +13,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
-	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
@@ -107,10 +106,6 @@ func (exec *ExecutorDev) SubscribeLogsEvent(c chan<- []*types.EvmLog) event.Subs
 
 func (exec *ExecutorDev) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Config) (*vm.EVM, error) {
 	return nil, nil
-}
-
-func (exec *ExecutorDev) NewViewNativeVM() sys_common.VirtualMachine {
-	return nil
 }
 
 func (exec *ExecutorDev) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer) {

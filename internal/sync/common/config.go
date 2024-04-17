@@ -3,8 +3,9 @@ package common
 import (
 	"context"
 
-	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axiomesh/axiom-ledger/internal/network"
 )
 
 type Config struct {
