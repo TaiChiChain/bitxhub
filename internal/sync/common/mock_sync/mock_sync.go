@@ -39,11 +39,6 @@ func (m *MockSync) EXPECT() *MockSyncMockRecorder {
 	return m.recorder
 }
 
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockSync) ISGOMOCK() struct{} {
-	return struct{}{}
-}
-
 // Commit mocks base method.
 func (m *MockSync) Commit() chan any {
 	m.ctrl.T.Helper()
@@ -164,11 +159,6 @@ func NewMockISyncConstructor(ctrl *gomock.Controller) *MockISyncConstructor {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockISyncConstructor) EXPECT() *MockISyncConstructorMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockISyncConstructor) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // Commit mocks base method.

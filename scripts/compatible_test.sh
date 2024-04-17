@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
-source x.sh
-source smoke_env.sh
 
 CURRENT_PATH=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
+source ${CURRENT_PATH}/x.sh
+source ${CURRENT_PATH}/smoke_env.sh
 echo "CURRENT_PATH is: $CURRENT_PATH"
 BRANCH_NAME="main"
 NEW_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))

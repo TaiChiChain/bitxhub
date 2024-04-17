@@ -382,7 +382,7 @@ func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Bloc
 
 	meta := &types.ChainMeta{
 		Height:    lastBlock.Header.Number,
-		GasPrice:  big.NewInt(lastBlock.Header.GasPrice),
+		GasPrice:  new(big.Int).SetUint64(lastBlock.Header.GasPrice),
 		BlockHash: lastBlock.Hash(),
 	}
 
@@ -573,7 +573,7 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 		}
 		meta = &types.ChainMeta{
 			Height:    block.Header.Number,
-			GasPrice:  big.NewInt(block.Header.GasPrice),
+			GasPrice:  new(big.Int).SetUint64(block.Header.GasPrice),
 			BlockHash: block.Hash(),
 		}
 
@@ -612,7 +612,7 @@ func (l *ChainLedgerImpl) checkChainMeta() error {
 			return err
 		}
 
-		l.chainMeta.GasPrice = big.NewInt(currentBlock.Header.GasPrice)
+		l.chainMeta.GasPrice = new(big.Int).SetUint64(currentBlock.Header.GasPrice)
 		l.chainMeta.BlockHash = currentBlock.Hash()
 		if err := l.persistChainMeta(batcher, l.chainMeta); err != nil {
 			return fmt.Errorf("update chain meta: %w", err)

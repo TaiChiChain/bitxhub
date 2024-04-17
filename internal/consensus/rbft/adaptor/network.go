@@ -25,8 +25,7 @@ func (a *RBFTAdaptor) Broadcast(ctx context.Context, msg *consensus.ConsensusMes
 		return errors.New("unsupported broadcast msg type")
 	}
 
-	return pipe.Broadcast(ctx, a.broadcastNodes, data)
-
+	return pipe.Broadcast(ctx, nil, data)
 }
 
 func (a *RBFTAdaptor) Unicast(ctx context.Context, msg *consensus.ConsensusMessage, to string) error {

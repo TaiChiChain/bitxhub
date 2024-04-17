@@ -92,7 +92,7 @@ type StateLedger interface {
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error)
 
-	IterateTrie(blockHeader *types.BlockHeader, nodesId *consensus.QuorumValidators, kv storage.Storage, errC chan error)
+	IterateTrie(snapshotMeta *SnapshotMeta, kv storage.Storage, errC chan error)
 
 	GetTrieSnapshotMeta() (*SnapshotMeta, error)
 
@@ -103,6 +103,8 @@ type StateLedger interface {
 	GenerateSnapshot(blockHeader *types.BlockHeader, errC chan error)
 
 	GetHistoryRange() (uint64, uint64)
+
+	CurrentBlockHeight() uint64
 }
 
 // StateAccessor manipulates the state data

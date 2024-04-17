@@ -53,7 +53,7 @@ func TestRepoLoad(t *testing.T) {
 			errorCfgPath := path.Join(repoRoot, fmt.Sprintf("errorCfg_%d.toml", idx))
 			err = os.WriteFile(errorCfgPath, []byte(tt.cfg), 0755)
 			assert.Nil(t, err)
-			err = readConfigFromFile(errorCfgPath, &Config{})
+			err = ReadConfigFromFile(errorCfgPath, &Config{})
 			if tt.wantError {
 				t.Log(err)
 				assert.Error(t, err)

@@ -150,5 +150,4 @@ func TestCachedStorage(t *testing.T) {
 		require.EqualValues(t, vals[3], c.Get(keys[3]))
 		require.True(t, c.Has(keys[3]))
 	})
-
 }

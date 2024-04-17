@@ -1,52 +1,44 @@
 package common
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 type Config struct {
-	RepoRoot                                    string
-	Config                                      *repo.ConsensusConfig
-	Logger                                      logrus.FieldLogger
-	ConsensusType                               string
-	ConsensusStorageType                        string
-	PrivKey                                     *ecdsa.PrivateKey
-	GenesisEpochInfo                            *rbft.EpochInfo
-	Network                                     network.Network
-	BlockSync                                   common.Sync
-	TxPool                                      txpool.TxPool[types.Transaction, *types.Transaction]
-	Applied                                     uint64
-	Digest                                      string
-	GenesisDigest                               string
-	GetCurrentEpochInfoFromEpochMgrContractFunc func() (*rbft.EpochInfo, error)
-	GetEpochInfoFromEpochMgrContractFunc        func(epoch uint64) (*rbft.EpochInfo, error)
-	GetChainMetaFunc                            func() *types.ChainMeta
-	GetBlockHeaderFunc                          func(height uint64) (*types.BlockHeader, error)
-	GetAccountBalance                           func(address string) *big.Int
-	GetAccountNonce                             func(address *types.Address) uint64
-	GetArchiveModeFunc                          func() bool
-	EpochStore                                  storage.Storage
+	Repo               *repo.Repo
+	ChainState         *chainstate.ChainState
+	Logger             logrus.FieldLogger
+	GenesisEpochInfo   *types.EpochInfo
+	Network            network.Network
+	BlockSync          common.Sync
+	TxPool             txpool.TxPool[types.Transaction, *types.Transaction]
+	Applied            uint64
+	Digest             string
+	GenesisDigest      string
+	GetBlockHeaderFunc func(height uint64) (*types.BlockHeader, error)
+	GetAccountBalance  func(address string) *big.Int
+	GetAccountNonce    func(address *types.Address) uint64
+	GetArchiveModeFunc func() bool
+	EpochStore         storage.Storage
 }
 
 type Option func(*Config)
 
-func WithConfig(repoRoot string, cfg *repo.ConsensusConfig) Option {
+func WithRepo(rep *repo.Repo) Option {
 	return func(config *Config) {
-		config.RepoRoot = repoRoot
-		config.Config = cfg
+		config.Repo = rep
 	}
 }
 
@@ -56,21 +48,9 @@ func WithTxPool(tp txpool.TxPool[types.Transaction, *types.Transaction]) Option 
 	}
 }
 
-func WithGenesisEpochInfo(genesisEpochInfo *rbft.EpochInfo) Option {
+func WithGenesisEpochInfo(genesisEpochInfo *types.EpochInfo) Option {
 	return func(config *Config) {
 		config.GenesisEpochInfo = genesisEpochInfo
-	}
-}
-
-func WithConsensusType(typ string) Option {
-	return func(config *Config) {
-		config.ConsensusType = typ
-	}
-}
-
-func WithConsensusStorageType(consensusStorageType string) Option {
-	return func(config *Config) {
-		config.ConsensusStorageType = consensusStorageType
 	}
 }
 
@@ -86,9 +66,9 @@ func WithBlockSync(blockSync common.Sync) Option {
 	}
 }
 
-func WithPrivKey(privKey *ecdsa.PrivateKey) Option {
+func WithChainState(chainState *chainstate.ChainState) Option {
 	return func(config *Config) {
-		config.PrivKey = privKey
+		config.ChainState = chainState
 	}
 }
 
@@ -116,12 +96,6 @@ func WithGenesisDigest(digest string) Option {
 	}
 }
 
-func WithGetChainMetaFunc(f func() *types.ChainMeta) Option {
-	return func(config *Config) {
-		config.GetChainMetaFunc = f
-	}
-}
-
 func WithGetBlockHeaderFunc(f func(height uint64) (*types.BlockHeader, error)) Option {
 	return func(config *Config) {
 		config.GetBlockHeaderFunc = f
@@ -137,18 +111,6 @@ func WithGetAccountBalanceFunc(f func(address string) *big.Int) Option {
 func WithGetAccountNonceFunc(f func(address *types.Address) uint64) Option {
 	return func(config *Config) {
 		config.GetAccountNonce = f
-	}
-}
-
-func WithGetEpochInfoFromEpochMgrContractFunc(f func(epoch uint64) (*rbft.EpochInfo, error)) Option {
-	return func(config *Config) {
-		config.GetEpochInfoFromEpochMgrContractFunc = f
-	}
-}
-
-func WithGetCurrentEpochInfoFromEpochMgrContractFunc(f func() (*rbft.EpochInfo, error)) Option {
-	return func(config *Config) {
-		config.GetCurrentEpochInfoFromEpochMgrContractFunc = f
 	}
 }
 
@@ -210,7 +172,7 @@ func (lg *Logger) Noticef(format string, v ...any) {
 	lg.Infof(format, v...)
 }
 
-func NeedChangeEpoch(height uint64, epochInfo *rbft.EpochInfo) bool {
+func NeedChangeEpoch(height uint64, epochInfo *types.EpochInfo) bool {
 	return height == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1)
 }
 

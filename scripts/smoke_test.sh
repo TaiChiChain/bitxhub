@@ -1,8 +1,8 @@
 set -e
-source x.sh
-source smoke_env.sh
 
 CURRENT_PATH=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
+source ${CURRENT_PATH}/x.sh
+source ${CURRENT_PATH}/smoke_env.sh
 cd $CURRENT_PATH
 
 function printHelp() {

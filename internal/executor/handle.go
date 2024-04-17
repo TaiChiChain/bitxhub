@@ -3,7 +3,6 @@ package executor
 import (
 	"bytes"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
@@ -97,7 +96,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 
 	exec.cumulativeGasUsed = 0
-	exec.evm = newEvm(block.Height(), uint64(block.Header.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, block.Header.ProposerAccount)
+	exec.evm = newEvm(block.Height(), uint64(block.Header.Timestamp), exec.evmChainCfg, exec.ledger.StateLedger, exec.ledger.ChainLedger, syscommon.StakingManagerContractAddr)
 	// get last block's stateRoot to init the latest world state trie
 	parentBlockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(block.Height() - 1)
 	if err != nil {
@@ -112,6 +111,28 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	for _, hook := range exec.afterBlockHooks {
 		hook(block)
+	}
+
+	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
+	var nextGasPrice uint64
+	epochInfo := exec.chainState.EpochInfo
+	// epoch changed
+	if block.Header.Number == epochInfo.StartBlock-1 && epochInfo.FinanceParams.StartGasPriceAvailable {
+		if epochInfo.FinanceParams.StartGasPriceAvailable {
+			// epoch changed gas price
+			nextGasPrice = epochInfo.FinanceParams.StartGasPrice.ToBigInt().Uint64()
+			exec.logger.WithFields(logrus.Fields{
+				"price": nextGasPrice,
+			}).Info("Next epoch start block gas price changed")
+		}
+	} else {
+		nextGasPrice, err = exec.gas.CalNextGasPrice(parentChainMeta.GasPrice.Uint64(), len(block.Transactions))
+		if err != nil {
+			panic(fmt.Errorf("calculate next block gas price failed: %w", err))
+		}
+	}
+	for i, receipt := range receipts {
+		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(parentChainMeta.GasPrice)
 	}
 
 	exec.ledger.StateLedger.Finalise()
@@ -139,23 +160,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.Header.ReceiptRoot = receiptRoot
 	block.Header.ParentHash = exec.currentBlockHash
 
-	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
-
-	var nextGasPrice uint64
-	if exec.epochExchange && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
-		// epoch changed gas price
-		nextGasPrice = exec.rep.EpochInfo.FinanceParams.StartGasPrice
-		exec.logger.WithFields(logrus.Fields{
-			"price": nextGasPrice,
-		}).Info("Next epoch start block gas price changed")
-	} else {
-		nextGasPrice, err = exec.gas.CalNextGasPrice(parentChainMeta.GasPrice.Uint64(), len(block.Transactions))
-		if err != nil {
-			panic(fmt.Errorf("calculate next block gas price failed: %w", err))
-		}
-	}
-
-	block.Header.GasPrice = int64(nextGasPrice)
+	block.Header.GasPrice = nextGasPrice
 
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {
@@ -172,9 +177,8 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"hash":             block.Hash().String(),
 		"height":           block.Header.Number,
 		"epoch":            block.Header.Epoch,
-		"coinbase":         block.Header.ProposerAccount,
+		"coinbase":         syscommon.StakingManagerContractAddr,
 		"proposer_node_id": block.Header.ProposerNodeID,
-		"gas_price":        block.Header.GasPrice,
 		"gas_used":         block.Header.GasUsed,
 		"parent_hash":      block.Header.ParentHash.String(),
 		"tx_root":          block.Header.TxRoot.String(),
@@ -205,20 +209,21 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	// metrics for cal tx tps
 	txCounter.Add(float64(len(data.Block.Transactions)))
-	if block.Header.ProposerAccount == exec.rep.P2PAddress {
+	if block.Header.ProposerNodeID == exec.chainState.SelfNodeInfo.ID {
 		proposedBlockCounter.Inc()
 	}
 
 	exec.logger.WithFields(logrus.Fields{
-		"gasPrice": data.Block.Header.GasPrice,
-		"height":   data.Block.Header.Number,
-		"hash":     data.Block.Hash().String(),
-		"count":    len(data.Block.Transactions),
-		"elapse":   time.Since(now),
+		"height": data.Block.Header.Number,
+		"hash":   data.Block.Hash().String(),
+		"count":  len(data.Block.Transactions),
+		"elapse": time.Since(now),
 	}).Info("[Execute-Block] Persisted block")
 
 	exec.currentHeight = block.Header.Number
 	exec.currentBlockHash = block.Hash()
+	exec.chainState.UpdateChainMeta(exec.ledger.ChainLedger.GetChainMeta())
+	exec.chainState.TryUpdateSelfNodeInfo()
 
 	txPointerList := make([]*events.TxPointer, len(data.Block.Transactions))
 	lo.ForEach(data.Block.Transactions, func(item *types.Transaction, index int) {
@@ -282,10 +287,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	var err error
 
 	msg := TransactionToMessage(tx)
-	curGasPrice := exec.getCurrentGasPrice(height)
-	msg.GasPrice = curGasPrice
-	msg.GasFeeCap = curGasPrice
-	msg.GasTipCap = curGasPrice
+	// TODO: support set gas price with legacy tx
 
 	statedb := exec.ledger.StateLedger
 	evmStateDB := &ledger.EvmStateDBAdaptor{StateLedger: statedb}
@@ -337,14 +339,12 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
 	exec.cumulativeGasUsed += receipt.GasUsed
 	receipt.CumulativeGasUsed = exec.cumulativeGasUsed
-	receipt.EffectiveGasPrice = 0
 
 	return receipt
 }
 
 func (exec *BlockExecutor) clear() {
 	exec.ledger.StateLedger.Clear()
-	exec.epochExchange = false
 }
 
 func (exec *BlockExecutor) calcReceiptMerkleRoot(receipts []*types.Receipt) (*types.Hash, error) {
@@ -390,7 +390,7 @@ func getBlockHashFunc(chainLedger ledger.ChainLedger) vm.GetHashFunc {
 
 func newEvm(number uint64, timestamp uint64, chainCfg *params.ChainConfig, db ledger.StateLedger, chainLedger ledger.ChainLedger, coinbase string) *vm.EVM {
 	if coinbase == "" {
-		coinbase = sys_common.ZeroAddress
+		coinbase = syscommon.ZeroAddress
 	}
 
 	blkCtx := NewEVMBlockContextAdaptor(number, timestamp, coinbase, getBlockHashFunc(chainLedger))
@@ -414,26 +414,12 @@ func (exec *BlockExecutor) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.
 	evmLg := &ledger.EvmStateDBAdaptor{
 		StateLedger: exec.ledger.NewView().StateLedger,
 	}
-	blkCtx = NewEVMBlockContextAdaptor(meta.Height, uint64(blockHeader.Timestamp), blockHeader.ProposerAccount, getBlockHashFunc(exec.ledger.ChainLedger))
+	blkCtx = NewEVMBlockContextAdaptor(meta.Height, uint64(blockHeader.Timestamp), syscommon.StakingManagerContractAddr, getBlockHashFunc(exec.ledger.ChainLedger))
 	return vm.NewEVM(blkCtx, txCtx, evmLg, exec.evmChainCfg, vmConfig), nil
 }
 
 func (exec *BlockExecutor) GetChainConfig() *params.ChainConfig {
 	return exec.evmChainCfg
-}
-
-func (exec *BlockExecutor) NewViewNativeVM() sys_common.VirtualMachine {
-	return exec.nvm.View()
-}
-
-// getCurrentGasPrice returns the current block's gas price, which is
-// stored in the last block's blockheader
-func (exec *BlockExecutor) getCurrentGasPrice(height uint64) *big.Int {
-	// epoch changed gas price
-	if height == exec.rep.EpochInfo.StartBlock && exec.rep.EpochInfo.FinanceParams.StartGasPriceAvailable {
-		return big.NewInt(int64(exec.rep.EpochInfo.FinanceParams.StartGasPrice))
-	}
-	return exec.ledger.ChainLedger.GetChainMeta().GasPrice
 }
 
 func (exec *BlockExecutor) updateLogsBlockHash(receipts []*types.Receipt, hash *types.Hash) {

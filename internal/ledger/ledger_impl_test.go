@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/jmt"
@@ -2306,7 +2305,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		}
 		s5 := initKVStorage(createMockRepo(t).RepoRoot)
 		errC5 := make(chan error)
-		sl.getEpochInfoFunc = func(epoch uint64) (*rbft.EpochInfo, error) {
+		sl.getEpochInfoFunc = func(epoch uint64) (*types.EpochInfo, error) {
 			return nil, errors.Errorf("getEpochInfoFunc error test")
 		}
 		go sl.IterateTrie(block5.Header, &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}, s5, errC5)
@@ -2649,9 +2648,9 @@ func TestStateLedger_GetTrieSnapshotMeta(t *testing.T) {
 	require.Nil(t, meta)
 	require.NotNil(t, err)
 
-	epochInfo := &rbft.EpochInfo{
+	epochInfo := &types.EpochInfo{
 		Epoch: 1,
-		ValidatorSet: []rbft.NodeInfo{
+		ValidatorSet: []types.NodeInfo{
 			{
 				P2PNodeID: "P2PNodeID-1",
 			},
@@ -3336,10 +3335,10 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 	rep.Config.Monitor.EnableExpensive = true
 	l, err := NewLedger(rep)
 	require.Nil(t, err)
-	l.WithGetEpochInfoFunc(func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error) {
-		return &rbft.EpochInfo{
+	l.WithGetEpochInfoFunc(func(lg StateLedger, epoch uint64) (*types.EpochInfo, error) {
+		return &types.EpochInfo{
 			Epoch: epoch,
-			ValidatorSet: []rbft.NodeInfo{
+			ValidatorSet: []types.NodeInfo{
 				{
 					P2PNodeID: "P2PNodeID-1",
 				},

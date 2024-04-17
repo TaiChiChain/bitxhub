@@ -22,6 +22,7 @@ import (
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func TestNewTxPool(t *testing.T) {
@@ -78,7 +79,6 @@ func TestTxPoolImpl_Start(t *testing.T) {
 			ast.Contains(err.Error(), "no such file or directory")
 		})
 	}
-
 }
 
 func TestTxPoolImpl_StartWithTxRecordsFile(t *testing.T) {
@@ -1671,7 +1671,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.Equal(0, getPrioritySize(pool))
 			ast.Equal(uint64(0), pool.GetAccountMeta(from, false).PendingNonce, "remove tx0, revert pendingNonce")
 		}
-
 	})
 }
 
@@ -2274,7 +2273,6 @@ func TestTxPoolImpl_GetInfo(t *testing.T) {
 			ast.Equal(newChainInfo.GasPrice.String(), info.GasPrice.String())
 		})
 	}
-
 }
 
 func TestTxPoolImpl_RemoveBatches(t *testing.T) {
@@ -2427,7 +2425,6 @@ func TestTxPoolImpl_UpdateChainInfo(t *testing.T) {
 		assert.Equal(t, oldChainInfo.Height+1, newChainInfo.Height)
 		assert.Equal(t, big.NewInt(100), newChainInfo.GasPrice)
 	}
-
 }
 
 // nolint

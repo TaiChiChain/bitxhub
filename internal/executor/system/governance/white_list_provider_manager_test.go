@@ -32,7 +32,7 @@ type TestWhiteListProviderProposal struct {
 	PassVotes   []string
 	RejectVotes []string
 	Status      ProposalStatus
-	Providers   []access.WhiteListProvider
+	Providers   []access.WhitelistProviderInfo
 }
 
 func PrepareWhiteListProviderManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger) {
@@ -50,7 +50,7 @@ func PrepareWhiteListProviderManager(t *testing.T) (*Governance, *mock_ledger.Mo
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -89,12 +89,12 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 		{
 			Caller: WhiteListProvider1,
 			Data: generateProviderProposeData(t, access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+				Providers: []access.WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: WhiteListProvider1,
+						Addr: WhiteListProvider1,
 					},
 					{
-						WhiteListProviderAddr: WhiteListProvider2,
+						Addr: WhiteListProvider2,
 					},
 				},
 			}),
@@ -108,12 +108,12 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: generateProviderProposeData(t, access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+				Providers: []access.WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: WhiteListProvider1,
+						Addr: WhiteListProvider1,
 					},
 					{
-						WhiteListProviderAddr: WhiteListProvider2,
+						Addr: WhiteListProvider2,
 					},
 				},
 			}),
@@ -125,10 +125,10 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		err := gov.Propose(uint8(WhiteListProviderAdd), "test", "test desc", 100, test.Data)
@@ -150,19 +150,19 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 	addr := types.NewAddressByStr(admin1).ETHAddress()
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+		From:        &addr,
+		BlockNumber: 1,
+		CurrentLogs: &logs,
+		StateLedger: stateLedger,
 	})
 
 	args, err := json.Marshal(access.WhiteListProviderArgs{
-		Providers: []access.WhiteListProvider{
+		Providers: []access.WhitelistProviderInfo{
 			{
-				WhiteListProviderAddr: WhiteListProvider1,
+				Addr: WhiteListProvider1,
 			},
 			{
-				WhiteListProviderAddr: WhiteListProvider2,
+				Addr: WhiteListProvider2,
 			},
 		},
 	})
@@ -180,19 +180,19 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 	}{
 		{
 			Caller:     "0xfff0000000000000000000000000000000000000",
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			Err:        ErrNotFoundCouncilMember,
 		},
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 		{
 			Caller:     admin3,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
@@ -202,10 +202,10 @@ func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		err := gov.Vote(test.ProposalID, test.Res)
@@ -230,19 +230,19 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 	addr := types.NewAddressByStr(admin1).ETHAddress()
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+		From:        &addr,
+		BlockNumber: 1,
+		CurrentLogs: &logs,
+		StateLedger: stateLedger,
 	})
 
 	args, err := json.Marshal(access.WhiteListProviderArgs{
-		Providers: []access.WhiteListProvider{
+		Providers: []access.WhitelistProviderInfo{
 			{
-				WhiteListProviderAddr: WhiteListProvider1,
+				Addr: WhiteListProvider1,
 			},
 			{
-				WhiteListProviderAddr: WhiteListProvider2,
+				Addr: WhiteListProvider2,
 			},
 		},
 	})
@@ -260,13 +260,13 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 		{
 			Caller:     admin3,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
@@ -276,10 +276,10 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		err := gov.Vote(test.ProposalID, test.Res)
@@ -318,9 +318,9 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from:  types.NewAddressByStr(admin1).ETHAddress(),
 			ptype: WhiteListProviderAdd,
 			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+				Providers: []access.WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: admin1,
+						Addr: admin1,
 					},
 				},
 			},
@@ -330,9 +330,9 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from:  types.NewAddressByStr(admin2).ETHAddress(),
 			ptype: WhiteListProviderRemove,
 			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+				Providers: []access.WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: "0x0000000000000000000000000000000000000000",
+						Addr: "0x0000000000000000000000000000000000000000",
 					},
 				},
 			},
@@ -342,7 +342,7 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from:  types.NewAddressByStr(admin3).ETHAddress(),
 			ptype: WhiteListProviderAdd,
 			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{},
+				Providers: []access.WhitelistProviderInfo{},
 			},
 			expected: errors.New("empty providers"),
 		},
@@ -350,12 +350,12 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 			from:  types.NewAddressByStr(admin3).ETHAddress(),
 			ptype: WhiteListProviderAdd,
 			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+				Providers: []access.WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: "0x0000000000000000000000000000000000000000",
+						Addr: "0x0000000000000000000000000000000000000000",
 					},
 					{
-						WhiteListProviderAddr: "0x0000000000000000000000000000000000000000",
+						Addr: "0x0000000000000000000000000000000000000000",
 					},
 				},
 			},
@@ -366,10 +366,10 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 	for _, testcase := range testcases {
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &testcase.from,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &testcase.from,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		data, err := json.Marshal(testcase.args)
@@ -383,16 +383,16 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 	addr := types.NewAddressByStr(admin1).ETHAddress()
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+		From:        &addr,
+		BlockNumber: 1,
+		CurrentLogs: &logs,
+		StateLedger: stateLedger,
 	})
 
 	data, err := json.Marshal(access.WhiteListProviderArgs{
-		Providers: []access.WhiteListProvider{
+		Providers: []access.WhitelistProviderInfo{
 			{
-				WhiteListProviderAddr: WhiteListProvider1,
+				Addr: WhiteListProvider1,
 			},
 		},
 	})

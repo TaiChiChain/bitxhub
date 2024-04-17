@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	rbft "github.com/axiomesh/axiom-bft"
 )
 
 type Address struct {
@@ -32,9 +30,9 @@ func TestGenerateSolidityStruct(t *testing.T) {
 	assert.Nil(t, err)
 	t.Log(solidityCode)
 
-	solidityCode, err = GenerateSolidityStruct(&rbft.EpochInfo{
+	solidityCode, err = GenerateSolidityStruct(&types.EpochInfo{
 		P2PBootstrapNodeAddresses: []string{"1", "2"},
-		ValidatorSet: []rbft.NodeInfo{
+		ValidatorSet: []types.NodeInfo{
 			{
 				ID:                   1,
 				AccountAddress:       "1",

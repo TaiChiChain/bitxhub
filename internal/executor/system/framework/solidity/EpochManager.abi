@@ -1,0 +1,402 @@
+[
+  {
+    "inputs": [],
+    "name": "currentEpoch",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "uint64",
+            "name": "Version",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "Epoch",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "EpochPeriod",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "StartBlock",
+            "type": "uint64"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "string",
+                "name": "ProposerElectionType",
+                "type": "string"
+              },
+              {
+                "internalType": "uint64",
+                "name": "CheckpointPeriod",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "HighWatermarkCheckpointPeriod",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxValidatorNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "BlockMaxTxNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "bool",
+                "name": "EnableTimedGenEmptyBlock",
+                "type": "bool"
+              },
+              {
+                "internalType": "int64",
+                "name": "NotActiveWeight",
+                "type": "int64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "AbnormalNodeExcludeView",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "ContinuousNullRequestToleranceNumber",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "ReBroadcastToleranceNumber",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct ConsensusParams",
+            "name": "ConsensusParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "uint64",
+                "name": "GasLimit",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MinGasPrice",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct FinanceParams",
+            "name": "FinanceParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "uint64",
+                "name": "TxMaxSize",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct MiscParams",
+            "name": "MiscParams",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct EpochInfo",
+        "name": "epochInfo",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "uint64",
+        "name": "epochID",
+        "type": "uint64"
+      }
+    ],
+    "name": "historyEpoch",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "uint64",
+            "name": "Version",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "Epoch",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "EpochPeriod",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "StartBlock",
+            "type": "uint64"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "string",
+                "name": "ProposerElectionType",
+                "type": "string"
+              },
+              {
+                "internalType": "uint64",
+                "name": "CheckpointPeriod",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "HighWatermarkCheckpointPeriod",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxValidatorNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "BlockMaxTxNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "bool",
+                "name": "EnableTimedGenEmptyBlock",
+                "type": "bool"
+              },
+              {
+                "internalType": "int64",
+                "name": "NotActiveWeight",
+                "type": "int64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "AbnormalNodeExcludeView",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "ContinuousNullRequestToleranceNumber",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "ReBroadcastToleranceNumber",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct ConsensusParams",
+            "name": "ConsensusParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "uint64",
+                "name": "GasLimit",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MinGasPrice",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct FinanceParams",
+            "name": "FinanceParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "uint64",
+                "name": "TxMaxSize",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct MiscParams",
+            "name": "MiscParams",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct EpochInfo",
+        "name": "epochInfo",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextEpoch",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "uint64",
+            "name": "Version",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "Epoch",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "EpochPeriod",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "StartBlock",
+            "type": "uint64"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "string",
+                "name": "ProposerElectionType",
+                "type": "string"
+              },
+              {
+                "internalType": "uint64",
+                "name": "CheckpointPeriod",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "HighWatermarkCheckpointPeriod",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxValidatorNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "BlockMaxTxNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "bool",
+                "name": "EnableTimedGenEmptyBlock",
+                "type": "bool"
+              },
+              {
+                "internalType": "int64",
+                "name": "NotActiveWeight",
+                "type": "int64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "AbnormalNodeExcludeView",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "AgainProposeIntervalBlockInValidatorsNumPercentage",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "ContinuousNullRequestToleranceNumber",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "ReBroadcastToleranceNumber",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct ConsensusParams",
+            "name": "ConsensusParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "uint64",
+                "name": "GasLimit",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MinGasPrice",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct FinanceParams",
+            "name": "FinanceParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "uint64",
+                "name": "TxMaxSize",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct MiscParams",
+            "name": "MiscParams",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct EpochInfo",
+        "name": "epochInfo",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

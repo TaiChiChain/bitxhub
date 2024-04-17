@@ -125,7 +125,6 @@ func TestPruneCacheUpdate(t *testing.T) {
 	v, ok = pruneCache.Get(2, []byte("k5"))
 	require.True(t, ok)
 	require.Equal(t, v, makeLeafNode("v55"))
-
 }
 
 func TestPruneCacheRollback(t *testing.T) {
@@ -266,7 +265,6 @@ func TestPruneCacheRollback(t *testing.T) {
 	v, ok = tc.Get(2, []byte("k5"))
 	require.True(t, ok)
 	require.Equal(t, v, makeLeafNode("v55"))
-
 }
 
 func TestPruningFlushByMaxBlockNum(t *testing.T) {
@@ -323,7 +321,6 @@ func TestPruningFlushByMaxBlockNum(t *testing.T) {
 	require.Nil(t, v)
 	require.Equal(t, makeLeafNode("v1").Encode(), tc.ledgerStorage.Get([]byte("k1"))) // backend flushed
 	require.Equal(t, tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(tc.states.diffs))
-
 }
 
 func TestPruningFlushByMaxBatchSize(t *testing.T) {
@@ -395,7 +392,6 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	require.True(t, len(v1) > 0)
 	require.Equal(t, makeLeafNode(string(bigV)).Encode(), v1) // flushed
 	require.Equal(t, pruneCache.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(pruneCache.states.diffs))
-
 }
 
 func TestPruningFlushByMaxFlushTime(t *testing.T) {
@@ -439,7 +435,6 @@ func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	require.True(t, len(v1) > 0)
 	require.Equal(t, makeLeafNode("v1").Encode(), v1) // flushed
 	require.Equal(t, 10, len(tc.states.diffs))
-
 }
 
 func TestName(t *testing.T) {

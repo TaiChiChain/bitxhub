@@ -11,9 +11,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
-	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/finance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -47,25 +48,25 @@ type BlockExecutor struct {
 	evmChainCfg *params.ChainConfig
 	gasLimit    uint64
 	rep         *repo.Repo
+	chainState  *chainstate.ChainState
 	lock        *sync.Mutex
 
-	nvm sys_common.VirtualMachine
-
-	epochExchange   bool
+	nvm             syscommon.VirtualMachine
 	afterBlockHooks []func(block *types.Block)
 }
 
 // New creates executor instance
-func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
+func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainState) (*BlockExecutor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	blockExecutor := &BlockExecutor{
 		ledger:            ledger,
 		logger:            loggers.Logger(loggers.Executor),
 		ctx:               ctx,
+		chainState:        chainState,
 		cancel:            cancel,
 		blockC:            make(chan *common.CommitEvent, blockChanNumber),
-		gas:               finance.NewGas(rep),
+		gas:               finance.NewGas(chainState),
 		cumulativeGasUsed: 0,
 		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
 		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,
@@ -80,7 +81,7 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 	// initialize native vm
 	blockExecutor.nvm = system.New()
 	var err error
-	blockExecutor.incentive, err = finance.NewIncentive(rep.GenesisConfig, blockExecutor.nvm)
+	blockExecutor.incentive, err = finance.NewIncentive(rep.GenesisConfig)
 
 	blockExecutor.afterBlockHooks = []func(block *types.Block){
 		blockExecutor.updateEpochInfo,

@@ -3,32 +3,41 @@ package saccount
 import (
 	"fmt"
 	"math/big"
-	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
-	ownerKey    = "owner_key"
-	oldOwnerKey = "old_owner_key"
-	guradianKey = "guardian_key"
-	sessionKey  = "session_key"
-	statusKey   = "status_key"
+	ownerKey    = "owner"
+	oldOwnerKey = "old_owner"
+	guradianKey = "guardian"
+	sessionKey  = "session"
+	statusKey   = "status"
 
 	callInnerMethodGas = 1000
 	StatusUnlock       = 0
 )
+
+var SmartAccountBuildConfig = &common.SystemContractBuildConfig[*SmartAccount]{
+	Name:   "saccount_account",
+	AbiStr: smart_account.BindingContractMetaData.ABI,
+	Constructor: func(systemContractBase common.SystemContractBase) *SmartAccount {
+		return &SmartAccount{
+			SystemContractBase: systemContractBase,
+		}
+	},
+}
 
 var (
 	executeSig = crypto.Keccak256([]byte("execute(address,uint256,bytes)"))[:4]
@@ -77,74 +86,67 @@ type Session struct {
 var _ interfaces.IAccount = (*SmartAccount)(nil)
 
 type SmartAccount struct {
-	entryPoint interfaces.IEntryPoint
-	logger     logrus.FieldLogger
+	common.SystemContractBase
 
-	// Storage fields
-	owner ethcommon.Address
-
-	guardian    ethcommon.Address
+	owner       *common.VMSlot[ethcommon.Address]
+	oldOwner    *common.VMSlot[ethcommon.Address]
+	guardian    *common.VMSlot[ethcommon.Address]
 	sessionSlot *common.VMSlot[Session]
-
-	selfAddr *types.Address
-	account  ledger.IAccount
-
-	currentUser *ethcommon.Address
-	currentLogs *[]common.Log
-	stateLedger ledger.StateLedger
-	currentEVM  *vm.EVM
+	status      *common.VMSlot[uint64]
 
 	// remaining gas
 	remainingGas *big.Int
 }
 
-func NewSmartAccount(logger logrus.FieldLogger, entryPoint interfaces.IEntryPoint) *SmartAccount {
-	return &SmartAccount{
-		logger:     logger,
-		entryPoint: entryPoint,
-	}
+func (sa *SmartAccount) GenesisInit(genesis *repo.GenesisConfig) error {
+	return nil
 }
 
 func (sa *SmartAccount) SetContext(context *common.VMContext) {
-	sa.currentUser = context.CurrentUser
-	sa.currentLogs = context.CurrentLogs
-	sa.stateLedger = context.StateLedger
-	sa.currentEVM = context.CurrentEVM
+	sa.SystemContractBase.SetContext(context)
+
+	sa.owner = common.NewVMSlot[ethcommon.Address](sa.StateAccount, ownerKey)
+	sa.oldOwner = common.NewVMSlot[ethcommon.Address](sa.StateAccount, oldOwnerKey)
+	sa.guardian = common.NewVMSlot[ethcommon.Address](sa.StateAccount, guradianKey)
+	sa.sessionSlot = common.NewVMSlot[Session](sa.StateAccount, sessionKey)
+	sa.status = common.NewVMSlot[uint64](sa.StateAccount, statusKey)
+
+	sa.remainingGas = big.NewInt(MaxCallGasLimit)
 }
 
-// InitializeOrLoad must be called after SetContext
-// InitializeOrLoad can call anytimes, only initialize once
-func (sa *SmartAccount) InitializeOrLoad(selfAddr, owner, guardian ethcommon.Address, gas *big.Int) {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr && sa.currentUser.Hex() != common.AccountFactoryContractAddr {
-		return
-	}
-
-	sa.selfAddr = types.NewAddress(selfAddr.Bytes())
-	sa.account = sa.stateLedger.GetOrCreateAccount(sa.selfAddr)
-	sa.sessionSlot = common.NewVMSlot[Session](sa.account, sessionKey)
-
-	if isExist, ownerBytes := sa.account.GetState([]byte(ownerKey)); isExist {
-		sa.owner = ethcommon.BytesToAddress(ownerBytes)
-	} else if owner != (ethcommon.Address{}) {
-		sa.account.SetState([]byte(ownerKey), owner.Bytes())
-		sa.account.SetCodeAndHash(ethcommon.Hex2Bytes(common.EmptyContractBinCode))
-		sa.owner = owner
-
-		entryPointAddr := types.NewAddressByStr(common.EntryPointContractAddr)
-		// emit AccountInitialized event
-		sa.emitEvent(entryPointAddr.Bytes(), owner.Bytes())
-	}
-
-	// initialize guardian
-	if err := sa.SetGuardian(guardian); err != nil {
-		sa.logger.Warnf("initialize smart account failed: set guardian error: %v", err)
-	}
-
+func (sa *SmartAccount) SetRemainingGas(gas *big.Int) *SmartAccount {
 	if gas == nil || gas.Sign() == 0 {
 		sa.remainingGas = big.NewInt(MaxCallGasLimit)
 	} else {
 		sa.remainingGas = gas
 	}
+	return sa
+}
+
+// Initialize must be called after SetContext
+// Initialize can call anytimes, only initialize once
+func (sa *SmartAccount) Initialize(owner, guardian ethcommon.Address) error {
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) && sa.Ctx.From != ethcommon.HexToAddress(common.AccountFactoryContractAddr) {
+		return errors.Errorf("only entrypoint or account factory can call smart account init")
+	}
+
+	if sa.owner.Has() {
+		return errors.New("smart account has been initialized")
+	}
+
+	if err := sa.owner.Put(owner); err != nil {
+		return err
+	}
+	sa.StateAccount.SetCodeAndHash(ethcommon.Hex2Bytes(common.EmptyContractBinCode))
+	// emit AccountInitialized event
+	sa.EmitEvent("SmartAccountInitialized", types.NewAddressByStr(common.EntryPointContractAddr), owner)
+
+	// initialize guardian
+	if err := sa.SetGuardian(guardian); err != nil {
+		return errors.Errorf("initialize smart account failed: set guardian error: %v", err)
+	}
+
+	return nil
 }
 
 // nolint
@@ -152,71 +154,60 @@ func (sa *SmartAccount) getRemainingGas() *big.Int {
 	return sa.remainingGas
 }
 
-func (sa *SmartAccount) selfAddress() *types.Address {
-	return sa.selfAddr
-}
-
-func (sa *SmartAccount) getOwner() ethcommon.Address {
+func (sa *SmartAccount) getOwner() (ethcommon.Address, error) {
 	// if is lock status, return old owner
-	isExist, statusBytes := sa.account.GetState([]byte(statusKey))
-	if isExist && string(statusBytes) != fmt.Sprintf("%d", StatusUnlock) {
+	isExist, lockTime, err := sa.status.Get()
+	if err != nil {
+		return ethcommon.Address{}, err
+	}
+	if isExist && lockTime != StatusUnlock {
 		// if lock time is expired, unlock owner
-		lockTime, _ := strconv.ParseUint(string(statusBytes), 10, 64)
-		if sa.currentEVM.Context.Time > lockTime {
-			sa.account.SetState([]byte(statusKey), []byte(fmt.Sprintf("%d", StatusUnlock)))
-			sa.logger.Infof("smart account unlock owner")
+		if sa.Ctx.CurrentEVM.Context.Time > lockTime {
+			if err := sa.status.Put(StatusUnlock); err != nil {
+				return ethcommon.Address{}, err
+			}
+			sa.Logger.Infof("smart account unlock owner")
 		} else {
 			// get old owner and return
-			isExist, oldOwnerBytes := sa.account.GetState([]byte(oldOwnerKey))
+			isExist, oldOwner, err := sa.oldOwner.Get()
+			if err != nil {
+				return ethcommon.Address{}, err
+			}
 			if isExist {
-				return ethcommon.BytesToAddress(oldOwnerBytes)
+				return oldOwner, nil
 			}
 		}
 	}
 
-	isExist, ownerBytes := sa.account.GetState([]byte(ownerKey))
+	isExist, owner, err := sa.owner.Get()
+	if err != nil {
+		return ethcommon.Address{}, err
+	}
 	if isExist {
-		sa.owner = ethcommon.BytesToAddress(ownerBytes)
-	} else {
-		// is no owner, belongs to self
-		sa.owner = sa.selfAddr.ETHAddress()
+		return owner, nil
 	}
-
-	return sa.owner
+	// is no owner, belongs to self
+	return sa.EthAddress, nil
 }
 
-func (sa *SmartAccount) setOwner(owner ethcommon.Address) {
+func (sa *SmartAccount) setOwner(owner ethcommon.Address) error {
 	if owner != (ethcommon.Address{}) {
-		isExist, oldOwner := sa.account.GetState([]byte(ownerKey))
+		isExist, oldOwner, err := sa.owner.Get()
+		if err != nil {
+			return err
+		}
 		if isExist {
-			sa.account.SetState([]byte(oldOwnerKey), oldOwner)
+			// set old owner
+			if err := sa.oldOwner.Put(oldOwner); err != nil {
+				return err
+			}
 		}
 
-		sa.account.SetState([]byte(ownerKey), owner.Bytes())
-		sa.owner = owner
-	}
-}
-
-func (sa *SmartAccount) emitEvent(events ...[]byte) {
-	var data []byte
-	if len(events) > 4 {
-		for _, ev := range events[4:] {
-			data = append(data, ev...)
+		if err := sa.owner.Put(owner); err != nil {
+			return err
 		}
-		events = events[:4]
 	}
-
-	currentLog := common.Log{
-		Address: sa.selfAddress(),
-	}
-
-	for _, ev := range events {
-		currentLog.Topics = append(currentLog.Topics, types.NewHash(ev))
-	}
-	currentLog.Data = data
-	currentLog.Removed = false
-
-	*sa.currentLogs = append(*sa.currentLogs, currentLog)
+	return nil
 }
 
 // ValidateUserOp implements interfaces.IAccount.
@@ -233,8 +224,8 @@ func (sa *SmartAccount) ValidateUserOp(userOp interfaces.UserOperation, userOpHa
 
 // nolint
 func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpHash []byte, missingAccountFunds *big.Int) (*interfaces.Validation, error) {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return nil, common.NewRevertStringError("only entrypoint can call ValidateUserOp")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return nil, errors.New("only entrypoint can call ValidateUserOp")
 	}
 
 	validationData := &interfaces.Validation{
@@ -243,24 +234,29 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 	// validate signature
 	addr, err := recoveryAddrFromSignature(userOpHash, userOp.Signature)
 	if err != nil {
-		sa.logger.Warnf("validate user op failed: %v", err)
+		sa.Logger.Warnf("validate user op failed: %v", err)
 		return validationData, nil
 	}
-	owner := sa.getOwner()
-	sa.logger.Debugf("validate user op, owner: %s, addr: %s, smart account addr: %s", owner.String(), addr.String(), sa.selfAddress().String())
+	owner, err := sa.getOwner()
+	if err != nil {
+		sa.Logger.Warnf("get owner failed: %v", err)
+		return validationData, nil
+	}
+	sa.Logger.Debugf("validate user op, owner: %s, addr: %s, smart account addr: %s", owner.String(), addr.String(), sa.selfAddress().String())
+
 	if addr != owner {
 		session := sa.getSession()
 		if session == nil {
-			sa.logger.Errorf("userOp signature is not from owner, owner: %s, recovery owner: %s", owner.String(), addr.String())
+			sa.Logger.Warnf("userOp signature is not from owner, owner: %s, recovery owner: %s", owner.String(), addr.String())
 			return validationData, nil
 		}
 
 		if session.Addr != addr {
-			sa.logger.Errorf("userOp signature is not from session key, session key addr: %s, recovery addr: %s", session.Addr, addr.String())
+			sa.Logger.Warnf("userOp signature is not from session key, session key addr: %s, recovery addr: %s", session.Addr, addr.String())
 			return validationData, nil
 		}
 
-		sa.logger.Infof("use session key to validate, session key addr: %s", session.Addr.String())
+		sa.Logger.Infof("use session key to validate, session key addr: %s", session.Addr.String())
 
 		// if use session key
 		validationData.ValidAfter = session.ValidAfter
@@ -275,24 +271,24 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 	return validationData, nil
 }
 
-func (sa *SmartAccount) Execute(dest ethcommon.Address, value *big.Int, callFunc []byte) (*big.Int, *big.Int, error) {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return big.NewInt(0), big.NewInt(0), common.NewRevertStringError("only entrypoint can call smart account execute")
+func (sa *SmartAccount) Execute(dest ethcommon.Address, value *big.Int, callFunc []byte) (*big.Int,*big.Int, error) {
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return big.NewInt(0), big.NewInt(0), errors.New("only entrypoint can call smart account execute")
 	}
 
-	sa.logger.Infof("execute smart account, dest %s, value: %s, callFunc: %x, remainingGas: %s", dest.Hex(), value.Text(10), callFunc, sa.remainingGas.Text(10))
+	sa.Logger.Infof("execute smart account, dest %s, value: %s, callFunc: %x, remainingGas: %s", dest.Hex(), value.Text(10), callFunc, sa.remainingGas.Text(10))
 
 	// use left gas to call
-	_, gasLeft, err := callWithValue(sa.stateLedger, sa.currentEVM, sa.remainingGas, value, sa.selfAddress(), &dest, callFunc)
+	_, gasLeft, err := sa.CrossCallEVMContractWithValue(sa.remainingGas, value, dest, callFunc)
 	if err != nil {
-		return big.NewInt(0), big.NewInt(0), common.NewRevertStringError(fmt.Sprintf("execute smart account callWithValue failed: %v", err))
+		return big.NewInt(0), big.NewInt(0), fmt.Errorf("execute smart account callWithValue failed: %v", err)
 	}
 	gasCost := new(big.Int).Sub(sa.remainingGas, big.NewInt(int64(gasLeft)))
 	sa.remainingGas = big.NewInt(int64(gasLeft))
 
 	totalUsedValue, err := sa.getAxcOfTransferValue(dest, callFunc)
 	if err != nil {
-		return big.NewInt(0), big.NewInt(0), common.NewRevertStringError(fmt.Sprintf("execute smart account getAxcOfTransferValue failed: %v", err))
+		return big.NewInt(0), big.NewInt(0), fmt.Errorf("execute smart account getAxcOfTransferValue failed: %v", err)
 	}
 
 	if value != nil {
@@ -303,12 +299,12 @@ func (sa *SmartAccount) Execute(dest ethcommon.Address, value *big.Int, callFunc
 }
 
 func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte) (*big.Int, *big.Int, error) {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return big.NewInt(0), big.NewInt(0), common.NewRevertStringError("only entrypoint can call smart account execute")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return big.NewInt(0),big.NewInt(0), errors.New("only entrypoint can call smart account execute")
 	}
 
 	if len(dest) != len(callFunc) {
-		return big.NewInt(0), big.NewInt(0), common.NewRevertStringError("dest and callFunc length mismatch")
+		return big.NewInt(0), big.NewInt(0),errors.New("dest and callFunc length mismatch")
 	}
 
 	gasCost := big.NewInt(0)
@@ -327,37 +323,21 @@ func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte
 
 // SetGuardian set guardian for recover smart account's owner
 func (sa *SmartAccount) SetGuardian(guardian ethcommon.Address) error {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr && sa.currentUser.Hex() != common.AccountFactoryContractAddr {
-		return common.NewRevertStringError("only entrypoint or account factory can call smart account set guardian")
-	}
-
 	if guardian == (ethcommon.Address{}) {
 		return nil
 	}
-
-	sa.account.SetState([]byte(guradianKey), guardian.Bytes())
-	sa.guardian = guardian
-	return nil
-}
-
-func (sa *SmartAccount) getGuardian() ethcommon.Address {
-	if sa.guardian != (ethcommon.Address{}) {
-		return sa.guardian
-	}
-
-	isExist, data := sa.account.GetState([]byte(guradianKey))
-	if isExist {
-		sa.guardian = ethcommon.BytesToAddress(data)
-	}
-	return sa.guardian
+	return sa.guardian.Put(guardian)
 }
 
 func (sa *SmartAccount) ValidateGuardianSignature(guardianSig []byte, userOpHash []byte) error {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call ValidateUserOp")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call ValidateUserOp")
 	}
 
-	guardian := sa.getGuardian()
+	_, guardian, err := sa.guardian.Get()
+	if err != nil {
+		return err
+	}
 
 	// validate signature
 	addr, err := recoveryAddrFromSignature(userOpHash, guardianSig)
@@ -366,7 +346,7 @@ func (sa *SmartAccount) ValidateGuardianSignature(guardianSig []byte, userOpHash
 	}
 
 	if addr != guardian {
-		return common.NewRevertStringError("invalid guardian signature")
+		return errors.New("invalid guardian signature")
 	}
 
 	return nil
@@ -374,11 +354,12 @@ func (sa *SmartAccount) ValidateGuardianSignature(guardianSig []byte, userOpHash
 
 // ResetOwner recovery owner of smart account by reset owner
 func (sa *SmartAccount) ResetOwner(owner ethcommon.Address) error {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call ResetOwner")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call ResetOwner")
 	}
-
-	sa.setOwner(owner)
+	if err := sa.setOwner(owner); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -386,16 +367,19 @@ func (sa *SmartAccount) ResetOwner(owner ethcommon.Address) error {
 // ResetAndLockOwner reset owner and lock owner for some times
 // lock when guardian try to recovery smart account's owner
 func (sa *SmartAccount) ResetAndLockOwner(owner ethcommon.Address) error {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call ResetAndLockOwner")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call ResetAndLockOwner")
 	}
 
-	sa.setOwner(owner)
+	if err := sa.setOwner(owner); err != nil {
+		return err
+	}
 
 	// lock owner for some times, save lock timestamp
-	timestamp := sa.currentEVM.Context.Time
-	lockTimestamp := timestamp + uint64(LockedTime.Seconds())
-	sa.account.SetState([]byte(statusKey), []byte(fmt.Sprintf("%d", lockTimestamp)))
+	lockTimestamp := sa.Ctx.CurrentEVM.Context.Time + uint64(LockedTime.Seconds())
+	if err := sa.status.Put(lockTimestamp); err != nil {
+		return err
+	}
 
 	sa.emitUserLocked(sa.selfAddr.ETHAddress(), owner, new(big.Int).SetUint64(lockTimestamp))
 
@@ -404,11 +388,11 @@ func (sa *SmartAccount) ResetAndLockOwner(owner ethcommon.Address) error {
 
 // SetSession set session key
 func (sa *SmartAccount) SetSession(addr ethcommon.Address, spendingLimit *big.Int, validAfter, validUntil uint64) error {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call SetSession")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call SetSession")
 	}
 	if validAfter >= validUntil {
-		return common.NewRevertStringError("session key validAfter must less than validUntil")
+		return errors.New("session key validAfter must less than validUntil")
 	}
 
 	session := sa.getSession()
@@ -476,8 +460,8 @@ func (sa *SmartAccount) getAxcOfTransferValue(token ethcommon.Address, callFunc 
 }
 
 func (sa *SmartAccount) postUserOp(UseSessionKey bool, actualGasCost, totalValue *big.Int) error {
-	if sa.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call SetSession")
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call SetSession")
 	}
 
 	sa.logger.Infof("post user op, use session key: %v, actual gas cost: %s", UseSessionKey, actualGasCost.String())
@@ -498,7 +482,7 @@ func (sa *SmartAccount) postUserOp(UseSessionKey bool, actualGasCost, totalValue
 	spentAmout.Add(spentAmout, totalValue)
 	sa.logger.Infof("update session key spent amount, spent amount: %s, spend limit: %s", spentAmout.String(), session.SpendingLimit.String())
 	if spentAmout.Cmp(session.SpendingLimit) > 0 {
-		return common.NewRevertStringError("spent amount exceeds session spending limit")
+		return errors.New("spent amount exceeds session spending limit")
 	}
 	session.SpentAmount = spentAmout
 
@@ -528,7 +512,7 @@ func (sa *SmartAccount) emitUserLocked(sender, newOwner ethcommon.Address, locke
 
 func recoveryAddrFromSignature(hash, signature []byte) (ethcommon.Address, error) {
 	if len(signature) != 65 {
-		return ethcommon.Address{}, common.NewRevertStringError("invalid signature length")
+		return ethcommon.Address{}, errors.New("invalid signature length")
 	}
 
 	ethHash := accounts.TextHash(hash)

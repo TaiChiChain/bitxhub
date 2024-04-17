@@ -2,13 +2,10 @@ package axm
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -19,10 +16,6 @@ type AxmAPI struct {
 	rep    *repo.Repo
 	api    api.CoreAPI
 	logger logrus.FieldLogger
-
-	lock                  sync.Mutex
-	epochCache            uint64
-	incentiveAddressCache string
 }
 
 func NewAxmAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) *AxmAPI {
@@ -31,19 +24,7 @@ func NewAxmAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) *AxmA
 }
 
 func (api *AxmAPI) GetIncentiveAddress() (res common.Address, err error) {
-	if api.epochCache != api.rep.EpochInfo.Epoch {
-		api.lock.Lock()
-		defer api.lock.Unlock()
-		if api.epochCache != api.rep.EpochInfo.Epoch {
-			incentiveAddressNow, err := matchNodeIncentiveAddress(api.rep.P2PID, api.rep.EpochInfo)
-			if err != nil {
-				return common.Address{}, err
-			}
-			api.incentiveAddressCache = incentiveAddressNow
-			api.epochCache = api.rep.EpochInfo.Epoch
-		}
-	}
-	return common.HexToAddress(api.incentiveAddressCache), nil
+	return common.HexToAddress(api.rep.Config.Node.IncentiveAddress), nil
 }
 
 func (api *AxmAPI) Status() any {
@@ -56,17 +37,6 @@ func (api *AxmAPI) Status() any {
 	}
 	syncStatus["status"] = "normal"
 	return syncStatus
-}
-
-func matchNodeIncentiveAddress(P2PID string, EpochInfo *rbft.EpochInfo) (res string, err error) {
-	for _, set := range []*[]rbft.NodeInfo{&EpochInfo.ValidatorSet, &EpochInfo.CandidateSet, &EpochInfo.DataSyncerSet} {
-		for _, nodeInfo := range *set {
-			if P2PID == nodeInfo.P2PNodeID {
-				return nodeInfo.AccountAddress, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("unable to match node incentive address")
 }
 
 func (api *AxmAPI) SyncProgress() any {

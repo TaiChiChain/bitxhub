@@ -1,6 +1,11 @@
 package coreapi
 
 import (
+	"context"
+	"math/big"
+
+	"github.com/pkg/errors"
+
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 )
 
@@ -23,4 +28,14 @@ func (gas *GasAPI) GetCurrentGasPrice(blockHeight uint64) (uint64, error) {
 		return 0, err
 	}
 	return uint64(blockHeader.GasPrice), nil
+}
+
+// TODO: support gas price oracle (refer to https://github.com/ethereum/go-ethereum/tree/master/eth/gasprice)
+
+func (gas *GasAPI) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	return nil, errors.Errorf("not implemented")
+}
+
+func (gas *GasAPI) FeeHistory(ctx context.Context, blockCount uint64, lastBlock uint64, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {
+	return nil, nil, nil, nil, errors.Errorf("not implemented")
 }

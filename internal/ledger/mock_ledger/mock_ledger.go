@@ -13,7 +13,6 @@ import (
 	big "math/big"
 	reflect "reflect"
 
-	consensus "github.com/axiomesh/axiom-bft/common/consensus"
 	jmt "github.com/axiomesh/axiom-kit/jmt"
 	storage "github.com/axiomesh/axiom-kit/storage"
 	types "github.com/axiomesh/axiom-kit/types"
@@ -43,11 +42,6 @@ func NewMockChainLedger(ctrl *gomock.Controller) *MockChainLedger {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockChainLedger) EXPECT() *MockChainLedgerMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockChainLedger) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // BatchPersistExecutionResult mocks base method.
@@ -765,11 +759,6 @@ func (m *MockStateLedger) EXPECT() *MockStateLedgerMockRecorder {
 	return m.recorder
 }
 
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockStateLedger) ISGOMOCK() struct{} {
-	return struct{}{}
-}
-
 // AddAddressToAccessList mocks base method.
 func (m *MockStateLedger) AddAddressToAccessList(arg0 types.Address) {
 	m.ctrl.T.Helper()
@@ -1167,6 +1156,44 @@ func (c *MockStateLedgerCommitCall) Do(f func() (*types.Hash, error)) *MockState
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockStateLedgerCommitCall) DoAndReturn(f func() (*types.Hash, error)) *MockStateLedgerCommitCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// CurrentBlockHeight mocks base method.
+func (m *MockStateLedger) CurrentBlockHeight() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CurrentBlockHeight")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// CurrentBlockHeight indicates an expected call of CurrentBlockHeight.
+func (mr *MockStateLedgerMockRecorder) CurrentBlockHeight() *MockStateLedgerCurrentBlockHeightCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentBlockHeight", reflect.TypeOf((*MockStateLedger)(nil).CurrentBlockHeight))
+	return &MockStateLedgerCurrentBlockHeightCall{Call: call}
+}
+
+// MockStateLedgerCurrentBlockHeightCall wrap *gomock.Call
+type MockStateLedgerCurrentBlockHeightCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateLedgerCurrentBlockHeightCall) Return(arg0 uint64) *MockStateLedgerCurrentBlockHeightCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateLedgerCurrentBlockHeightCall) Do(f func() uint64) *MockStateLedgerCurrentBlockHeightCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateLedgerCurrentBlockHeightCall) DoAndReturn(f func() uint64) *MockStateLedgerCurrentBlockHeightCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1816,54 +1843,54 @@ func (c *MockStateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func() (*ledger.S
 	return c
 }
 
-// HasSelfDestructed mocks base method.
-func (m *MockStateLedger) HasSelfDestructed(arg0 *types.Address) bool {
+// HasSuicide mocks base method.
+func (m *MockStateLedger) HasSuicide(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSelfDestructed", arg0)
+	ret := m.ctrl.Call(m, "HasSuicide", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// HasSelfDestructed indicates an expected call of HasSelfDestructed.
-func (mr *MockStateLedgerMockRecorder) HasSelfDestructed(arg0 any) *MockStateLedgerHasSelfDestructedCall {
+// HasSuicide indicates an expected call of HasSuicide.
+func (mr *MockStateLedgerMockRecorder) HasSuicide(arg0 any) *MockStateLedgerHasSuicideCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSelfDestructed", reflect.TypeOf((*MockStateLedger)(nil).HasSelfDestructed), arg0)
-	return &MockStateLedgerHasSelfDestructedCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicide", reflect.TypeOf((*MockStateLedger)(nil).HasSuicide), arg0)
+	return &MockStateLedgerHasSuicideCall{Call: call}
 }
 
-// MockStateLedgerHasSelfDestructedCall wrap *gomock.Call
-type MockStateLedgerHasSelfDestructedCall struct {
+// MockStateLedgerHasSuicideCall wrap *gomock.Call
+type MockStateLedgerHasSuicideCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockStateLedgerHasSelfDestructedCall) Return(arg0 bool) *MockStateLedgerHasSelfDestructedCall {
+func (c *MockStateLedgerHasSuicideCall) Return(arg0 bool) *MockStateLedgerHasSuicideCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerHasSelfDestructedCall) Do(f func(*types.Address) bool) *MockStateLedgerHasSelfDestructedCall {
+func (c *MockStateLedgerHasSuicideCall) Do(f func(*types.Address) bool) *MockStateLedgerHasSuicideCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerHasSelfDestructedCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerHasSelfDestructedCall {
+func (c *MockStateLedgerHasSuicideCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerHasSuicideCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // IterateTrie mocks base method.
-func (m *MockStateLedger) IterateTrie(blockHeader *types.BlockHeader, nodesId *consensus.QuorumValidators, kv storage.Storage, errC chan error) {
+func (m *MockStateLedger) IterateTrie(snapshotMeta *ledger.SnapshotMeta, kv storage.Storage, errC chan error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "IterateTrie", blockHeader, nodesId, kv, errC)
+	m.ctrl.Call(m, "IterateTrie", snapshotMeta, kv, errC)
 }
 
 // IterateTrie indicates an expected call of IterateTrie.
-func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, nodesId, kv, errC any) *MockStateLedgerIterateTrieCall {
+func (mr *MockStateLedgerMockRecorder) IterateTrie(snapshotMeta, kv, errC any) *MockStateLedgerIterateTrieCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), blockHeader, nodesId, kv, errC)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), snapshotMeta, kv, errC)
 	return &MockStateLedgerIterateTrieCall{Call: call}
 }
 
@@ -1879,13 +1906,13 @@ func (c *MockStateLedgerIterateTrieCall) Return() *MockStateLedgerIterateTrieCal
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Do(f func(*ledger.SnapshotMeta, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*ledger.SnapshotMeta, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2113,80 +2140,6 @@ func (c *MockStateLedgerRollbackStateCall) Do(f func(uint64, *types.Hash) error)
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockStateLedgerRollbackStateCall) DoAndReturn(f func(uint64, *types.Hash) error) *MockStateLedgerRollbackStateCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SelfDestruct mocks base method.
-func (m *MockStateLedger) SelfDestruct(arg0 *types.Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelfDestruct", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// SelfDestruct indicates an expected call of SelfDestruct.
-func (mr *MockStateLedgerMockRecorder) SelfDestruct(arg0 any) *MockStateLedgerSelfDestructCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockStateLedger)(nil).SelfDestruct), arg0)
-	return &MockStateLedgerSelfDestructCall{Call: call}
-}
-
-// MockStateLedgerSelfDestructCall wrap *gomock.Call
-type MockStateLedgerSelfDestructCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockStateLedgerSelfDestructCall) Return(arg0 bool) *MockStateLedgerSelfDestructCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerSelfDestructCall) Do(f func(*types.Address) bool) *MockStateLedgerSelfDestructCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerSelfDestructCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerSelfDestructCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Selfdestruct6780 mocks base method.
-func (m *MockStateLedger) Selfdestruct6780(arg0 *types.Address) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Selfdestruct6780", arg0)
-}
-
-// Selfdestruct6780 indicates an expected call of Selfdestruct6780.
-func (mr *MockStateLedgerMockRecorder) Selfdestruct6780(arg0 any) *MockStateLedgerSelfdestruct6780Call {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Selfdestruct6780", reflect.TypeOf((*MockStateLedger)(nil).Selfdestruct6780), arg0)
-	return &MockStateLedgerSelfdestruct6780Call{Call: call}
-}
-
-// MockStateLedgerSelfdestruct6780Call wrap *gomock.Call
-type MockStateLedgerSelfdestruct6780Call struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockStateLedgerSelfdestruct6780Call) Return() *MockStateLedgerSelfdestruct6780Call {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerSelfdestruct6780Call) Do(f func(*types.Address)) *MockStateLedgerSelfdestruct6780Call {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerSelfdestruct6780Call) DoAndReturn(f func(*types.Address)) *MockStateLedgerSelfdestruct6780Call {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2520,6 +2473,44 @@ func (c *MockStateLedgerSubRefundCall) DoAndReturn(f func(uint64)) *MockStateLed
 	return c
 }
 
+// Suicide mocks base method.
+func (m *MockStateLedger) Suicide(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Suicide", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Suicide indicates an expected call of Suicide.
+func (mr *MockStateLedgerMockRecorder) Suicide(arg0 any) *MockStateLedgerSuicideCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicide", reflect.TypeOf((*MockStateLedger)(nil).Suicide), arg0)
+	return &MockStateLedgerSuicideCall{Call: call}
+}
+
+// MockStateLedgerSuicideCall wrap *gomock.Call
+type MockStateLedgerSuicideCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateLedgerSuicideCall) Return(arg0 bool) *MockStateLedgerSuicideCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateLedgerSuicideCall) Do(f func(*types.Address) bool) *MockStateLedgerSuicideCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateLedgerSuicideCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerSuicideCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // VerifyTrie mocks base method.
 func (m *MockStateLedger) VerifyTrie(blockHeader *types.BlockHeader) (bool, error) {
 	m.ctrl.T.Helper()
@@ -2618,11 +2609,6 @@ func NewMockStateAccessor(ctrl *gomock.Controller) *MockStateAccessor {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStateAccessor) EXPECT() *MockStateAccessorMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockStateAccessor) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddAddressToAccessList mocks base method.
@@ -3375,40 +3361,40 @@ func (c *MockStateAccessorGetStateCall) DoAndReturn(f func(*types.Address, []byt
 	return c
 }
 
-// HasSelfDestructed mocks base method.
-func (m *MockStateAccessor) HasSelfDestructed(arg0 *types.Address) bool {
+// HasSuicide mocks base method.
+func (m *MockStateAccessor) HasSuicide(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSelfDestructed", arg0)
+	ret := m.ctrl.Call(m, "HasSuicide", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// HasSelfDestructed indicates an expected call of HasSelfDestructed.
-func (mr *MockStateAccessorMockRecorder) HasSelfDestructed(arg0 any) *MockStateAccessorHasSelfDestructedCall {
+// HasSuicide indicates an expected call of HasSuicide.
+func (mr *MockStateAccessorMockRecorder) HasSuicide(arg0 any) *MockStateAccessorHasSuicideCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSelfDestructed", reflect.TypeOf((*MockStateAccessor)(nil).HasSelfDestructed), arg0)
-	return &MockStateAccessorHasSelfDestructedCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicide", reflect.TypeOf((*MockStateAccessor)(nil).HasSuicide), arg0)
+	return &MockStateAccessorHasSuicideCall{Call: call}
 }
 
-// MockStateAccessorHasSelfDestructedCall wrap *gomock.Call
-type MockStateAccessorHasSelfDestructedCall struct {
+// MockStateAccessorHasSuicideCall wrap *gomock.Call
+type MockStateAccessorHasSuicideCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockStateAccessorHasSelfDestructedCall) Return(arg0 bool) *MockStateAccessorHasSelfDestructedCall {
+func (c *MockStateAccessorHasSuicideCall) Return(arg0 bool) *MockStateAccessorHasSuicideCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateAccessorHasSelfDestructedCall) Do(f func(*types.Address) bool) *MockStateAccessorHasSelfDestructedCall {
+func (c *MockStateAccessorHasSuicideCall) Do(f func(*types.Address) bool) *MockStateAccessorHasSuicideCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateAccessorHasSelfDestructedCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorHasSelfDestructedCall {
+func (c *MockStateAccessorHasSuicideCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorHasSuicideCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3445,80 +3431,6 @@ func (c *MockStateAccessorRevertToSnapshotCall) Do(f func(int)) *MockStateAccess
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockStateAccessorRevertToSnapshotCall) DoAndReturn(f func(int)) *MockStateAccessorRevertToSnapshotCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SelfDestruct mocks base method.
-func (m *MockStateAccessor) SelfDestruct(arg0 *types.Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelfDestruct", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// SelfDestruct indicates an expected call of SelfDestruct.
-func (mr *MockStateAccessorMockRecorder) SelfDestruct(arg0 any) *MockStateAccessorSelfDestructCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockStateAccessor)(nil).SelfDestruct), arg0)
-	return &MockStateAccessorSelfDestructCall{Call: call}
-}
-
-// MockStateAccessorSelfDestructCall wrap *gomock.Call
-type MockStateAccessorSelfDestructCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockStateAccessorSelfDestructCall) Return(arg0 bool) *MockStateAccessorSelfDestructCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockStateAccessorSelfDestructCall) Do(f func(*types.Address) bool) *MockStateAccessorSelfDestructCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateAccessorSelfDestructCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorSelfDestructCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Selfdestruct6780 mocks base method.
-func (m *MockStateAccessor) Selfdestruct6780(arg0 *types.Address) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Selfdestruct6780", arg0)
-}
-
-// Selfdestruct6780 indicates an expected call of Selfdestruct6780.
-func (mr *MockStateAccessorMockRecorder) Selfdestruct6780(arg0 any) *MockStateAccessorSelfdestruct6780Call {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Selfdestruct6780", reflect.TypeOf((*MockStateAccessor)(nil).Selfdestruct6780), arg0)
-	return &MockStateAccessorSelfdestruct6780Call{Call: call}
-}
-
-// MockStateAccessorSelfdestruct6780Call wrap *gomock.Call
-type MockStateAccessorSelfdestruct6780Call struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockStateAccessorSelfdestruct6780Call) Return() *MockStateAccessorSelfdestruct6780Call {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockStateAccessorSelfdestruct6780Call) Do(f func(*types.Address)) *MockStateAccessorSelfdestruct6780Call {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateAccessorSelfdestruct6780Call) DoAndReturn(f func(*types.Address)) *MockStateAccessorSelfdestruct6780Call {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3852,6 +3764,44 @@ func (c *MockStateAccessorSubRefundCall) DoAndReturn(f func(uint64)) *MockStateA
 	return c
 }
 
+// Suicide mocks base method.
+func (m *MockStateAccessor) Suicide(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Suicide", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Suicide indicates an expected call of Suicide.
+func (mr *MockStateAccessorMockRecorder) Suicide(arg0 any) *MockStateAccessorSuicideCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicide", reflect.TypeOf((*MockStateAccessor)(nil).Suicide), arg0)
+	return &MockStateAccessorSuicideCall{Call: call}
+}
+
+// MockStateAccessorSuicideCall wrap *gomock.Call
+type MockStateAccessorSuicideCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateAccessorSuicideCall) Return(arg0 bool) *MockStateAccessorSuicideCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateAccessorSuicideCall) Do(f func(*types.Address) bool) *MockStateAccessorSuicideCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateAccessorSuicideCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorSuicideCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // MockIAccount is a mock of IAccount interface.
 type MockIAccount struct {
 	ctrl     *gomock.Controller
@@ -3873,11 +3823,6 @@ func NewMockIAccount(ctrl *gomock.Controller) *MockIAccount {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIAccount) EXPECT() *MockIAccountMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockIAccount) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddBalance mocks base method.
@@ -4297,44 +4242,6 @@ func (c *MockIAccountGetStorageRootHashCall) DoAndReturn(f func() common.Hash) *
 	return c
 }
 
-// IsCreated mocks base method.
-func (m *MockIAccount) IsCreated() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsCreated")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsCreated indicates an expected call of IsCreated.
-func (mr *MockIAccountMockRecorder) IsCreated() *MockIAccountIsCreatedCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCreated", reflect.TypeOf((*MockIAccount)(nil).IsCreated))
-	return &MockIAccountIsCreatedCall{Call: call}
-}
-
-// MockIAccountIsCreatedCall wrap *gomock.Call
-type MockIAccountIsCreatedCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockIAccountIsCreatedCall) Return(arg0 bool) *MockIAccountIsCreatedCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockIAccountIsCreatedCall) Do(f func() bool) *MockIAccountIsCreatedCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockIAccountIsCreatedCall) DoAndReturn(f func() bool) *MockIAccountIsCreatedCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // IsEmpty mocks base method.
 func (m *MockIAccount) IsEmpty() bool {
 	m.ctrl.T.Helper()
@@ -4369,44 +4276,6 @@ func (c *MockIAccountIsEmptyCall) Do(f func() bool) *MockIAccountIsEmptyCall {
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockIAccountIsEmptyCall) DoAndReturn(f func() bool) *MockIAccountIsEmptyCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SelfDestructed mocks base method.
-func (m *MockIAccount) SelfDestructed() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelfDestructed")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// SelfDestructed indicates an expected call of SelfDestructed.
-func (mr *MockIAccountMockRecorder) SelfDestructed() *MockIAccountSelfDestructedCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestructed", reflect.TypeOf((*MockIAccount)(nil).SelfDestructed))
-	return &MockIAccountSelfDestructedCall{Call: call}
-}
-
-// MockIAccountSelfDestructedCall wrap *gomock.Call
-type MockIAccountSelfDestructedCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockIAccountSelfDestructedCall) Return(arg0 bool) *MockIAccountSelfDestructedCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockIAccountSelfDestructedCall) Do(f func() bool) *MockIAccountSelfDestructedCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockIAccountSelfDestructedCall) DoAndReturn(f func() bool) *MockIAccountSelfDestructedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4483,42 +4352,6 @@ func (c *MockIAccountSetCodeAndHashCall) DoAndReturn(f func([]byte)) *MockIAccou
 	return c
 }
 
-// SetCreated mocks base method.
-func (m *MockIAccount) SetCreated(arg0 bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetCreated", arg0)
-}
-
-// SetCreated indicates an expected call of SetCreated.
-func (mr *MockIAccountMockRecorder) SetCreated(arg0 any) *MockIAccountSetCreatedCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCreated", reflect.TypeOf((*MockIAccount)(nil).SetCreated), arg0)
-	return &MockIAccountSetCreatedCall{Call: call}
-}
-
-// MockIAccountSetCreatedCall wrap *gomock.Call
-type MockIAccountSetCreatedCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockIAccountSetCreatedCall) Return() *MockIAccountSetCreatedCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockIAccountSetCreatedCall) Do(f func(bool)) *MockIAccountSetCreatedCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockIAccountSetCreatedCall) DoAndReturn(f func(bool)) *MockIAccountSetCreatedCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // SetEnableExpensiveMetric mocks base method.
 func (m *MockIAccount) SetEnableExpensiveMetric(arg0 bool) {
 	m.ctrl.T.Helper()
@@ -4591,42 +4424,6 @@ func (c *MockIAccountSetNonceCall) DoAndReturn(f func(uint64)) *MockIAccountSetN
 	return c
 }
 
-// SetSelfDestructed mocks base method.
-func (m *MockIAccount) SetSelfDestructed(arg0 bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSelfDestructed", arg0)
-}
-
-// SetSelfDestructed indicates an expected call of SetSelfDestructed.
-func (mr *MockIAccountMockRecorder) SetSelfDestructed(arg0 any) *MockIAccountSetSelfDestructedCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSelfDestructed", reflect.TypeOf((*MockIAccount)(nil).SetSelfDestructed), arg0)
-	return &MockIAccountSetSelfDestructedCall{Call: call}
-}
-
-// MockIAccountSetSelfDestructedCall wrap *gomock.Call
-type MockIAccountSetSelfDestructedCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockIAccountSetSelfDestructedCall) Return() *MockIAccountSetSelfDestructedCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockIAccountSetSelfDestructedCall) Do(f func(bool)) *MockIAccountSetSelfDestructedCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockIAccountSetSelfDestructedCall) DoAndReturn(f func(bool)) *MockIAccountSetSelfDestructedCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // SetState mocks base method.
 func (m *MockIAccount) SetState(key, value []byte) {
 	m.ctrl.T.Helper()
@@ -4659,6 +4456,42 @@ func (c *MockIAccountSetStateCall) Do(f func([]byte, []byte)) *MockIAccountSetSt
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockIAccountSetStateCall) DoAndReturn(f func([]byte, []byte)) *MockIAccountSetStateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SetSuicided mocks base method.
+func (m *MockIAccount) SetSuicided(arg0 bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSuicided", arg0)
+}
+
+// SetSuicided indicates an expected call of SetSuicided.
+func (mr *MockIAccountMockRecorder) SetSuicided(arg0 any) *MockIAccountSetSuicidedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSuicided", reflect.TypeOf((*MockIAccount)(nil).SetSuicided), arg0)
+	return &MockIAccountSetSuicidedCall{Call: call}
+}
+
+// MockIAccountSetSuicidedCall wrap *gomock.Call
+type MockIAccountSetSuicidedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockIAccountSetSuicidedCall) Return() *MockIAccountSetSuicidedCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockIAccountSetSuicidedCall) Do(f func(bool)) *MockIAccountSetSuicidedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockIAccountSetSuicidedCall) DoAndReturn(f func(bool)) *MockIAccountSetSuicidedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4733,6 +4566,44 @@ func (c *MockIAccountSubBalanceCall) Do(f func(*big.Int)) *MockIAccountSubBalanc
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockIAccountSubBalanceCall) DoAndReturn(f func(*big.Int)) *MockIAccountSubBalanceCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Suicided mocks base method.
+func (m *MockIAccount) Suicided() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Suicided")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Suicided indicates an expected call of Suicided.
+func (mr *MockIAccountMockRecorder) Suicided() *MockIAccountSuicidedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicided", reflect.TypeOf((*MockIAccount)(nil).Suicided))
+	return &MockIAccountSuicidedCall{Call: call}
+}
+
+// MockIAccountSuicidedCall wrap *gomock.Call
+type MockIAccountSuicidedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockIAccountSuicidedCall) Return(arg0 bool) *MockIAccountSuicidedCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockIAccountSuicidedCall) Do(f func() bool) *MockIAccountSuicidedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockIAccountSuicidedCall) DoAndReturn(f func() bool) *MockIAccountSuicidedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

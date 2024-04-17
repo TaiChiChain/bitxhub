@@ -1,11 +1,12 @@
 package common
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-	"github.com/pkg/errors"
 )
 
 const (

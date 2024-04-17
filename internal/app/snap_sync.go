@@ -12,7 +12,8 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 )
@@ -66,7 +67,8 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 			return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
 		}
 		blockEpc := blockHeader.Epoch
-		info, err := base.GetEpochInfo(axm.ViewLedger.StateLedger, blockEpc)
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
+		info, err := epochManagerContract.HistoryEpoch(blockEpc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get epoch info err: %w", err)
 		}

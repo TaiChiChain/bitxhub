@@ -2,10 +2,11 @@ package txpool
 
 import (
 	"container/heap"
-	"fmt"
+	"errors"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/sirupsen/logrus"
 )
 
 type priceQueue[T any, Constraint types.TXConstraint[T]] struct {
@@ -40,7 +41,6 @@ func (p *priceQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint])
 	}
 	p.dirtyAccounts[from] = tx
 	p.priced.push(tx)
-
 }
 
 func (p *priceQueue[T, Constraint]) pop() *internalTransaction[T, Constraint] {
@@ -80,7 +80,7 @@ type priorityQueue[T any, Constraint types.TXConstraint[T]] struct {
 	// track all priority txs of account in the pool
 	accountsM map[string]*accountQueue[T, Constraint]
 
-	//store the tx sorted by gas price(descending order)
+	// store the tx sorted by gas price(descending order)
 	txsByPrice *priceQueue[T, Constraint]
 
 	// track the priority transaction.
@@ -100,6 +100,7 @@ func newPriorityQueue[T any, Constraint types.TXConstraint[T]](fn func(string) u
 		logger:       logger,
 	}
 }
+
 func (p *priorityQueue[T, Constraint]) push(tx *internalTransaction[T, Constraint]) {
 	from := tx.getAccount()
 	account, ok := p.accountsM[from]
@@ -139,7 +140,7 @@ func (p *priorityQueue[T, Constraint]) pop() *internalTransaction[T, Constraint]
 	}
 	tx := p.txsByPrice.pop()
 	if p.accountsM[tx.getAccount()].pop().getNonce() != tx.getNonce() {
-		panic(fmt.Errorf("pop tx from priority queue err: nonce not match"))
+		panic(errors.New("pop tx from priority queue err: nonce not match"))
 	}
 
 	from := tx.getAccount()
@@ -168,7 +169,7 @@ func (p *priorityQueue[T, Constraint]) shift(from string, lastNonce uint64) {
 	}
 
 	if _, ok := p.txsByPrice.dirtyAccounts[from]; ok {
-		panic(fmt.Errorf("shift tx to txsByPrice err: dirty account is not empty"))
+		panic(errors.New("shift tx to txsByPrice err: dirty account is not empty"))
 	}
 	p.txsByPrice.push(account.items[nonce])
 }

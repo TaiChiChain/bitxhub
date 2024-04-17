@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/log"
@@ -143,7 +142,7 @@ func TestStateUpdate(t *testing.T) {
 
 	peerSet := make([]string, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
-	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
+	lo.ForEach(vSet, func(item types.NodeInfo, index int) {
 		if item.P2PNodeID != adaptor.network.PeerID() {
 			peerSet = append(peerSet, item.P2PNodeID)
 		}
@@ -187,7 +186,7 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 
 	peerSet := make([]*consensus.QuorumValidator, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
-	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
+	lo.ForEach(vSet, func(item types.NodeInfo, index int) {
 		peerSet = append(peerSet, &consensus.QuorumValidator{
 			Id:     item.ID,
 			PeerId: item.P2PNodeID,
@@ -205,7 +204,7 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 		Validators: &consensus.QuorumValidators{Validators: peerSet},
 	}
 
-	adaptor.EpochInfo.ValidatorSet = make([]rbft.NodeInfo, 0)
+	adaptor.EpochInfo.ValidatorSet = make([]types.NodeInfo, 0)
 	adaptor.StateUpdate(0, block3.Header.Number, block3.Hash().String(),
 		[]*consensus.SignedCheckpoint{signCkp}, epochChange)
 
@@ -245,7 +244,7 @@ func TestStateUpdateWithRollback(t *testing.T) {
 
 	peerSet := make([]string, 0)
 	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
-	lo.ForEach(vSet, func(item rbft.NodeInfo, index int) {
+	lo.ForEach(vSet, func(item types.NodeInfo, index int) {
 		if item.P2PNodeID != adaptor.network.PeerID() {
 			peerSet = append(peerSet, item.P2PNodeID)
 		}

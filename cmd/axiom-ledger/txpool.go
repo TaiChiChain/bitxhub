@@ -7,13 +7,13 @@ import (
 	"os"
 	"path"
 
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/internal/txpool"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var decodeTxPoolPath string
@@ -74,7 +74,9 @@ func getAllTxRecords(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	records, err := txpool.GetAllTxRecords(p)
 	if err != nil {

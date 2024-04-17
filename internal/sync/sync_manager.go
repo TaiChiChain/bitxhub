@@ -643,7 +643,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 									"peerID": p.Id,
 								}).Error("Block not found")
 								sm.updatePeers(resp.From, stateResp.CheckpointState.LatestHeight)
-								return fmt.Errorf("block not found")
+								return errors.New("block not found")
 							}
 
 							if stateResp.Status == pb.Status_SUCCESS {

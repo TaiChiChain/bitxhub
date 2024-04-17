@@ -3,16 +3,16 @@ package consensus
 import (
 	"fmt"
 
-	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/solo"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/solo_dev"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/solo"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/solo_dev"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 type Consensus interface {

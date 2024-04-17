@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/intutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
@@ -23,6 +20,19 @@ const (
 	RecoveryAccountOwnerGas = 10000
 	MaxCallGasLimit         = 50000
 )
+
+var EntryPointBuildConfig = &common.SystemContractBuildConfig[*EntryPoint]{
+	Name:    "saccount_entry_point",
+	Address: common.EntryPointContractAddr,
+	AbiStr:  ientry_point.BindingContractMetaData.ABI,
+	Constructor: func(systemContractBase common.SystemContractBase) *EntryPoint {
+		return &EntryPoint{
+			SystemContractBase: systemContractBase,
+			NonceManager:       NewNonceManager(systemContractBase),
+			StakeManager:       NewStakeManager(systemContractBase),
+		}
+	},
+}
 
 type MemoryUserOp struct {
 	Sender               ethcommon.Address
@@ -47,74 +57,24 @@ type UserOpInfo struct {
 var _ interfaces.IEntryPoint = (*EntryPoint)(nil)
 
 type EntryPoint struct {
+	common.SystemContractBase
+
 	*NonceManager
 	*StakeManager
 	*common.ReentrancyGuard
-
-	logger   logrus.FieldLogger
-	selfAddr *types.Address
-
-	account       ledger.IAccount
-	currentUser   *ethcommon.Address
-	currentHeight uint64
-	currentLogs   *[]common.Log
-	stateLedger   ledger.StateLedger
-	currentEVM    *vm.EVM
 }
 
-func NewEntryPoint(cfg *common.SystemContractConfig) *EntryPoint {
-	ep := &EntryPoint{
-		logger:          loggers.Logger(loggers.SystemContract),
-		NonceManager:    NewNonceManager(),
-		StakeManager:    NewStakeManager(),
-		ReentrancyGuard: common.NewReentrancyGuard(),
-		selfAddr:        types.NewAddressByStr(common.EntryPointContractAddr),
-	}
-
-	return ep
+func (ep *EntryPoint) GenesisInit(genesis *repo.GenesisConfig) error {
+	return nil
 }
 
-func (ep *EntryPoint) SetContext(context *common.VMContext) {
-	ep.currentUser = context.CurrentUser
-	ep.currentHeight = context.CurrentHeight
-	ep.currentLogs = context.CurrentLogs
-	ep.stateLedger = context.StateLedger
-	ep.currentEVM = context.CurrentEVM
+func (ep *EntryPoint) SetContext(ctx *common.VMContext) {
+	ep.SystemContractBase.SetContext(ctx)
+	ep.NonceManager.SetContext(ctx)
+	ep.StakeManager.SetContext(ctx)
+	ep.ReentrancyGuard = common.NewReentrancyGuard()
 
-	addr := ep.selfAddress()
-	ep.account = ep.stateLedger.GetOrCreateAccount(addr)
-
-	ep.StakeManager.Init(ep.stateLedger)
-	ep.NonceManager.Init(ep.account)
-
-	ep.logger.Infof("EntryPoint SetContext")
-}
-
-func (ep *EntryPoint) selfAddress() *types.Address {
-	return ep.selfAddr
-}
-
-// nolint
-func (ep *EntryPoint) emitEvent(events ...[]byte) {
-	var data []byte
-	if len(events) > 4 {
-		for _, ev := range events[4:] {
-			data = append(data, ev...)
-		}
-		events = events[:4]
-	}
-
-	currentLog := common.Log{
-		Address: ep.selfAddress(),
-	}
-
-	for _, ev := range events {
-		currentLog.Topics = append(currentLog.Topics, types.NewHash(ev))
-	}
-	currentLog.Data = data
-	currentLog.Removed = false
-
-	*ep.currentLogs = append(*ep.currentLogs, currentLog)
+	ep.Logger.Infof("EntryPoint SetContext")
 }
 
 func (ep *EntryPoint) compensate(beneficiary ethcommon.Address, amount *big.Int) error {
@@ -133,7 +93,7 @@ func (ep *EntryPoint) compensate(beneficiary ethcommon.Address, amount *big.Int)
 // @param beneficiary the address to receive the fees
 // Attention: HandleOps must keep non reentrant
 func (ep *EntryPoint) HandleOps(ops []interfaces.UserOperation, beneficiary ethcommon.Address) error {
-	ep.logger.Infof("entrypoint handleOps, ops: %+v", ops)
+	ep.Logger.Infof("entrypoint handleOps, ops: %+v", ops)
 	if err := ep.Enter(); err != nil {
 		return err
 	}
@@ -151,7 +111,7 @@ func (ep *EntryPoint) HandleOps(ops []interfaces.UserOperation, beneficiary ethc
 		}
 	}
 
-	ep.emitBeforeExecution()
+	ep.EmitEvent("BeforeExecution")
 
 	collected := big.NewInt(0)
 	for i := 0; i < len(ops); i++ {
@@ -167,7 +127,7 @@ func (ep *EntryPoint) HandleOps(ops []interfaces.UserOperation, beneficiary ethc
 }
 
 func (ep *EntryPoint) SimulateHandleOp(op interfaces.UserOperation, target ethcommon.Address, targetCallData []byte) error {
-	ep.logger.Infof("entrypoint simulateHandleOp, op %+v, callData: %x, paymasterAndData: %x, target: %s, targetCallData: %x\n", op, op.CallData, op.PaymasterAndData, target.Hex(), targetCallData)
+	ep.Logger.Infof("entrypoint simulateHandleOp, op %+v, callData: %x, paymasterAndData: %x, target: %s, targetCallData: %x\n", op, op.CallData, op.PaymasterAndData, target.Hex(), targetCallData)
 	var opInfo UserOpInfo
 	if err := ep.simulationOnlyValidations(&op); err != nil {
 		return err
@@ -186,7 +146,7 @@ func (ep *EntryPoint) SimulateHandleOp(op interfaces.UserOperation, target ethco
 	}
 
 	if target != (ethcommon.Address{}) {
-		result, _, err := call(ep.stateLedger, ep.currentEVM, op.CallGasLimit, ep.selfAddress(), &target, targetCallData)
+		result, _, err := ep.CrossCallEVMContract(op.CallGasLimit, target, targetCallData)
 		if err != nil {
 			targetSuccess = false
 		}
@@ -198,7 +158,7 @@ func (ep *EntryPoint) SimulateHandleOp(op interfaces.UserOperation, target ethco
 }
 
 func (ep *EntryPoint) SimulateValidation(userOp interfaces.UserOperation) error {
-	ep.logger.Infof("entrypoint simulateValidation")
+	ep.Logger.Infof("entrypoint simulateValidation")
 	var outOpInfo UserOpInfo
 	if err := ep.simulationOnlyValidations(&userOp); err != nil {
 		return err
@@ -240,7 +200,7 @@ func (ep *EntryPoint) SimulateValidation(userOp interfaces.UserOperation) error 
 func (ep *EntryPoint) validatePrepayment(opIndex *big.Int, userOp *interfaces.UserOperation, outOpInfo *UserOpInfo) (validationData *interfaces.Validation, paymasterValidationData *big.Int, err error) {
 	mUserOp := &outOpInfo.MUserOp
 	if err := copyUserOpToMemory(userOp, mUserOp); err != nil {
-		return nil, nil, common.NewRevertStringError(err.Error())
+		return nil, nil, errors.New(err.Error())
 	}
 	outOpInfo.UserOpHash = ep.getUserOpHash(userOp)
 
@@ -248,7 +208,7 @@ func (ep *EntryPoint) validatePrepayment(opIndex *big.Int, userOp *interfaces.Us
 	// validate all numeric values in userOp are well below 128 bit, so they can safely be added
 	// and multiplied without causing overflow
 	if maxGasValues.BitLen() > 128 {
-		return nil, nil, common.NewRevertStringError("AA94 gas values overflow")
+		return nil, nil, errors.New("AA94 gas values overflow")
 	}
 
 	requiredPreFund := getRequiredPrefund(mUserOp)
@@ -257,7 +217,11 @@ func (ep *EntryPoint) validatePrepayment(opIndex *big.Int, userOp *interfaces.Us
 		return nil, nil, err
 	}
 
-	if !ep.validateAndUpdateNonce(mUserOp.Sender, mUserOp.Nonce) {
+	pass, err := ep.validateAndUpdateNonce(mUserOp.Sender, mUserOp.Nonce)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !pass {
 		return nil, nil, interfaces.FailedOp(opIndex, "AA25 invalid account nonce")
 	}
 
@@ -288,7 +252,7 @@ func (ep *EntryPoint) validatePrepayment(opIndex *big.Int, userOp *interfaces.Us
 
 func (ep *EntryPoint) validateAccountAndPaymasterValidationData(opIndex *big.Int, validation *interfaces.Validation, paymasterValidationData *big.Int, opInfo *UserOpInfo) error {
 	sigValidationResult := validation.SigValidation
-	outOfTimeRange := ep.currentEVM.Context.Time > validation.ValidUntil || ep.currentEVM.Context.Time < validation.ValidAfter
+	outOfTimeRange := ep.Ctx.CurrentEVM.Context.Time > validation.ValidUntil || ep.Ctx.CurrentEVM.Context.Time < validation.ValidAfter
 	if validation.ValidUntil == 0 {
 		validation.ValidUntil = interfaces.MaxUint48.Uint64()
 		outOfTimeRange = false
@@ -321,7 +285,7 @@ func (ep *EntryPoint) getValidationData(validationData *big.Int) (sigValidationR
 	}
 
 	data := interfaces.ParseValidationData(validationData)
-	outOfTimeRange = ep.currentEVM.Context.Time > data.ValidUntil || ep.currentEVM.Context.Time < data.ValidAfter
+	outOfTimeRange = ep.Ctx.CurrentEVM.Context.Time > data.ValidUntil || ep.Ctx.CurrentEVM.Context.Time < data.ValidAfter
 	if data.ValidUntil == interfaces.MaxUint48.Uint64() {
 		outOfTimeRange = false
 	}
@@ -348,15 +312,7 @@ func (ep *EntryPoint) validateAccountPrepayment(opIndex *big.Int, op *interfaces
 	}
 
 	// validate user operation
-	entryPointAddr := ep.selfAddress().ETHAddress()
-	sa := NewSmartAccount(ep.logger, ep)
-	sa.SetContext(&common.VMContext{
-		CurrentUser: &entryPointAddr,
-		StateLedger: ep.stateLedger,
-		CurrentLogs: ep.currentLogs,
-		CurrentEVM:  ep.currentEVM,
-	})
-	sa.InitializeOrLoad(sender, ethcommon.Address{}, ethcommon.Address{}, mUserOp.VerificationGasLimit)
+	sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), sender).SetRemainingGas(mUserOp.VerificationGasLimit)
 	validationData, err = sa.validateUserOp(op, opInfo.UserOpHash, big.NewInt(0))
 	if err != nil {
 		return big.NewInt(int64(usedGas)), nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA23 reverted: %s", err.Error()))
@@ -369,7 +325,7 @@ func (ep *EntryPoint) validatePaymasterPrepayment(opIndex *big.Int, op *interfac
 	mUserOp := opInfo.MUserOp
 	verificationGasLimit := mUserOp.VerificationGasLimit
 	if verificationGasLimit.Cmp(gasUsedByValidateAccountPrepayment) == -1 {
-		return nil, nil, common.NewRevertStringError("AA41 too little verificationGas")
+		return nil, nil, errors.New("AA41 too little verificationGas")
 	}
 
 	paymasterAddr := mUserOp.Paymaster
@@ -385,15 +341,6 @@ func (ep *EntryPoint) validatePaymasterPrepayment(opIndex *big.Int, op *interfac
 	// first, sub gas, after execute userOp, compensate left to paymaster
 	ep.subBalance(paymasterAddr, requiredPrefund)
 
-	// set paymaster context
-	entrypointAddr := ep.selfAddress().ETHAddress()
-	paymaster.SetContext(&common.VMContext{
-		StateLedger: ep.stateLedger,
-		CurrentLogs: ep.currentLogs,
-		CurrentEVM:  ep.currentEVM,
-		CurrentUser: &entrypointAddr,
-	})
-
 	context, validationData, err = paymaster.ValidatePaymasterUserOp(*op, opInfo.UserOpHash, requiredPrefund)
 	if err != nil {
 		return nil, nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA33 reverted: %s", err.Error()))
@@ -404,11 +351,11 @@ func (ep *EntryPoint) validatePaymasterPrepayment(opIndex *big.Int, op *interfac
 
 func (ep *EntryPoint) getPaymaster(paymasterAddr ethcommon.Address) (interfaces.IPaymaster, error) {
 	if paymasterAddr == ethcommon.HexToAddress(common.VerifyingPaymasterContractAddr) {
-		return NewVerifyingPaymaster(ep), nil
+		return VerifyingPaymasterBuildConfig.Build(ep.CrossCallSystemContractContext()), nil
 	} else if paymasterAddr == ethcommon.HexToAddress(common.TokenPaymasterContractAddr) {
-		return NewTokenPaymaster(ep), nil
+		return TokenPaymasterBuildConfig.Build(ep.CrossCallSystemContractContext()), nil
 	} else {
-		return nil, common.NewRevertStringError("paymaster not found")
+		return nil, errors.New("paymaster not found")
 	}
 }
 
@@ -418,8 +365,7 @@ func (ep *EntryPoint) getPaymaster(paymasterAddr ethcommon.Address) (interfaces.
 // @param opInfo the opInfo filled by validatePrepayment for this userOp.
 // @return actualGasCost the total amount this userOp paid.
 func (ep *EntryPoint) executeUserOp(opIndex *big.Int, userOp *interfaces.UserOperation, opInfo *UserOpInfo) (actualGasCost *big.Int, err error) {
-	context := opInfo.Context
-	return ep.innerHandleOp(opIndex, userOp.CallData, opInfo, context)
+	return ep.innerHandleOp(opIndex, userOp.CallData, opInfo, opInfo.Context)
 }
 
 // innerHandleOp is inner function to handle a UserOperation.
@@ -433,16 +379,8 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		if len(callData) < 4 {
 			return nil, interfaces.FailedOp(opIndex, "callData length not enough")
 		}
-		sa := NewSmartAccount(ep.logger, ep)
-		entryPointAddr := ep.selfAddress().ETHAddress()
-		sa.SetContext(&common.VMContext{
-			CurrentUser: &entryPointAddr,
-			StateLedger: ep.stateLedger,
-			CurrentLogs: ep.currentLogs,
-			CurrentEVM:  ep.currentEVM,
-		})
-		sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, mUserOp.CallGasLimit)
 
+		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.CallGasLimit)
 		isInnerMethod, callGas, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
 		if err != nil {
 			ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
@@ -456,9 +394,9 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		usedGas.Add(usedGas, big.NewInt(int64(callGas)))
 		if !isInnerMethod {
 			// call evm if not inner method
-			_, callGas, err := call(ep.stateLedger, ep.currentEVM, mUserOp.CallGasLimit, ep.selfAddress(), &mUserOp.Sender, callData)
+			_, callGas, err := ep.CrossCallEVMContract(mUserOp.CallGasLimit, mUserOp.Sender, callData)
 			if err != nil {
-				ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
+				ep.EmitEvent("UserOperationRevertReason", opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
 				mode = interfaces.OpReverted
 			}
 
@@ -466,7 +404,7 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		}
 	}
 
-	ep.logger.Infof("handle op, opIndex: %s, mode: %s, usedGas: %s, preOpGas: %s", opIndex.Text(10), mode, usedGas.Text(10), opInfo.PreOpGas.Text(10))
+	ep.Logger.Infof("handle op, opIndex: %s, mode: %s, usedGas: %s, preOpGas: %s", opIndex.Text(10), mode, usedGas.Text(10), opInfo.PreOpGas.Text(10))
 	actualGas := new(big.Int).Add(usedGas, opInfo.PreOpGas)
 	return ep.handlePostOp(opIndex, mode, opInfo, context, actualGas, totalValue)
 }
@@ -486,7 +424,6 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 	gasPrice := getUserOpGasPrice(&mUserOp)
 
 	paymaster := mUserOp.Paymaster
-	entrypointAddr := ep.selfAddress().ETHAddress()
 	actualGasCost := new(big.Int).Mul(actualGas, gasPrice)
 	if paymaster == (ethcommon.Address{}) {
 		refundAddress = mUserOp.Sender
@@ -497,56 +434,42 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 			if err != nil {
 				return nil, interfaces.FailedOp(opIndex, err.Error())
 			}
-			// set paymaster context
-			paymaster.SetContext(&common.VMContext{
-				StateLedger: ep.stateLedger,
-				CurrentLogs: ep.currentLogs,
-				CurrentEVM:  ep.currentEVM,
-				CurrentUser: &entrypointAddr,
-			})
 			if err := paymaster.PostOp(mode, context, actualGasCost); err != nil {
 				return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA50 postOp reverted: %s", err.Error()))
 			}
 		}
 	}
 
-	sa := NewSmartAccount(ep.logger, ep)
-	sa.SetContext(&common.VMContext{
-		StateLedger: ep.stateLedger,
-		CurrentLogs: ep.currentLogs,
-		CurrentEVM:  ep.currentEVM,
-		CurrentUser: &entrypointAddr,
-	})
-	sa.InitializeOrLoad(mUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, mUserOp.VerificationGasLimit)
+	sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.VerificationGasLimit)
 	if err := sa.postUserOp(opInfo.UseSessionKey, actualGasCost, totalValue); err != nil {
 		return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("post user op reverted: %s", err.Error()))
 	}
 
 	if opInfo.Prefund.Cmp(actualGasCost) == -1 {
-		ep.logger.Errorf("prefund is below actual gas cost, prefund: %s, actual gas cost: %s, actual gas: %s, gas price: %s", opInfo.Prefund.Text(10), actualGasCost.Text(10), actualGas.Text(10), gasPrice.Text(10))
+		ep.Logger.Errorf("prefund is below actual gas cost, prefund: %s, actual gas cost: %s, actual gas: %s, gas price: %s", opInfo.Prefund.Text(10), actualGasCost.Text(10), actualGas.Text(10), gasPrice.Text(10))
 		return nil, interfaces.FailedOp(opIndex, "AA51 prefund below actualGasCost")
 	}
 	refund := new(big.Int).Sub(opInfo.Prefund, actualGasCost)
 	ep.addBalance(refundAddress, refund)
 	success := mode == interfaces.OpSucceeded
 
-	ep.emitUserOperationEvent(opInfo.UserOpHash, mUserOp.Sender, paymaster, mUserOp.Nonce, success, actualGasCost, actualGas)
+	ep.EmitEvent("UserOperationEvent", opInfo.UserOpHash, mUserOp.Sender, paymaster, mUserOp.Nonce, success, actualGasCost, actualGas)
 	return actualGasCost, nil
 }
 
 func (ep *EntryPoint) GetUserOpHash(userOp interfaces.UserOperation) ethcommon.Hash {
-	return interfaces.GetUserOpHash(&userOp, ep.selfAddr.ETHAddress(), ep.currentEVM.ChainConfig().ChainID)
+	return interfaces.GetUserOpHash(&userOp, ep.EthAddress, ep.Ctx.CurrentEVM.ChainConfig().ChainID)
 }
 
 func (ep *EntryPoint) getUserOpHash(userOp *interfaces.UserOperation) []byte {
-	return interfaces.GetUserOpHash(userOp, ep.selfAddr.ETHAddress(), ep.currentEVM.ChainConfig().ChainID).Bytes()
+	return interfaces.GetUserOpHash(userOp, ep.EthAddress, ep.Ctx.CurrentEVM.ChainConfig().ChainID).Bytes()
 }
 
 func (ep *EntryPoint) createSenderIfNeeded(opIndex *big.Int, opInfo *UserOpInfo, initCode []byte) (uint64, error) {
 	var usedGas uint64
 	if len(initCode) > 0 {
 		sender := opInfo.MUserOp.Sender
-		account := ep.stateLedger.GetOrCreateAccount(types.NewAddress(sender.Bytes()))
+		account := ep.Ctx.StateLedger.GetOrCreateAccount(types.NewAddress(sender.Bytes()))
 		if account.Code() != nil {
 			return 0, interfaces.FailedOp(opIndex, "AA10 sender already constructed")
 		}
@@ -564,7 +487,7 @@ func (ep *EntryPoint) createSenderIfNeeded(opIndex *big.Int, opInfo *UserOpInfo,
 		}
 		factory := ethcommon.BytesToAddress(initCode[0:20])
 		// post AccountDeployed event
-		ep.emitAccountDeployed(opInfo.UserOpHash, sender, factory, opInfo.MUserOp.Paymaster)
+		ep.EmitEvent("AccountDeployed", opInfo.UserOpHash, sender, factory, opInfo.MUserOp.Paymaster)
 	}
 
 	return usedGas, nil
@@ -584,21 +507,11 @@ func (ep *EntryPoint) createSender(gas *big.Int, initCode []byte) (ethcommon.Add
 	// initCallData is method sig and packed arguments
 	initCallData := initCode[20:]
 
-	ep.logger.Infof("create sender, init code: %x, factoryAddr: %s", initCode, factoryAddr.Hex())
+	ep.Logger.Infof("create sender, init code: %x, factoryAddr: %s", initCode, factoryAddr.Hex())
 
 	// if factoryAddr is system contract, directly call
 	if factoryAddr.Hex() == common.AccountFactoryContractAddr {
-		factory := NewSmartAccountFactory(&common.SystemContractConfig{
-			Logger: ep.logger,
-		}, ep)
-		selfAddr := ep.selfAddress().ETHAddress()
-		factory.SetContext(&common.VMContext{
-			StateLedger:   ep.stateLedger,
-			CurrentHeight: ep.currentHeight,
-			CurrentLogs:   ep.currentLogs,
-			CurrentUser:   &selfAddr,
-			CurrentEVM:    ep.currentEVM,
-		})
+		factory := SmartAccountFactoryBuildConfig.Build(ep.CrossCallSystemContractContext())
 		// discard method signature
 		callData := initCallData[4:]
 		owner := ethcommon.BytesToAddress(callData[0:32])
@@ -608,8 +521,11 @@ func (ep *EntryPoint) createSender(gas *big.Int, initCode []byte) (ethcommon.Add
 		if len(callData) >= 64+32 {
 			guardian = ethcommon.BytesToAddress(callData[64 : 64+32])
 		}
-		sa := factory.CreateAccount(owner, salt, guardian)
-		return sa.selfAddress().ETHAddress(), CreateAccountGas, nil
+		sa, err := factory.CreateAccount(owner, salt, guardian)
+		if err != nil {
+			return ethcommon.Address{}, 0, err
+		}
+		return sa.EthAddress, CreateAccountGas, nil
 	}
 
 	return ethcommon.Address{}, 0, fmt.Errorf("only support factory address: %s", common.AccountFactoryContractAddr)
@@ -623,7 +539,7 @@ func (ep *EntryPoint) GetSenderAddress(initCode []byte) error {
 // HandleAccountRecovery handle account recovery
 // Attention: HandleAccountRecovery must keep non reentrant
 func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, beneficiary ethcommon.Address) error {
-	ep.logger.Infof("entrypoint HandleAccountRecovery, ops: %+v", ops)
+	ep.Logger.Infof("entrypoint HandleAccountRecovery, ops: %+v", ops)
 	if err := ep.Enter(); err != nil {
 		return err
 	}
@@ -633,21 +549,13 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 	for i := 0; i < len(ops); i++ {
 		// judge if account exist
 		sender := types.NewAddress(ops[i].Sender.Bytes())
-		account := ep.stateLedger.GetOrCreateAccount(sender)
+		account := ep.Ctx.StateLedger.GetOrCreateAccount(sender)
 		if code := account.Code(); len(code) == 0 {
-			return common.NewRevertStringError("smart account is not initialized")
+			return errors.New("smart account is not initialized")
 		}
 
 		// validate guardian signature
-		entryPointAddr := ep.selfAddress().ETHAddress()
-		sa := NewSmartAccount(ep.logger, ep)
-		sa.SetContext(&common.VMContext{
-			CurrentUser: &entryPointAddr,
-			StateLedger: ep.stateLedger,
-			CurrentLogs: ep.currentLogs,
-			CurrentEVM:  ep.currentEVM,
-		})
-		sa.InitializeOrLoad(sender.ETHAddress(), ethcommon.Address{}, ethcommon.Address{}, ops[i].VerificationGasLimit)
+		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), ops[i].Sender).SetRemainingGas(ops[i].VerificationGasLimit)
 		err := sa.ValidateGuardianSignature(ops[i].Signature, ep.getUserOpHash(&ops[i]))
 		if err != nil {
 			return interfaces.FailedOp(big.NewInt(int64(i)), fmt.Sprintf("validate guardian signature reverted: %s", err.Error()))
@@ -659,22 +567,12 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 		}
 	}
 
-	ep.emitBeforeExecution()
+	ep.EmitEvent("BeforeExecution")
 
 	collected := big.NewInt(0)
 	for i := 0; i < len(ops); i++ {
 		op := ops[i]
-		sender := types.NewAddress(op.Sender.Bytes())
-		entryPointAddr := ep.selfAddress().ETHAddress()
-		sa := NewSmartAccount(ep.logger, ep)
-		sa.SetContext(&common.VMContext{
-			CurrentUser: &entryPointAddr,
-			StateLedger: ep.stateLedger,
-			CurrentLogs: ep.currentLogs,
-			CurrentEVM:  ep.currentEVM,
-		})
-		sa.InitializeOrLoad(sender.ETHAddress(), ethcommon.Address{}, ethcommon.Address{}, op.CallGasLimit)
-
+		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), op.Sender).SetRemainingGas(op.CallGasLimit)
 		if len(op.CallData) < 20 {
 			return interfaces.FailedOp(big.NewInt(int64(i)), "callData is less than 20 bytes, should be contain address")
 		}
@@ -706,14 +604,14 @@ func (ep *EntryPoint) simulationOnlyValidations(userOp *interfaces.UserOperation
 }
 
 func (ep *EntryPoint) validateSenderAndPaymaster(initCode []byte, sender ethcommon.Address, paymasterAndData []byte) error {
-	account := ep.stateLedger.GetOrCreateAccount(types.NewAddress(sender.Bytes()))
+	account := ep.Ctx.StateLedger.GetOrCreateAccount(types.NewAddress(sender.Bytes()))
 	if len(initCode) == 0 && account.Code() == nil {
 		// it would revert anyway. but give a meaningful message
 		return errors.New("AA20 account not deployed")
 	}
 	if len(paymasterAndData) >= 20 {
 		paymaster := types.NewAddress(paymasterAndData[0:20])
-		paymasterAccount := ep.stateLedger.GetOrCreateAccount(paymaster)
+		paymasterAccount := ep.Ctx.StateLedger.GetOrCreateAccount(paymaster)
 		if paymasterAccount.Code() == nil {
 			// it would revert anyway. but give a meaningful message
 			return errors.New("AA30 paymaster not deployed")
@@ -725,113 +623,21 @@ func (ep *EntryPoint) validateSenderAndPaymaster(initCode []byte, sender ethcomm
 // GetDepositInfo overide StakeManager
 func (ep *EntryPoint) GetDepositInfo(account ethcommon.Address) *interfaces.DepositInfo {
 	info := ep.StakeManager.GetDepositInfo(account)
-	info.Deposit = ep.stateLedger.GetBalance(types.NewAddress(account.Bytes()))
+	info.Deposit = ep.Ctx.StateLedger.GetBalance(types.NewAddress(account.Bytes()))
 	return info
 }
 
 // BalanceOf overide StakeManager
 func (ep *EntryPoint) BalanceOf(account ethcommon.Address) *big.Int {
-	return ep.stateLedger.GetBalance(types.NewAddress(account.Bytes()))
+	return ep.Ctx.StateLedger.GetBalance(types.NewAddress(account.Bytes()))
 }
 
 func (ep *EntryPoint) addBalance(account ethcommon.Address, value *big.Int) {
-	ep.stateLedger.AddBalance(types.NewAddress(account.Bytes()), value)
+	ep.Ctx.StateLedger.AddBalance(types.NewAddress(account.Bytes()), value)
 }
 
 func (ep *EntryPoint) subBalance(account ethcommon.Address, value *big.Int) {
-	ep.stateLedger.SubBalance(types.NewAddress(account.Bytes()), value)
-}
-
-func (ep *EntryPoint) emitUserOperationEvent(userOpHash []byte, sender, paymaster ethcommon.Address, nonce *big.Int, success bool, actualGasCost, actualGasUsed *big.Int) {
-	userOpEvent := abi.NewEvent("UserOperationEvent", "UserOperationEvent", false, abi.Arguments{
-		{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
-		{Name: "sender", Type: common.AddressType, Indexed: true},
-		{Name: "paymaster", Type: common.AddressType, Indexed: true},
-		{Name: "nonce", Type: common.BigIntType},
-		{Name: "success", Type: common.BoolType},
-		{Name: "actualGasCost", Type: common.BigIntType},
-		{Name: "actualGasUsed", Type: common.BigIntType},
-	})
-
-	currentLog := common.Log{
-		Address: ep.selfAddress(),
-	}
-
-	// log can only index 4 topics
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(userOpEvent.ID.Bytes()))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(userOpHash))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(sender.Bytes()))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(paymaster.Bytes()))
-
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(nonce.Bytes(), 32)...)
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(common.Bool2Bytes(success), 32)...)
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(actualGasCost.Bytes(), 32)...)
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(actualGasUsed.Bytes(), 32)...)
-
-	currentLog.Removed = false
-
-	*ep.currentLogs = append(*ep.currentLogs, currentLog)
-}
-
-func (ep *EntryPoint) emitUserOperationRevertReason(userOpHash []byte, sender ethcommon.Address, nonce *big.Int, revertReason []byte) {
-	userOpRevertEvent := abi.NewEvent("UserOperationRevertReason", "UserOperationRevertReason", false, abi.Arguments{
-		{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
-		{Name: "sender", Type: common.AddressType, Indexed: true},
-		{Name: "nonce", Type: common.BigIntType},
-		{Name: "revertReason", Type: common.BytesType},
-	})
-	
-	currentLog := common.Log{
-		Address: ep.selfAddress(),
-	}
-
-	// log can only index 4 topics
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(userOpRevertEvent.ID.Bytes()))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(userOpHash))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(sender.Bytes()))
-
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(nonce.Bytes(), 32)...)
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(revertReason, 32)...)
-
-	currentLog.Removed = false
-
-	*ep.currentLogs = append(*ep.currentLogs, currentLog)
-}
-
-func (ep *EntryPoint) emitAccountDeployed(userOpHash []byte, sender, factory, paymaster ethcommon.Address) {
-	accountDeployedEvent := abi.NewEvent("AccountDeployed", "AccountDeployed", false, abi.Arguments{
-		{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
-		{Name: "sender", Type: common.AddressType, Indexed: true},
-		{Name: "factory", Type: common.AddressType},
-		{Name: "paymaster", Type: common.AddressType},
-	})
-
-	currentLog := common.Log{
-		Address: ep.selfAddress(),
-	}
-
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(accountDeployedEvent.ID.Bytes()))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(userOpHash))
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(sender.Bytes()))
-
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(factory.Bytes(), 32)...)
-	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(paymaster.Bytes(), 32)...)
-
-	currentLog.Removed = false
-	*ep.currentLogs = append(*ep.currentLogs, currentLog)
-}
-
-func (ep *EntryPoint) emitBeforeExecution() {
-	beforeExecutionEvent := abi.NewEvent("BeforeExecution", "BeforeExecution", false, abi.Arguments{})
-
-	currentLog := common.Log{
-		Address: ep.selfAddress(),
-	}
-
-	currentLog.Topics = append(currentLog.Topics, types.NewHash(beforeExecutionEvent.ID.Bytes()))
-
-	currentLog.Removed = false
-	*ep.currentLogs = append(*ep.currentLogs, currentLog)
+	ep.Ctx.StateLedger.SubBalance(types.NewAddress(account.Bytes()), value)
 }
 
 // TODO: use evm context gas price?
@@ -874,38 +680,4 @@ func getRequiredPrefund(mUserOp *MemoryUserOp) *big.Int {
 	requiredPrefund := new(big.Int).Mul(requiredGas, mUserOp.MaxFeePerGas)
 
 	return requiredPrefund
-}
-
-// call return call result, left over gas and error
-func call(stateLedger ledger.StateLedger, evm *vm.EVM, gas *big.Int, from *types.Address, to *ethcommon.Address, callData []byte) (returnData []byte, gasLeft uint64, err error) {
-	return callWithValue(stateLedger, evm, gas, big.NewInt(0), from, to, callData)
-}
-
-// callWithValue return call result, left over gas and error
-// nolint
-func callWithValue(stateLedger ledger.StateLedger, evm *vm.EVM, gas, value *big.Int, from *types.Address, to *ethcommon.Address, callData []byte) (returnData []byte, gasLeft uint64, err error) {
-	if gas == nil || gas.Sign() == 0 {
-		gas = big.NewInt(MaxCallGasLimit)
-	}
-	v, err := intutil.BigIntToUint256(value)
-	if err != nil {
-		return nil, gas.Uint64(), err
-	}
-	result, gasLeft, err := evm.Call(vm.AccountRef(from.ETHAddress()), *to, callData, gas.Uint64(), v)
-	if err == vm.ErrExecutionReverted {
-		err = fmt.Errorf("%s, reason: %x", err.Error(), result)
-	}
-	return result, gasLeft, err
-}
-
-// Initialize in genesis
-func Initialize(stateLedger ledger.StateLedger, admin string) error {
-	if !ethcommon.IsHexAddress(admin) {
-		return errors.New("invalid admin address")
-	}
-	owner := ethcommon.HexToAddress(admin)
-	InitializeVerifyingPaymaster(stateLedger, owner)
-	InitializeTokenPaymaster(stateLedger, owner)
-
-	return nil
 }

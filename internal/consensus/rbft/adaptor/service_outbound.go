@@ -13,17 +13,18 @@ import (
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
-func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerAccount string, proposerNodeID uint64) {
+func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerNodeID uint64) {
 	a.ReadyC <- &Ready{
 		Txs:             requests,
 		LocalList:       localList,
 		Height:          seqNo,
 		Timestamp:       timestamp,
-		ProposerAccount: proposerAccount,
+		ProposerAccount: syscommon.StakingManagerContractAddr,
 		ProposerNodeID:  proposerNodeID,
 	}
 }
@@ -32,12 +33,15 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	a.StateUpdating = true
 	a.StateUpdateHeight = seqNo
 
-	peersM := make(map[uint64]*sync_comm.Node)
+	peersM := make(map[uint64]*synccomm.Node)
 
 	// get the validator set of the current local epoch
-	for _, v := range a.EpochInfo.ValidatorSet {
-		if v.P2PNodeID != a.network.PeerID() {
-			peersM[v.ID] = &sync_comm.Node{Id: v.ID, PeerID: v.P2PNodeID}
+	for _, validatorInfo := range a.config.ChainState.ValidatorSet {
+		v, err := a.config.ChainState.GetNodeInfo(validatorInfo.ID)
+		if err == nil {
+			if v.NodeInfo.P2PID != a.config.ChainState.SelfNodeInfo.P2PID {
+				peersM[validatorInfo.ID] = &synccomm.Node{Id: validatorInfo.ID, PeerID: v.P2PID}
+			}
 		}
 	}
 
@@ -45,14 +49,14 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	if len(epochChanges) != 0 {
 		lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *consensus.QuorumValidator, _ int) {
 			if _, ok := peersM[v.Id]; !ok && v.PeerId != a.network.PeerID() {
-				peersM[v.Id] = &sync_comm.Node{Id: v.Id, PeerID: v.PeerId}
+				peersM[v.Id] = &synccomm.Node{Id: v.Id, PeerID: v.PeerId}
 			}
 		})
 	}
 	// flatten peersM
 	peers := lo.Values(peersM)
 
-	chain := a.getChainMetaFunc()
+	chain := a.config.ChainState.ChainMeta
 
 	startHeight := chain.Height + 1
 	latestBlockHash := chain.BlockHash.String()
@@ -66,7 +70,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	}
 
 	if chain.Height >= seqNo {
-		localBlockHeader, err := a.getBlockHeaderFunc(seqNo)
+		localBlockHeader, err := a.config.GetBlockHeaderFunc(seqNo)
 		if err != nil {
 			panic("get local block failed")
 		}
@@ -107,7 +111,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 
 	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
-		params := &sync_comm.SyncParams{
+		params := &synccomm.SyncParams{
 			Peers:           peers,
 			LatestBlockHash: latestBlockHash,
 			// ensure sync remote count including at least one correct node
@@ -149,7 +153,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			}).Info("State update finished")
 			return
 		case data := <-a.sync.Commit():
-			blockCache, ok := data.([]sync_comm.CommitData)
+			blockCache, ok := data.([]synccomm.CommitData)
 			if !ok {
 				panic("state update failed: invalid commit data")
 			}
@@ -165,7 +169,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 					stateUpdatedCheckpoint = checkpoints[0].GetCheckpoint()
 					a.quitSync <- struct{}{}
 				}
-				block, ok := commitData.(*sync_comm.BlockData)
+				block, ok := commitData.(*synccomm.BlockData)
 				if !ok {
 					panic("state update failed: invalid commit data")
 				}

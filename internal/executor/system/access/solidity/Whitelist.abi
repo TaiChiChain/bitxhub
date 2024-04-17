@@ -1,0 +1,166 @@
+[
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "submitter",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "addresses",
+        "type": "address[]"
+      }
+    ],
+    "name": "Remove",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "submitter",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "addresses",
+        "type": "address[]"
+      }
+    ],
+    "name": "Submit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isAdd",
+        "type": "bool"
+      },
+      {
+        "components":
+        [
+          {
+            "internalType": "address",
+            "name": "addr",
+            "type": "address"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ProviderInfo[]",
+        "name": "providers",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "UpdateProviders",
+    "type": "event"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "addr",
+        "type": "address"
+      }
+    ],
+    "name": "queryAuthInfo",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "address",
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "internalType": "address[]",
+            "name": "providers",
+            "type": "address[]"
+          },
+          {
+            "internalType": "enum UserRole",
+            "name": "role",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct AuthInfo",
+        "name": "authInfo",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "addr",
+        "type": "address"
+      }
+    ],
+    "name": "queryProviderInfo",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "address",
+            "name": "addr",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ProviderInfo",
+        "name": "providerInfo",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address[]",
+        "name": "addresses",
+        "type": "address[]"
+      }
+    ],
+    "name": "remove",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address[]",
+        "name": "addresses",
+        "type": "address[]"
+      }
+    ],
+    "name": "submit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

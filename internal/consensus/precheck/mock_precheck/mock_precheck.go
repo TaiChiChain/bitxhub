@@ -12,7 +12,7 @@ package mock_precheck
 import (
 	reflect "reflect"
 
-	rbft "github.com/axiomesh/axiom-bft"
+	types "github.com/axiomesh/axiom-kit/types"
 	common "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -38,11 +38,6 @@ func NewMockPreCheck(ctrl *gomock.Controller) *MockPreCheck {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockPreCheck) EXPECT() *MockPreCheckMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockPreCheck) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // PostUncheckedTxEvent mocks base method.
@@ -118,7 +113,7 @@ func (c *MockPreCheckStartCall) DoAndReturn(f func()) *MockPreCheckStartCall {
 }
 
 // UpdateEpochInfo mocks base method.
-func (m *MockPreCheck) UpdateEpochInfo(epoch *rbft.EpochInfo) {
+func (m *MockPreCheck) UpdateEpochInfo(epoch *types.EpochInfo) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UpdateEpochInfo", epoch)
 }
@@ -142,13 +137,13 @@ func (c *MockPreCheckUpdateEpochInfoCall) Return() *MockPreCheckUpdateEpochInfoC
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockPreCheckUpdateEpochInfoCall) Do(f func(*rbft.EpochInfo)) *MockPreCheckUpdateEpochInfoCall {
+func (c *MockPreCheckUpdateEpochInfoCall) Do(f func(*types.EpochInfo)) *MockPreCheckUpdateEpochInfoCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockPreCheckUpdateEpochInfoCall) DoAndReturn(f func(*rbft.EpochInfo)) *MockPreCheckUpdateEpochInfoCall {
+func (c *MockPreCheckUpdateEpochInfoCall) DoAndReturn(f func(*types.EpochInfo)) *MockPreCheckUpdateEpochInfoCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

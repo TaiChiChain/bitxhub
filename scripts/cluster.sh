@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 set -e
-source x.sh
 
 CURRENT_PATH=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
+source ${CURRENT_PATH}/x.sh
 PROJECT_PATH=$(dirname "${CURRENT_PATH}")
 BUILD_PATH=${CURRENT_PATH}/build
 N=4
@@ -53,6 +53,11 @@ function install_tmux(){
           sudo $PM_NAME install -y tmux
         fi
       fi
+    else
+      if [ "$(tmux -V)" != "tmux 3.4" ]; then
+        print_blue "===> Tmux version requires 3.4"
+        exit 1
+      fi
     fi
 }
 
@@ -60,17 +65,12 @@ function prepare() {
   print_blue "===> Generating $N nodes configuration"
   rm -rf "${BUILD_PATH}"
   mkdir "${BUILD_PATH}"
+  ${PROJECT_PATH}/bin/axiom-ledger cluster generate-default --target ${BUILD_PATH} --force
   for ((i = 1; i < N + 1; i = i + 1)); do
     root=${BUILD_PATH}/node${i}
-    mkdir ${root}
-    cp -rf ${CURRENT_PATH}/package/* ${root}/
+    cp -r ${CURRENT_PATH}/package/* ${root}/
     cp -f ${PROJECT_PATH}/bin/axiom-ledger ${root}/tools/bin/
-    echo "export AXIOM_LEDGER_PORT_JSONRPC=888${i}" >> ${root}/.env.sh
-    echo "export AXIOM_LEDGER_PORT_WEBSOCKET=999${i}" >> ${root}/.env.sh
-    echo "export AXIOM_LEDGER_PORT_P2P=400${i}" >> ${root}/.env.sh
-    echo "export AXIOM_LEDGER_PORT_PPROF=5312${i}" >> ${root}/.env.sh
-    echo "export AXIOM_LEDGER_PORT_MONITOR=4001${i}" >> ${root}/.env.sh
-    ${root}/axiom-ledger config generate --default-node-index ${i}
+    cat "${CURRENT_PATH}/package/.env" >> ${root}/.env
   done
 }
 
@@ -84,7 +84,6 @@ function splitWindow() {
 function start_by_tmux() {
   print_blue "===> Staring cluster"
   tmux new -d -s axiom-ledger || (tmux kill-session -t axiom-ledger && tmux new -d -s axiom-ledger)
-
   for ((i = 0; i < N / 4; i = i + 1)); do
     splitWindow
     tmux new-window

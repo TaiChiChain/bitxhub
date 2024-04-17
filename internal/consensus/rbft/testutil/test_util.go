@@ -6,19 +6,18 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common/mock_sync"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -97,14 +96,14 @@ func MockMiniBlockSync(ctrl *gomock.Controller) *mock_sync.MockSync {
 	blockCacheChan = make(chan any, 1024)
 	mock := mock_sync.NewMockSync(ctrl)
 	mock.EXPECT().StartSync(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(params *sync_comm.SyncParams, syncTaskDoneCh chan error) error {
-			blockCache := make([]sync_comm.CommitData, 0)
+		func(params *synccomm.SyncParams, syncTaskDoneCh chan error) error {
+			blockCache := make([]synccomm.CommitData, 0)
 			for i := params.CurHeight; i <= params.TargetHeight; i++ {
 				block, err := getRemoteMockBlockLedger(i)
 				if err != nil {
 					return err
 				}
-				data := &sync_comm.BlockData{
+				data := &synccomm.BlockData{
 					Block: block,
 				}
 				blockCache = append(blockCache, data)
@@ -121,7 +120,7 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
 
-	genesisEpochInfo := repo.GenesisEpochInfo(false)
+	genesisEpochInfo := repo.GenesisEpochInfo()
 	rep := t.TempDir()
 
 	epochStore, err := storagemgr.Open(repo.GetStoragePath(rep, storagemgr.Epoch))
@@ -136,7 +135,7 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		GenesisEpochInfo:     genesisEpochInfo,
 		Applied:              0,
 		Digest:               "",
-		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*rbft.EpochInfo, error) {
+		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*types.EpochInfo, error) {
 			return genesisEpochInfo, nil
 		},
 		GetChainMetaFunc: GetChainMetaFunc,
@@ -150,7 +149,7 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		GetAccountNonce: func(address *types.Address) uint64 {
 			return 0
 		},
-		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*rbft.EpochInfo, error) {
+		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*types.EpochInfo, error) {
 			return genesisEpochInfo, nil
 		},
 		GetArchiveModeFunc: func() bool {

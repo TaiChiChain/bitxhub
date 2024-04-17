@@ -2,110 +2,123 @@ package governance
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/access/solidity/whitelist"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var (
 	ErrExistVotingProposal = errors.New("check finished council proposal fail: exist voting proposal of council elect and whitelist provider")
 )
 
-type WhiteListProviderManager struct {
-	gov *Governance
+var _ ProposalHandler = (*WhitelistProviderManager)(nil)
+
+type WhitelistProviderInfo struct {
+	Addr string
 }
 
-// NewWhiteListProviderManager constructs a new NewWhiteListProviderManager
-func NewWhiteListProviderManager(gov *Governance) *WhiteListProviderManager {
-	return &WhiteListProviderManager{
-		gov: gov,
+type WhitelistProviderArgs struct {
+	Providers []WhitelistProviderInfo
+}
+
+type WhitelistProviderManager struct {
+	gov *Governance
+	DefaultProposalPermissionManager
+}
+
+func NewWhiteListProviderManager(gov *Governance) *WhitelistProviderManager {
+	return &WhitelistProviderManager{
+		gov:                              gov,
+		DefaultProposalPermissionManager: NewDefaultProposalPermissionManager(gov),
 	}
 }
 
-func (wlpm *WhiteListProviderManager) ProposeCheck(proposalType ProposalType, extra []byte) error {
+func (m *WhitelistProviderManager) GenesisInit(genesis *repo.GenesisConfig) error {
+	return nil
+}
+
+func (m *WhitelistProviderManager) SetContext(ctx *common.VMContext) {}
+
+func (m *WhitelistProviderManager) ProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
 	// Check if there are any finished council proposals and provider proposals
-	if err := wlpm.checkFinishedProposal(); err != nil {
+	if err := m.checkFinishedProposal(); err != nil {
 		return err
 	}
 
-	extraArgs, err := wlpm.getExtraArgs(extra)
+	extraArgs, err := m.getExtraArgs(extra)
 	if err != nil {
 		return err
 	}
 
-	if len(extraArgs.Providers) < 1 {
+	if len(extraArgs.Providers) == 0 {
 		return errors.New("empty providers")
+	}
+	var providersAddrs []ethcommon.Address
+	for _, provider := range extraArgs.Providers {
+		if !ethcommon.IsHexAddress(provider.Addr) {
+			return errors.Errorf("invalid provider address, %s", provider.Addr)
+		}
+		providersAddrs = append(providersAddrs, ethcommon.HexToAddress(provider.Addr))
 	}
 
 	// Check if the proposal providers have repeated addresses
-	if len(lo.Uniq[string](lo.Map[access.WhiteListProvider, string](extraArgs.Providers, func(item access.WhiteListProvider, index int) string {
-		return item.WhiteListProviderAddr
+	if len(lo.Uniq[string](lo.Map(extraArgs.Providers, func(item WhitelistProviderInfo, index int) string {
+		return item.Addr
 	}))) != len(extraArgs.Providers) {
 		return errors.New("provider address repeated")
 	}
 
-	// Check if the providers already exist
-	existProviders, err := access.GetProviders(wlpm.gov.stateLedger)
-	if err != nil {
-		return err
-	}
+	whitelistContract := access.WhitelistBuildConfig.Build(m.gov.CrossCallSystemContractContext())
 
 	switch proposalType {
 	case WhiteListProviderAdd:
-		// Iterate through the args.Providers array and check if each provider already exists in existProviders
-		for _, provider := range extraArgs.Providers {
-			if common.IsInSlice[string](provider.WhiteListProviderAddr, lo.Map[access.WhiteListProvider, string](existProviders, func(item access.WhiteListProvider, index int) string {
-				return item.WhiteListProviderAddr
-			})) {
-				return fmt.Errorf("provider already exists, %s", provider.WhiteListProviderAddr)
+		for _, provider := range providersAddrs {
+			if whitelistContract.ExistProvider(provider) {
+				return errors.Errorf("provider already exists, %v", provider)
 			}
 		}
 	case WhiteListProviderRemove:
-		// Iterate through the args.Providers array and check all providers are in existProviders
-		for _, provider := range extraArgs.Providers {
-			if !common.IsInSlice[string](provider.WhiteListProviderAddr, lo.Map[access.WhiteListProvider, string](existProviders, func(item access.WhiteListProvider, index int) string {
-				return item.WhiteListProviderAddr
-			})) {
-				return fmt.Errorf("provider does not exist, %s", provider.WhiteListProviderAddr)
+		for _, provider := range providersAddrs {
+			if !whitelistContract.ExistProvider(provider) {
+				return fmt.Errorf("provider does not exist, %v", provider)
 			}
 		}
+	default:
+		return errors.New("invalid proposal type")
 	}
 	return nil
 }
 
-// Execute add or remove providers in the WhiteListProviderManager.
-func (wlpm *WhiteListProviderManager) Execute(proposal *Proposal) error {
-	// if proposal is approved, update the node members
-	if proposal.Status == Approved {
-		modifyType := access.AddWhiteListProvider
-		if proposal.Type == WhiteListProviderRemove {
-			modifyType = access.RemoveWhiteListProvider
-		}
-
-		extraArgs, err := wlpm.getExtraArgs(proposal.Extra)
-		if err != nil {
-			return err
-		}
-
-		return access.AddAndRemoveProviders(wlpm.gov.stateLedger, modifyType, extraArgs.Providers)
+func (m *WhitelistProviderManager) VotePassExecute(proposal *Proposal) error {
+	extraArgs, err := m.getExtraArgs(proposal.Extra)
+	if err != nil {
+		return err
 	}
-	return nil
+	whitelistContract := access.WhitelistBuildConfig.Build(m.gov.CrossCallSystemContractContext())
+	return whitelistContract.UpdateProviders(proposal.Type == WhiteListProviderAdd, lo.Map(extraArgs.Providers, func(item WhitelistProviderInfo, index int) whitelist.ProviderInfo {
+		return whitelist.ProviderInfo{
+			Addr: ethcommon.HexToAddress(item.Addr),
+		}
+	}))
 }
 
-func (wlpm *WhiteListProviderManager) getExtraArgs(extra []byte) (*access.WhiteListProviderArgs, error) {
-	providerArgs := &access.WhiteListProviderArgs{}
+func (m *WhitelistProviderManager) getExtraArgs(extra []byte) (*WhitelistProviderArgs, error) {
+	providerArgs := &WhitelistProviderArgs{}
 	if err := json.Unmarshal(extra, providerArgs); err != nil {
 		return nil, errors.New("unmarshal provider extra arguments error")
 	}
 	return providerArgs, nil
 }
 
-func (wlpm *WhiteListProviderManager) checkFinishedProposal() error {
-	notFinishedProposals, err := wlpm.gov.notFinishedProposalMgr.GetProposals()
+func (m *WhitelistProviderManager) checkFinishedProposal() error {
+	_, notFinishedProposals, err := m.gov.notFinishedProposals.Get()
 	if err != nil {
 		return err
 	}

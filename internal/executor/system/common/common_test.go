@@ -5,14 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/axiomesh/axiom-kit/hexutil"
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/axiomesh/axiom-kit/hexutil"
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 func TestRevertError(t *testing.T) {
-	//0x6ca7b80600000000000000000000000027989c08e2cbb2979f8fbb398c6259c3c160d3c7
+	// 0x6ca7b80600000000000000000000000027989c08e2cbb2979f8fbb398c6259c3c160d3c7
 	sender := types.NewAddressByStr("0x8464135c8F25Da09e49BC8782676a84730C318bC").ETHAddress()
 	revertErr := NewRevertError("SenderAddressResult", abi.Arguments{
 		abi.Argument{
@@ -56,7 +57,7 @@ func TestEmitEvent(t *testing.T) {
 		}]`
 	parseAbi, err := abi.JSON(strings.NewReader(mockAbi))
 	assert.Nil(t, err)
-	log := EmitEvent(types.NewAddressByStr(ZeroAddress), parseAbi, "Stake",
+	log := packEvent(types.NewAddressByStr(ZeroAddress), parseAbi, "Stake",
 		big.NewInt(10).Bytes(), types.NewAddressByStr(ZeroAddress).Bytes(), big.NewInt(10).Bytes())
 	assert.NotNil(t, log)
 	assert.Equal(t, log.Address.String(), ZeroAddress)

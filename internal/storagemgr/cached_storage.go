@@ -2,8 +2,9 @@ package storagemgr
 
 import (
 	"github.com/VictoriaMetrics/fastcache"
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/axiomesh/axiom-kit/storage"
 )
 
 var (
