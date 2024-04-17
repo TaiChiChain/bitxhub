@@ -8,8 +8,10 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -263,48 +265,66 @@ func importAccounts(ctx *cli.Context) error {
 	return importAccountsFromFile(rep, rwLdg, ledgerImportAccountsArgs.TargetFilePath, ledgerImportAccountsArgs.Balance)
 }
 
-func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balance string) error {
-	g := r.GenesisConfig
-	currentHeight := lg.ChainLedger.GetChainMeta().Height
-	parentBlockHeader, err := lg.ChainLedger.GetBlockHeader(currentHeight)
-	if err != nil {
-		return err
+func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balanceStr string) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("account list file does not exist: %s, error: %v", filePath, err)
 	}
-	lg.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, currentHeight+1)
-	if _, err := os.Stat(filePath); err == nil {
-		file, err := os.Open(filePath)
+	totalLines, err := countLines(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to count lines in account list file: %v", err)
+	}
+	const batchSize = 100000
+	totalBatches := totalLines / batchSize
+	if totalLines%batchSize > 0 {
+		totalBatches++
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open account list file: %v", err)
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	currentLine := 0
+	for batch := 0; batch < totalBatches; batch++ {
+		currentHeight := lg.ChainLedger.GetChainMeta().Height
+		fmt.Printf("current height: %d\n", currentHeight)
+		parentBlockHeader, err := lg.ChainLedger.GetBlockHeader(currentHeight)
 		if err != nil {
-			return fmt.Errorf("failed to open account list file: %v", err)
+			return err
 		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		count := 0
-		for scanner.Scan() {
-			count++
+		lg.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, currentHeight+1)
+		startLine := batch * batchSize
+		endLine := startLine + batchSize
+		if endLine > totalLines {
+			endLine = totalLines
+		}
+		for currentLine < endLine && scanner.Scan() {
 			address := scanner.Text()
 			account := lg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(address))
-			balance, _ := new(big.Int).SetString(balance, 10)
-			account.AddBalance(balance)
-			if (count % 1000) == 0 {
-				lg.StateLedger.Finalise()
-				_, err := lg.StateLedger.Commit()
-				if err != nil {
-					return err
-				}
-				count = 0
+			balance, ok := new(big.Int).SetString(balanceStr, 10)
+			if !ok {
+				return fmt.Errorf("failed to parse balance value: %s", balanceStr)
 			}
+			account.AddBalance(balance)
+			currentLine++
 		}
-	} else {
-		return fmt.Errorf("account list file does not exist at path: %s", filePath)
+		if err := persistBlock4Test(r, lg, currentHeight, parentBlockHeader); err != nil {
+			return err
+		}
 	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error scanning file: %v", err)
+	}
+	return nil
+}
 
+func persistBlock4Test(r *repo.Repo, lg *ledger.Ledger, currentHeight uint64, parentBlockHeader *types.BlockHeader) error {
 	lg.StateLedger.Finalise()
 	stateRoot, err := lg.StateLedger.Commit()
 	if err != nil {
 		return err
 	}
-
+	g := r.GenesisConfig
 	block := &types.Block{
 		Header: &types.BlockHeader{
 			Number:          currentHeight + 1,
@@ -326,6 +346,55 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 
 	lg.PersistBlockData(blockData)
 	return nil
+}
+
+func countLines(filePath string) (int, error) {
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+		return countLinesWC(filePath)
+	} else {
+		return countLinesBuffered(filePath)
+	}
+}
+
+func countLinesBuffered(filePath string) (int, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	lineCount := 0
+
+	for {
+		_, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, err
+		}
+		if !isPrefix {
+			lineCount++
+		}
+	}
+
+	return lineCount, nil
+}
+
+func countLinesWC(filePath string) (int, error) {
+	cmd := exec.Command("wc", "-l", filePath)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	var lineCount int
+	_, err = fmt.Sscanf(string(output), "%d", &lineCount)
+	if err != nil {
+		return 0, err
+	}
+	return lineCount, nil
 }
 
 func getBlock(ctx *cli.Context) error {
