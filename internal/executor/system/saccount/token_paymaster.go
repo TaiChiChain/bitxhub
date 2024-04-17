@@ -6,18 +6,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/pkg/errors"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ipaymaster"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
-	tokenOwnerKey  = "token_owner_key"
-	tokenOracleKey = "token_oracle_key"
+	tokenOwnerKey  = "owner"
+	tokenOracleKey = "oracle"
 )
 
 var (
@@ -35,87 +35,82 @@ var (
 	}
 )
 
+var TokenPaymasterBuildConfig = &common.SystemContractBuildConfig[*TokenPaymaster]{
+	Name:    "saccount_token_paymaster",
+	Address: common.TokenPaymasterContractAddr,
+	AbiStr:  ipaymaster.BindingContractMetaData.ABI,
+	Constructor: func(systemContractBase common.SystemContractBase) *TokenPaymaster {
+		return &TokenPaymaster{
+			SystemContractBase: systemContractBase,
+		}
+	},
+}
+
 var _ interfaces.IPaymaster = (*TokenPaymaster)(nil)
 
 type TokenPaymaster struct {
-	entryPoint interfaces.IEntryPoint
-	selfAddr   *types.Address
+	common.SystemContractBase
 
-	account ledger.IAccount
+	owner *common.VMSlot[ethcommon.Address]
 
-	// context fields
-	currentUser *ethcommon.Address
-
-	currentLogs *[]common.Log
-	stateLedger ledger.StateLedger
-	currentEVM  *vm.EVM
+	// token -> tokenPriceOracle
+	oracles *common.VMMap[ethcommon.Address, ethcommon.Address]
 }
 
-func NewTokenPaymaster(entryPoint interfaces.IEntryPoint) *TokenPaymaster {
-	return &TokenPaymaster{
-		entryPoint: entryPoint,
-		selfAddr:   types.NewAddressByStr(common.TokenPaymasterContractAddr),
+func (tp *TokenPaymaster) GenesisInit(genesis *repo.GenesisConfig) error {
+	if !ethcommon.IsHexAddress(genesis.SmartAccountAdmin) {
+		return errors.New("invalid admin address")
 	}
-}
 
-func InitializeTokenPaymaster(stateLedger ledger.StateLedger, owner ethcommon.Address) {
-	account := stateLedger.GetOrCreateAccount(types.NewAddressByStr(common.TokenPaymasterContractAddr))
-	account.SetState([]byte(tokenOwnerKey), owner.Bytes())
-}
-
-func (tp *TokenPaymaster) GetOwner() ethcommon.Address {
-	isExist, ownerBytes := tp.account.GetState([]byte(tokenOwnerKey))
-	if isExist {
-		return ethcommon.BytesToAddress(ownerBytes)
+	if err := tp.owner.Put(ethcommon.HexToAddress(genesis.SmartAccountAdmin)); err != nil {
+		return err
 	}
-	return ethcommon.Address{}
+	return nil
 }
 
-func (tp *TokenPaymaster) SetContext(context *common.VMContext) {
-	tp.currentUser = context.CurrentUser
-	tp.currentLogs = context.CurrentLogs
-	tp.stateLedger = context.StateLedger
-	tp.currentEVM = context.CurrentEVM
+func (tp *TokenPaymaster) SetContext(ctx *common.VMContext) {
+	tp.SystemContractBase.SetContext(ctx)
 
-	tp.account = tp.stateLedger.GetOrCreateAccount(tp.selfAddress())
-}
-
-func (tp *TokenPaymaster) selfAddress() *types.Address {
-	return tp.selfAddr
+	tp.owner = common.NewVMSlot[ethcommon.Address](tp.StateAccount, tokenOwnerKey)
+	tp.oracles = common.NewVMMap[ethcommon.Address, ethcommon.Address](tp.StateAccount, tokenOracleKey, func(key ethcommon.Address) string {
+		return key.String()
+	})
 }
 
 func (tp *TokenPaymaster) AddToken(token, tokenPriceOracle ethcommon.Address) error {
-	if tp.currentUser.Hex() != tp.GetOwner().Hex() {
-		return common.NewRevertStringError("only owner can add token")
+	owner, err := tp.owner.MustGet()
+	if err != nil {
+		return err
 	}
 
-	key := append([]byte(tokenOracleKey), token.Bytes()...)
-	if isExist, _ := tp.account.GetState(key); isExist {
-		return common.NewRevertStringError("token already set")
+	if tp.Ctx.From != owner {
+		return errors.New("only owner can add token")
 	}
 
-	tp.account.SetState(key, tokenPriceOracle.Bytes())
+	if tp.oracles.Has(token) {
+		return errors.New("token already set")
+	}
+
+	if err := tp.oracles.Put(token, tokenPriceOracle); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (tp *TokenPaymaster) GetToken(token ethcommon.Address) ethcommon.Address {
-	key := append([]byte(tokenOracleKey), token.Bytes()...)
-	if isExist, oracleBytes := tp.account.GetState(key); isExist {
-		return ethcommon.BytesToAddress(oracleBytes)
-	}
-
-	return ethcommon.Address{}
+	res, _ := tp.oracles.MustGet(token)
+	return res
 }
 
 // PostOp implements interfaces.IPaymaster.
 func (tp *TokenPaymaster) PostOp(mode interfaces.PostOpMode, context []byte, actualGasCost *big.Int) error {
-	if tp.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call post op")
+	if tp.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call post op")
 	}
 
 	account, tokenAddr, _, maxTokenCost, maxCost, err := decodeContext(context)
 	if err != nil {
-		return common.NewRevertStringError(fmt.Sprintf("token paymaster: decode context failed: %s", err.Error()))
+		return fmt.Errorf("token paymaster: decode context failed: %s", err.Error())
 	}
 
 	// use same conversion rate as used for validation.
@@ -126,11 +121,12 @@ func (tp *TokenPaymaster) PostOp(mode interfaces.PostOpMode, context []byte, act
 
 // ValidatePaymasterUserOp implements interfaces.IPaymaster.
 func (tp *TokenPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
-	if tp.currentUser.Hex() != common.EntryPointContractAddr {
-		return nil, nil, common.NewRevertStringError("only entrypoint can call validate paymaster user op")
+	if tp.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return nil, nil, errors.New("only entrypoint can call validate paymaster user op")
 	}
 
 	context, validation, err := tp.validatePaymasterUserOp(userOp, userOpHash, maxCost)
+	// nolint
 	return context, big.NewInt(int64(validation.SigValidation)), err
 }
 
@@ -139,24 +135,24 @@ func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperatio
 	validation = &interfaces.Validation{SigValidation: interfaces.SigValidationFailed}
 	paymasterAndData := userOp.PaymasterAndData
 	if len(paymasterAndData) < 20+20 {
-		return nil, validation, common.NewRevertStringError("token paymaster: paymasterAndData must specify token")
+		return nil, validation, errors.New("token paymaster: paymasterAndData must specify token")
 	}
 
 	tokenAddr := ethcommon.BytesToAddress(paymasterAndData[20:40])
 	maxTokenCost, err := tp.getTokenValueOfAxc(tokenAddr, maxCost)
 	if err != nil {
-		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token %s value failed: %s", tokenAddr.String(), err.Error()))
+		return nil, validation, fmt.Errorf(fmt.Sprintf("token paymaster: get token %s value failed: %s", tokenAddr.String(), err.Error()))
 	}
 	balance, err := tp.getTokenBalance(userOp.Sender, tokenAddr)
 	if err != nil {
-		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: get token balance failed: %s", err.Error()))
+		return nil, validation, fmt.Errorf("token paymaster: get token balance failed: %s", err.Error())
 	}
 	if balance.Cmp(maxTokenCost) < 0 {
-		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: not enough token balance, balance: %s, maxTokenCost: %s", balance.String(), maxTokenCost.String()))
+		return nil, validation, fmt.Errorf("token paymaster: not enough token balance, balance: %s, maxTokenCost: %s", balance.String(), maxTokenCost.String())
 	}
 	context, err = encodeContext(userOp.Sender, tokenAddr, interfaces.GetGasPrice(&userOp), maxTokenCost, maxCost)
 	if err != nil {
-		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: encode context failed: %s", err.Error()))
+		return nil, validation, fmt.Errorf("token paymaster: encode context failed: %s", err.Error())
 	}
 	validation.SigValidation = interfaces.SigValidationSucceeded
 	return context, validation, err
@@ -165,13 +161,15 @@ func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperatio
 // nolint
 // getTokenValueOfAxc translate the give axc value to token value
 func (tp *TokenPaymaster) getTokenValueOfAxc(token ethcommon.Address, value *big.Int) (*big.Int, error) {
-	key := append([]byte(tokenOracleKey), token.Bytes()...)
-	if isExist, oracleBytes := tp.account.GetState(key); isExist {
-		oracleAddr := ethcommon.BytesToAddress(oracleBytes)
+	exist, oracleAddr, err := tp.oracles.Get(token)
+	if err != nil {
+		return nil, err
+	}
+	if exist {
 		callData := append(getTokenValueOfAxcSig, ethcommon.LeftPadBytes(token.Bytes(), 32)...)
 		callData = append(callData, ethcommon.LeftPadBytes(value.Bytes(), 32)...)
 		// return value of token is 10 decimals
-		tokenValueRes, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &oracleAddr, callData)
+		tokenValueRes, _, err := tp.CrossCallEVMContract(big.NewInt(MaxCallGasLimit), oracleAddr, callData)
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +177,7 @@ func (tp *TokenPaymaster) getTokenValueOfAxc(token ethcommon.Address, value *big
 
 		// get token decimals
 		callData = decimalsSig
-		tokenDecimalsRes, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &token, callData)
+		tokenDecimalsRes, _, err := tp.CrossCallEVMContract(big.NewInt(MaxCallGasLimit), token, callData)
 		if err != nil {
 			return nil, err
 		}
@@ -193,12 +191,12 @@ func (tp *TokenPaymaster) getTokenValueOfAxc(token ethcommon.Address, value *big
 		return new(big.Int).Div(tokenValue, new(big.Int).Exp(big.NewInt(10), new(big.Int).Sub(big.NewInt(10), tokenDecimals), nil)), nil
 	}
 
-	return big.NewInt(0), common.NewRevertStringError(fmt.Sprintf("token paymaster: token %s not set oracle", token.String()))
+	return big.NewInt(0), fmt.Errorf("token paymaster: token %s not set oracle", token.String())
 }
 
 func (tp *TokenPaymaster) getTokenBalance(account, token ethcommon.Address) (*big.Int, error) {
 	callData := append(balanceOfSig, ethcommon.LeftPadBytes(account.Bytes(), 32)...)
-	result, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &token, callData)
+	result, _, err := tp.CrossCallEVMContract(big.NewInt(MaxCallGasLimit), token, callData)
 	if err != nil {
 		return nil, err
 	}
@@ -208,11 +206,11 @@ func (tp *TokenPaymaster) getTokenBalance(account, token ethcommon.Address) (*bi
 
 func (tp *TokenPaymaster) transferFrom(account, token ethcommon.Address, tokenValue *big.Int) error {
 	callData := append(transferFromSig, ethcommon.LeftPadBytes(account.Bytes(), 32)...)
-	callData = append(callData, ethcommon.LeftPadBytes(tp.selfAddress().Bytes(), 32)...)
+	callData = append(callData, ethcommon.LeftPadBytes(tp.EthAddress.Bytes(), 32)...)
 	callData = append(callData, ethcommon.LeftPadBytes(tokenValue.Bytes(), 32)...)
-	_, _, err := call(tp.stateLedger, tp.currentEVM, big.NewInt(MaxCallGasLimit), tp.selfAddress(), &token, callData)
+	_, _, err := tp.CrossCallEVMContract(big.NewInt(MaxCallGasLimit), token, callData)
 	if err != nil {
-		return common.NewRevertStringError(fmt.Sprintf("token paymaster: call transferFrom failed: %s", err.Error()))
+		return fmt.Errorf("token paymaster: call transferFrom failed: %s", err.Error())
 	}
 
 	return nil

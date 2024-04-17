@@ -24,6 +24,7 @@ import (
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -209,7 +210,7 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 		return nil, err
 	}
 
-	return formatBlock(api.api, api.rep.GenesisConfig, blockHeader, fullTx)
+	return formatBlock(api.api, api.api.ChainState().EpochInfo, blockHeader, fullTx)
 }
 
 // GetBlockByHash returns the block identified by hash.
@@ -231,7 +232,7 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map
 		}
 		return nil, err
 	}
-	return formatBlock(api.api, api.rep.GenesisConfig, blockHeader, fullTx)
+	return formatBlock(api.api, api.api.ChainState().EpochInfo, blockHeader, fullTx)
 }
 
 // GetCode returns the contract code at the given address, blockNum is ignored.
@@ -499,7 +500,7 @@ func (api *BlockChainAPI) CreateAccessList(args types.CallArgs, blockNrOrHash *r
 
 // FormatBlock creates an ethereum block from a tendermint header and ethereum-formatted
 // transactions.
-func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, blockHeader *types.BlockHeader, fullTx bool) (map[string]any, error) {
+func formatBlock(api api.CoreAPI, epochInfo *types.EpochInfo, blockHeader *types.BlockHeader, fullTx bool) (map[string]any, error) {
 	var err error
 	var transactions []any
 	if fullTx {
@@ -539,10 +540,10 @@ func formatBlock(api api.CoreAPI, genesisConfig *repo.GenesisConfig, blockHeader
 		"logsBloom":        blockHeader.Bloom.ETHBloom(),
 		"transactionsRoot": blockHeader.TxRoot.ETHHash(),
 		"stateRoot":        blockHeader.StateRoot.ETHHash(),
-		"miner":            blockHeader.ProposerAccount,
-		"extraData":        ethhexutil.Bytes(blockHeader.Extra),
+		"miner":            syscommon.StakingManagerContractAddr,
+		"extraData":        ethhexutil.Bytes([]byte{}),
 		"size":             ethhexutil.Uint64(blockExtra.Size),
-		"gasLimit":         ethhexutil.Uint64(genesisConfig.EpochInfo.FinanceParams.GasLimit), // Static gas limit
+		"gasLimit":         ethhexutil.Uint64(epochInfo.FinanceParams.GasLimit), // Static gas limit
 		"gasUsed":          ethhexutil.Uint64(blockHeader.GasUsed),
 		"timestamp":        ethhexutil.Uint64(blockHeader.Timestamp),
 		"transactions":     transactions,

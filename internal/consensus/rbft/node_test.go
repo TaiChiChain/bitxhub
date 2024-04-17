@@ -2,13 +2,12 @@ package rbft
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/samber/lo"
@@ -19,6 +18,7 @@ import (
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/log"
+	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
@@ -81,7 +81,7 @@ func TestStart(t *testing.T) {
 			name: "start rbft failed",
 			setupMocks: func(n *Node, ctrl *gomock.Controller) {
 				r := rbft.NewMockNode[types.Transaction, *types.Transaction](ctrl)
-				r.EXPECT().Start().Return(fmt.Errorf("start rbft error")).AnyTimes()
+				r.EXPECT().Start().Return(errors.New("start rbft error")).AnyTimes()
 				r.EXPECT().ReportExecuted(gomock.Any()).AnyTimes()
 				n.n = r
 			},
@@ -91,9 +91,8 @@ func TestStart(t *testing.T) {
 			name: "start pool failed",
 			setupMocks: func(n *Node, ctrl *gomock.Controller) {
 				pool := mock_txpool.NewMockTxPool[types.Transaction, *types.Transaction](ctrl)
-				pool.EXPECT().Start().Return(fmt.Errorf("start txpool error")).AnyTimes()
+				pool.EXPECT().Start().Return(errors.New("start txpool error")).AnyTimes()
 				n.txpool = pool
-
 			},
 			expectedErrMsg: "start txpool error",
 		},
@@ -115,7 +114,6 @@ func TestStart(t *testing.T) {
 				pool.EXPECT().Start().Return(nil).AnyTimes()
 				pool.EXPECT().GetLocalTxs().Return(data).AnyTimes()
 				n.txpool = pool
-
 			},
 			expectedErrMsg: "",
 		},
@@ -167,8 +165,8 @@ func TestNewNode(t *testing.T) {
 			name: "invalid config",
 			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
 				// illegal config
-				consensusConf.GetCurrentEpochInfoFromEpochMgrContractFunc = func() (*rbft.EpochInfo, error) {
-					return nil, fmt.Errorf("get epoch info error")
+				consensusConf.GetCurrentEpochInfoFromEpochMgrContractFunc = func() (*types.EpochInfo, error) {
+					return nil, errors.New("get epoch info error")
 				}
 			},
 			expectedErrMsg: "get epoch info error",
@@ -225,6 +223,7 @@ func TestNewNode(t *testing.T) {
 		}
 	}
 }
+
 func TestPrepare(t *testing.T) {
 	ast := assert.New(t)
 	ctrl := gomock.NewController(t)
@@ -423,22 +422,22 @@ func TestQuorum(t *testing.T) {
 	ast := assert.New(t)
 	ctrl := gomock.NewController(t)
 	node := MockMinNode(ctrl, t)
-	node.stack.EpochInfo.ValidatorSet = []rbft.NodeInfo{}
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 1})
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 2})
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 3})
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 4})
+	node.stack.EpochInfo.ValidatorSet = []types.NodeInfo{}
+	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 1})
+	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 2})
+	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 3})
+	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 4})
 
 	// N = 3f + 1, f=1
 	quorum := node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
 	ast.Equal(uint64(3), quorum)
 
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 5})
+	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 5})
 	// N = 3f + 2, f=1
 	quorum = node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
 	ast.Equal(uint64(4), quorum)
 
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, rbft.NodeInfo{ID: 6})
+	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 6})
 	// N = 3f + 3, f=1
 	quorum = node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
 	ast.Equal(uint64(4), quorum)

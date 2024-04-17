@@ -4,10 +4,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/common"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 func TestEvmStateDBAdaptor_TestSnapshot(t *testing.T) {

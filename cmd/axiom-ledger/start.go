@@ -38,11 +38,30 @@ func start(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(configGenerateArgs.Auth, p, true)
+	password := keystorePasswordFlagVar
+	if !ctx.IsSet(keystorePasswordFlag().Name) {
+		password, err = enterPassword(false)
+		if err != nil {
+			return err
+		}
+	}
+
+	r, err := repo.Load(p)
 	if err != nil {
 		return err
 	}
 	r.StartArgs = &repo.StartArgs{ReadonlyMode: startArgs.Readonly, SnapshotMode: startArgs.Snapshot}
+	if err := r.ReadKeystore(); err != nil {
+		return err
+	}
+
+	if password == "" {
+		password = repo.DefaultKeystorePassword
+		fmt.Println("keystore password is empty, will use default:", password)
+	}
+	if err := r.DecryptKeystore(password); err != nil {
+		return err
+	}
 
 	appCtx, cancel := context.WithCancel(ctx.Context)
 	if err := loggers.Initialize(appCtx, r, true); err != nil {
@@ -104,10 +123,6 @@ func start(ctx *cli.Context) error {
 		if err := cbs.Start(); err != nil {
 			return fmt.Errorf("start chain broker service failed: %w", err)
 		}
-
-		axm.Monitor = monitor
-		axm.Pprof = pprof
-		axm.Jsonrpc = cbs
 
 		wg.Add(1)
 		handleShutdown(axm, &wg)

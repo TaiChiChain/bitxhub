@@ -59,7 +59,6 @@ func (r *txRecords[T, Constraint]) load(input *os.File, taskDoneCh chan struct{}
 					if len(batch) > 0 {
 						batchCh <- batch
 					}
-
 				} else {
 					r.logger.Errorf("TxRecords load failed to peek transaction size: %v", err)
 				}

@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 
+	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
+	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/mux"
@@ -18,8 +20,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/ratelimiter"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 )
 
 type ChainBrokerService struct {

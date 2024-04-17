@@ -7,7 +7,7 @@ var (
 	ErrGasOutOfRange        = errors.New("parent gas price is out of range")
 	ErrNoIncentiveAddrFound = errors.New("incentive part in genesis config is required")
 	ErrAXCContractType      = errors.New("axc contract not implement SystemContract Interface")
-	//ErrMiningRewardExceeds = errors.New("the mining rewards exceeds remaining value")
+	// ErrMiningRewardExceeds = errors.New("the mining rewards exceeds remaining value")
 )
 
 type MiningRules struct {

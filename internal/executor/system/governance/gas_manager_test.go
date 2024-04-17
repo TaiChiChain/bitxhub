@@ -4,16 +4,17 @@ import (
 	"encoding/json"
 	"testing"
 
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func TestGasManager_RunForPropose(t *testing.T) {
@@ -31,7 +32,7 @@ func TestGasManager_RunForPropose(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -58,10 +59,10 @@ func TestGasManager_RunForPropose(t *testing.T) {
 	g := repo.GenesisEpochInfo(true)
 	g.EpochPeriod = 100
 	g.StartBlock = 1
-	err = base.InitEpochInfo(stateLedger, g)
+	err = framework.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
-	err = InitGasParam(stateLedger, &rbft.EpochInfo{
+	err = InitGasParam(stateLedger, &types.EpochInfo{
 		FinanceParams: rbft.FinanceParams{
 			StartGasPriceAvailable: true,
 			StartGasPrice:          5000000000000,
@@ -159,10 +160,10 @@ func TestGasManager_RunForPropose(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		data, err := json.Marshal(test.Data)
@@ -183,7 +184,6 @@ func TestGasManager_RunForPropose(t *testing.T) {
 			}
 		}
 	}
-
 }
 
 func TestGasManager_VoteExecute(t *testing.T) {
@@ -201,7 +201,7 @@ func TestGasManager_VoteExecute(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -228,10 +228,10 @@ func TestGasManager_VoteExecute(t *testing.T) {
 	g := repo.GenesisEpochInfo(true)
 	g.EpochPeriod = 100
 	g.StartBlock = 1
-	err = base.InitEpochInfo(stateLedger, g)
+	err = framework.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
-	err = InitGasParam(stateLedger, &rbft.EpochInfo{
+	err = InitGasParam(stateLedger, &types.EpochInfo{
 		FinanceParams: rbft.FinanceParams{
 			StartGasPriceAvailable: true,
 			StartGasPrice:          5000000000000,
@@ -253,10 +253,10 @@ func TestGasManager_VoteExecute(t *testing.T) {
 	logs := make([]common.Log, 0)
 	addr := types.NewAddressByStr(admin1).ETHAddress()
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+		From:        &addr,
+		BlockNumber: 1,
+		CurrentLogs: &logs,
+		StateLedger: stateLedger,
 	})
 
 	err = gov.Propose(uint8(GasUpdate), "test", "test desc", 100, data)
@@ -292,10 +292,10 @@ func TestGasManager_VoteExecute(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		err = gov.Vote(test.ProposalID, uint8(test.Res))

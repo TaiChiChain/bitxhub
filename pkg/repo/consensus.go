@@ -7,6 +7,12 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/axiomesh/axiom-kit/types"
+)
+
+const (
+	GenerateBatchByTime     = "fifo" // default
+	GenerateBatchByGasPrice = "price_priority"
 )
 
 type ReceiveMsgLimiter struct {
@@ -29,16 +35,16 @@ type TimedGenBlock struct {
 }
 
 type TxPool struct {
-	PoolSize               uint64   `mapstructure:"pool_size" toml:"pool_size"`
-	ToleranceTime          Duration `mapstructure:"tolerance_time" toml:"tolerance_time"`
-	ToleranceRemoveTime    Duration `mapstructure:"tolerance_remove_time" toml:"tolerance_remove_time"`
-	CleanEmptyAccountTime  Duration `mapstructure:"clean_empty_account_time" toml:"clean_empty_account_time"`
-	ToleranceNonceGap      uint64   `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
-	EnableLocalsPersist    bool     `mapstructure:"enable_locals_persist" toml:"enable_locals_persist"`
-	RotateTxLocalsInterval Duration `mapstructure:"rotate_tx_locals_interval" toml:"rotate_tx_locals_interval"`
-	PriceLimit             uint64   `mapstructure:"price_limit" toml:"price_limit"`
-	PriceBump              uint64   `mapstructure:"price_bump" toml:"price_bump"`
-	GenerateBatchType      string   `mapstructure:"generate_batch_type" toml:"generate_batch_type"`
+	PoolSize               uint64            `mapstructure:"pool_size" toml:"pool_size"`
+	ToleranceTime          Duration          `mapstructure:"tolerance_time" toml:"tolerance_time"`
+	ToleranceRemoveTime    Duration          `mapstructure:"tolerance_remove_time" toml:"tolerance_remove_time"`
+	CleanEmptyAccountTime  Duration          `mapstructure:"clean_empty_account_time" toml:"clean_empty_account_time"`
+	ToleranceNonceGap      uint64            `mapstructure:"tolerance_nonce_gap" toml:"tolerance_nonce_gap"`
+	EnableLocalsPersist    bool              `mapstructure:"enable_locals_persist" toml:"enable_locals_persist"`
+	RotateTxLocalsInterval Duration          `mapstructure:"rotate_tx_locals_interval" toml:"rotate_tx_locals_interval"`
+	PriceLimit             *types.CoinNumber `mapstructure:"price_limit" toml:"price_limit"`
+	PriceBump              uint64            `mapstructure:"price_bump" toml:"price_bump"`
+	GenerateBatchType      string            `mapstructure:"generate_batch_type" toml:"generate_batch_type"`
 }
 
 type TxCache struct {
@@ -134,14 +140,14 @@ func LoadConsensusConfig(repoRoot string) (*ConsensusConfig, error) {
 				return nil, errors.Wrap(err, "failed to build default consensus config")
 			}
 		} else {
-			if err := readConfigFromFile(cfgPath, cfg); err != nil {
+			if err := ReadConfigFromFile(cfgPath, cfg); err != nil {
 				return nil, err
 			}
 		}
 		return cfg, nil
 	}()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load network config")
+		return nil, errors.Wrap(err, "failed to load consensus config")
 	}
 	return cfg, nil
 }

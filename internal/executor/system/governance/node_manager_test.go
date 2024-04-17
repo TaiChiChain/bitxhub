@@ -4,24 +4,19 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger, *rbft.EpochInfo) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
-	})
+func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger, *types.EpochInfo) {
+	gov := NewGov()
 
 	mockCtl := gomock.NewController(t)
 	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
@@ -32,7 +27,7 @@ func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -59,7 +54,7 @@ func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger
 	g := repo.GenesisEpochInfo(true)
 	g.EpochPeriod = 100
 	g.StartBlock = 1
-	err = base.InitEpochInfo(stateLedger, g)
+	err = framework.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
 	err = InitNodeMembers(stateLedger, []*repo.NodeName{
@@ -67,8 +62,8 @@ func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger
 			ID:   1,
 			Name: "111",
 		},
-	}, &rbft.EpochInfo{
-		ValidatorSet: []rbft.NodeInfo{
+	}, &types.EpochInfo{
+		ValidatorSet: []types.NodeInfo{
 			{
 				ID:             1,
 				AccountAddress: admin1,
@@ -92,7 +87,7 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 	}{
 		{
 			Caller: admin1,
-			Type:   NodeAdd,
+			Type:   NodeRegister,
 			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
@@ -106,7 +101,7 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 		{
 			Caller: "0x1000000000000000000000000000000000000000",
-			Type:   NodeAdd,
+			Type:   NodeRegister,
 			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
@@ -120,7 +115,7 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 		{
 			Caller: admin1,
-			Type:   NodeAdd,
+			Type:   NodeRegister,
 			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
@@ -139,7 +134,7 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 		{
 			Caller: admin1,
-			Type:   NodeAdd,
+			Type:   NodeRegister,
 			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
@@ -158,7 +153,7 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		},
 		{
 			Caller: admin1,
-			Type:   NodeAdd,
+			Type:   NodeRegister,
 			Data: &NodeExtraArgs{
 				Nodes: []*NodeMember{
 					{
@@ -285,10 +280,10 @@ func TestNodeManager_RunForPropose(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		data, err := json.Marshal(test.Data)
@@ -339,10 +334,10 @@ func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		data, err := json.Marshal(test.Data)
@@ -375,7 +370,7 @@ func TestNodeManager_GetNodeMembers(t *testing.T) {
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -403,8 +398,8 @@ func TestNodeManager_GetNodeMembers(t *testing.T) {
 			ID:   1,
 			Name: "111",
 		},
-	}, &rbft.EpochInfo{
-		ValidatorSet: []rbft.NodeInfo{
+	}, &types.EpochInfo{
+		ValidatorSet: []types.NodeInfo{
 			{
 				ID:             1,
 				AccountAddress: admin1,
@@ -427,10 +422,10 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
 
 	arg := NodeExtraArgs{
@@ -445,16 +440,16 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 	data, err := json.Marshal(arg)
 	assert.Nil(t, err)
 
-	err = gov.Propose(uint8(NodeAdd), "test", "test desc", 100, data)
+	err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
 	assert.Nil(t, err)
 
-	g.DataSyncerSet = append(g.DataSyncerSet, rbft.NodeInfo{
+	g.DataSyncerSet = append(g.DataSyncerSet, types.NodeInfo{
 		ID:                   9,
 		AccountAddress:       "0x88E9A1cE92b4D6e4d860CFBB5bB7aC44d9b548f8",
 		P2PNodeID:            "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
 		ConsensusVotingPower: 100,
 	})
-	err = base.InitEpochInfo(stateLedger, g)
+	err = framework.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
 	testcases := []struct {
@@ -466,25 +461,25 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 	}{
 		{
 			Caller:     admin1,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
 			Err:        ErrUseHasVoted,
 		},
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
 			HasErr:     false,
 		},
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
 			Err:        ErrUseHasVoted,
 		},
 		{
 			Caller:     "0x1000000000000000000000000000000000000000",
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
 			Err:        ErrNotFoundCouncilMember,
 		},
@@ -494,10 +489,10 @@ func TestNodeManager_RunForAddVote(t *testing.T) {
 		logs = make([]common.Log, 0)
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			CurrentUser:   &addr,
+			StateLedger: stateLedger,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			From:        &addr,
 		})
 
 		err := gov.Vote(test.ProposalID, uint8(test.Res))
@@ -522,10 +517,10 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
 
 	arg := NodeExtraArgs{
@@ -540,7 +535,7 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 	data, err := json.Marshal(arg)
 	assert.Nil(t, err)
 
-	err = gov.Propose(uint8(NodeAdd), "test", "test desc", 100, data)
+	err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
 	assert.Nil(t, err)
 
 	testcases := []struct {
@@ -550,12 +545,12 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
 		},
 		{
 			Caller:     admin3,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
 		},
 	}
@@ -564,10 +559,10 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 		logs = make([]common.Log, 0)
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			CurrentUser:   &addr,
+			StateLedger: stateLedger,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			From:        &addr,
 		})
 
 		err := gov.Vote(test.ProposalID, uint8(test.Res))
@@ -582,14 +577,14 @@ func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
 func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 	gov, stateLedger, g := PrepareNodeManager(t)
 
-	dataSyncSet := rbft.NodeInfo{
+	dataSyncSet := types.NodeInfo{
 		ID:                   9,
 		AccountAddress:       admin4,
 		P2PNodeID:            "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
 		ConsensusVotingPower: 100,
 	}
 	g.DataSyncerSet = append(g.DataSyncerSet, dataSyncSet)
-	err := base.InitEpochInfo(stateLedger, g)
+	err := framework.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
 	err = InitNodeMembers(stateLedger, []*repo.NodeName{
@@ -601,15 +596,15 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 			ID:   9,
 			Name: "444",
 		},
-	}, &rbft.EpochInfo{
-		ValidatorSet: []rbft.NodeInfo{
+	}, &types.EpochInfo{
+		ValidatorSet: []types.NodeInfo{
 			{
 				ID:             1,
 				AccountAddress: admin1,
 				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
 			},
 		},
-		DataSyncerSet: []rbft.NodeInfo{dataSyncSet},
+		DataSyncerSet: []types.NodeInfo{dataSyncSet},
 	})
 	// propose
 	addr := types.NewAddressByStr(admin1)
@@ -617,10 +612,10 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
 
 	err = gov.Propose(uint8(NodeRemove), "test title", "test desc", 100, generateNodeRemoveProposeData(t, NodeExtraArgs{
@@ -638,23 +633,23 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 	ethaddr = types.NewAddressByStr(admin2).ETHAddress()
 	logs = make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
-	err = gov.Vote(gov.proposalID.GetID()-1, uint8(Pass))
+	err = gov.Vote(gov.nextProposalID.GetID()-1, uint8(Pass))
 	assert.Nil(t, err)
 
 	ethaddr = types.NewAddressByStr(admin3).ETHAddress()
 	logs = make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
-	err = gov.Vote(gov.proposalID.GetID()-1, uint8(Pass))
+	err = gov.Vote(gov.nextProposalID.GetID()-1, uint8(Pass))
 	assert.Nil(t, err)
 
 	nodes, err := GetNodeMembers(stateLedger)
@@ -671,10 +666,10 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
 
 	err := gov.Propose(uint8(NodeRemove), "test title", "test desc", 100, generateNodeRemoveProposeData(t, NodeExtraArgs{
@@ -697,19 +692,19 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 		{
 			Caller:     admin1,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			Err:        ErrUseHasVoted,
 		},
 		{
 			Caller:     "0x1000000000000000000000000000000000000000",
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			Err:        ErrNotFoundCouncilMember,
 		},
@@ -719,10 +714,10 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 		ethaddr = types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 1,
-			CurrentUser:   &ethaddr,
-			CurrentLogs:   &logs,
+			StateLedger: stateLedger,
+			BlockNumber: 1,
+			From:        &ethaddr,
+			CurrentLogs: &logs,
 		})
 
 		err := gov.Vote(test.ProposalID, uint8(test.Res))
@@ -747,12 +742,12 @@ func TestNodeManager_RunForUpgradeVote(t *testing.T) {
 
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		StateLedger:   stateLedger,
-		CurrentHeight: 1,
-		CurrentUser:   &ethaddr,
-		CurrentLogs:   &logs,
+		StateLedger: stateLedger,
+		BlockNumber: 1,
+		From:        &ethaddr,
+		CurrentLogs: &logs,
 	})
-	err := gov.Propose(uint8(NodeUpgrade), "test title", "test desc", 100, generateNodeUpgradeProposeData(t, UpgradeExtraArgs{
+	err := gov.Propose(uint8(NodeUpgrade), "test title", "test desc", 100, generateNodeUpgradeProposeData(t, NodeUpgradeExtraArgs{
 		DownloadUrls: []string{"http://127.0.0.1:9000"},
 		CheckHash:    "hash",
 	}))
@@ -767,19 +762,19 @@ func TestNodeManager_RunForUpgradeVote(t *testing.T) {
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 		{
 			Caller:     admin1,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			Err:        ErrUseHasVoted,
 		},
 		{
 			Caller:     "0x1000000000000000000000000000000000000000",
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
 			Err:        ErrNotFoundCouncilMember,
 		},
@@ -789,10 +784,10 @@ func TestNodeManager_RunForUpgradeVote(t *testing.T) {
 		ethaddr = types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			StateLedger:   stateLedger,
-			CurrentHeight: 1,
-			CurrentUser:   &ethaddr,
-			CurrentLogs:   &logs,
+			StateLedger: stateLedger,
+			BlockNumber: 1,
+			From:        &ethaddr,
+			CurrentLogs: &logs,
 		})
 
 		err := gov.Vote(test.ProposalID, uint8(test.Res))
@@ -814,7 +809,7 @@ func generateNodeRemoveProposeData(t *testing.T, extraArgs NodeExtraArgs) []byte
 	return data
 }
 
-func generateNodeUpgradeProposeData(t *testing.T, extraArgs UpgradeExtraArgs) []byte {
+func generateNodeUpgradeProposeData(t *testing.T, extraArgs NodeUpgradeExtraArgs) []byte {
 	data, err := json.Marshal(extraArgs)
 	assert.Nil(t, err)
 	return data

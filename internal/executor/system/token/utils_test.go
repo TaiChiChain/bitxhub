@@ -111,17 +111,17 @@ func newMockMinLedger(t *testing.T) *mockLedger {
 	return mockLg
 }
 
-func mockAxmManager(t *testing.T) *Manager {
+func mockAxmManager(t *testing.T) *AXC {
 	logger := log.NewWithModule("token")
 
 	mockLg := newMockMinLedger(t)
-	genesisConf := repo.DefaultGenesisConfig(false)
+	genesisConf := repo.DefaultGenesisConfig()
 	conf, err := GenerateConfig(genesisConf)
 	require.Nil(t, err)
 	err = Init(mockLg, conf)
 	require.Nil(t, err)
 	contractAccount := mockLg.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
 
-	am := &Manager{logger: logger, account: contractAccount, stateLedger: mockLg}
+	am := &AXC{logger: logger, account: contractAccount, stateLedger: mockLg}
 	return am
 }

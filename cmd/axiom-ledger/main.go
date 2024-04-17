@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -35,6 +36,8 @@ func main() {
 		ledgerCMD,
 		epochCMD,
 		txpoolCMD,
+		keystoreCMD,
+		clusterCMD,
 		{
 			Name:   "start",
 			Usage:  "Start a long-running daemon process",
@@ -54,7 +57,7 @@ func main() {
 					Destination: &startArgs.Snapshot,
 					Required:    false,
 				},
-				passwordFlag(),
+				keystorePasswordFlag(),
 			},
 		},
 		{

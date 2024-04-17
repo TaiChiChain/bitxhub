@@ -37,7 +37,7 @@ func TestRunForPropose(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -241,10 +241,10 @@ func TestRunForPropose(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		data, err := json.Marshal(test.ExtraArg)
@@ -278,7 +278,7 @@ func TestVoteExecute(t *testing.T) {
 	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
+	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
 		{
 			Address: admin1,
 			Weight:  1,
@@ -305,10 +305,10 @@ func TestVoteExecute(t *testing.T) {
 	addr := types.NewAddressByStr(admin1).ETHAddress()
 	logs := make([]common.Log, 0)
 	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+		From:        &addr,
+		BlockNumber: 1,
+		CurrentLogs: &logs,
+		StateLedger: stateLedger,
 	})
 
 	data, err := json.Marshal(Candidates{
@@ -364,10 +364,10 @@ func TestVoteExecute(t *testing.T) {
 		addr := types.NewAddressByStr(test.Caller).ETHAddress()
 		logs := make([]common.Log, 0)
 		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+			From:        &addr,
+			BlockNumber: 1,
+			CurrentLogs: &logs,
+			StateLedger: stateLedger,
 		})
 
 		err = gov.Vote(test.ProposalID, uint8(test.Res))

@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -10,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
@@ -70,14 +70,69 @@ type StateLedgerImpl struct {
 	// enableExpensiveMetric determines if costly metrics gathering is allowed or not.
 	// The goal is to separate standard metrics for health monitoring and debug metrics that might impact runtime performance.
 	enableExpensiveMetric bool
-
-	getEpochInfoFunc func(epoch uint64) (*rbft.EpochInfo, error)
 }
 
 type SnapshotMeta struct {
 	BlockHeader *types.BlockHeader
-	EpochInfo   *rbft.EpochInfo
+	EpochInfo   *types.EpochInfo
 	Nodes       *consensus.QuorumValidators
+}
+
+type snapshotMetaMarshalHelper struct {
+	BlockHeader []byte `json:"block_header"`
+	EpochInfo   []byte `json:"epoch_info"`
+	Nodes       []byte `json:"nodes"`
+}
+
+func (m *SnapshotMeta) Marshal() ([]byte, error) {
+	blockHeader, err := m.BlockHeader.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	epochInfo, err := m.EpochInfo.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := m.Nodes.MarshalVTStrict()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(&snapshotMetaMarshalHelper{
+		BlockHeader: blockHeader,
+		EpochInfo:   epochInfo,
+		Nodes:       nodes,
+	})
+}
+
+func (m *SnapshotMeta) Unmarshal(data []byte) error {
+	var helper snapshotMetaMarshalHelper
+	if err := json.Unmarshal(data, &helper); err != nil {
+		return err
+	}
+
+	blockHeader := &types.BlockHeader{}
+	err := blockHeader.Unmarshal(helper.BlockHeader)
+	if err != nil {
+		return err
+	}
+	epochInfo := &types.EpochInfo{}
+	err = epochInfo.Unmarshal(helper.EpochInfo)
+	if err != nil {
+		return err
+	}
+
+	nodes := &consensus.QuorumValidators{}
+	err = nodes.UnmarshalVT(helper.Nodes)
+	if err != nil {
+		return err
+	}
+
+	m.BlockHeader = blockHeader
+	m.EpochInfo = epochInfo
+	m.Nodes = nodes
+
+	return nil
 }
 
 // NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
@@ -104,6 +159,7 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 		accessList:            NewAccessList(),
 		logs:                  newEvmLogs(),
 		enableExpensiveMetric: l.enableExpensiveMetric,
+		blockHeight:           blockHeader.Number,
 	}
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
@@ -137,6 +193,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 		accessList:            NewAccessList(),
 		logs:                  newEvmLogs(),
 		enableExpensiveMetric: l.enableExpensiveMetric,
+		blockHeight:           blockHeader.Number,
 	}
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
@@ -162,12 +219,6 @@ func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
 	return minHeight, maxHeight
 }
 
-func (l *StateLedgerImpl) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {
-	l.getEpochInfoFunc = func(epoch uint64) (*rbft.EpochInfo, error) {
-		return f(l, epoch)
-	}
-}
-
 func (l *StateLedgerImpl) Finalise() {
 	for _, account := range l.accounts {
 		keys := account.Finalise()
@@ -183,10 +234,9 @@ func (l *StateLedgerImpl) Finalise() {
 	l.ClearChangerAndRefund()
 }
 
-// todo make arguments configurable
-func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *consensus.QuorumValidators, kv storage.Storage, errC chan error) {
-	stateRoot := blockHeader.StateRoot.ETHHash()
-	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", blockHeader.Hash(), stateRoot)
+func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv storage.Storage, errC chan error) {
+	stateRoot := snapshotMeta.BlockHeader.StateRoot.ETHHash()
+	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", snapshotMeta.BlockHeader.Hash(), stateRoot)
 
 	queue := []common.Hash{stateRoot}
 	batch := kv.NewBatch()
@@ -232,31 +282,12 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
 
-	blockData, err := blockHeader.Marshal()
+	snapshotMetaBytes, err := snapshotMeta.Marshal()
 	if err != nil {
 		errC <- err
 		return
 	}
-	batch.Put([]byte(utils.TrieBlockHeaderKey), blockData)
-
-	epochInfo, err := l.getEpochInfoFunc(blockHeader.Epoch)
-	if err != nil {
-		l.logger.Errorf("l.getEpochInfoFunc error:%v\n", err.Error())
-		errC <- err
-	}
-	blob, err := epochInfo.Marshal()
-	if err != nil {
-		errC <- err
-		return
-	}
-	batch.Put([]byte(utils.TrieNodeInfoKey), blob)
-
-	nodesIdBytes, err := nodesId.MarshalVT()
-	if err != nil {
-		errC <- err
-		return
-	}
-	batch.Put([]byte(utils.TrieNodeIdKey), nodesIdBytes)
+	batch.Put([]byte(utils.SnapshotMetaKey), snapshotMetaBytes)
 
 	batch.Commit()
 	l.logger.Infof("[IterateTrie] iterate trie successfully")
@@ -265,34 +296,16 @@ func (l *StateLedgerImpl) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 }
 
 func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
-	rawBlock := l.backend.Get([]byte(utils.TrieBlockHeaderKey))
-	rawEpochInfo := l.backend.Get([]byte(utils.TrieNodeInfoKey))
-	rawNodes := l.backend.Get([]byte(utils.TrieNodeIdKey))
-	if len(rawBlock) == 0 || len(rawEpochInfo) == 0 || len(rawNodes) == 0 {
+	raw := l.backend.Get([]byte(utils.SnapshotMetaKey))
+	if len(raw) == 0 {
 		return nil, ErrNotFound
 	}
-	blockHeader := &types.BlockHeader{}
-	err := blockHeader.Unmarshal(rawBlock)
-	if err != nil {
-		return nil, err
-	}
-	epochInfo := &rbft.EpochInfo{}
-	err = epochInfo.Unmarshal(rawEpochInfo)
-	if err != nil {
-		return nil, err
-	}
 
-	nodes := &consensus.QuorumValidators{}
-	err = nodes.UnmarshalVT(rawNodes)
-	if err != nil {
+	snapshotMeta := &SnapshotMeta{}
+	if err := snapshotMeta.Unmarshal(raw); err != nil {
 		return nil, err
 	}
-	meta := &SnapshotMeta{
-		BlockHeader: blockHeader,
-		EpochInfo:   epochInfo,
-		Nodes:       nodes,
-	}
-	return meta, nil
+	return snapshotMeta, nil
 }
 
 func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC chan error) {
@@ -432,4 +445,8 @@ func (l *StateLedgerImpl) SetTxContext(thash *types.Hash, ti int) {
 func (l *StateLedgerImpl) Close() {
 	_ = l.backend.Close()
 	l.triePreloader.close()
+}
+
+func (l *StateLedgerImpl) CurrentBlockHeight() uint64 {
+	return l.blockHeight
 }

@@ -393,10 +393,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 }
 
 func (l *StateLedgerImpl) getJnlHeightSize() uint64 {
-	if l.repo.EpochInfo.ConsensusParams.CheckpointPeriod < MinJournalHeight {
-		return MinJournalHeight
-	}
-	return l.repo.EpochInfo.ConsensusParams.CheckpointPeriod
+	return MinJournalHeight
 }
 
 // Version returns the current version

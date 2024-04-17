@@ -8,15 +8,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/internal/components"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gammazero/workerpool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
+	"github.com/axiomesh/axiom-ledger/internal/components"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -51,18 +51,17 @@ type TxPreCheckMgr struct {
 	verifyDataCh chan *common.UncheckedTxEvent
 	validTxsCh   chan *ValidTxs
 	logger       logrus.FieldLogger
+	chainState   *chainstate.ChainState
+	txpool       txpool.TxPool[types.Transaction, *types.Transaction]
 
-	txpool txpool.TxPool[types.Transaction, *types.Transaction]
-
-	BaseFee        *big.Int // current is 0
-	getBalanceFn   func(address string) *big.Int
-	getChainMetaFn func() *types.ChainMeta
+	BaseFee      *big.Int // current is 0
+	getBalanceFn func(address string) *big.Int
 
 	ctx       context.Context
 	txMaxSize atomic.Uint64
 }
 
-func (tp *TxPreCheckMgr) UpdateEpochInfo(epoch *rbft.EpochInfo) {
+func (tp *TxPreCheckMgr) UpdateEpochInfo(epoch *types.EpochInfo) {
 	tp.txMaxSize.Store(epoch.MiscParams.TxMaxSize)
 }
 
@@ -76,16 +75,16 @@ func (tp *TxPreCheckMgr) pushValidTxs(ev *ValidTxs) {
 
 func NewTxPreCheckMgr(ctx context.Context, conf *common.Config) *TxPreCheckMgr {
 	tp := &TxPreCheckMgr{
-		basicCheckCh:   make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
-		verifySignCh:   make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
-		verifyDataCh:   make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
-		validTxsCh:     make(chan *ValidTxs, defaultTxPreCheckSize),
-		logger:         conf.Logger,
-		ctx:            ctx,
-		BaseFee:        big.NewInt(0),
-		getBalanceFn:   conf.GetAccountBalance,
-		getChainMetaFn: conf.GetChainMetaFunc,
-		txpool:         conf.TxPool,
+		basicCheckCh: make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
+		verifySignCh: make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
+		verifyDataCh: make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
+		validTxsCh:   make(chan *ValidTxs, defaultTxPreCheckSize),
+		chainState:   conf.ChainState,
+		logger:       conf.Logger,
+		ctx:          ctx,
+		BaseFee:      big.NewInt(0),
+		getBalanceFn: conf.GetAccountBalance,
+		txpool:       conf.TxPool,
 	}
 
 	if conf.GenesisEpochInfo.MiscParams.TxMaxSize == 0 {
@@ -252,7 +251,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					localCheckRespCh = txWithResp.CheckCh
 					localPoolRespCh = txWithResp.PoolCh
 					// check balance
-					if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](txWithResp.Tx, tp.getChainMetaFn().GasPrice, tp.getBalanceFn); err != nil {
+					if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](txWithResp.Tx, tp.chainState.ChainMeta.GasPrice, tp.getBalanceFn); err != nil {
 						respLocalTx(responseType_precheck, txWithResp.CheckCh, wrapError(err))
 						return
 					}
@@ -266,7 +265,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 						return
 					}
 					for _, tx := range txSet {
-						if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.getChainMetaFn().GasPrice, tp.getBalanceFn); err != nil {
+						if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.chainState.ChainMeta.GasPrice, tp.getBalanceFn); err != nil {
 							tp.logger.Warningf("verify remote tx balance failed: %v", err)
 							continue
 						}
@@ -313,7 +312,7 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 		return ErrOversizedData
 	}
 
-	gasPrice := tp.getChainMetaFn().GasPrice
+	gasPrice := tp.chainState.ChainMeta.GasPrice
 	// ignore gas price if it's 0 or nil
 	if tx.GetGasPrice() != nil {
 		if tx.GetGasPrice().Uint64() != 0 && tx.GetGasPrice().Cmp(gasPrice) < 0 {

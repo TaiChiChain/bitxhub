@@ -61,6 +61,8 @@ prepare:
 	${GO_BIN} install go.uber.org/mock/mockgen@main
 	${GO_BIN} install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.3
 	${GO_BIN} install github.com/fsgo/go_fmt/cmd/gorgeous@latest
+	${GO_BIN} install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
+	@type "solc" 2> /dev/null || echo 'Please install solc'
 
 ## make generate-mock: Run go generate
 generate-mock:
@@ -99,9 +101,10 @@ build-coverage:
 
 ## make build: Go build the project
 build:
-	@mkdir -p bin
+	@mkdir -p ./bin
+	@rm -f bin/${APP_NAME}
 	${GO_BIN} build -ldflags '${GOLDFLAGS}' ./cmd/${APP_NAME}
-	@cp -f ./${APP_NAME} bin
+	@cp -f ./${APP_NAME} ./bin
 	@printf "${GREEN}Build ${APP_NAME} successfully!${NC}\n"
 
 ## make install: Go install the project
@@ -124,13 +127,22 @@ package:build
 ## make precommit: Check code like CI
 precommit: fmt test-coverage linter
 
-ABI_FOLDER := ./internal/executor/system/sol
-FILES := $(wildcard $(ABI_FOLDER)/*.abi)
-CONTRACT_NAMES := $(patsubst $(ABI_FOLDER)/%,%,$(basename $(FILES)))
-$(CONTRACT_NAMES):
-	@echo "Generating ${ABI_FOLDER}/$@.abi"
-	abigen --abi $(ABI_FOLDER)/$@.abi --pkg binding --type $@ --out $(ABI_FOLDER)/binding/$@.go;
-	@echo "Generated $(ABI_FOLDER)/binding/$@.go"
+SYSTEM_CONTRACTS_PATH = $(CURRENT_PATH)/internal/executor/system
+SYSTEM_CONTRACTS_DIRS = $(shell find $(SYSTEM_CONTRACTS_PATH) -maxdepth 10 -type d)
+SYSTEM_CONTRACTS = $(foreach d, $(SYSTEM_CONTRACTS_DIRS), $(wildcard $(d)/*.sys.sol))
+
+define generate-abi
+	echo "Generating abi for $(subst $(SYSTEM_CONTRACTS_PATH),,$(1))";
+	solc --abi --bin $(1) --pretty-json -o $(shell dirname $(1)) --overwrite;
+	echo "Generated abi for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+
+	echo "Generating binding for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+	mkdir -p $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')
+	abigen --abi $(patsubst %.sys.sol,%.abi,$(1)) --bin $(patsubst %.sys.sol,%.bin,$(1)) --pkg $(shell basename $(1) .sys.sol | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]') --type BindingContract --out $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')/binding.go;
+	echo "Generated binding for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+	echo "";
+endef
 
 ## make generate-system-contracts-binding: Generate system contracts abi binding
-generate-system-contracts-binding: $(CONTRACT_NAMES)
+generate-system-contracts-binding:
+	@$(foreach contract, $(SYSTEM_CONTRACTS),$(call generate-abi, $(contract)))

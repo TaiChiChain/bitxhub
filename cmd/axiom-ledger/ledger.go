@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,22 +12,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/app"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
-	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/genesis"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -50,13 +45,6 @@ var ledgerSimpleRollbackArgs = struct {
 	DisableBackup     bool
 }{}
 
-var ledgerSimpleSyncArgs = struct {
-	TargetBlockNumber uint64
-	SourceStorage     string
-	TargetStorage     string
-	Force             bool
-}{}
-
 var ledgerGenerateTrieArgs = struct {
 	TargetBlockNumber uint64
 	TargetStoragePath string
@@ -68,6 +56,7 @@ var ledgerImportAccountsArgs = struct {
 	Balance        string
 }{}
 
+// TODO: add query genesis config from genesis block tool
 var ledgerCMD = &cli.Command{
 	Name:  "ledger",
 	Usage: "The ledger manage commands",
@@ -146,41 +135,6 @@ var ledgerCMD = &cli.Command{
 			},
 		},
 		{
-			Name:   "simple-sync",
-			Usage:  "Sync to the specified block height from the target storage(by replaying transactions)",
-			Action: simpleSync,
-			Flags: []cli.Flag{
-				&cli.Uint64Flag{
-					Name:        "target-block-number",
-					Aliases:     []string{"b"},
-					Usage:       "sync target block number, must be less than or equal to the source-storage latest block height and greater than the target-storage latest block height",
-					Destination: &ledgerSimpleSyncArgs.TargetBlockNumber,
-					Required:    true,
-				},
-				&cli.StringFlag{
-					Name:        "source-storage",
-					Aliases:     []string{"s"},
-					Usage:       "sync from storage dir",
-					Destination: &ledgerSimpleSyncArgs.SourceStorage,
-					Required:    true,
-				},
-				&cli.StringFlag{
-					Name:        "target-storage",
-					Aliases:     []string{"t"},
-					Usage:       "sync to storage dir",
-					Destination: &ledgerSimpleSyncArgs.TargetStorage,
-					Required:    true,
-				},
-				&cli.BoolFlag{
-					Name:        "force",
-					Aliases:     []string{"f"},
-					Usage:       "disable interactive confirmation",
-					Destination: &ledgerSimpleSyncArgs.Force,
-					Required:    false,
-				},
-			},
-		},
-		{
 			Name:   "generate-trie",
 			Usage:  "Generate world state trie at specific block",
 			Action: generateTrie,
@@ -226,7 +180,6 @@ var ledgerCMD = &cli.Command{
 					Required:    true,
 					Destination: &ledgerImportAccountsArgs.Balance,
 				},
-				passwordFlag(),
 			},
 		},
 	},
@@ -242,7 +195,7 @@ func importAccounts(ctx *cli.Context) error {
 		return errors.New("target account file not exist")
 	}
 
-	rep, err := repo.Load(configGenerateArgs.Auth, p, true)
+	rep, err := repo.Load(p)
 	if err != nil {
 		return err
 	}
@@ -276,7 +229,9 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 		if err != nil {
 			return fmt.Errorf("failed to open account list file: %v", err)
 		}
-		defer file.Close()
+		defer func() {
+			_ = file.Close()
+		}()
 
 		scanner := bufio.NewScanner(file)
 		count := 0
@@ -307,16 +262,18 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 
 	block := &types.Block{
 		Header: &types.BlockHeader{
-			Number:          currentHeight + 1,
-			StateRoot:       stateRoot,
-			TxRoot:          &types.Hash{},
-			ReceiptRoot:     &types.Hash{},
-			ParentHash:      parentBlockHeader.Hash(),
-			Timestamp:       g.Timestamp,
-			GasPrice:        int64(g.EpochInfo.FinanceParams.StartGasPrice),
-			Epoch:           g.EpochInfo.Epoch,
-			Bloom:           new(types.Bloom),
-			ProposerAccount: sys_common.ZeroAddress,
+			Number:         currentHeight + 1,
+			StateRoot:      stateRoot,
+			TxRoot:         &types.Hash{},
+			ReceiptRoot:    &types.Hash{},
+			ParentHash:     parentBlockHeader.Hash(),
+			Timestamp:      g.Timestamp,
+			Epoch:          g.EpochInfo.Epoch,
+			Bloom:          new(types.Bloom),
+			GasUsed:        0,
+			ProposerNodeID: 0,
+			TotalGasFee:    big.NewInt(0),
+			GasFeeReward:   big.NewInt(0),
 		},
 		Transactions: []*types.Transaction{},
 	}
@@ -363,17 +320,20 @@ func getBlock(ctx *cli.Context) error {
 
 	bloom, _ := blockHeader.Bloom.ETHBloom().MarshalText()
 	blockInfo := map[string]any{
-		"number":           blockHeader.Number,
-		"hash":             blockHeader.Hash().String(),
-		"state_root":       blockHeader.StateRoot.String(),
-		"tx_root":          blockHeader.TxRoot.String(),
-		"receipt_root":     blockHeader.ReceiptRoot.String(),
-		"parent_hash":      blockHeader.ParentHash.String(),
-		"timestamp":        blockHeader.Timestamp,
-		"epoch":            blockHeader.Epoch,
-		"bloom":            string(bloom),
-		"gas_price":        blockHeader.GasPrice,
-		"proposer_account": blockHeader.ProposerAccount,
+		"number":         blockHeader.Number,
+		"hash":           blockHeader.Hash().String(),
+		"state_root":     blockHeader.StateRoot.String(),
+		"tx_root":        blockHeader.TxRoot.String(),
+		"receipt_root":   blockHeader.ReceiptRoot.String(),
+		"parent_hash":    blockHeader.ParentHash.String(),
+		"timestamp":      blockHeader.Timestamp,
+		"epoch":          blockHeader.Epoch,
+		"bloom":          string(bloom),
+		"gas_used":       blockHeader.GasUsed,
+		"gas_price":      blockHeader.GasPrice,
+		"proposer_node":  blockHeader.ProposerNodeID,
+		"total_gas_fee":  blockHeader.TotalGasFee.String(),
+		"gas_fee_reward": blockHeader.GasFeeReward.String(),
 	}
 
 	if ledgerGetBlockArgs.Full {
@@ -453,64 +413,6 @@ func getLatestChainMeta(ctx *cli.Context) error {
 
 	meta := chainLedger.GetChainMeta()
 	return pretty(meta)
-}
-
-func fetchAndExecuteBlocks(ctx context.Context, r *repo.Repo, targetLedger *ledger.Ledger, fetchBlock func(n uint64) (*types.Block, error), targetBlockNumber uint64) error {
-	if targetLedger.ChainLedger.GetChainMeta().Height == 0 {
-		if err := genesis.Initialize(r.GenesisConfig, targetLedger); err != nil {
-			return err
-		}
-		logger := loggers.Logger(loggers.App)
-		logger.WithFields(logrus.Fields{
-			"genesis block hash": targetLedger.ChainLedger.GetChainMeta().BlockHash,
-		}).Info("Initialize genesis")
-	}
-
-	e, err := executor.New(r, targetLedger)
-	if err != nil {
-		return fmt.Errorf("init executor failed: %w", err)
-	}
-
-	blockCh := make(chan *common.CommitEvent, 100)
-	go func() {
-		for i := targetLedger.ChainLedger.GetChainMeta().Height + 1; i <= targetBlockNumber; i++ {
-			b, err := fetchBlock(i)
-			if err != nil {
-				panic(errors.Wrapf(err, "failed to get block %d", i))
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case blockCh <- &common.CommitEvent{
-				Block: b,
-			}:
-			}
-		}
-		blockCh <- nil
-	}()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case b := <-blockCh:
-			if b == nil {
-				return nil
-			}
-			var originBlockHash string
-			if b.Block.Height()%10 == 0 || b.Block.Height() == targetBlockNumber {
-				originBlockHash = b.Block.Hash().String()
-			}
-
-			e.ExecuteBlock(b)
-
-			// check hash
-			if b.Block.Height()%10 == 0 || b.Block.Height() == targetBlockNumber {
-				if originBlockHash != targetLedger.ChainLedger.GetChainMeta().BlockHash.String() {
-					panic(fmt.Sprintf("inconsistent block %d hash, get %s, but want %s", b.Block.Height(), targetLedger.ChainLedger.GetChainMeta().BlockHash.String(), originBlockHash))
-				}
-			}
-		}
-	}
 }
 
 func rollback(ctx *cli.Context) error {
@@ -658,61 +560,10 @@ func rollback(ctx *cli.Context) error {
 	return nil
 }
 
-func simpleSync(ctx *cli.Context) error {
-	r, err := prepareRepo(ctx)
-	if err != nil {
-		return err
-	}
-
-	sourceChainLedger, err := ledger.NewChainLedger(r, ledgerSimpleSyncArgs.SourceStorage)
-	if err != nil {
-		return fmt.Errorf("init source chain ledger failed: %w", err)
-	}
-
-	targetChainLedger, err := ledger.NewChainLedger(r, ledgerSimpleSyncArgs.TargetStorage)
-	if err != nil {
-		return fmt.Errorf("init target chain ledger failed: %w", err)
-	}
-
-	targetBlockNumber := ledgerSimpleSyncArgs.TargetBlockNumber
-	sourceChainMeta := sourceChainLedger.GetChainMeta()
-	targetChainMeta := targetChainLedger.GetChainMeta()
-	if targetBlockNumber > sourceChainMeta.Height || targetBlockNumber <= targetChainMeta.Height {
-		return errors.Errorf("target-block-number %d must be less than or equal to the source-storage latest block height %d and greater than the target-storage latest block height %d\n", targetBlockNumber, sourceChainMeta.Height, targetChainMeta.Height)
-	}
-
-	targetBlockHeader, err := targetChainLedger.GetBlockHeader(targetBlockNumber)
-	if err != nil {
-		return errors.Errorf("get target block header failed: %v", err)
-	}
-	targetBlockHash := targetBlockHeader.Hash()
-	logger := loggers.Logger(loggers.App)
-	if ledgerSimpleSyncArgs.Force {
-		logger.Infof("target storage current chain meta info height: %d, hash: %s, will sync to the target height %d, hash: %s, target storage dir: %s, source storage dir: %s\n", targetChainMeta.Height, targetChainMeta.BlockHash, targetBlockNumber, targetBlockHash, ledgerSimpleSyncArgs.TargetStorage, ledgerSimpleSyncArgs.SourceStorage)
-	} else {
-		logger.Infof("target storage current chain meta info height: %d, hash: %s, will sync to the target height %d, hash: %s, target storage dir: %s, source storage dir: %s, confirm? y/n\n", targetChainMeta.Height, targetChainMeta.BlockHash, targetBlockNumber, targetBlockHash, ledgerSimpleSyncArgs.TargetStorage, ledgerSimpleSyncArgs.SourceStorage)
-		if err := waitUserConfirm(); err != nil {
-			return err
-		}
-	}
-
-	targetStateLedger, err := ledger.NewStateLedger(r, ledgerSimpleSyncArgs.TargetStorage)
-	if err != nil {
-		return fmt.Errorf("init target state ledger failed: %w", err)
-	}
-
-	return fetchAndExecuteBlocks(ctx.Context, r, &ledger.Ledger{
-		ChainLedger: targetChainLedger,
-		StateLedger: targetStateLedger,
-	}, func(n uint64) (*types.Block, error) {
-		return sourceChainLedger.GetBlock(n)
-	}, targetBlockNumber)
-}
-
 func decodePeers(peersStr []string) (*consensus.QuorumValidators, error) {
 	var peers []*consensus.QuorumValidator
 	if len(peersStr) == 0 {
-		return nil, fmt.Errorf("peers cannot be empty")
+		return nil, errors.New("peers cannot be empty")
 	}
 	for _, p := range peersStr {
 		// spilt id and peerId by :
@@ -766,10 +617,19 @@ func generateTrie(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("init state ledger failed: %w", err)
 	}
-	originStateLedger.(*ledger.StateLedgerImpl).WithGetEpochInfoFunc(base.GetEpochInfo)
+
+	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(originStateLedger))
+	epochInfo, err := epochManagerContract.HistoryEpoch(blockHeader.Epoch)
+	if err != nil {
+		return fmt.Errorf("get epoch info failed: %w", err)
+	}
 
 	errC := make(chan error)
-	go originStateLedger.IterateTrie(blockHeader, peers, targetStateStorage, errC)
+	go originStateLedger.IterateTrie(&ledger.SnapshotMeta{
+		BlockHeader: blockHeader,
+		EpochInfo:   epochInfo,
+		Nodes:       peers,
+	}, targetStateStorage, errC)
 	err = <-errC
 
 	logger.Infof("success generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
@@ -786,7 +646,7 @@ func prepareRepo(ctx *cli.Context) (*repo.Repo, error) {
 		return nil, errors.New("axiom-ledger repo not exist")
 	}
 
-	r, err := repo.Load(configGenerateArgs.Auth, p, false)
+	r, err := repo.Load(p)
 	if err != nil {
 		return nil, err
 	}
@@ -855,13 +715,17 @@ func copyFile(src, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() {
+		_ = srcFile.Close()
+	}()
 
 	destFile, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() {
+		_ = destFile.Close()
+	}()
 
 	_, err = io.Copy(destFile, srcFile)
 	if err != nil {

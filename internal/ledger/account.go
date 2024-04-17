@@ -173,14 +173,14 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 	}
 
 	// todo opz here, consider api usage
-	//if o.snapshot != nil {
+	// if o.snapshot != nil {
 	//	if value, err := o.snapshot.Storage(o.Addr, key); err == nil {
 	//		o.originState[string(key)] = value
 	//		o.initStorageTrie()
 	//		o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
 	//		return value != nil, value
 	//	}
-	//}
+	// }
 
 	o.initStorageTrie()
 	start := time.Now()

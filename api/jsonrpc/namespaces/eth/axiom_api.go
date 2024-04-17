@@ -37,7 +37,6 @@ func (api *AxiomAPI) GasPrice() *hexutil.Big {
 		queryTotalCounter.Inc()
 	}(time.Now())
 
-	api.logger.Debug("eth_gasPrice")
 	gasPrice, err := api.api.Gas().GetGasPrice()
 	if err != nil {
 		queryFailedCounter.Inc()
@@ -47,8 +46,6 @@ func (api *AxiomAPI) GasPrice() *hexutil.Big {
 	return (*hexutil.Big)(out)
 }
 
-// MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic transactions.
-// todo Supplementary gas fee
 func (api *AxiomAPI) MaxPriorityFeePerGas(ctx context.Context) (ret *hexutil.Big, err error) {
 	defer func(start time.Time) {
 		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
@@ -58,7 +55,6 @@ func (api *AxiomAPI) MaxPriorityFeePerGas(ctx context.Context) (ret *hexutil.Big
 		}
 	}(time.Now())
 
-	api.logger.Debug("eth_maxPriorityFeePerGas")
 	return (*hexutil.Big)(new(big.Int)), nil
 }
 
@@ -70,7 +66,6 @@ type feeHistoryResult struct {
 }
 
 // FeeHistory return feeHistory
-// todo Supplementary feeHsitory
 func (api *AxiomAPI) FeeHistory(blockCount rpctypes.DecimalOrHex, lastBlock rpctypes.BlockNumber, rewardPercentiles []float64) (ret *feeHistoryResult, err error) {
 	defer func(start time.Time) {
 		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
@@ -80,7 +75,6 @@ func (api *AxiomAPI) FeeHistory(blockCount rpctypes.DecimalOrHex, lastBlock rpct
 		}
 	}(time.Now())
 
-	api.logger.Debug("eth_feeHistory")
 	return nil, ErrNotSupportApiError
 }
 
@@ -94,8 +88,6 @@ func (api *AxiomAPI) Syncing() (ret any, err error) {
 			queryFailedCounter.Inc()
 		}
 	}(time.Now())
-
-	api.logger.Debug("eth_syncing")
 
 	// TODO
 	// Supplementary data

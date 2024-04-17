@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/sol/binding"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager"
 )
 
 var rpc = "http://127.0.0.1:8881"
@@ -61,7 +61,7 @@ var epochCMD = &cli.Command{
 	},
 }
 
-func bindEpochManagerContract(ctx *cli.Context) (*binding.EpochManager, error) {
+func bindEpochManagerContract(ctx *cli.Context) (*epoch_manager.BindingContract, error) {
 	if rpc == "" {
 		rpc = "http://127.0.0.1:8881"
 	}
@@ -70,7 +70,7 @@ func bindEpochManagerContract(ctx *cli.Context) (*binding.EpochManager, error) {
 		return nil, errors.Wrap(err, "dial rpc failed")
 	}
 
-	epochManager, err := binding.NewEpochManager(ethcommon.HexToAddress(common.EpochManagerContractAddr), client)
+	epochManager, err := epoch_manager.NewBindingContract(ethcommon.HexToAddress(common.EpochManagerContractAddr), client)
 	if err != nil {
 		return nil, errors.Wrap(err, "bind epoch manager contract failed")
 	}

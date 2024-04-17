@@ -19,6 +19,7 @@ const (
 	PruneJournalKey    = "prune-nodeInfo-"
 	TrieNodeIdKey      = "trie-nodeId-"
 	SnapshotKey        = "snap-"
+	SnapshotMetaKey    = "snap-meta"
 )
 
 const (

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -12,16 +13,15 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -45,7 +45,7 @@ func TestContractInitGenesisData(t *testing.T) {
 			StateLedger: stateLedger,
 		}
 
-		genesis := repo.DefaultGenesisConfig(false)
+		genesis := repo.DefaultGenesisConfig()
 
 		account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
 		axcAccount := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
@@ -59,7 +59,7 @@ func TestContractInitGenesisData(t *testing.T) {
 		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 		stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 
-		err := InitGenesisData(genesis, mockLedger.StateLedger)
+		err := GenesisInit(genesis, mockLedger.StateLedger)
 		assert.Nil(t, err)
 	})
 
@@ -72,7 +72,7 @@ func TestContractInitGenesisData(t *testing.T) {
 			StateLedger: stateLedger,
 		}
 
-		genesis := repo.DefaultGenesisConfig(false)
+		genesis := repo.DefaultGenesisConfig()
 		// set wrong address for validatorSet
 		genesis.EpochInfo.ValidatorSet[0].AccountAddress = "wrong address"
 
@@ -91,7 +91,7 @@ func TestContractInitGenesisData(t *testing.T) {
 
 		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 
-		err := InitGenesisData(genesis, mockLedger.StateLedger)
+		err := GenesisInit(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "invalid account address")
 	})
@@ -105,7 +105,7 @@ func TestContractInitGenesisData(t *testing.T) {
 			StateLedger: stateLedger,
 		}
 
-		genesis := repo.DefaultGenesisConfig(false)
+		genesis := repo.DefaultGenesisConfig()
 		// set wrong balance for token manager
 		genesis.Accounts[0].Balance = "-10"
 
@@ -121,14 +121,14 @@ func TestContractInitGenesisData(t *testing.T) {
 		stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 		stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 
-		err := InitGenesisData(genesis, mockLedger.StateLedger)
+		err := GenesisInit(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "invalid balance")
 
-		genesis = repo.DefaultGenesisConfig(false)
+		genesis = repo.DefaultGenesisConfig()
 		// decrease total supply
 		genesis.Axc.TotalSupply = "-10"
-		err = InitGenesisData(genesis, mockLedger.StateLedger)
+		err = GenesisInit(genesis, mockLedger.StateLedger)
 		assert.NotNil(t, err)
 	})
 }
@@ -142,7 +142,7 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 		StateLedger: stateLedger,
 	}
 
-	genesis := repo.DefaultGenesisConfig(false)
+	genesis := repo.DefaultGenesisConfig()
 
 	// WhiteListContractAddr
 	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.WhiteListContractAddr))
@@ -156,7 +156,7 @@ func TestWhiteListContractInitGenesisData(t *testing.T) {
 
 	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
-	err := InitGenesisData(genesis, mockLedger.StateLedger)
+	err := GenesisInit(genesis, mockLedger.StateLedger)
 	assert.Nil(t, err)
 }
 
@@ -174,7 +174,52 @@ func TestContractRun(t *testing.T) {
 	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
 	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
 	getIDData := hexutil.Bytes(generateGetLatestProposalIDData(t))
+	getUserOpHash := hexutil.Bytes(generateGetUserOpHashData(t))
+	entrypointAddr := types.NewAddressByStr(common.EntryPointContractAddr).ETHAddress()
 
+	coinbase := "0xed17543171C1459714cdC6519b58fFcC29A3C3c9"
+	blkCtx := vm.BlockContext{
+		CanTransfer: core.CanTransfer,
+		Transfer:    core.Transfer,
+		GetHash:     nil,
+		Coinbase:    ethcommon.HexToAddress(coinbase),
+		BlockNumber: new(big.Int).SetUint64(1),
+		Time:        uint64(time.Now().Unix()),
+		Difficulty:  big.NewInt(0x2000),
+		BaseFee:     big.NewInt(0),
+		GasLimit:    0x2fefd8,
+		Random:      &ethcommon.Hash{},
+	}
+
+	shanghaiTime := uint64(0)
+	CancunTime := uint64(0)
+	PragueTime := uint64(0)
+
+	evm := vm.NewEVM(blkCtx, vm.TxContext{
+		Origin:   entrypointAddr,
+		GasPrice: big.NewInt(100000000000),
+	}, &ledger.EvmStateDBAdaptor{
+		StateLedger: stateLedger,
+	}, &params.ChainConfig{
+		ChainID:                 big.NewInt(1356),
+		HomesteadBlock:          big.NewInt(0),
+		EIP150Block:             big.NewInt(0),
+		EIP155Block:             big.NewInt(0),
+		EIP158Block:             big.NewInt(0),
+		ByzantiumBlock:          big.NewInt(0),
+		ConstantinopleBlock:     big.NewInt(0),
+		PetersburgBlock:         big.NewInt(0),
+		IstanbulBlock:           big.NewInt(0),
+		MuirGlacierBlock:        big.NewInt(0),
+		BerlinBlock:             big.NewInt(0),
+		LondonBlock:             big.NewInt(0),
+		ArrowGlacierBlock:       big.NewInt(0),
+		MergeNetsplitBlock:      big.NewInt(0),
+		TerminalTotalDifficulty: big.NewInt(0),
+		ShanghaiTime:            &shanghaiTime,
+		CancunTime:              &CancunTime,
+		PragueTime:              &PragueTime,
+	}, vm.Config{})
 	nvm := New()
 
 	testcases := []struct {
@@ -229,6 +274,14 @@ func TestContractRun(t *testing.T) {
 			},
 			IsExpectedErr: true,
 		},
+		{
+			Message: &core.Message{
+				From: from,
+				To:   &entrypointAddr,
+				Data: getUserOpHash,
+			},
+			IsExpectedErr: false,
+		},
 	}
 	for _, testcase := range testcases {
 		args := &vm.StatefulArgs{
@@ -238,6 +291,7 @@ func TestContractRun(t *testing.T) {
 			Height: big.NewInt(2),
 			From:   testcase.Message.From,
 			To:     testcase.Message.To,
+			EVM:    evm,
 		}
 		_, err := nvm.Run(testcase.Message.Data, args)
 		if testcase.IsExpectedErr {
@@ -248,48 +302,40 @@ func TestContractRun(t *testing.T) {
 	}
 }
 
-func TestNativeVM_GetContractInstance(t *testing.T) {
+func TestNativeVM_PackOutputArgs(t *testing.T) {
 	nvm := New()
-	cfg := &common.SystemContractConfig{}
 
-	testCases := []struct {
-		ContractAddr *types.Address
-		expectType   any
-	}{
-		{
-			ContractAddr: types.NewAddressByStr(common.GovernanceContractAddr),
-			expectType:   governance.NewGov(cfg),
-		},
-		{
-			ContractAddr: types.NewAddressByStr(common.AXCContractAddr),
-			expectType:   token.New(cfg),
-		},
-		{
-			ContractAddr: types.NewAddressByStr(common.AXCContractAddr),
-			expectType:   token.New(cfg),
-		},
-		{
-			ContractAddr: types.NewAddressByStr(common.WhiteListContractAddr),
-			expectType:   access.NewWhiteList(cfg),
-		},
-		{
-			ContractAddr: types.NewAddressByStr(common.EpochManagerContractAddr),
-			expectType:   base.NewEpochManager(cfg),
-		},
-	}
+	data := "0x8e604d15a98b7f944a25c1d8e463c1583fb7a24bf222ad76ac3aae3079b135b2"
+	hash := crypto.Keccak256Hash([]byte(data))
 
-	for _, testCase := range testCases {
-		contractInstance := nvm.GetContractInstance(testCase.ContractAddr)
-		// 使用 assert.IsType 来判断类型是否一致
-		assert.IsType(t, testCase.expectType, contractInstance)
-	}
+	outputs, err := nvm.PackOutputArgs(common.EntryPointContractAddr, "getUserOpHash", hash)
+	assert.Nil(t, err)
+	assert.NotNil(t, outputs)
 }
 
 func generateVoteData(t *testing.T, proposalID uint64, voteResult governance.VoteResult) []byte {
 	gabi, err := abi.JSON(strings.NewReader(governanceABI))
 	assert.Nil(t, err)
 
-	data, err := gabi.Pack(governance.VoteMethod, proposalID, voteResult)
+	data, err := gabi.Pack(governance.VoteEvent, proposalID, voteResult)
+	assert.Nil(t, err)
+
+	return data
+}
+
+func generateGetUserOpHashData(t *testing.T) []byte {
+	gabi, err := abi.JSON(strings.NewReader(entryPointABI))
+	assert.Nil(t, err)
+
+	data, err := gabi.Pack("getUserOpHash", interfaces.UserOperation{
+		Sender:               types.NewAddressByStr(admin1).ETHAddress(),
+		Nonce:                big.NewInt(0),
+		CallGasLimit:         big.NewInt(100000),
+		VerificationGasLimit: big.NewInt(10000),
+		PreVerificationGas:   big.NewInt(10000),
+		MaxFeePerGas:         big.NewInt(10000),
+		MaxPriorityFeePerGas: big.NewInt(10000),
+	})
 	assert.Nil(t, err)
 
 	return data
@@ -308,7 +354,7 @@ func generateGetLatestProposalIDData(t *testing.T) []byte {
 func TestNativeVM_RequiredGas(t *testing.T) {
 	nvm := New()
 	gas := nvm.RequiredGas([]byte{1})
-	assert.Equal(t, uint64(21016), gas)
+	assert.Equal(t, uint64(RunSystemContractGas), gas)
 }
 
 func Test_convertInputArgs(t *testing.T) {

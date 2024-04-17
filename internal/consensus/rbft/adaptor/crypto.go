@@ -1,48 +1,29 @@
 package adaptor
 
 import (
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/pkg/errors"
-
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-// TODO: use edd25519 improve performance
 func (a *RBFTAdaptor) Sign(msg []byte) ([]byte, error) {
-	return a.libp2pKey.Sign(msg)
+	if a.config.Repo.Config.Consensus.UseBlsKey {
+		return a.config.Repo.ConsensusKeystore.PrivateKey.Sign(msg)
+	}
+	return a.config.Repo.P2PKeystore.PrivateKey.Sign(msg)
 }
 
-func (a *RBFTAdaptor) Verify(p2pID string, signature []byte, msg []byte) error {
-	pubKey, err := a.getP2PPubKey(p2pID)
+func (a *RBFTAdaptor) Verify(nodeID uint64, signature []byte, msg []byte) error {
+	nodeInfo, err := a.config.ChainState.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
 	}
-
-	ok, err := pubKey.Verify(msg, signature)
-	if err != nil {
-		return errors.Wrap(err, "invalid signature")
-	}
-	if !ok {
-		return errors.New("invalid signature")
+	if a.config.Repo.Config.Consensus.UseBlsKey {
+		if !nodeInfo.ConsensusPubKey.Verify(msg, signature) {
+			return errors.New("invalid signature")
+		}
+	} else {
+		if !nodeInfo.P2PPubKey.Verify(msg, signature) {
+			return errors.New("invalid signature")
+		}
 	}
 	return nil
-}
-
-func (a *RBFTAdaptor) getP2PPubKey(p2pID string) (libp2pcrypto.PubKey, error) {
-	a.p2pID2PubKeyCacheLock.RLock()
-	pk, ok := a.p2pID2PubKeyCache[p2pID]
-	a.p2pID2PubKeyCacheLock.RUnlock()
-	if ok {
-		return pk, nil
-	}
-
-	pk, err := repo.Libp2pIDToPubKey(p2pID)
-	if err != nil {
-		return nil, err
-	}
-	a.p2pID2PubKeyCacheLock.Lock()
-	a.p2pID2PubKeyCache[p2pID] = pk
-	a.p2pID2PubKeyCacheLock.Unlock()
-
-	return pk, nil
 }

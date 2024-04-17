@@ -18,8 +18,8 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -192,10 +192,10 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 		},
 	}
 
-	err = base.InitEpochInfo(mockLedger.StateLedger, r.GenesisConfig.EpochInfo)
+	err = framework.InitEpochInfo(mockLedger.StateLedger, r.GenesisConfig.EpochInfo)
 	assert.Nil(t, err)
 
-	err = system.InitGenesisData(r.GenesisConfig, mockLedger.StateLedger)
+	err = system.GenesisInit(r.GenesisConfig, mockLedger.StateLedger)
 	assert.Nil(t, err)
 
 	mockLedger.StateLedger.Finalise()

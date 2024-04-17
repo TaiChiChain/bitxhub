@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/core"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 func VerifyInsufficientBalance[T any, Constraint types.TXConstraint[T]](tx *T, chainGasPrice *big.Int, getBalanceFn func(address string) *big.Int) error {
@@ -44,7 +45,7 @@ func VerifyInsufficientBalance[T any, Constraint types.TXConstraint[T]](tx *T, c
 
 	// 2.1 the purchased gas is enough to cover intrinsic usage
 	// 2.2 there is no overflow when calculating intrinsic gas
-	gas, err := core.IntrinsicGas(txData, txAccessList, isContractCreation, true, true, true)
+	gas, err := core.IntrinsicGas(txData, txAccessList.ToEthAccessList(), isContractCreation, true, true, true)
 	if err != nil {
 		return err
 	}

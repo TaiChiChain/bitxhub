@@ -216,44 +216,6 @@ func (m *MockNetwork) EXPECT() *MockNetworkMockRecorder {
 	return m.recorder
 }
 
-// CountConnectedValidators mocks base method.
-func (m *MockNetwork) CountConnectedValidators() uint64 {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountConnectedValidators")
-	ret0, _ := ret[0].(uint64)
-	return ret0
-}
-
-// CountConnectedValidators indicates an expected call of CountConnectedValidators.
-func (mr *MockNetworkMockRecorder) CountConnectedValidators() *MockNetworkCountConnectedValidatorsCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountConnectedValidators", reflect.TypeOf((*MockNetwork)(nil).CountConnectedValidators))
-	return &MockNetworkCountConnectedValidatorsCall{Call: call}
-}
-
-// MockNetworkCountConnectedValidatorsCall wrap *gomock.Call
-type MockNetworkCountConnectedValidatorsCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockNetworkCountConnectedValidatorsCall) Return(arg0 uint64) *MockNetworkCountConnectedValidatorsCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockNetworkCountConnectedValidatorsCall) Do(f func() uint64) *MockNetworkCountConnectedValidatorsCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockNetworkCountConnectedValidatorsCall) DoAndReturn(f func() uint64) *MockNetworkCountConnectedValidatorsCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // CreatePipe mocks base method.
 func (m *MockNetwork) CreatePipe(ctx context.Context, pipeID string) (network.Pipe, error) {
 	m.ctrl.T.Helper()

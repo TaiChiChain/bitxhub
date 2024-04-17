@@ -7,14 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/gogo/protobuf/sortkeys"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
@@ -31,21 +29,19 @@ func init() {
 }
 
 type Node struct {
-	config                  *common.Config
-	proposerAccount         string
-	commitC                 chan *common.CommitEvent                                             // block channel
-	logger                  logrus.FieldLogger                                                   // logger
-	txpool                  txpool.TxPool[types.Transaction, *types.Transaction]                 // transaction pool
-	batchDigestM            map[uint64]string                                                    // mapping blockHeight to batch digest
-	recvCh                  chan consensusEvent                                                  // receive message from consensus engine
-	blockCh                 chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction] // receive batch from txpool
-	batchMgr                *batchTimerManager
-	lastExec                uint64          // the index of the last-applied block
-	network                 network.Network // network manager
-	txPreCheck              precheck.PreCheck
-	started                 atomic.Bool
-	epcCnf                  *epochConfig
-	getCurrentEpochInfoFunc func() (*rbft.EpochInfo, error)
+	config       *common.Config
+	commitC      chan *common.CommitEvent                                             // block channel
+	logger       logrus.FieldLogger                                                   // logger
+	txpool       txpool.TxPool[types.Transaction, *types.Transaction]                 // transaction pool
+	batchDigestM map[uint64]string                                                    // mapping blockHeight to batch digest
+	recvCh       chan consensusEvent                                                  // receive message from consensus engine
+	blockCh      chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction] // receive batch from txpool
+	batchMgr     *batchTimerManager
+	lastExec     uint64          // the index of the last-applied block
+	network      network.Network // network manager
+	txPreCheck   precheck.PreCheck
+	started      atomic.Bool
+	epcCnf       *epochConfig
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -55,10 +51,7 @@ type Node struct {
 }
 
 func NewNode(config *common.Config) (*Node, error) {
-	currentEpoch, err := config.GetCurrentEpochInfoFromEpochMgrContractFunc()
-	if err != nil {
-		return nil, err
-	}
+	currentEpoch := config.ChainState.EpochInfo
 
 	epochConf := &epochConfig{
 		epochPeriod:         currentEpoch.EpochPeriod,
@@ -67,36 +60,32 @@ func NewNode(config *common.Config) (*Node, error) {
 		enableGenEmptyBlock: currentEpoch.ConsensusParams.EnableTimedGenEmptyBlock,
 	}
 
-	proposerAccount := crypto.PubkeyToAddress(config.PrivKey.PublicKey).Hex()
-
 	// init batch timer manager
 	recvCh := make(chan consensusEvent, maxChanSize)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	soloNode := &Node{
-		config:                  config,
-		proposerAccount:         proposerAccount,
-		blockCh:                 make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
-		commitC:                 make(chan *common.CommitEvent, maxChanSize),
-		batchDigestM:            make(map[uint64]string),
-		recvCh:                  recvCh,
-		lastExec:                config.Applied,
-		txpool:                  config.TxPool,
-		network:                 config.Network,
-		ctx:                     ctx,
-		cancel:                  cancel,
-		txPreCheck:              precheck.NewTxPreCheckMgr(ctx, config),
-		epcCnf:                  epochConf,
-		logger:                  config.Logger,
-		getCurrentEpochInfoFunc: config.GetCurrentEpochInfoFromEpochMgrContractFunc,
+		config:       config,
+		blockCh:      make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
+		commitC:      make(chan *common.CommitEvent, maxChanSize),
+		batchDigestM: make(map[uint64]string),
+		recvCh:       recvCh,
+		lastExec:     config.Applied,
+		txpool:       config.TxPool,
+		network:      config.Network,
+		ctx:          ctx,
+		cancel:       cancel,
+		txPreCheck:   precheck.NewTxPreCheckMgr(ctx, config),
+		epcCnf:       epochConf,
+		logger:       config.Logger,
 	}
 	batchTimerMgr := &batchTimerManager{Timer: timer.NewTimerManager(config.Logger)}
 
-	err = batchTimerMgr.CreateTimer(timer.Batch, config.Config.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	err := batchTimerMgr.CreateTimer(timer.Batch, config.Repo.ConsensusConfig.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
 	if err != nil {
 		return nil, err
 	}
-	err = batchTimerMgr.CreateTimer(timer.NoTxBatch, config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	err = batchTimerMgr.CreateTimer(timer.NoTxBatch, config.Repo.ConsensusConfig.TimedGenBlock.NoTxBatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -105,13 +94,13 @@ func NewNode(config *common.Config) (*Node, error) {
 	soloNode.logger.Infof("SOLO epoch period = %d", soloNode.epcCnf.epochPeriod)
 	soloNode.logger.Infof("SOLO checkpoint period = %d", soloNode.epcCnf.checkpoint)
 	soloNode.logger.Infof("SOLO enable gen empty block = %t", soloNode.epcCnf.enableGenEmptyBlock)
-	soloNode.logger.Infof("SOLO no-tx batch timeout = %v", config.Config.TimedGenBlock.NoTxBatchTimeout.ToDuration())
-	soloNode.logger.Infof("SOLO batch timeout = %v", config.Config.Solo.BatchTimeout.ToDuration())
+	soloNode.logger.Infof("SOLO no-tx batch timeout = %v", config.Repo.ConsensusConfig.TimedGenBlock.NoTxBatchTimeout.ToDuration())
+	soloNode.logger.Infof("SOLO batch timeout = %v", config.Repo.ConsensusConfig.Solo.BatchTimeout.ToDuration())
 	soloNode.logger.Infof("SOLO batch size = %d", config.GenesisEpochInfo.ConsensusParams.BlockMaxTxNum)
-	soloNode.logger.Infof("SOLO pool size = %d", config.Config.TxPool.PoolSize)
-	soloNode.logger.Infof("SOLO tolerance time = %v", config.Config.TxPool.ToleranceTime.ToDuration())
-	soloNode.logger.Infof("SOLO tolerance remove time = %v", config.Config.TxPool.ToleranceRemoveTime.ToDuration())
-	soloNode.logger.Infof("SOLO tolerance nonce gap = %d", config.Config.TxPool.ToleranceNonceGap)
+	soloNode.logger.Infof("SOLO pool size = %d", config.Repo.ConsensusConfig.TxPool.PoolSize)
+	soloNode.logger.Infof("SOLO tolerance time = %v", config.Repo.ConsensusConfig.TxPool.ToleranceTime.ToDuration())
+	soloNode.logger.Infof("SOLO tolerance remove time = %v", config.Repo.ConsensusConfig.TxPool.ToleranceRemoveTime.ToDuration())
+	soloNode.logger.Infof("SOLO tolerance nonce gap = %d", config.Repo.ConsensusConfig.TxPool.ToleranceNonceGap)
 	return soloNode, nil
 }
 
@@ -198,7 +187,7 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 		txHashList[i] = item.Hash
 	})
 	epochChanged := false
-	if common.NeedChangeEpoch(height, &rbft.EpochInfo{StartBlock: n.epcCnf.startBlock, EpochPeriod: n.epcCnf.epochPeriod}) {
+	if common.NeedChangeEpoch(height, &types.EpochInfo{StartBlock: n.epcCnf.startBlock, EpochPeriod: n.epcCnf.epochPeriod}) {
 		epochChanged = true
 	}
 	state := &chainState{
@@ -262,21 +251,15 @@ func (n *Node) listenEvent() {
 				}
 
 				if e.EpochChanged {
-					currentEpoch, err := n.getCurrentEpochInfoFunc()
-					if err != nil {
-						n.logger.WithFields(logrus.Fields{
-							"error":  err.Error(),
-							"height": e.Height,
-						}).Error("Get current epoch info failed")
-						continue
-					}
+					currentEpoch := n.config.ChainState.EpochInfo
+
 					n.epcCnf.startBlock = currentEpoch.StartBlock
 					n.epcCnf.epochPeriod = currentEpoch.EpochPeriod
 					n.epcCnf.enableGenEmptyBlock = currentEpoch.ConsensusParams.EnableTimedGenEmptyBlock
 					n.epcCnf.checkpoint = currentEpoch.ConsensusParams.CheckpointPeriod
 
 					if n.epcCnf.enableGenEmptyBlock && !n.batchMgr.IsTimerActive(timer.NoTxBatch) {
-						err = n.batchMgr.StartTimer(timer.NoTxBatch)
+						err := n.batchMgr.StartTimer(timer.NoTxBatch)
 						if err != nil {
 							n.logger.WithFields(logrus.Fields{
 								"error":  err.Error(),
@@ -424,10 +407,9 @@ func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *
 
 	block := &types.Block{
 		Header: &types.BlockHeader{
-			Epoch:           1,
-			Number:          n.lastExec + 1,
-			Timestamp:       batch.Timestamp / int64(time.Second),
-			ProposerAccount: n.proposerAccount,
+			Epoch:     1,
+			Number:    n.lastExec + 1,
+			Timestamp: batch.Timestamp / int64(time.Second),
 		},
 		Transactions: batch.TxList,
 	}

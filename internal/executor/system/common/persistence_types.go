@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 
@@ -34,6 +36,17 @@ func (m *VMMap[K, V]) Get(k K) (exist bool, v V, err error) {
 		return false, v, err
 	}
 	return true, v, nil
+}
+
+func (m *VMMap[K, V]) MustGet(k K) (v V, err error) {
+	exist, data := m.contractAccount.GetState(m.stateKey(k))
+	if !exist || len(data) == 0 || data[0] == 0 {
+		return v, errors.Errorf("system contract[%s] map[%s] key[%s] not exist", m.contractAccount.GetAddress(), m.mapName, m.keyToString(k))
+	}
+	if err := json.Unmarshal(data[1:], &v); err != nil {
+		return v, err
+	}
+	return v, nil
 }
 
 func (m *VMMap[K, V]) Has(k K) bool {
@@ -81,6 +94,17 @@ func (s *VMSlot[V]) Get() (exist bool, v V, err error) {
 		return false, v, err
 	}
 	return true, v, nil
+}
+
+func (s *VMSlot[V]) MustGet() (v V, err error) {
+	exist, data := s.contractAccount.GetState(s.stateKey())
+	if !exist || len(data) == 0 || data[0] == 0 {
+		return v, errors.Errorf("system contract[%s] slot[%s] not exist", s.contractAccount.GetAddress(), s.slotName)
+	}
+	if err := json.Unmarshal(data[1:], &v); err != nil {
+		return v, err
+	}
+	return v, nil
 }
 
 func (s *VMSlot[V]) Has() bool {

@@ -49,7 +49,7 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 
 	cnf := &common2.Config{
 		Logger: logger,
-		GenesisEpochInfo: &rbft.EpochInfo{
+		GenesisEpochInfo: &types.EpochInfo{
 			MiscParams: rbft.MiscParams{
 				TxMaxSize: repo.DefaultTxMaxSize,
 			},

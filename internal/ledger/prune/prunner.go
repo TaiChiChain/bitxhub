@@ -144,7 +144,7 @@ func (p *prunner) pruning() {
 		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
 		pendingBatch.Commit()
 
-		//reset states diff
+		// reset states diff
 		p.states.lock.Lock()
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
 		p.states.rebuildAllKeyMap()
@@ -158,5 +158,4 @@ func (p *prunner) pruning() {
 		accountTrieWriteSet, storageTrieWriteSet = make(map[string][]byte), make(map[string][]byte)
 		pendingFlushBlockNum = 0
 	}
-
 }
