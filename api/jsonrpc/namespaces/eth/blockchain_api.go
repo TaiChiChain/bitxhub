@@ -21,6 +21,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
@@ -287,7 +288,7 @@ func (api *BlockChainAPI) GetStorageAt(address common.Address, key string, block
 }
 
 // Call performs a raw contract call.
-func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, _ *map[common.Address]rpctypes.Account) (ret ethhexutil.Bytes, err error) {
+func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.BlockNumberOrHash, overrides *tracers.StateOverride, blockOverrides *tracers.BlockOverrides) (ret ethhexutil.Bytes, err error) {
 	defer func(start time.Time) {
 		invokeCallContractDuration.Observe(time.Since(start).Seconds())
 		queryTotalCounter.Inc()
@@ -296,9 +297,9 @@ func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.Bloc
 		}
 	}(time.Now())
 
-	api.logger.Debugf("eth_call, args: %v", args)
+	api.logger.Debugf("eth_call, args: %v, state overrides: %v, block overrides: %v", args, overrides, blockOverrides)
 
-	receipt, err := DoCall(api.ctx, blockNrOrHash, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
+	receipt, err := DoCall(api.ctx, blockNrOrHash, overrides, blockOverrides, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +312,7 @@ func (api *BlockChainAPI) Call(args types.CallArgs, blockNrOrHash *rpctypes.Bloc
 }
 
 // DoCall todo call with historical ledger
-func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, api api.CoreAPI, args types.CallArgs, timeout time.Duration, globalGasCap uint64, logger logrus.FieldLogger) (*core.ExecutionResult, error) {
+func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, overrides *tracers.StateOverride, blockOverrides *tracers.BlockOverrides, api api.CoreAPI, args types.CallArgs, timeout time.Duration, globalGasCap uint64, logger logrus.FieldLogger) (*core.ExecutionResult, error) {
 	defer func(start time.Time) { logger.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
 	var cancel context.CancelFunc
@@ -334,10 +335,18 @@ func DoCall(ctx context.Context, blockNrOrHash *rpctypes.BlockNumberOrHash, api 
 		return nil, err
 	}
 	stateLedger.SetTxContext(types.NewHash([]byte("mockTx")), 0)
+	if err := overrides.Apply(stateLedger); err != nil {
+		return nil, err
+	}
 
 	evm, err := api.Broker().GetEvm(msg, &vm.Config{NoBaseFee: true})
 	if err != nil {
 		return nil, errors.New("error get evm")
+	}
+	blockCtx := evm.Context
+	if blockOverrides != nil {
+		blockOverrides.Apply(&blockCtx)
+		evm.Context = blockCtx
 	}
 
 	go func() {
@@ -442,7 +451,7 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	executable := func(gas uint64) (bool, *core.ExecutionResult, error) {
 		args.Gas = (*ethhexutil.Uint64)(&gas)
 
-		result, err := DoCall(api.ctx, blockNrOrHash, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
+		result, err := DoCall(api.ctx, blockNrOrHash, nil, nil, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
 				return true, nil, nil // Special case, raise gas limit

@@ -4,16 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/ethereum/go-ethereum/log"
-)
-
-const (
-	GasParamsKey = "gasParamsKey"
 )
 
 var (
@@ -28,10 +19,7 @@ var (
 )
 
 type GasExtraArgs struct {
-	MaxGasPrice        uint64
-	MinGasPrice        uint64
-	InitGasPrice       uint64
-	GasChangeRateValue uint64
+	MinGasPrice uint64 // mol
 }
 
 type GasManager struct {
@@ -71,22 +59,13 @@ func (gm *GasManager) Execute(proposal *Proposal) error {
 			return err
 		}
 		financeParams := epochInfo.FinanceParams
-		financeParams.MaxGasPrice = extraArgs.MaxGasPrice
 		financeParams.MinGasPrice = extraArgs.MinGasPrice
-		financeParams.StartGasPrice = extraArgs.InitGasPrice
-		financeParams.GasChangeRateValue = extraArgs.GasChangeRateValue
 		financeParams.StartGasPriceAvailable = true
 		epochInfo.FinanceParams = financeParams
 
 		if err := base.SetNextEpochInfo(gm.gov.stateLedger, epochInfo); err != nil {
 			return err
 		}
-
-		cb, err := json.Marshal(extraArgs)
-		if err != nil {
-			return err
-		}
-		gm.gov.account.SetState([]byte(GasParamsKey), cb)
 	}
 
 	return nil
@@ -116,55 +95,15 @@ func (gm *GasManager) getGasProposalExtraArgs(extra []byte) (*GasExtraArgs, erro
 		return nil, ErrGasExtraArgs
 	}
 
-	if !isPositiveInteger(extraArgs.GasChangeRateValue) || !isPositiveInteger(extraArgs.InitGasPrice) || !isPositiveInteger(extraArgs.MinGasPrice) || !isPositiveInteger(extraArgs.MaxGasPrice) {
-		return nil, ErrGasArgsType
-	}
-
-	if extraArgs.InitGasPrice < extraArgs.MinGasPrice || extraArgs.InitGasPrice > extraArgs.MaxGasPrice || extraArgs.MinGasPrice > extraArgs.MaxGasPrice {
-		return nil, ErrGasUpperOrLlower
-	}
-
 	// Check whether the gas proposal and GetNextEpochInfo are consistent
 	epochInfo, err := base.GetNextEpochInfo(gm.gov.stateLedger)
 	if err != nil {
 		return nil, err
 	}
 	financeParams := epochInfo.FinanceParams
-	if financeParams.GasChangeRateValue == extraArgs.GasChangeRateValue && financeParams.StartGasPrice == extraArgs.InitGasPrice && financeParams.MaxGasPrice == extraArgs.MaxGasPrice && financeParams.MinGasPrice == extraArgs.MinGasPrice {
+	if financeParams.MinGasPrice == extraArgs.MinGasPrice {
 		return nil, ErrRepeatedGasInfo
 	}
 
 	return extraArgs, nil
-}
-
-func isPositiveInteger(num uint64) bool {
-
-	if num > 0 {
-		log.Info("isPositiveInteger-Type is num:", num)
-		return true
-	}
-	return false
-}
-
-func InitGasParam(lg ledger.StateLedger, epochInfo *rbft.EpochInfo) error {
-	// read member config, write to ViewLedger
-	gasParams := getGasInfo(epochInfo)
-	g, err := json.Marshal(gasParams)
-	if err != nil {
-		return err
-	}
-	account := lg.GetOrCreateAccount(types.NewAddressByStr(common.GovernanceContractAddr))
-	account.SetState([]byte(GasParamsKey), g)
-	return nil
-}
-
-func getGasInfo(epochInfo *rbft.EpochInfo) GasExtraArgs {
-	var result GasExtraArgs
-	financeParams := epochInfo.FinanceParams
-	result.InitGasPrice = financeParams.StartGasPrice
-	result.MinGasPrice = financeParams.MinGasPrice
-	result.MaxGasPrice = financeParams.MaxGasPrice
-	result.GasChangeRateValue = financeParams.GasChangeRateValue
-
-	return result
 }

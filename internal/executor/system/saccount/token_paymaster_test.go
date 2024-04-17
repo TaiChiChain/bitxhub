@@ -60,12 +60,13 @@ func TestTokenPaymaster_ValidatePaymasterUserOp(t *testing.T) {
 	callData := append(mintSig, ethcommon.LeftPadBytes(accountAddr.Bytes(), 32)...)
 	callData = append(callData, ethcommon.LeftPadBytes(big.NewInt(1500000000000000000).Bytes(), 32)...)
 
-	_, err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+	_, totalUsedValue, err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
+	assert.Equal(t, big.NewInt(0), totalUsedValue)
 
 	// mint another erc20
 	sa.remainingGas = big.NewInt(MaxCallGasLimit)
-	_, err = sa.Execute(anotherErc20ContractAddr, big.NewInt(0), callData)
+	_, _, err = sa.Execute(anotherErc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
 
 	userOp := interfaces.UserOperation{
