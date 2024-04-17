@@ -388,6 +388,7 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	}
 	pruneCache.Update(batch, uint64(pruneCache.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), trieJournal2)
 	time.Sleep(2*checkFlushTimeInterval + 300*time.Millisecond)
+
 	v, ok = pruneCache.Get(uint64(pruneCache.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum+1), []byte("k1"))
 	require.True(t, ok)
 	require.Equal(t, makeLeafNode("v11"), v)
