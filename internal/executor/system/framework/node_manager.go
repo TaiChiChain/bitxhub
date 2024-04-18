@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -13,7 +14,6 @@ import (
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -42,7 +42,7 @@ var (
 var NodeManagerBuildConfig = &common.SystemContractBuildConfig[*NodeManager]{
 	Name:    "framework_node_manager",
 	Address: common.NodeManagerContractAddr,
-	AbiStr:  node_manager.BindingContractMetaData.ABI,
+	AbiStr:  node_manager_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *NodeManager {
 		return &NodeManager{
 			SystemContractBase: systemContractBase,

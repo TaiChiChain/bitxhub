@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_client"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -14,7 +15,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -31,7 +31,7 @@ const (
 
 var SmartAccountBuildConfig = &common.SystemContractBuildConfig[*SmartAccount]{
 	Name:   "saccount_account",
-	AbiStr: smart_account.BindingContractMetaData.ABI,
+	AbiStr: smart_account_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *SmartAccount {
 		return &SmartAccount{
 			SystemContractBase: systemContractBase,

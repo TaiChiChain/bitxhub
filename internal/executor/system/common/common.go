@@ -377,13 +377,13 @@ func Bool2Bytes(b bool) []byte {
 var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 
 type RevertError struct {
-	err error
+	Err error
 
-	// data is encoded reverted reason, or result
-	data []byte
+	// Data is encoded reverted reason, or result
+	Data []byte
 
 	// reverted result
-	str string
+	Str string
 }
 
 func NewRevertStringError(data string) *RevertError {
@@ -392,9 +392,9 @@ func NewRevertStringError(data string) *RevertError {
 		panic(errors.Wrap(err, "pack revert string error"))
 	}
 	return &RevertError{
-		err:  vm.ErrExecutionReverted,
-		data: append(revertSelector, packed...),
-		str:  data,
+		Err:  vm.ErrExecutionReverted,
+		Data: append(revertSelector, packed...),
+		Str:  data,
 	}
 }
 
@@ -406,9 +406,9 @@ func newRevertError(abiErr abi.Error, args []any) error {
 	}
 
 	return &RevertError{
-		err:  vm.ErrExecutionReverted,
-		data: append(selector, packed...),
-		str:  fmt.Sprintf("%s, args: %v", abiErr.String(), args),
+		Err:  vm.ErrExecutionReverted,
+		Data: append(selector, packed...),
+		Str:  fmt.Sprintf("%s, args: %v", abiErr.String(), args),
 	}
 }
 
@@ -418,13 +418,5 @@ func NewRevertError(name string, inputs abi.Arguments, args []any) error {
 }
 
 func (e *RevertError) Error() string {
-	return fmt.Sprintf("%s errdata %s", e.err.Error(), e.str)
-}
-
-func (e *RevertError) GetError() error {
-	return e.err
-}
-
-func (e *RevertError) Data() []byte {
-	return e.data
+	return fmt.Sprintf("%s errdata %s", e.Err.Error(), e.Str)
 }

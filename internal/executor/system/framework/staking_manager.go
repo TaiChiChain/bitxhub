@@ -6,10 +6,10 @@ import (
 	"math/big"
 	"sort"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager_client"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -30,7 +30,7 @@ const (
 var StakingManagerBuildConfig = &common.SystemContractBuildConfig[*StakingManager]{
 	Name:    "framework_staking_manager",
 	Address: common.StakingManagerContractAddr,
-	AbiStr:  staking_manager.BindingContractMetaData.ABI,
+	AbiStr:  staking_manager_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *StakingManager {
 		return &StakingManager{
 			SystemContractBase: systemContractBase,

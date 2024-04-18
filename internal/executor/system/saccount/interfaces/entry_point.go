@@ -83,7 +83,7 @@ type IEntryPoint interface {
 	SimulateHandleOp(op UserOperation, target ethcommon.Address, targetCallData []byte) error
 }
 
-// FailedOp is related to entrypoint abi file
+// FailedOp is related to entrypoint bind file
 func FailedOp(opIndex *big.Int, reason string) error {
 	return common.NewRevertError("FailedOp", abi.Arguments{
 		abi.Argument{
@@ -97,7 +97,7 @@ func FailedOp(opIndex *big.Int, reason string) error {
 	}, []any{opIndex, reason})
 }
 
-// ValidationResult is related to entrypoint abi file
+// ValidationResult is related to entrypoint bind file
 func ValidationResult(returnInfo *ReturnInfo, senderInfo *StakeInfo, factoryInfo *StakeInfo, paymasterInfo *StakeInfo) error {
 	return common.NewRevertError("ValidationResult", abi.Arguments{
 		abi.Argument{
@@ -119,7 +119,7 @@ func ValidationResult(returnInfo *ReturnInfo, senderInfo *StakeInfo, factoryInfo
 	}, []any{returnInfo, senderInfo, factoryInfo, paymasterInfo})
 }
 
-// SenderAddressResult is related to entrypoint abi file
+// SenderAddressResult is related to entrypoint bind file
 func SenderAddressResult(sender ethcommon.Address) error {
 	return common.NewRevertError("SenderAddressResult", abi.Arguments{
 		abi.Argument{
@@ -129,7 +129,7 @@ func SenderAddressResult(sender ethcommon.Address) error {
 	}, []any{sender})
 }
 
-// ExecutionResult is related to entrypoint abi file
+// ExecutionResult is related to entrypoint bind file
 func ExecutionResult(preOpGas *big.Int, paid *big.Int, validAfter *big.Int, validUntil *big.Int, targetSuccess bool, targetResult []byte) error {
 	return common.NewRevertError("ExecutionResult", abi.Arguments{
 		abi.Argument{

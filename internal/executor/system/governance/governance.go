@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -75,7 +75,7 @@ const (
 var BuildConfig = &common.SystemContractBuildConfig[*Governance]{
 	Name:    "governance",
 	Address: common.GovernanceContractAddr,
-	AbiStr:  governance.BindingContractMetaData.ABI,
+	AbiStr:  governance_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *Governance {
 		gov := &Governance{
 			SystemContractBase: systemContractBase,

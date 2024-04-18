@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 CURRENT_PATH = $(shell pwd)
 APP_NAME = axiom-ledger
+AXM_GEN = axmgen
 export GODEBUG=x509ignoreCN=0
 
 GO_BIN = go
@@ -112,6 +113,10 @@ install:
 	${GO_BIN} install -ldflags '${GOLDFLAGS}' ./cmd/${APP_NAME}
 	@printf "${GREEN}Install ${APP_NAME} successfully!${NC}\n"
 
+axmgen:
+	${GO_BIN} install -ldflags '${GOLDFLAGS}' ./cmd/${AXM_GEN}
+	@printf "${GREEN}Install ${AXM_GEN} successfully!${NC}\n"
+
 ## make cluster: Run cluster including 4 nodes
 cluster:build
 	cd scripts && bash cluster.sh
@@ -137,8 +142,10 @@ define generate-abi
 	echo "Generated abi for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
 
 	echo "Generating binding for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+	mkdir -p $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')_client
+	abigen --abi $(patsubst %.sys.sol,%.abi,$(1)) --bin $(patsubst %.sys.sol,%.bin,$(1)) --pkg $(shell basename $(1) .sys.sol | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')_client --type BindingContract --out $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')_client/binding.go;
 	mkdir -p $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')
-	abigen --abi $(patsubst %.sys.sol,%.abi,$(1)) --bin $(patsubst %.sys.sol,%.bin,$(1)) --pkg $(shell basename $(1) .sys.sol | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]') --type BindingContract --out $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')/binding.go;
+	axmgen --abi $(patsubst %.sys.sol,%.abi,$(1)) --pkg $(shell basename $(1) .sys.sol | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]') --out $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')/binding.go;
 	echo "Generated binding for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
 	echo "";
 endef
