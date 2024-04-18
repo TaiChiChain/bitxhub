@@ -208,10 +208,10 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if returnErr != nil {
 		// if err is execution reverted, get reason
 		if err, ok := returnErr.(*common.RevertError); ok {
-			return err.Data(), err.GetError()
+			return err.Data, err.Err
 		} else {
 			wrapperErr := common.NewRevertStringError(returnErr.Error())
-			return wrapperErr.Data(), wrapperErr.GetError()
+			return wrapperErr.Data, wrapperErr.Err
 		}
 	}
 

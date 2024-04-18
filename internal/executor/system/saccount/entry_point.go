@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -23,7 +23,7 @@ const (
 var EntryPointBuildConfig = &common.SystemContractBuildConfig[*EntryPoint]{
 	Name:    "saccount_entry_point",
 	Address: common.EntryPointContractAddr,
-	AbiStr:  ientry_point.BindingContractMetaData.ABI,
+	AbiStr:  ientry_point_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *EntryPoint {
 		return &EntryPoint{
 			SystemContractBase: systemContractBase,

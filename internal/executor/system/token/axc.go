@@ -3,11 +3,11 @@ package token
 import (
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/solidity/axc_client"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/solidity/axc"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -18,7 +18,7 @@ const (
 var AXCBuildConfig = &common.SystemContractBuildConfig[*AXC]{
 	Name:    "token_axc",
 	Address: common.AXCContractAddr,
-	AbiStr:  axc.BindingContractMetaData.ABI,
+	AbiStr:  axc_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *AXC {
 		return &AXC{
 			SystemContractBase: systemContractBase,
