@@ -60,11 +60,11 @@ var defaultPebbleOptions = &pebbledb.Options{
 	Levels: []pebbledb.LevelOptions{
 		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
-		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
-		{TargetFileSize: 4 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
-		{TargetFileSize: 8 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
-		{TargetFileSize: 8 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
-		{TargetFileSize: 16 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
+		{TargetFileSize: 2 * 1024 * 1024, BlockSize: 32 * 1024, FilterPolicy: bloom.FilterPolicy(10)},
 	},
 }
 
