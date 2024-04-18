@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager_client"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -8,7 +9,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager"
 )
 
 var rpc = "http://127.0.0.1:8881"
@@ -61,7 +61,7 @@ var epochCMD = &cli.Command{
 	},
 }
 
-func bindEpochManagerContract(ctx *cli.Context) (*epoch_manager.BindingContract, error) {
+func bindEpochManagerContract(ctx *cli.Context) (*epoch_manager_client.BindingContract, error) {
 	if rpc == "" {
 		rpc = "http://127.0.0.1:8881"
 	}
@@ -70,7 +70,7 @@ func bindEpochManagerContract(ctx *cli.Context) (*epoch_manager.BindingContract,
 		return nil, errors.Wrap(err, "dial rpc failed")
 	}
 
-	epochManager, err := epoch_manager.NewBindingContract(ethcommon.HexToAddress(common.EpochManagerContractAddr), client)
+	epochManager, err := epoch_manager_client.NewBindingContract(ethcommon.HexToAddress(common.EpochManagerContractAddr), client)
 	if err != nil {
 		return nil, errors.Wrap(err, "bind epoch manager contract failed")
 	}

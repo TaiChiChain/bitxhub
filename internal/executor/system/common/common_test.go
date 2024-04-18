@@ -26,7 +26,7 @@ func TestRevertError(t *testing.T) {
 	t.Logf("%s", hexutil.Bytes(revertErr.(*RevertError).Data()))
 
 	reason, errUnpack := abi.UnpackRevert(revertErr.(*RevertError).Data())
-	t.Logf("reason: %s, data: %s, err: %s", reason, hexutil.Encode(revertErr.(*RevertError).Data()), errUnpack)
+	t.Logf("reason: %s, Data: %s, Err: %s", reason, hexutil.Encode(revertErr.(*RevertError).Data()), errUnpack)
 }
 
 func TestEmitEvent(t *testing.T) {

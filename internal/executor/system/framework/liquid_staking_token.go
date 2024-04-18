@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -25,7 +25,7 @@ const (
 var LiquidStakingTokenBuildConfig = &common.SystemContractBuildConfig[*LiquidStakingToken]{
 	Name:    "framework_liquid_staking_token",
 	Address: common.LiquidStakingTokenContractAddr,
-	AbiStr:  liquid_staking_token.BindingContractMetaData.ABI,
+	AbiStr:  liquid_staking_token_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *LiquidStakingToken {
 		return &LiquidStakingToken{
 			SystemContractBase: systemContractBase,

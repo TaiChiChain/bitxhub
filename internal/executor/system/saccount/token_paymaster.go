@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ipaymaster_client"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ipaymaster"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -38,7 +38,7 @@ var (
 var TokenPaymasterBuildConfig = &common.SystemContractBuildConfig[*TokenPaymaster]{
 	Name:    "saccount_token_paymaster",
 	Address: common.TokenPaymasterContractAddr,
-	AbiStr:  ipaymaster.BindingContractMetaData.ABI,
+	AbiStr:  ipaymaster_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *TokenPaymaster {
 		return &TokenPaymaster{
 			SystemContractBase: systemContractBase,
