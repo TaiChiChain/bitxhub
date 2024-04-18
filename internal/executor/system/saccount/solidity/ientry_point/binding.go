@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 // IEntryPointAggregatorStakeInfo is an auto generated low-level Go binding around an user-defined struct.
@@ -161,7 +161,7 @@ type EventAccountDeployed struct {
 }
 
 func (_event *EventAccountDeployed) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["AccountDeployed}"])
+	return packer.PackEvent(_event, abi.Events["AccountDeployed}"])
 }
 
 // IentryPointBeforeExecution represents a BeforeExecution event raised by the IentryPoint contract.
@@ -169,7 +169,7 @@ type EventBeforeExecution struct {
 }
 
 func (_event *EventBeforeExecution) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["BeforeExecution}"])
+	return packer.PackEvent(_event, abi.Events["BeforeExecution}"])
 }
 
 // IentryPointDeposited represents a Deposited event raised by the IentryPoint contract.
@@ -179,7 +179,7 @@ type EventDeposited struct {
 }
 
 func (_event *EventDeposited) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Deposited}"])
+	return packer.PackEvent(_event, abi.Events["Deposited}"])
 }
 
 // IentryPointSignatureAggregatorChanged represents a SignatureAggregatorChanged event raised by the IentryPoint contract.
@@ -188,7 +188,7 @@ type EventSignatureAggregatorChanged struct {
 }
 
 func (_event *EventSignatureAggregatorChanged) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["SignatureAggregatorChanged}"])
+	return packer.PackEvent(_event, abi.Events["SignatureAggregatorChanged}"])
 }
 
 // IentryPointStakeLocked represents a StakeLocked event raised by the IentryPoint contract.
@@ -199,7 +199,7 @@ type EventStakeLocked struct {
 }
 
 func (_event *EventStakeLocked) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["StakeLocked}"])
+	return packer.PackEvent(_event, abi.Events["StakeLocked}"])
 }
 
 // IentryPointStakeUnlocked represents a StakeUnlocked event raised by the IentryPoint contract.
@@ -209,7 +209,7 @@ type EventStakeUnlocked struct {
 }
 
 func (_event *EventStakeUnlocked) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["StakeUnlocked}"])
+	return packer.PackEvent(_event, abi.Events["StakeUnlocked}"])
 }
 
 // IentryPointStakeWithdrawn represents a StakeWithdrawn event raised by the IentryPoint contract.
@@ -220,7 +220,7 @@ type EventStakeWithdrawn struct {
 }
 
 func (_event *EventStakeWithdrawn) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["StakeWithdrawn}"])
+	return packer.PackEvent(_event, abi.Events["StakeWithdrawn}"])
 }
 
 // IentryPointUserOperationEvent represents a UserOperationEvent event raised by the IentryPoint contract.
@@ -235,7 +235,7 @@ type EventUserOperationEvent struct {
 }
 
 func (_event *EventUserOperationEvent) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["UserOperationEvent}"])
+	return packer.PackEvent(_event, abi.Events["UserOperationEvent}"])
 }
 
 // IentryPointUserOperationRevertReason represents a UserOperationRevertReason event raised by the IentryPoint contract.
@@ -247,7 +247,7 @@ type EventUserOperationRevertReason struct {
 }
 
 func (_event *EventUserOperationRevertReason) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["UserOperationRevertReason}"])
+	return packer.PackEvent(_event, abi.Events["UserOperationRevertReason}"])
 }
 
 // IentryPointWithdrawn represents a Withdrawn event raised by the IentryPoint contract.
@@ -258,7 +258,7 @@ type EventWithdrawn struct {
 }
 
 func (_event *EventWithdrawn) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Withdrawn}"])
+	return packer.PackEvent(_event, abi.Events["Withdrawn}"])
 }
 
 // IentryPointExecutionResult represents a ExecutionResult error raised by the IentryPoint contract.
@@ -272,7 +272,7 @@ type ErrorExecutionResult struct {
 }
 
 func (_error *ErrorExecutionResult) Pack(abi abi.ABI) error {
-	return bind.PackError(_error, abi.Errors["ExecutionResult}"])
+	return packer.PackError(_error, abi.Errors["ExecutionResult}"])
 }
 
 // IentryPointFailedOp represents a FailedOp error raised by the IentryPoint contract.
@@ -282,7 +282,7 @@ type ErrorFailedOp struct {
 }
 
 func (_error *ErrorFailedOp) Pack(abi abi.ABI) error {
-	return bind.PackError(_error, abi.Errors["FailedOp}"])
+	return packer.PackError(_error, abi.Errors["FailedOp}"])
 }
 
 // IentryPointSenderAddressResult represents a SenderAddressResult error raised by the IentryPoint contract.
@@ -291,7 +291,7 @@ type ErrorSenderAddressResult struct {
 }
 
 func (_error *ErrorSenderAddressResult) Pack(abi abi.ABI) error {
-	return bind.PackError(_error, abi.Errors["SenderAddressResult}"])
+	return packer.PackError(_error, abi.Errors["SenderAddressResult}"])
 }
 
 // IentryPointSignatureValidationFailed represents a SignatureValidationFailed error raised by the IentryPoint contract.
@@ -300,7 +300,7 @@ type ErrorSignatureValidationFailed struct {
 }
 
 func (_error *ErrorSignatureValidationFailed) Pack(abi abi.ABI) error {
-	return bind.PackError(_error, abi.Errors["SignatureValidationFailed}"])
+	return packer.PackError(_error, abi.Errors["SignatureValidationFailed}"])
 }
 
 // IentryPointValidationResult represents a ValidationResult error raised by the IentryPoint contract.
@@ -312,7 +312,7 @@ type ErrorValidationResult struct {
 }
 
 func (_error *ErrorValidationResult) Pack(abi abi.ABI) error {
-	return bind.PackError(_error, abi.Errors["ValidationResult}"])
+	return packer.PackError(_error, abi.Errors["ValidationResult}"])
 }
 
 // IentryPointValidationResultWithAggregation represents a ValidationResultWithAggregation error raised by the IentryPoint contract.
@@ -325,5 +325,5 @@ type ErrorValidationResultWithAggregation struct {
 }
 
 func (_error *ErrorValidationResultWithAggregation) Pack(abi abi.ABI) error {
-	return bind.PackError(_error, abi.Errors["ValidationResultWithAggregation}"])
+	return packer.PackError(_error, abi.Errors["ValidationResultWithAggregation}"])
 }

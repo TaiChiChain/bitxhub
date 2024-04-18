@@ -3,6 +3,7 @@ package saccount
 import (
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -37,8 +38,8 @@ func (sm *StakeManager) GetDepositInfo(account ethcommon.Address) *interfaces.De
 }
 
 // nolint
-func (sm *StakeManager) getStakeInfo(addr ethcommon.Address) (info *interfaces.StakeInfo) {
-	info = &interfaces.StakeInfo{
+func (sm *StakeManager) getStakeInfo(addr ethcommon.Address) (info *ientry_point.IStakeManagerStakeInfo) {
+	info = &ientry_point.IStakeManagerStakeInfo{
 		Stake:           big.NewInt(0),
 		UnstakeDelaySec: big.NewInt(0),
 	}

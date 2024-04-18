@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strconv"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -95,15 +96,15 @@ func (sp *StakingPool) Exists() bool {
 	return sp.info.Has()
 }
 
-func (sp *StakingPool) AddStake(owner string, amount *big.Int) error {
+func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error {
 	return nil
 }
 
-func (sp *StakingPool) UnlockStake(owner string, liquidStakingTokenID *big.Int, amount *big.Int) error {
+func (sp *StakingPool) UnlockStake(owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
 	return nil
 }
 
-func (sp *StakingPool) WithdrawStake(owner string, liquidStakingTokenID *big.Int, amount *big.Int) error {
+func (sp *StakingPool) WithdrawStake(owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
 	return nil
 }
 

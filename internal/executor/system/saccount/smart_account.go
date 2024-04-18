@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_client"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -137,7 +137,10 @@ func (sa *SmartAccount) Initialize(owner, guardian ethcommon.Address) error {
 	}
 	sa.StateAccount.SetCodeAndHash(ethcommon.Hex2Bytes(common.EmptyContractBinCode))
 	// emit AccountInitialized event
-	sa.EmitEvent("SmartAccountInitialized", types.NewAddressByStr(common.EntryPointContractAddr), owner)
+	sa.EmitEvent(&smart_account.EventSmartAccountInitialized{
+		EntryPoint: types.NewAddressByStr(common.EntryPointContractAddr).ETHAddress(),
+		Owner:      owner,
+	})
 
 	// initialize guardian
 	if err := sa.SetGuardian(guardian); err != nil {
@@ -212,7 +215,7 @@ func (sa *SmartAccount) setOwner(owner ethcommon.Address) error {
 // ValidateUserOp return SigValidationFailed when validate failed
 // This allows making a "simulation call" without a valid signature
 // Other failures (e.g. nonce mismatch, or invalid signature format) should still revert to signal failure.
-func (sa *SmartAccount) ValidateUserOp(userOp interfaces.UserOperation, userOpHash []byte, missingAccountFunds *big.Int) (validationData *big.Int, err error) {
+func (sa *SmartAccount) ValidateUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (validationData *big.Int, err error) {
 	validation, err := sa.validateUserOp(&userOp, userOpHash, missingAccountFunds)
 	if validation != nil {
 		validationData = interfaces.PackValidationData(validation)
@@ -221,7 +224,7 @@ func (sa *SmartAccount) ValidateUserOp(userOp interfaces.UserOperation, userOpHa
 }
 
 // nolint
-func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpHash []byte, missingAccountFunds *big.Int) (*interfaces.Validation, error) {
+func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (*interfaces.Validation, error) {
 	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
 		return nil, errors.New("only entrypoint can call ValidateUserOp")
 	}
@@ -310,7 +313,7 @@ func (sa *SmartAccount) SetGuardian(guardian ethcommon.Address) error {
 	return sa.guardian.Put(guardian)
 }
 
-func (sa *SmartAccount) ValidateGuardianSignature(guardianSig []byte, userOpHash []byte) error {
+func (sa *SmartAccount) ValidateGuardianSignature(guardianSig []byte, userOpHash [32]byte) error {
 	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
 		return errors.New("only entrypoint can call ValidateUserOp")
 	}
@@ -431,19 +434,18 @@ func (sa *SmartAccount) postUserOp(UseSessionKey bool, actualGasCost *big.Int) e
 	return sa.setSession(session)
 }
 
-func recoveryAddrFromSignature(hash, signature []byte) (ethcommon.Address, error) {
+func recoveryAddrFromSignature(hash [32]byte, signature []byte) (ethcommon.Address, error) {
 	if len(signature) != 65 {
 		return ethcommon.Address{}, errors.New("invalid signature length")
 	}
 
-	ethHash := accounts.TextHash(hash)
 	// ethers js return r|s|v, v only 1 byte
 	// golang return rid, v = rid +27
 	if signature[64] >= 27 {
 		signature[64] -= 27
 	}
 
-	recoveredPub, err := crypto.Ecrecover(ethHash, signature)
+	recoveredPub, err := crypto.Ecrecover(hash[:], signature)
 	if err != nil {
 		return ethcommon.Address{}, err
 	}

@@ -1,17 +1,24 @@
-package bind
+package packer
 
 import (
 	"fmt"
 	"reflect"
 
 	"github.com/axiomesh/axiom-kit/types"
-	common2 "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )
+
+type Event interface {
+	Pack(abi abi.ABI) (*types.EvmLog, error)
+}
+
+type Error interface {
+	Pack(abi abi.ABI) error
+}
 
 func PackEvent(eventStruct any, event abi.Event) (*types.EvmLog, error) {
 	if eventStruct == nil {
@@ -50,6 +57,20 @@ func PackEvent(eventStruct any, event abi.Event) (*types.EvmLog, error) {
 	}, nil
 }
 
+type RevertError struct {
+	Err error
+
+	// Data is encoded reverted reason, or result
+	Data []byte
+
+	// reverted result
+	Str string
+}
+
+func (e *RevertError) Error() string {
+	return fmt.Sprintf("%s errdata %s", e.Err.Error(), e.Str)
+}
+
 func PackError(errStruct any, abiErr abi.Error) error {
 	if errStruct == nil {
 		return errors.New("error struct is nil")
@@ -65,7 +86,7 @@ func PackError(errStruct any, abiErr abi.Error) error {
 		return err
 	}
 
-	return &common2.RevertError{
+	return &RevertError{
 		Err:  vm.ErrExecutionReverted,
 		Data: append(selector, packed...),
 		Str:  fmt.Sprintf("%s, args: %v", abiErr.String(), args),

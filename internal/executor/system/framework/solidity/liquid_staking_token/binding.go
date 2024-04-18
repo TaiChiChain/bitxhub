@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 // LiquidStakingTokenInfo is an auto generated low-level Go binding around an user-defined struct.
@@ -122,7 +122,7 @@ type EventApproval struct {
 }
 
 func (_event *EventApproval) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Approval}"])
+	return packer.PackEvent(_event, abi.Events["Approval}"])
 }
 
 // LiquidStakingTokenApprovalForAll represents a ApprovalForAll event raised by the LiquidStakingToken contract.
@@ -133,7 +133,7 @@ type EventApprovalForAll struct {
 }
 
 func (_event *EventApprovalForAll) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["ApprovalForAll}"])
+	return packer.PackEvent(_event, abi.Events["ApprovalForAll}"])
 }
 
 // LiquidStakingTokenTransfer represents a Transfer event raised by the LiquidStakingToken contract.
@@ -144,5 +144,5 @@ type EventTransfer struct {
 }
 
 func (_event *EventTransfer) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Transfer}"])
+	return packer.PackEvent(_event, abi.Events["Transfer}"])
 }

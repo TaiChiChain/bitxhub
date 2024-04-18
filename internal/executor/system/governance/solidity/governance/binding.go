@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 // Proposal is an auto generated low-level Go binding around an user-defined struct.
@@ -71,7 +71,7 @@ type EventPropose struct {
 }
 
 func (_event *EventPropose) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Propose}"])
+	return packer.PackEvent(_event, abi.Events["Propose}"])
 }
 
 // GovernanceVote represents a Vote event raised by the Governance contract.
@@ -83,5 +83,5 @@ type EventVote struct {
 }
 
 func (_event *EventVote) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Vote}"])
+	return packer.PackEvent(_event, abi.Events["Vote}"])
 }

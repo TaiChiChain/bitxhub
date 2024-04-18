@@ -1,8 +1,6 @@
 package interfaces
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
@@ -38,15 +36,6 @@ var (
 	})
 )
 
-type ReturnInfo struct {
-	PreOpGas         *big.Int
-	Prefund          *big.Int
-	SigFailed        bool
-	ValidAfter       *big.Int
-	ValidUntil       *big.Int
-	PaymasterContext []byte
-}
-
 type IEntryPoint interface {
 	common.SystemContract
 	IStakeManager
@@ -81,80 +70,4 @@ type IEntryPoint interface {
 	// an optional target address is called after the userop succeeds, and its value is returned
 	// (before the entire call is reverted)
 	SimulateHandleOp(op UserOperation, target ethcommon.Address, targetCallData []byte) error
-}
-
-// FailedOp is related to entrypoint bind file
-func FailedOp(opIndex *big.Int, reason string) error {
-	return common.NewRevertError("FailedOp", abi.Arguments{
-		abi.Argument{
-			Name: "opIndex",
-			Type: common.BigIntType,
-		},
-		{
-			Name: "reason",
-			Type: common.StringType,
-		},
-	}, []any{opIndex, reason})
-}
-
-// ValidationResult is related to entrypoint bind file
-func ValidationResult(returnInfo *ReturnInfo, senderInfo *StakeInfo, factoryInfo *StakeInfo, paymasterInfo *StakeInfo) error {
-	return common.NewRevertError("ValidationResult", abi.Arguments{
-		abi.Argument{
-			Name: "returnInfo",
-			Type: ReturnInfoType,
-		},
-		{
-			Name: "senderInfo",
-			Type: StakeInfoType,
-		},
-		{
-			Name: "factoryInfo",
-			Type: StakeInfoType,
-		},
-		{
-			Name: "paymasterInfo",
-			Type: StakeInfoType,
-		},
-	}, []any{returnInfo, senderInfo, factoryInfo, paymasterInfo})
-}
-
-// SenderAddressResult is related to entrypoint bind file
-func SenderAddressResult(sender ethcommon.Address) error {
-	return common.NewRevertError("SenderAddressResult", abi.Arguments{
-		abi.Argument{
-			Name: "sender",
-			Type: common.AddressType,
-		},
-	}, []any{sender})
-}
-
-// ExecutionResult is related to entrypoint bind file
-func ExecutionResult(preOpGas *big.Int, paid *big.Int, validAfter *big.Int, validUntil *big.Int, targetSuccess bool, targetResult []byte) error {
-	return common.NewRevertError("ExecutionResult", abi.Arguments{
-		abi.Argument{
-			Name: "preOpGas",
-			Type: common.BigIntType,
-		},
-		{
-			Name: "paid",
-			Type: common.BigIntType,
-		},
-		{
-			Name: "validAfter",
-			Type: common.UInt48Type,
-		},
-		{
-			Name: "validUntil",
-			Type: common.UInt48Type,
-		},
-		{
-			Name: "targetSuccess",
-			Type: common.BoolType,
-		},
-		{
-			Name: "targetResult",
-			Type: common.BytesType,
-		},
-	}, []any{preOpGas, paid, validAfter, validUntil, targetSuccess, targetResult})
 }

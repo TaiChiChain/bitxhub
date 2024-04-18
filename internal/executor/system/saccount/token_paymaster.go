@@ -120,7 +120,7 @@ func (tp *TokenPaymaster) PostOp(mode interfaces.PostOpMode, context []byte, act
 }
 
 // ValidatePaymasterUserOp implements interfaces.IPaymaster.
-func (tp *TokenPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
+func (tp *TokenPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
 	if tp.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
 		return nil, nil, errors.New("only entrypoint can call validate paymaster user op")
 	}
@@ -131,7 +131,7 @@ func (tp *TokenPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperatio
 }
 
 // nolint
-func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validation *interfaces.Validation, err error) {
+func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, maxCost *big.Int) (context []byte, validation *interfaces.Validation, err error) {
 	validation = &interfaces.Validation{SigValidation: interfaces.SigValidationFailed}
 	paymasterAndData := userOp.PaymasterAndData
 	if len(paymasterAndData) < 20+20 {
