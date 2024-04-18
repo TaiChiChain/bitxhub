@@ -39,7 +39,7 @@ type IAccount interface {
 	// signature failure should be reported by returning SIG_VALIDATION_FAILED (1).
 	// This allows making a "simulation call" without a valid signature
 	// Other failures (e.g. nonce mismatch, or invalid signature format) should still revert to signal failure.
-	ValidateUserOp(userOp UserOperation, userOpHash []byte, missingAccountFunds *big.Int) (validationData *big.Int, err error)
+	ValidateUserOp(userOp UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (validationData *big.Int, err error)
 }
 
 // extract validation

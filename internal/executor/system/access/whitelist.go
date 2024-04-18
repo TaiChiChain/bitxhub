@@ -121,7 +121,10 @@ func (w *Whitelist) Submit(addresses []ethcommon.Address) error {
 		}
 	}
 
-	w.EmitEvent("Submit", w.Ctx.From, addresses)
+	w.EmitEvent(&whitelist.EventSubmit{
+		Submitter: w.Ctx.From,
+		Addresses: addresses,
+	})
 	return nil
 }
 
@@ -161,7 +164,11 @@ func (w *Whitelist) Remove(addresses []ethcommon.Address) error {
 			}
 		}
 	}
-	w.EmitEvent("Remove", w.Ctx.From, addresses)
+
+	w.EmitEvent(&whitelist.EventRemove{
+		Submitter: w.Ctx.From,
+		Addresses: addresses,
+	})
 	return nil
 }
 
@@ -234,7 +241,10 @@ func (w *Whitelist) UpdateProviders(isAdd bool, providers []whitelist.ProviderIn
 		}
 	}
 
-	w.EmitEvent("UpdateProviders", isAdd, providers)
+	w.EmitEvent(&whitelist.EventUpdateProviders{
+		IsAdd:     isAdd,
+		Providers: providers,
+	})
 	return nil
 }
 

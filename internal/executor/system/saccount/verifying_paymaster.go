@@ -84,7 +84,7 @@ func (vp *VerifyingPaymaster) PostOp(mode interfaces.PostOpMode, context []byte,
 }
 
 // ValidatePaymasterUserOp implements interfaces.IPaymaster.
-func (vp *VerifyingPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
+func (vp *VerifyingPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
 	if vp.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
 		return nil, nil, errors.New("only entrypoint can call validate paymaster user op")
 	}
@@ -98,7 +98,7 @@ func (vp *VerifyingPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOper
 }
 
 // nolint
-func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validationData *interfaces.Validation, err error) {
+func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, maxCost *big.Int) (context []byte, validationData *interfaces.Validation, err error) {
 	validUntil, validAfter, signature, err := parsePaymasterAndData(userOp.PaymasterAndData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("validate paymaster user op failed: %s", err.Error())
@@ -128,14 +128,17 @@ func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOper
 	return []byte(""), validationData, nil
 }
 
-func (vp *VerifyingPaymaster) getHash(userOp interfaces.UserOperation, validUntil, validAfter *big.Int) []byte {
-	return crypto.Keccak256(
+func (vp *VerifyingPaymaster) getHash(userOp interfaces.UserOperation, validUntil, validAfter *big.Int) [32]byte {
+	bytes := crypto.Keccak256(
 		pack(userOp),
 		ethcommon.LeftPadBytes(vp.Ctx.CurrentEVM.ChainConfig().ChainID.Bytes(), 32),
 		ethcommon.LeftPadBytes(vp.Address.Bytes(), 32),
 		ethcommon.LeftPadBytes(validUntil.Bytes(), 32),
 		ethcommon.LeftPadBytes(validAfter.Bytes(), 32),
 	)
+	var bytes32 [32]byte
+	copy(bytes32[:], bytes)
+	return bytes32
 }
 
 func parsePaymasterAndData(paymasterAndData []byte) (validUntil, validAfter *big.Int, signature []byte, err error) {

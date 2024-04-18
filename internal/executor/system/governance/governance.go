@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -233,8 +234,15 @@ func (g *Governance) checkAndUpdateState(method string) error {
 				return err
 			}
 
-			// post log
-			g.EmitEvent(method, proposal)
+			// todo: refactor
+			switch method {
+			case ProposeEvent:
+				g.EmitProposeEvent(&proposal)
+			case VoteEvent:
+				g.EmitVoteEvent(&proposal)
+			default:
+				return errors.New("unknown method")
+			}
 		}
 	}
 
@@ -498,17 +506,27 @@ func (g *Governance) isCouncilMember(user ethcommon.Address) (bool, error) {
 }
 
 func (g *Governance) EmitProposeEvent(proposal *Proposal) {
-	g.emitProposalEvent(ProposeEvent, proposal)
-}
-
-func (g *Governance) EmitVoteEvent(proposal *Proposal) {
-	g.emitProposalEvent(VoteEvent, proposal)
-}
-
-func (g *Governance) emitProposalEvent(eventName string, proposal *Proposal) {
 	data, err := json.Marshal(proposal)
 	if err != nil {
 		panic(err)
 	}
-	g.EmitEvent(eventName, proposal.ID, uint8(proposal.Type), ethcommon.HexToAddress(proposal.Proposer), data)
+	g.EmitEvent(&governance.EventPropose{
+		ProposalID:   proposal.ID,
+		ProposalType: uint8(proposal.Type),
+		Proposer:     ethcommon.HexToAddress(proposal.Proposer),
+		Proposal:     data,
+	})
+}
+
+func (g *Governance) EmitVoteEvent(proposal *Proposal) {
+	data, err := json.Marshal(proposal)
+	if err != nil {
+		panic(err)
+	}
+	g.EmitEvent(&governance.EventVote{
+		ProposalID:   proposal.ID,
+		ProposalType: uint8(proposal.Type),
+		Proposer:     ethcommon.HexToAddress(proposal.Proposer),
+		Proposal:     data,
+	})
 }

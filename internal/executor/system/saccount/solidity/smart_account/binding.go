@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 // UserOperation is an auto generated low-level Go binding around an user-defined struct.
@@ -98,5 +98,5 @@ type EventSmartAccountInitialized struct {
 }
 
 func (_event *EventSmartAccountInitialized) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["SmartAccountInitialized}"])
+	return packer.PackEvent(_event, abi.Events["SmartAccountInitialized}"])
 }
