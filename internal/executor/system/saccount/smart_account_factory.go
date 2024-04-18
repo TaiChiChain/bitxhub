@@ -3,18 +3,18 @@ package saccount
 import (
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_factory_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_factory"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var SmartAccountFactoryBuildConfig = &common.SystemContractBuildConfig[*SmartAccountFactory]{
 	Name:    "saccount_account_factory",
 	Address: common.AccountFactoryContractAddr,
-	AbiStr:  smart_account_factory.BindingContractMetaData.ABI,
+	AbiStr:  smart_account_factory_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *SmartAccountFactory {
 		return &SmartAccountFactory{
 			SystemContractBase: systemContractBase,

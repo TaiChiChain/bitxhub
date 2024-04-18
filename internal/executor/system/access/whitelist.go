@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/access/solidity/whitelist_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -25,7 +26,7 @@ var (
 var WhitelistBuildConfig = &common.SystemContractBuildConfig[*Whitelist]{
 	Name:    "access_whitelist",
 	Address: common.WhiteListContractAddr,
-	AbiStr:  whitelist.BindingContractMetaData.ABI,
+	AbiStr:  whitelist_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *Whitelist {
 		return &Whitelist{
 			SystemContractBase: systemContractBase,
