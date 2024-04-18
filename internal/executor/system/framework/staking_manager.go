@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager_client"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -183,15 +184,15 @@ func (s *StakingManager) CreateStakingPool(poolID uint64, commissionRate uint64)
 	return nil
 }
 
-func (s *StakingManager) AddStake(poolID uint64, owner string, amount *big.Int) error {
+func (s *StakingManager) Stake(poolID uint64, owner ethcommon.Address, amount *big.Int) error {
 	return s.GetStakingPool(poolID).AddStake(owner, amount)
 }
 
-func (s *StakingManager) UnlockStake(poolID uint64, owner string, liquidStakingTokenID *big.Int, amount *big.Int) error {
+func (s *StakingManager) Unlock(poolID uint64, owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
 	return s.GetStakingPool(poolID).UnlockStake(owner, liquidStakingTokenID, amount)
 }
 
-func (s *StakingManager) WithdrawStake(poolID uint64, owner string, liquidStakingTokenID *big.Int, amount *big.Int) error {
+func (s *StakingManager) Withdraw(poolID uint64, owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
 	return s.GetStakingPool(poolID).WithdrawStake(owner, liquidStakingTokenID, amount)
 }
 

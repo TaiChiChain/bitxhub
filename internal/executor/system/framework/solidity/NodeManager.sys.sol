@@ -2,48 +2,50 @@
 
 pragma solidity ^0.8.20;
 
+enum Status {
+    StatusSyncing,
+    StatusCandidate,
+    StatusActive,
+    StatusPendingInactive,
+    StatusExited
+}
+
+struct NodeMetaData {
+    string name;
+    string desc;
+    string imageURL;
+    string websiteURL;
+}
+
+struct NodeInfo {
+    uint64 ID;
+    string ConsensusPubKey;
+    string P2PPubKey;
+    string P2PID;
+    string OperatorAddress;
+    NodeMetaData MetaData;
+    Status Status;
+}
+
+struct ConsensusVotingPower {
+    uint64 NodeID;
+    int64  ConsensusVotingPower;
+}
+
 interface NodeManager {
-    enum Status {
-        StatusSyncing,
-        StatusCandidate,
-        StatusActive,
-        StatusPendingInactive,
-        StatusExited
-    }
+    function joinCandidateSet(uint64 nodeID) external;
 
-    struct NodeMetaData {
-        string name;
-        string desc;
-        string imageURL;
-        string websiteURL;
-    }
+    function leaveValidatorSet(uint64 nodeID) external;
 
-    struct NodeInfo {
-        uint64 ID;
-        string NodePubKey;
-        string OperatorAddress;
-        NodeMetaData MetaData;
-        Status Status;
-    }
+    function updateMetaData(uint64 nodeID, NodeMetaData memory metaData) external;
 
-    struct ConsensusVotingPower {
-        uint256 NodeID;
-        uint256 ConsensusVotingPower;
-    }
+    function updateOperator(uint64 nodeID, string memory newOperatorAddress) external;
 
-    function joinCandidate(uint256 nodeID) external;
+    function GetNodeInfo(uint64 nodeID) external view returns (NodeInfo memory info);
 
-    function leaveValidatorSet(uint256 nodeID) external;
+    function GetTotalNodeCount() external view returns (uint64);
 
-    function updateMetaData(uint256 nodeID, NodeMetaData memory metaData) external;
-
-    function updateOperator(uint256 nodeID, string memory newOperatorAddress) external;
-
-    function GetNodeInfo(uint256 nodeID) external view returns (NodeInfo memory info);
-
-    function GetTotalNodeCount() external view returns (uint256);
-
-    function GetNodeInfos(uint256[] memory nodeIDs) external view returns (NodeInfo[] memory info);
+    function GetNodeInfos(uint64[] memory nodeIDs) external view returns (NodeInfo[] memory info);
 
     function GetActiveValidatorSet() external view returns (NodeInfo[] memory info, ConsensusVotingPower[] memory votingPowers);
 

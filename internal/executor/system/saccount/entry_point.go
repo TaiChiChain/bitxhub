@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
@@ -46,7 +47,7 @@ type MemoryUserOp struct {
 
 type UserOpInfo struct {
 	MUserOp       MemoryUserOp
-	UserOpHash    []byte
+	UserOpHash    [32]byte
 	Prefund       *big.Int
 	Context       []byte
 	PreOpGas      *big.Int
@@ -110,7 +111,7 @@ func (ep *EntryPoint) HandleOps(ops []interfaces.UserOperation, beneficiary ethc
 		}
 	}
 
-	ep.EmitEvent("BeforeExecution")
+	ep.EmitEvent(&ientry_point.EventBeforeExecution{})
 
 	collected := big.NewInt(0)
 	for i := 0; i < len(ops); i++ {
@@ -153,7 +154,14 @@ func (ep *EntryPoint) SimulateHandleOp(op interfaces.UserOperation, target ethco
 		targetResult = result
 	}
 
-	return interfaces.ExecutionResult(opInfo.PreOpGas, paid, big.NewInt(int64(data.ValidAfter)), big.NewInt(int64(data.ValidUntil)), targetSuccess, targetResult)
+	return ep.Revert(&ientry_point.ErrorExecutionResult{
+		PreOpGas:      opInfo.PreOpGas,
+		Paid:          paid,
+		ValidAfter:    big.NewInt(int64(data.ValidAfter)),
+		ValidUntil:    big.NewInt(int64(data.ValidUntil)),
+		TargetSuccess: targetSuccess,
+		TargetResult:  targetResult,
+	})
 }
 
 func (ep *EntryPoint) SimulateValidation(userOp interfaces.UserOperation) error {
@@ -170,7 +178,7 @@ func (ep *EntryPoint) SimulateValidation(userOp interfaces.UserOperation) error 
 
 	paymasterInfo := ep.getStakeInfo(outOpInfo.MUserOp.Paymaster)
 	senderInfo := ep.getStakeInfo(outOpInfo.MUserOp.Sender)
-	var factoryInfo *interfaces.StakeInfo
+	var factoryInfo *ientry_point.IStakeManagerStakeInfo
 	var factory ethcommon.Address
 	initCode := userOp.InitCode
 	if len(initCode) >= 20 {
@@ -179,7 +187,7 @@ func (ep *EntryPoint) SimulateValidation(userOp interfaces.UserOperation) error 
 	factoryInfo = ep.getStakeInfo(factory)
 
 	SigFailed := data.SigValidation == interfaces.SigValidationFailed
-	returnInfo := &interfaces.ReturnInfo{
+	returnInfo := &ientry_point.IEntryPointReturnInfo{
 		PreOpGas:         outOpInfo.PreOpGas,
 		Prefund:          outOpInfo.Prefund,
 		SigFailed:        SigFailed,
@@ -188,7 +196,12 @@ func (ep *EntryPoint) SimulateValidation(userOp interfaces.UserOperation) error 
 		PaymasterContext: outOpInfo.Context,
 	}
 
-	return interfaces.ValidationResult(returnInfo, senderInfo, factoryInfo, paymasterInfo)
+	return ep.Revert(&ientry_point.ErrorValidationResult{
+		ReturnInfo:    *returnInfo,
+		SenderInfo:    *senderInfo,
+		FactoryInfo:   *factoryInfo,
+		PaymasterInfo: *paymasterInfo,
+	})
 }
 
 // validatePrepayment validate account and paymaster (if defined).
@@ -221,7 +234,10 @@ func (ep *EntryPoint) validatePrepayment(opIndex *big.Int, userOp *interfaces.Us
 		return nil, nil, err
 	}
 	if !pass {
-		return nil, nil, interfaces.FailedOp(opIndex, "AA25 invalid account nonce")
+		return nil, nil, ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA25 invalid account nonce",
+		})
 	}
 
 	var context []byte
@@ -235,7 +251,10 @@ func (ep *EntryPoint) validatePrepayment(opIndex *big.Int, userOp *interfaces.Us
 
 	gasUsed := gasUsedByValidateAccountPrepayment
 	if userOp.VerificationGasLimit.Cmp(gasUsed) == -1 {
-		return nil, nil, interfaces.FailedOp(opIndex, "AA40 over verificationGasLimit")
+		return nil, nil, ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA40 over verificationGasLimit",
+		})
 	}
 
 	outOpInfo.Prefund = requiredPreFund
@@ -257,23 +276,38 @@ func (ep *EntryPoint) validateAccountAndPaymasterValidationData(opIndex *big.Int
 		outOfTimeRange = false
 	}
 	if sigValidationResult == interfaces.SigValidationFailed {
-		return interfaces.FailedOp(opIndex, "AA24 signature error")
+		return ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA24 signature error",
+		})
 	}
 	if outOfTimeRange {
-		return interfaces.FailedOp(opIndex, "AA22 expired or not due")
+		return ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA22 expired or not due",
+		})
 	}
 
 	pmSigValidationResult, outOfTimeRange := ep.getValidationData(paymasterValidationData)
 	if pmSigValidationResult == interfaces.SigValidationFailed {
-		return interfaces.FailedOp(opIndex, "AA34 signature error")
+		return ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA34 signature error",
+		})
 	}
 	if outOfTimeRange {
-		return interfaces.FailedOp(opIndex, "AA32 paymaster expired or not due")
+		return ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA32 paymaster expired or not due",
+		})
 	}
 
 	// when remain limit is not nil, it means the session key is used, then check
 	if validation.RemainingLimit != nil && validation.RemainingLimit.Cmp(opInfo.PreOpGas) < 0 {
-		return interfaces.FailedOp(opIndex, "account remain limit not enough")
+		return ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "account remain limit not enough",
+		})
 	}
 	return nil
 }
@@ -302,7 +336,10 @@ func (ep *EntryPoint) validateAccountPrepayment(opIndex *big.Int, op *interfaces
 	if paymaster == (ethcommon.Address{}) {
 		depositInfo := ep.GetDepositInfo(sender)
 		if depositInfo.Deposit.Cmp(requiredPrefund) == -1 {
-			return big.NewInt(int64(usedGas)), nil, interfaces.FailedOp(opIndex, "AA21 didn't pay prefund")
+			return big.NewInt(int64(usedGas)), nil, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  "AA21 didn't pay prefund",
+			})
 		}
 
 		// if no paymaster set, just use sender balance
@@ -314,7 +351,10 @@ func (ep *EntryPoint) validateAccountPrepayment(opIndex *big.Int, op *interfaces
 	sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), sender).SetRemainingGas(mUserOp.VerificationGasLimit)
 	validationData, err = sa.validateUserOp(op, opInfo.UserOpHash, big.NewInt(0))
 	if err != nil {
-		return big.NewInt(int64(usedGas)), nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA23 reverted: %s", err.Error()))
+		return big.NewInt(int64(usedGas)), nil, ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  fmt.Sprintf("AA23 reverted: %s", err.Error()),
+		})
 	}
 
 	return big.NewInt(int64(usedGas)), validationData, nil
@@ -335,14 +375,20 @@ func (ep *EntryPoint) validatePaymasterPrepayment(opIndex *big.Int, op *interfac
 	paymasterInfo := ep.GetDepositInfo(paymasterAddr)
 
 	if paymasterInfo.Deposit.Cmp(requiredPrefund) == -1 {
-		return nil, nil, interfaces.FailedOp(opIndex, "AA31 paymaster deposit too low")
+		return nil, nil, ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA31 paymaster deposit too low",
+		})
 	}
 	// first, sub gas, after execute userOp, compensate left to paymaster
 	ep.subBalance(paymasterAddr, requiredPrefund)
 
 	context, validationData, err = paymaster.ValidatePaymasterUserOp(*op, opInfo.UserOpHash, requiredPrefund)
 	if err != nil {
-		return nil, nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA33 reverted: %s", err.Error()))
+		return nil, nil, ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  fmt.Sprintf("AA33 reverted: %s", err.Error()),
+		})
 	}
 
 	return context, validationData, nil
@@ -375,13 +421,19 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 	if len(callData) > 0 {
 		// check if call smart account method, directly call. otherwise, call evm
 		if len(callData) < 4 {
-			return nil, interfaces.FailedOp(opIndex, "callData length not enough")
+			return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  "callData length not enough",
+			})
 		}
 
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.CallGasLimit)
 		isInnerMethod, callGas, err := JudgeOrCallInnerMethod(callData, sa)
 		if err != nil {
-			return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA42 reverted: %s", err.Error()))
+			return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  fmt.Sprintf("AA42 reverted: %s", err.Error()),
+			})
 		}
 
 		usedGas.Add(usedGas, big.NewInt(int64(callGas)))
@@ -389,7 +441,12 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 			// call evm if not inner method
 			_, callGas, err := ep.CrossCallEVMContract(mUserOp.CallGasLimit, mUserOp.Sender, callData)
 			if err != nil {
-				ep.EmitEvent("UserOperationRevertReason", opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
+				ep.EmitEvent(&ientry_point.EventUserOperationRevertReason{
+					UserOpHash:   opInfo.UserOpHash,
+					Sender:       mUserOp.Sender,
+					Nonce:        mUserOp.Nonce,
+					RevertReason: []byte(err.Error()),
+				})
 				mode = interfaces.OpReverted
 			}
 
@@ -423,30 +480,50 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.VerificationGasLimit)
 
 		if err := sa.postUserOp(opInfo.UseSessionKey, actualGasCost); err != nil {
-			return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("post user op reverted: %s", err.Error()))
+			return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  fmt.Sprintf("post user op reverted: %s", err.Error()),
+			})
 		}
 	} else {
 		refundAddress = paymaster
 		if len(context) > 0 {
 			paymaster, err := ep.getPaymaster(paymaster)
 			if err != nil {
-				return nil, interfaces.FailedOp(opIndex, err.Error())
+				return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+					OpIndex: opIndex,
+					Reason:  err.Error(),
+				})
 			}
 			if err := paymaster.PostOp(mode, context, actualGasCost); err != nil {
-				return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("AA50 postOp reverted: %s", err.Error()))
+				return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+					OpIndex: opIndex,
+					Reason:  fmt.Sprintf("AA50 postOp reverted: %s", err.Error()),
+				})
 			}
 		}
 	}
 
 	if opInfo.Prefund.Cmp(actualGasCost) == -1 {
 		ep.Logger.Errorf("prefund is below actual gas cost, prefund: %s, actual gas cost: %s, actual gas: %s, gas price: %s", opInfo.Prefund.Text(10), actualGasCost.Text(10), actualGas.Text(10), gasPrice.Text(10))
-		return nil, interfaces.FailedOp(opIndex, "AA51 prefund below actualGasCost")
+		return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  "AA51 prefund below actualGasCost",
+		})
 	}
 	refund := new(big.Int).Sub(opInfo.Prefund, actualGasCost)
 	ep.addBalance(refundAddress, refund)
 	success := mode == interfaces.OpSucceeded
 
-	ep.EmitEvent("UserOperationEvent", opInfo.UserOpHash, mUserOp.Sender, paymaster, mUserOp.Nonce, success, actualGasCost, actualGas)
+	ep.EmitEvent(&ientry_point.EventUserOperationEvent{
+		UserOpHash:    opInfo.UserOpHash,
+		Sender:        mUserOp.Sender,
+		Paymaster:     paymaster,
+		Nonce:         mUserOp.Nonce,
+		Success:       success,
+		ActualGasCost: actualGasCost,
+		ActualGasUsed: actualGas,
+	})
 	return actualGasCost, nil
 }
 
@@ -454,8 +531,8 @@ func (ep *EntryPoint) GetUserOpHash(userOp interfaces.UserOperation) ethcommon.H
 	return interfaces.GetUserOpHash(&userOp, ep.EthAddress, ep.Ctx.CurrentEVM.ChainConfig().ChainID)
 }
 
-func (ep *EntryPoint) getUserOpHash(userOp *interfaces.UserOperation) []byte {
-	return interfaces.GetUserOpHash(userOp, ep.EthAddress, ep.Ctx.CurrentEVM.ChainConfig().ChainID).Bytes()
+func (ep *EntryPoint) getUserOpHash(userOp *interfaces.UserOperation) [32]byte {
+	return interfaces.GetUserOpHash(userOp, ep.EthAddress, ep.Ctx.CurrentEVM.ChainConfig().ChainID)
 }
 
 func (ep *EntryPoint) createSenderIfNeeded(opIndex *big.Int, opInfo *UserOpInfo, initCode []byte) (uint64, error) {
@@ -464,23 +541,40 @@ func (ep *EntryPoint) createSenderIfNeeded(opIndex *big.Int, opInfo *UserOpInfo,
 		sender := opInfo.MUserOp.Sender
 		account := ep.Ctx.StateLedger.GetOrCreateAccount(types.NewAddress(sender.Bytes()))
 		if account.Code() != nil {
-			return 0, interfaces.FailedOp(opIndex, "AA10 sender already constructed")
+			return 0, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  "AA10 sender already constructed",
+			})
 		}
 
 		var sender1 ethcommon.Address
 		sender1, usedGas, _ = ep.createSender(opInfo.MUserOp.VerificationGasLimit, initCode)
 		if sender1 == (ethcommon.Address{}) {
-			return usedGas, interfaces.FailedOp(opIndex, "AA13 initCode failed or OOG")
+			return usedGas, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  "AA13 initCode failed or OOG",
+			})
 		}
 		if sender1 != sender {
-			return usedGas, interfaces.FailedOp(opIndex, "AA14 initCode must return sender")
+			return usedGas, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  "AA14 initCode must return sender",
+			})
 		}
 		if account.Code() == nil {
-			return usedGas, interfaces.FailedOp(opIndex, "AA15 initCode must create sender")
+			return usedGas, ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: opIndex,
+				Reason:  "AA15 initCode must create sender",
+			})
 		}
 		factory := ethcommon.BytesToAddress(initCode[0:20])
 		// post AccountDeployed event
-		ep.EmitEvent("AccountDeployed", opInfo.UserOpHash, sender, factory, opInfo.MUserOp.Paymaster)
+		ep.EmitEvent(&ientry_point.EventAccountDeployed{
+			UserOpHash: opInfo.UserOpHash,
+			Sender:     sender,
+			Factory:    factory,
+			Paymaster:  opInfo.MUserOp.Paymaster,
+		})
 	}
 
 	return usedGas, nil
@@ -526,7 +620,9 @@ func (ep *EntryPoint) createSender(gas *big.Int, initCode []byte) (ethcommon.Add
 
 func (ep *EntryPoint) GetSenderAddress(initCode []byte) error {
 	sender, _, _ := ep.createSender(big.NewInt(300000), initCode)
-	return interfaces.SenderAddressResult(sender)
+	return ep.Revert(&ientry_point.ErrorSenderAddressResult{
+		Sender: sender,
+	})
 }
 
 // HandleAccountRecovery handle account recovery
@@ -551,7 +647,10 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), ops[i].Sender).SetRemainingGas(ops[i].VerificationGasLimit)
 		err := sa.ValidateGuardianSignature(ops[i].Signature, ep.getUserOpHash(&ops[i]))
 		if err != nil {
-			return interfaces.FailedOp(big.NewInt(int64(i)), fmt.Sprintf("validate guardian signature reverted: %s", err.Error()))
+			return ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: big.NewInt(int64(i)),
+				Reason:  fmt.Sprintf("validate guardian signature reverted: %s", err.Error()),
+			})
 		}
 
 		_, _, err = ep.validatePrepayment(big.NewInt(int64(i)), &ops[i], &opInfos[i])
@@ -560,20 +659,28 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 		}
 	}
 
-	ep.EmitEvent("BeforeExecution")
+	ep.EmitEvent(&ientry_point.EventBeforeExecution{})
 
 	collected := big.NewInt(0)
 	for i := 0; i < len(ops); i++ {
 		op := ops[i]
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), op.Sender).SetRemainingGas(op.CallGasLimit)
 		if len(op.CallData) < 20 {
-			ep.EmitEvent("UserOperationRevertReason", opInfos[i].UserOpHash, op.Sender, op.Nonce, []byte("callData is less than 20 bytes, should be contain address"))
+			ep.EmitEvent(&ientry_point.EventUserOperationRevertReason{
+				UserOpHash:   opInfos[i].UserOpHash,
+				Sender:       op.Sender,
+				Nonce:        op.Nonce,
+				RevertReason: []byte("callData is less than 20 bytes, should be contain address"),
+			})
 		}
 
 		// 20 bytes for owner address
 		owner := ethcommon.BytesToAddress(op.CallData[:20])
 		if err := sa.ResetAndLockOwner(owner); err != nil {
-			return interfaces.FailedOp(big.NewInt(int64(i)), fmt.Sprintf("reset owner reverted: %s", err.Error()))
+			return ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: big.NewInt(int64(i)),
+				Reason:  fmt.Sprintf("reset owner reverted: %s", err.Error()),
+			})
 		}
 
 		actualGas := big.NewInt(int64(RecoveryAccountOwnerGas))
@@ -590,7 +697,10 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 
 func (ep *EntryPoint) simulationOnlyValidations(userOp *interfaces.UserOperation) error {
 	if err := ep.validateSenderAndPaymaster(userOp.InitCode, userOp.Sender, userOp.PaymasterAndData); err != nil {
-		return interfaces.FailedOp(big.NewInt(0), err.Error())
+		return ep.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: big.NewInt(int64(0)),
+			Reason:  err.Error(),
+		})
 	}
 
 	return nil

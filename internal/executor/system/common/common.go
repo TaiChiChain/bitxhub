@@ -1,20 +1,16 @@
 package common
 
 import (
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
 	"sync"
 
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	ethtype "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -276,22 +272,18 @@ func (s *SystemContractBase) CrossCallSystemContractContext() *VMContext {
 	}
 }
 
-func (s *SystemContractBase) EmitEvent(eventName string, args ...any) {
-	log, err := packEvent(s.Abi, eventName, args...)
+func (s *SystemContractBase) EmitEvent(packer packer.Event) {
+	log, err := packer.Pack(s.Abi)
 	if err != nil {
 		panic(errors.Wrap(err, "emit event error"))
 	}
-
-	s.Logger.Debugf("Emit event %s: %s", eventName, hex.EncodeToString(log.Data))
 	if s.Ctx.RecordLog {
 		s.Ctx.StateLedger.AddLog(log)
 	}
 }
 
-func (s *SystemContractBase) RevertCustomError(name string, args []any) error {
-	abiErr := s.Abi.Errors[name]
-
-	return newRevertError(abiErr, args)
+func (s *SystemContractBase) Revert(err packer.Error) error {
+	return err.Pack(s.Abi)
 }
 
 // CrossCallEVMContract return call result, left over gas and error
@@ -299,7 +291,7 @@ func (s *SystemContractBase) CrossCallEVMContract(gas *big.Int, to ethcommon.Add
 	return s.CrossCallEVMContractWithValue(gas, big.NewInt(0), to, callData)
 }
 
-// callWithValue return call result, left over gas and error
+// CrossCallEVMContractWithValue callWithValue return call result, left over gas and error
 // nolint
 func (s *SystemContractBase) CrossCallEVMContractWithValue(gas, value *big.Int, to ethcommon.Address, callData []byte) (returnData []byte, gasLeft uint64, err error) {
 	if gas == nil || gas.Sign() == 0 {
@@ -313,48 +305,6 @@ func (s *SystemContractBase) CrossCallEVMContractWithValue(gas, value *big.Int, 
 	return result, gasLeft, err
 }
 
-func packEvent(contractAbi abi.ABI, eventName string, args ...any) (*types.EvmLog, error) {
-	event, ok := contractAbi.Events[eventName]
-	if !ok {
-		return nil, errors.Errorf("event %s not defined", eventName)
-	}
-	// references: https://medium.com/mycrypto/understanding-event-logs-on-the-ethereum-blockchain-f4ae7ba50378
-	var noIndexedArgs []any
-	topicArgs := [][]any{
-		{event.ID},
-	}
-	for i, input := range event.Inputs {
-		if !input.Indexed {
-			noIndexedArgs = append(noIndexedArgs, args[i])
-		} else {
-			topicArgs = append(topicArgs, []any{args[i]})
-		}
-	}
-
-	topics, err := abi.MakeTopics(topicArgs...)
-	if err != nil {
-		return nil, errors.Wrapf(err, "event %s make topics error", eventName)
-	}
-
-	packedData, err := event.Inputs.NonIndexed().Pack(noIndexedArgs...)
-	if err != nil {
-		return nil, errors.Wrapf(err, "event %s pack args error", eventName)
-	}
-
-	return &types.EvmLog{
-		Topics: lo.Map(topics, func(t []ethcommon.Hash, i int) *types.Hash {
-			return types.NewHash(t[0].Bytes())
-		}),
-		Data:    packedData,
-		Removed: false,
-	}, nil
-}
-
-func CalculateDynamicGas(bytes []byte) uint64 {
-	gas, _ := core.IntrinsicGas(bytes, []ethtype.AccessTuple{}, false, true, true, true)
-	return gas
-}
-
 func IsZeroAddress(addr ethcommon.Address) bool {
 	for _, b := range addr {
 		if b != 0 {
@@ -365,39 +315,6 @@ func IsZeroAddress(addr ethcommon.Address) bool {
 	return true
 }
 
-// Bool2Bytes Used for record evm log
-func Bool2Bytes(b bool) []byte {
-	if b {
-		return []byte{1}
-	}
-
-	return []byte{0}
-}
-
-var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
-
-type RevertError struct {
-	Err error
-
-	// Data is encoded reverted reason, or result
-	Data []byte
-
-	// reverted result
-	Str string
-}
-
-func NewRevertStringError(data string) *RevertError {
-	packed, err := (abi.Arguments{{Type: StringType}}).Pack(data)
-	if err != nil {
-		panic(errors.Wrap(err, "pack revert string error"))
-	}
-	return &RevertError{
-		Err:  vm.ErrExecutionReverted,
-		Data: append(revertSelector, packed...),
-		Str:  data,
-	}
-}
-
 func newRevertError(abiErr abi.Error, args []any) error {
 	selector := ethcommon.CopyBytes(abiErr.ID.Bytes()[:4])
 	packed, err := abiErr.Inputs.Pack(args...)
@@ -405,7 +322,7 @@ func newRevertError(abiErr abi.Error, args []any) error {
 		return err
 	}
 
-	return &RevertError{
+	return &packer.RevertError{
 		Err:  vm.ErrExecutionReverted,
 		Data: append(selector, packed...),
 		Str:  fmt.Sprintf("%s, args: %v", abiErr.String(), args),
@@ -415,8 +332,4 @@ func newRevertError(abiErr abi.Error, args []any) error {
 func NewRevertError(name string, inputs abi.Arguments, args []any) error {
 	abiErr := abi.NewError(name, inputs)
 	return newRevertError(abiErr, args)
-}
-
-func (e *RevertError) Error() string {
-	return fmt.Sprintf("%s errdata %s", e.Err.Error(), e.Str)
 }

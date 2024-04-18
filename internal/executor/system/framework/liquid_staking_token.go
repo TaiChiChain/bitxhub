@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -387,24 +388,33 @@ func (lst *LiquidStakingToken) IsApprovedForAll(owner ethcommon.Address, operato
 	return exist && approved, nil
 }
 
-// Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
 func (lst *LiquidStakingToken) EmitTransferEvent(from, to ethcommon.Address, tokenID *big.Int) {
-	lst.EmitEvent("Transfer", from, to, tokenID)
+	lst.EmitEvent(&liquid_staking_token.EventTransfer{
+		From:    from,
+		To:      to,
+		TokenId: tokenID,
+	})
 }
 
-// Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)
 func (lst *LiquidStakingToken) EmitApprovalEvent(owner, approved ethcommon.Address, tokenID *big.Int) {
-	lst.EmitEvent("Approval", owner, approved, tokenID)
+	lst.EmitEvent(&liquid_staking_token.EventApproval{
+		Owner:    owner,
+		Approved: approved,
+		TokenId:  tokenID,
+	})
 }
 
-// ApprovalForAll(address indexed owner, address indexed operator, bool approved)
 func (lst *LiquidStakingToken) EmitApprovalForAllEvent(owner, operator ethcommon.Address, approved bool) {
-	lst.EmitEvent("ApprovalForAll", owner, operator, approved)
+	lst.EmitEvent(&liquid_staking_token.EventApprovalForAll{
+		Owner:    owner,
+		Operator: operator,
+		Approved: approved,
+	})
 }
 
-// UpdateInfo(uint256 indexed tokenId, uint256 newPrincipal, uint256 newUnlocked, uint64 newActiveEpoch)
+// todo: add event in solidity
 func (lst *LiquidStakingToken) EmitUpdateInfoEvent(tokenID *big.Int, newPrincipal *big.Int, newUnlocked *big.Int, newActiveEpoch uint64) {
-	lst.EmitEvent("UpdateInfo", tokenID, newPrincipal, newUnlocked, newActiveEpoch)
+	//lst.EmitEvent("UpdateInfo", tokenID, newPrincipal, newUnlocked, newActiveEpoch)
 }
 
 func (lst *LiquidStakingToken) isAuthorized(owner ethcommon.Address, spender ethcommon.Address, tokenID *big.Int) (bool, error) {

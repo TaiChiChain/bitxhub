@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -91,6 +92,40 @@ type NodeManager struct {
 
 	// including Candidate and ActiveValidator
 	activeValidatorVotingPowers *common.VMSlot[[]ConsensusVotingPower]
+}
+
+func nodeInfoToBinding(input types.NodeInfo) node_manager.NodeInfo {
+	return node_manager.NodeInfo{
+		ID:              input.ID,
+		ConsensusPubKey: input.ConsensusPubKey,
+		P2PPubKey:       input.P2PPubKey,
+		P2PID:           input.P2PID,
+		OperatorAddress: input.OperatorAddress,
+		MetaData: node_manager.NodeMetaData{
+			Name:       input.MetaData.Name,
+			Desc:       input.MetaData.Desc,
+			ImageURL:   input.MetaData.ImageURL,
+			WebsiteURL: input.MetaData.WebsiteURL,
+		},
+		Status: uint8(input.Status),
+	}
+}
+
+func bindingToNodeInfo(input node_manager.NodeInfo) types.NodeInfo {
+	return types.NodeInfo{
+		ID:              input.ID,
+		ConsensusPubKey: input.ConsensusPubKey,
+		P2PPubKey:       input.P2PPubKey,
+		P2PID:           input.P2PID,
+		OperatorAddress: input.OperatorAddress,
+		MetaData: types.NodeMetaData{
+			Name:       input.MetaData.Name,
+			Desc:       input.MetaData.Desc,
+			ImageURL:   input.MetaData.ImageURL,
+			WebsiteURL: input.MetaData.WebsiteURL,
+		},
+		Status: types.NodeStatus(input.Status),
+	}
 }
 
 func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -375,10 +410,11 @@ func (n *NodeManager) InternalProcessNodeLeave() error {
 		if err != nil {
 			return err
 		}
+		innerInfo := bindingToNodeInfo(info)
 		// modify its status
-		info.Status = types.NodeStatusExited
+		innerInfo.Status = types.NodeStatusExited
 		// put it back
-		if err = n.nodeRegistry.Put(id, info); err != nil {
+		if err = n.nodeRegistry.Put(id, innerInfo); err != nil {
 			return err
 		}
 	}
@@ -466,15 +502,16 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
+	innerNode := bindingToNodeInfo(nodeInfo)
 	// check permission
-	if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
+	if n.Ctx.From != ethcommon.HexToAddress(innerNode.OperatorAddress) {
 		return ErrPermissionDenied
 	}
-	if nodeInfo.Status != types.NodeStatusDataSyncer {
+	if innerNode.Status != types.NodeStatusDataSyncer {
 		return ErrNodeStatusIncorrect
 	}
-	// TODO: support it
-	panic("not support yet")
+	// TODO: precheck
+	return n.operatorTransferStatus(types.NodeStatusDataSyncer, types.NodeStatusCandidate, nodeID)
 }
 
 func (n *NodeManager) LeaveValidatorSet(nodeID uint64) error {
@@ -493,7 +530,7 @@ func (n *NodeManager) LeaveValidatorSet(nodeID uint64) error {
 	panic("not support yet")
 }
 
-func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData types.NodeMetaData) error {
+func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMetaData) error {
 	nodeInfo, err := n.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
@@ -506,7 +543,12 @@ func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData types.NodeMetaData)
 
 	newNodeInfo := NewNodeInfo{
 		OperatorAddress: nodeInfo.OperatorAddress,
-		MetaData:        metaData,
+		MetaData: types.NodeMetaData{
+			Name:       metaData.Name,
+			Desc:       metaData.Desc,
+			ImageURL:   metaData.ImageURL,
+			WebsiteURL: metaData.WebsiteURL,
+		},
 	}
 
 	// rebuild name index
@@ -516,7 +558,7 @@ func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData types.NodeMetaData)
 	if err := n.nodeNameIndex.Put(newNodeInfo.MetaData.Name, nodeID); err != nil {
 		return err
 	}
-	return n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo)
+	return n.updateNodeInfo(nodeID, bindingToNodeInfo(nodeInfo), newNodeInfo)
 }
 
 func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) error {
@@ -530,9 +572,14 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) e
 	}
 	newNodeInfo := NewNodeInfo{
 		OperatorAddress: newOperatorAddress,
-		MetaData:        nodeInfo.MetaData,
+		MetaData: types.NodeMetaData{
+			Name:       nodeInfo.MetaData.Name,
+			Desc:       nodeInfo.MetaData.Desc,
+			ImageURL:   nodeInfo.MetaData.ImageURL,
+			WebsiteURL: nodeInfo.MetaData.WebsiteURL,
+		},
 	}
-	return n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo)
+	return n.updateNodeInfo(nodeID, bindingToNodeInfo(nodeInfo), newNodeInfo)
 }
 
 func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo types.NodeInfo, newNodeInfo NewNodeInfo) error {
@@ -544,15 +591,15 @@ func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo types.NodeInfo, 
 	return n.nodeRegistry.Put(nodeID, oldNodeInfo)
 }
 
-func (n *NodeManager) GetNodeInfo(nodeID uint64) (info types.NodeInfo, err error) {
+func (n *NodeManager) GetNodeInfo(nodeID uint64) (info node_manager.NodeInfo, err error) {
 	isExist, nodeInfo, err := n.nodeRegistry.Get(nodeID)
 	if err != nil {
-		return types.NodeInfo{}, err
+		return node_manager.NodeInfo{}, err
 	}
 	if !isExist {
-		return types.NodeInfo{}, ErrNodeNotFound
+		return node_manager.NodeInfo{}, ErrNodeNotFound
 	}
-	return nodeInfo, nil
+	return nodeInfoToBinding(nodeInfo), nil
 }
 
 func (n *NodeManager) GetNodeIDByP2PID(p2pID string) (uint64, error) {
@@ -578,15 +625,15 @@ func (n *NodeManager) ExistNodeByName(nodeName string) bool {
 	return n.nodeNameIndex.Has(nodeName)
 }
 
-func (n *NodeManager) GetTotalNodeCount() (int, error) {
+func (n *NodeManager) GetTotalNodeCount() (uint64, error) {
 	_, id, err := n.nextNodeID.Get()
 	if err != nil {
 		return 0, err
 	}
-	return int(id - 1), nil
+	return id - 1, nil
 }
 
-func (n *NodeManager) GetNodeInfos(nodeIDs []uint64) (infos []types.NodeInfo, err error) {
+func (n *NodeManager) GetNodeInfos(nodeIDs []uint64) (infos []node_manager.NodeInfo, err error) {
 	for _, id := range nodeIDs {
 		info, err := n.GetNodeInfo(id)
 		if err != nil {
@@ -597,7 +644,7 @@ func (n *NodeManager) GetNodeInfos(nodeIDs []uint64) (infos []types.NodeInfo, er
 	return
 }
 
-func (n *NodeManager) GetActiveValidatorSet() (infos []types.NodeInfo, votingPowers []ConsensusVotingPower, err error) {
+func (n *NodeManager) GetActiveValidatorSet() (infos []node_manager.NodeInfo, votingPowers []node_manager.ConsensusVotingPower, err error) {
 	isExists, nodes, err := n.getStatusSet(types.NodeStatusActive).Get()
 	if err != nil {
 		return nil, nil, err
@@ -609,7 +656,7 @@ func (n *NodeManager) GetActiveValidatorSet() (infos []types.NodeInfo, votingPow
 	if err != nil {
 		return nil, nil, err
 	}
-	isExists, votingPowers, err = n.activeValidatorVotingPowers.Get()
+	isExists, innerVotingPowers, err := n.activeValidatorVotingPowers.Get()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -618,10 +665,16 @@ func (n *NodeManager) GetActiveValidatorSet() (infos []types.NodeInfo, votingPow
 	if !isExists && !(len(votingPowers) == len(nodes)) {
 		return nil, nil, errors.New("active validators and voting powers length not match")
 	}
+	for i := 0; i < len(innerVotingPowers); i++ {
+		votingPowers = append(votingPowers, node_manager.ConsensusVotingPower{
+			NodeID:               innerVotingPowers[i].NodeID,
+			ConsensusVotingPower: innerVotingPowers[i].ConsensusVotingPower,
+		})
+	}
 	return infos, votingPowers, nil
 }
 
-func (n *NodeManager) GetDataSyncerSet() (infos []types.NodeInfo, err error) {
+func (n *NodeManager) GetDataSyncerSet() (infos []node_manager.NodeInfo, err error) {
 	isExists, nodes, err := n.getStatusSet(types.NodeStatusDataSyncer).Get()
 	if err != nil {
 		return nil, err
@@ -632,7 +685,7 @@ func (n *NodeManager) GetDataSyncerSet() (infos []types.NodeInfo, err error) {
 	return n.GetNodeInfos(nodes)
 }
 
-func (n *NodeManager) GetCandidateSet() (infos []types.NodeInfo, err error) {
+func (n *NodeManager) GetCandidateSet() (infos []node_manager.NodeInfo, err error) {
 	isExists, nodes, err := n.getStatusSet(types.NodeStatusCandidate).Get()
 	if err != nil {
 		return nil, err
@@ -643,7 +696,7 @@ func (n *NodeManager) GetCandidateSet() (infos []types.NodeInfo, err error) {
 	return n.GetNodeInfos(nodes)
 }
 
-func (n *NodeManager) GetPendingInactiveSet() (infos []types.NodeInfo, err error) {
+func (n *NodeManager) GetPendingInactiveSet() (infos []node_manager.NodeInfo, err error) {
 	isExists, nodes, err := n.getStatusSet(types.NodeStatusPendingInactive).Get()
 	if err != nil {
 		return nil, err
@@ -654,7 +707,7 @@ func (n *NodeManager) GetPendingInactiveSet() (infos []types.NodeInfo, err error
 	return n.GetNodeInfos(nodes)
 }
 
-func (n *NodeManager) GetExitedSet() (infos []types.NodeInfo, err error) {
+func (n *NodeManager) GetExitedSet() (infos []node_manager.NodeInfo, err error) {
 	isExists, nodes, err := n.getStatusSet(types.NodeStatusExited).Get()
 	if err != nil {
 		return nil, err
@@ -673,19 +726,20 @@ func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []Consensus
 	return votingPowers, nil
 }
 
-func (n *NodeManager) operatorTransferStatus(from types.NodeStatus, nodeID uint64) error {
+func (n *NodeManager) operatorTransferStatus(from types.NodeStatus, to types.NodeStatus, nodeID uint64) error {
 	nodeInfo, err := n.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
 	}
+	innerNode := bindingToNodeInfo(nodeInfo)
 	if nodeInfo.OperatorAddress != n.Ctx.From.String() {
 		return ErrPermissionDenied
 	}
-	if nodeInfo.Status != from {
+	if innerNode.Status != from {
 		return ErrNodeStatusIncorrect
 	}
-	nodeInfo.Status = from + 1
-	if err = n.nodeRegistry.Put(nodeID, nodeInfo); err != nil {
+	innerNode.Status = to
+	if err = n.nodeRegistry.Put(nodeID, innerNode); err != nil {
 		return err
 	}
 	fromSlot := n.getStatusSet(from)
@@ -710,7 +764,7 @@ func (n *NodeManager) operatorTransferStatus(from types.NodeStatus, nodeID uint6
 	if err = fromSlot.Put(fromSets); err != nil {
 		return err
 	}
-	toSlot := n.getStatusSet(from + 1)
+	toSlot := n.getStatusSet(to)
 	isExist, toSets, err := toSlot.Get()
 	if err != nil {
 		return err

@@ -28,12 +28,6 @@ type DepositInfo struct {
 	WithdrawTime    *big.Int
 }
 
-// API struct used by getStakeInfo and simulateValidation
-type StakeInfo struct {
-	Stake           *big.Int
-	UnstakeDelaySec *big.Int
-}
-
 type IStakeManager interface {
 	GetDepositInfo(account ethcommon.Address) *DepositInfo
 

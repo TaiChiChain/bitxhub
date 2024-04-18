@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 // AuthInfo is an auto generated low-level Go binding around an user-defined struct.
@@ -63,7 +63,7 @@ type EventRemove struct {
 }
 
 func (_event *EventRemove) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Remove}"])
+	return packer.PackEvent(_event, abi.Events["Remove}"])
 }
 
 // WhitelistSubmit represents a Submit event raised by the Whitelist contract.
@@ -73,7 +73,7 @@ type EventSubmit struct {
 }
 
 func (_event *EventSubmit) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Submit}"])
+	return packer.PackEvent(_event, abi.Events["Submit}"])
 }
 
 // WhitelistUpdateProviders represents a UpdateProviders event raised by the Whitelist contract.
@@ -83,5 +83,5 @@ type EventUpdateProviders struct {
 }
 
 func (_event *EventUpdateProviders) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["UpdateProviders}"])
+	return packer.PackEvent(_event, abi.Events["UpdateProviders}"])
 }

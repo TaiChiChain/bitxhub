@@ -14,7 +14,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -46,17 +56,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo[]",
+        "internalType": "struct NodeInfo[]",
         "name": "info",
         "type": "tuple[]"
       },
@@ -64,17 +74,17 @@
         "components":
         [
           {
-            "internalType": "uint256",
+            "internalType": "uint64",
             "name": "NodeID",
-            "type": "uint256"
+            "type": "uint64"
           },
           {
-            "internalType": "uint256",
+            "internalType": "int64",
             "name": "ConsensusVotingPower",
-            "type": "uint256"
+            "type": "int64"
           }
         ],
-        "internalType": "struct NodeManager.ConsensusVotingPower[]",
+        "internalType": "struct ConsensusVotingPower[]",
         "name": "votingPowers",
         "type": "tuple[]"
       }
@@ -97,7 +107,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -129,17 +149,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo[]",
+        "internalType": "struct NodeInfo[]",
         "name": "infos",
         "type": "tuple[]"
       }
@@ -162,7 +182,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -194,17 +224,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo[]",
+        "internalType": "struct NodeInfo[]",
         "name": "infos",
         "type": "tuple[]"
       }
@@ -227,7 +257,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -259,17 +299,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo[]",
+        "internalType": "struct NodeInfo[]",
         "name": "infos",
         "type": "tuple[]"
       }
@@ -281,9 +321,9 @@
     "inputs":
     [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "nodeID",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "name": "GetNodeInfo",
@@ -299,7 +339,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -331,17 +381,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo",
+        "internalType": "struct NodeInfo",
         "name": "info",
         "type": "tuple"
       }
@@ -353,9 +403,9 @@
     "inputs":
     [
       {
-        "internalType": "uint256[]",
+        "internalType": "uint64[]",
         "name": "nodeIDs",
-        "type": "uint256[]"
+        "type": "uint64[]"
       }
     ],
     "name": "GetNodeInfos",
@@ -371,7 +421,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -403,17 +463,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo[]",
+        "internalType": "struct NodeInfo[]",
         "name": "info",
         "type": "tuple[]"
       }
@@ -436,7 +496,17 @@
           },
           {
             "internalType": "string",
-            "name": "NodePubKey",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
             "type": "string"
           },
           {
@@ -468,17 +538,17 @@
                 "type": "string"
               }
             ],
-            "internalType": "struct NodeManager.NodeMetaData",
+            "internalType": "struct NodeMetaData",
             "name": "MetaData",
             "type": "tuple"
           },
           {
-            "internalType": "enum NodeManager.Status",
+            "internalType": "enum Status",
             "name": "Status",
             "type": "uint8"
           }
         ],
-        "internalType": "struct NodeManager.NodeInfo[]",
+        "internalType": "struct NodeInfo[]",
         "name": "infos",
         "type": "tuple[]"
       }
@@ -492,9 +562,9 @@
     "outputs":
     [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -504,12 +574,12 @@
     "inputs":
     [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "nodeID",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
-    "name": "joinCandidate",
+    "name": "joinCandidateSet",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -518,9 +588,9 @@
     "inputs":
     [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "nodeID",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "name": "leaveValidatorSet",
@@ -532,9 +602,9 @@
     "inputs":
     [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "nodeID",
-        "type": "uint256"
+        "type": "uint64"
       },
       {
         "components":
@@ -560,7 +630,7 @@
             "type": "string"
           }
         ],
-        "internalType": "struct NodeManager.NodeMetaData",
+        "internalType": "struct NodeMetaData",
         "name": "metaData",
         "type": "tuple"
       }
@@ -574,9 +644,9 @@
     "inputs":
     [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "nodeID",
-        "type": "uint256"
+        "type": "uint64"
       },
       {
         "internalType": "string",

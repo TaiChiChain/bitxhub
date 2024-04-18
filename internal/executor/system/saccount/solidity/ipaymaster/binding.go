@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 // UserOperation is an auto generated low-level Go binding around an user-defined struct.
@@ -46,8 +46,5 @@ type Ipaymaster interface {
 	// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0xf465c77e.
 	//
 	// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
-	ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (struct {
-		Context        []byte
-		ValidationData *big.Int
-	}, error)
+	ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) ([]byte, *big.Int, error)
 }
