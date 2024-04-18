@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -207,11 +208,9 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 
 	if returnErr != nil {
 		// if err is execution reverted, get reason
-		if err, ok := returnErr.(*common.RevertError); ok {
+		var err *packer.RevertError
+		if errors.As(returnErr, &err) {
 			return err.Data, err.Err
-		} else {
-			wrapperErr := common.NewRevertStringError(returnErr.Error())
-			return wrapperErr.Data, wrapperErr.Err
 		}
 	}
 

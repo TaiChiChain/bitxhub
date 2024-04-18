@@ -7,7 +7,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,10 +15,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 type StakingManager interface {
@@ -47,7 +47,7 @@ type EventStake struct {
 }
 
 func (_event *EventStake) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Stake}"])
+	return packer.PackEvent(_event, abi.Events["Stake}"])
 }
 
 // StakingManagerUnlock represents a Unlock event raised by the StakingManager contract.
@@ -59,7 +59,7 @@ type EventUnlock struct {
 }
 
 func (_event *EventUnlock) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Unlock}"])
+	return packer.PackEvent(_event, abi.Events["Unlock}"])
 }
 
 // StakingManagerWithdraw represents a Withdraw event raised by the StakingManager contract.
@@ -71,5 +71,5 @@ type EventWithdraw struct {
 }
 
 func (_event *EventWithdraw) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return bind.PackEvent(_event, abi.Events["Withdraw}"])
+	return packer.PackEvent(_event, abi.Events["Withdraw}"])
 }

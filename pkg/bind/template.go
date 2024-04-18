@@ -100,7 +100,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -108,10 +108,10 @@ import (
 // Reference imports to suppress errors if they are not otherwise used.
 var (
 	_ = big.NewInt
-	_ = bind.Bind
 	_ = common.Big1
 	_ = types.AxcUnit
 	_ = abi.ConvertType
+	_ = packer.RevertError{}
 )
 
 {{$structs := .Structs}}
@@ -129,13 +129,13 @@ var (
 			// {{.Normalized.Name}} is a paid mutator transaction binding the contract method 0x{{printf "%x" .Original.ID}}.
 			//
 			// Solidity: {{.Original.String}}
-			{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error)
+			{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}} {{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error)
 		{{end}}
 		{{range .Calls}}
 			// {{.Normalized.Name}} is a free data retrieval call binding the contract method 0x{{printf "%x" .Original.ID}}.
 			//
 			// Solidity: {{.Original.String}}
-			{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}}struct{ {{range .Normalized.Outputs}}{{.Name}} {{bindtype .Type $structs}};{{end}} },{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error)
+			{{.Normalized.Name}}({{range $i, $_ := .Normalized.Inputs}}{{if ne $i 0}},{{end}} {{.Name}} {{bindtype .Type $structs}} {{end}}) ({{if .Structured}} {{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{else}}{{range .Normalized.Outputs}}{{bindtype .Type $structs}},{{end}}{{end}} error)
 		{{end}}
 		{{if .Fallback}}
 			Fallback(calldata []byte) error
@@ -152,7 +152,7 @@ var (
 		}
 
 		func (_event *Event{{.Normalized.Name}}) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-			return bind.PackEvent(_event, abi.Events["{{.Normalized.Name}}}"])
+			return packer.PackEvent(_event, abi.Events["{{.Normalized.Name}}}"])
 		}
 	{{end}}
 
@@ -163,7 +163,7 @@ var (
 		}
 
 		func (_error *Error{{.Normalized.Name}}) Pack(abi abi.ABI) error {
-			return bind.PackError(_error, abi.Errors["{{.Original.Name}}}"])
+			return packer.PackError(_error, abi.Errors["{{.Original.Name}}}"])
 		}
 	{{end}}
 {{end}}
