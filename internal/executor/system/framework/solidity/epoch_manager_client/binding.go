@@ -35,6 +35,7 @@ type ConsensusParams struct {
 	CheckpointPeriod                                   uint64
 	HighWatermarkCheckpointPeriod                      uint64
 	MaxValidatorNum                                    uint64
+	MinValidatorNum                                    uint64
 	BlockMaxTxNum                                      uint64
 	EnableTimedGenEmptyBlock                           bool
 	NotActiveWeight                                    int64
@@ -46,19 +47,24 @@ type ConsensusParams struct {
 
 // EpochInfo is an auto generated low-level Go binding around an user-defined struct.
 type EpochInfo struct {
-	Version         uint64
 	Epoch           uint64
 	EpochPeriod     uint64
 	StartBlock      uint64
 	ConsensusParams ConsensusParams
 	FinanceParams   FinanceParams
 	MiscParams      MiscParams
+	StakeParams     StakeParams
 }
 
 // FinanceParams is an auto generated low-level Go binding around an user-defined struct.
 type FinanceParams struct {
-	GasLimit    uint64
-	MinGasPrice uint64
+	GasLimit               uint64
+	MinGasPrice            *big.Int
+	StartGasPriceAvailable bool
+	StartGasPrice          *big.Int
+	MaxGasPrice            *big.Int
+	GasChangeRateValue     uint64
+	GasChangeRateDecimals  uint64
 }
 
 // MiscParams is an auto generated low-level Go binding around an user-defined struct.
@@ -66,9 +72,21 @@ type MiscParams struct {
 	TxMaxSize uint64
 }
 
+// StakeParams is an auto generated low-level Go binding around an user-defined struct.
+type StakeParams struct {
+	StakeEnable                      bool
+	MaxAddStakeRatio                 uint64
+	MaxUnlockStakeRatio              uint64
+	UnlockPeriodEpochNumber          uint64
+	MaxPendingInactiveValidatorRatio uint64
+	MinDelegateStake                 *big.Int
+	MinValidatorStake                *big.Int
+	MaxValidatorStake                *big.Int
+}
+
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"currentEpoch\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"Version\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"Epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EpochPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"StartBlock\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"ProposerElectionType\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"CheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"HighWatermarkCheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"BlockMaxTxNum\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"EnableTimedGenEmptyBlock\",\"type\":\"bool\"},{\"internalType\":\"int64\",\"name\":\"NotActiveWeight\",\"type\":\"int64\"},{\"internalType\":\"uint64\",\"name\":\"AbnormalNodeExcludeView\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"AgainProposeIntervalBlockInValidatorsNumPercentage\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ContinuousNullRequestToleranceNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ReBroadcastToleranceNumber\",\"type\":\"uint64\"}],\"internalType\":\"structConsensusParams\",\"name\":\"ConsensusParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"GasLimit\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MinGasPrice\",\"type\":\"uint64\"}],\"internalType\":\"structFinanceParams\",\"name\":\"FinanceParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"TxMaxSize\",\"type\":\"uint64\"}],\"internalType\":\"structMiscParams\",\"name\":\"MiscParams\",\"type\":\"tuple\"}],\"internalType\":\"structEpochInfo\",\"name\":\"epochInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"epochID\",\"type\":\"uint64\"}],\"name\":\"historyEpoch\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"Version\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"Epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EpochPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"StartBlock\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"ProposerElectionType\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"CheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"HighWatermarkCheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"BlockMaxTxNum\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"EnableTimedGenEmptyBlock\",\"type\":\"bool\"},{\"internalType\":\"int64\",\"name\":\"NotActiveWeight\",\"type\":\"int64\"},{\"internalType\":\"uint64\",\"name\":\"AbnormalNodeExcludeView\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"AgainProposeIntervalBlockInValidatorsNumPercentage\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ContinuousNullRequestToleranceNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ReBroadcastToleranceNumber\",\"type\":\"uint64\"}],\"internalType\":\"structConsensusParams\",\"name\":\"ConsensusParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"GasLimit\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MinGasPrice\",\"type\":\"uint64\"}],\"internalType\":\"structFinanceParams\",\"name\":\"FinanceParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"TxMaxSize\",\"type\":\"uint64\"}],\"internalType\":\"structMiscParams\",\"name\":\"MiscParams\",\"type\":\"tuple\"}],\"internalType\":\"structEpochInfo\",\"name\":\"epochInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextEpoch\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"Version\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"Epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EpochPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"StartBlock\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"ProposerElectionType\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"CheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"HighWatermarkCheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"BlockMaxTxNum\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"EnableTimedGenEmptyBlock\",\"type\":\"bool\"},{\"internalType\":\"int64\",\"name\":\"NotActiveWeight\",\"type\":\"int64\"},{\"internalType\":\"uint64\",\"name\":\"AbnormalNodeExcludeView\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"AgainProposeIntervalBlockInValidatorsNumPercentage\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ContinuousNullRequestToleranceNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ReBroadcastToleranceNumber\",\"type\":\"uint64\"}],\"internalType\":\"structConsensusParams\",\"name\":\"ConsensusParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"GasLimit\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MinGasPrice\",\"type\":\"uint64\"}],\"internalType\":\"structFinanceParams\",\"name\":\"FinanceParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"TxMaxSize\",\"type\":\"uint64\"}],\"internalType\":\"structMiscParams\",\"name\":\"MiscParams\",\"type\":\"tuple\"}],\"internalType\":\"structEpochInfo\",\"name\":\"epochInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"name\":\"currentEpoch\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"Epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EpochPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"StartBlock\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"ProposerElectionType\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"CheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"HighWatermarkCheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MinValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"BlockMaxTxNum\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"EnableTimedGenEmptyBlock\",\"type\":\"bool\"},{\"internalType\":\"int64\",\"name\":\"NotActiveWeight\",\"type\":\"int64\"},{\"internalType\":\"uint64\",\"name\":\"AbnormalNodeExcludeView\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"AgainProposeIntervalBlockInValidatorsNumPercentage\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ContinuousNullRequestToleranceNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ReBroadcastToleranceNumber\",\"type\":\"uint64\"}],\"internalType\":\"structConsensusParams\",\"name\":\"ConsensusParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"GasLimit\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"MinGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"StartGasPriceAvailable\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"StartGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MaxGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"GasChangeRateValue\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"GasChangeRateDecimals\",\"type\":\"uint64\"}],\"internalType\":\"structFinanceParams\",\"name\":\"FinanceParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"TxMaxSize\",\"type\":\"uint64\"}],\"internalType\":\"structMiscParams\",\"name\":\"MiscParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"StakeEnable\",\"type\":\"bool\"},{\"internalType\":\"uint64\",\"name\":\"MaxAddStakeRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxUnlockStakeRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"UnlockPeriodEpochNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxPendingInactiveValidatorRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"MinDelegateStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MinValidatorStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MaxValidatorStake\",\"type\":\"uint256\"}],\"internalType\":\"structStakeParams\",\"name\":\"StakeParams\",\"type\":\"tuple\"}],\"internalType\":\"structEpochInfo\",\"name\":\"epochInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"epochID\",\"type\":\"uint64\"}],\"name\":\"historyEpoch\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"Epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EpochPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"StartBlock\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"ProposerElectionType\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"CheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"HighWatermarkCheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MinValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"BlockMaxTxNum\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"EnableTimedGenEmptyBlock\",\"type\":\"bool\"},{\"internalType\":\"int64\",\"name\":\"NotActiveWeight\",\"type\":\"int64\"},{\"internalType\":\"uint64\",\"name\":\"AbnormalNodeExcludeView\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"AgainProposeIntervalBlockInValidatorsNumPercentage\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ContinuousNullRequestToleranceNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ReBroadcastToleranceNumber\",\"type\":\"uint64\"}],\"internalType\":\"structConsensusParams\",\"name\":\"ConsensusParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"GasLimit\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"MinGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"StartGasPriceAvailable\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"StartGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MaxGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"GasChangeRateValue\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"GasChangeRateDecimals\",\"type\":\"uint64\"}],\"internalType\":\"structFinanceParams\",\"name\":\"FinanceParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"TxMaxSize\",\"type\":\"uint64\"}],\"internalType\":\"structMiscParams\",\"name\":\"MiscParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"StakeEnable\",\"type\":\"bool\"},{\"internalType\":\"uint64\",\"name\":\"MaxAddStakeRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxUnlockStakeRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"UnlockPeriodEpochNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxPendingInactiveValidatorRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"MinDelegateStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MinValidatorStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MaxValidatorStake\",\"type\":\"uint256\"}],\"internalType\":\"structStakeParams\",\"name\":\"StakeParams\",\"type\":\"tuple\"}],\"internalType\":\"structEpochInfo\",\"name\":\"epochInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextEpoch\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"Epoch\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EpochPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"StartBlock\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"ProposerElectionType\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"CheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"HighWatermarkCheckpointPeriod\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MinValidatorNum\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"BlockMaxTxNum\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"EnableTimedGenEmptyBlock\",\"type\":\"bool\"},{\"internalType\":\"int64\",\"name\":\"NotActiveWeight\",\"type\":\"int64\"},{\"internalType\":\"uint64\",\"name\":\"AbnormalNodeExcludeView\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"AgainProposeIntervalBlockInValidatorsNumPercentage\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ContinuousNullRequestToleranceNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"ReBroadcastToleranceNumber\",\"type\":\"uint64\"}],\"internalType\":\"structConsensusParams\",\"name\":\"ConsensusParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"GasLimit\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"MinGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"bool\",\"name\":\"StartGasPriceAvailable\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"StartGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MaxGasPrice\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"GasChangeRateValue\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"GasChangeRateDecimals\",\"type\":\"uint64\"}],\"internalType\":\"structFinanceParams\",\"name\":\"FinanceParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"TxMaxSize\",\"type\":\"uint64\"}],\"internalType\":\"structMiscParams\",\"name\":\"MiscParams\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"StakeEnable\",\"type\":\"bool\"},{\"internalType\":\"uint64\",\"name\":\"MaxAddStakeRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxUnlockStakeRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"UnlockPeriodEpochNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"MaxPendingInactiveValidatorRatio\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"MinDelegateStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MinValidatorStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"MaxValidatorStake\",\"type\":\"uint256\"}],\"internalType\":\"structStakeParams\",\"name\":\"StakeParams\",\"type\":\"tuple\"}],\"internalType\":\"structEpochInfo\",\"name\":\"epochInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -219,7 +237,7 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 
 // CurrentEpoch is a free data retrieval call binding the contract method 0x76671808.
 //
-// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractCaller) CurrentEpoch(opts *bind.CallOpts) (EpochInfo, error) {
 	var out []interface{}
 	err := _BindingContract.contract.Call(opts, &out, "currentEpoch")
@@ -236,21 +254,21 @@ func (_BindingContract *BindingContractCaller) CurrentEpoch(opts *bind.CallOpts)
 
 // CurrentEpoch is a free data retrieval call binding the contract method 0x76671808.
 //
-// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractSession) CurrentEpoch() (EpochInfo, error) {
 	return _BindingContract.Contract.CurrentEpoch(&_BindingContract.CallOpts)
 }
 
 // CurrentEpoch is a free data retrieval call binding the contract method 0x76671808.
 //
-// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractCallerSession) CurrentEpoch() (EpochInfo, error) {
 	return _BindingContract.Contract.CurrentEpoch(&_BindingContract.CallOpts)
 }
 
 // HistoryEpoch is a free data retrieval call binding the contract method 0x7ba5c50a.
 //
-// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractCaller) HistoryEpoch(opts *bind.CallOpts, epochID uint64) (EpochInfo, error) {
 	var out []interface{}
 	err := _BindingContract.contract.Call(opts, &out, "historyEpoch", epochID)
@@ -267,21 +285,21 @@ func (_BindingContract *BindingContractCaller) HistoryEpoch(opts *bind.CallOpts,
 
 // HistoryEpoch is a free data retrieval call binding the contract method 0x7ba5c50a.
 //
-// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractSession) HistoryEpoch(epochID uint64) (EpochInfo, error) {
 	return _BindingContract.Contract.HistoryEpoch(&_BindingContract.CallOpts, epochID)
 }
 
 // HistoryEpoch is a free data retrieval call binding the contract method 0x7ba5c50a.
 //
-// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractCallerSession) HistoryEpoch(epochID uint64) (EpochInfo, error) {
 	return _BindingContract.Contract.HistoryEpoch(&_BindingContract.CallOpts, epochID)
 }
 
 // NextEpoch is a free data retrieval call binding the contract method 0xaea0e78b.
 //
-// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractCaller) NextEpoch(opts *bind.CallOpts) (EpochInfo, error) {
 	var out []interface{}
 	err := _BindingContract.contract.Call(opts, &out, "nextEpoch")
@@ -298,14 +316,14 @@ func (_BindingContract *BindingContractCaller) NextEpoch(opts *bind.CallOpts) (E
 
 // NextEpoch is a free data retrieval call binding the contract method 0xaea0e78b.
 //
-// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractSession) NextEpoch() (EpochInfo, error) {
 	return _BindingContract.Contract.NextEpoch(&_BindingContract.CallOpts)
 }
 
 // NextEpoch is a free data retrieval call binding the contract method 0xaea0e78b.
 //
-// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 func (_BindingContract *BindingContractCallerSession) NextEpoch() (EpochInfo, error) {
 	return _BindingContract.Contract.NextEpoch(&_BindingContract.CallOpts)
 }

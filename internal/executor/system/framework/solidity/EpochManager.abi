@@ -9,11 +9,6 @@
         [
           {
             "internalType": "uint64",
-            "name": "Version",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
             "name": "Epoch",
             "type": "uint64"
           },
@@ -48,6 +43,11 @@
               {
                 "internalType": "uint64",
                 "name": "MaxValidatorNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MinValidatorNum",
                 "type": "uint64"
               },
               {
@@ -99,8 +99,33 @@
                 "type": "uint64"
               },
               {
-                "internalType": "uint64",
+                "internalType": "uint256",
                 "name": "MinGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bool",
+                "name": "StartGasPriceAvailable",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "StartGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MaxGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint64",
+                "name": "GasChangeRateValue",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "GasChangeRateDecimals",
                 "type": "uint64"
               }
             ],
@@ -119,6 +144,54 @@
             ],
             "internalType": "struct MiscParams",
             "name": "MiscParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "bool",
+                "name": "StakeEnable",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxAddStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxUnlockStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "UnlockPeriodEpochNumber",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxPendingInactiveValidatorRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MinDelegateStake",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MinValidatorStake",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MaxValidatorStake",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct StakeParams",
+            "name": "StakeParams",
             "type": "tuple"
           }
         ],
@@ -147,11 +220,6 @@
         [
           {
             "internalType": "uint64",
-            "name": "Version",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
             "name": "Epoch",
             "type": "uint64"
           },
@@ -186,6 +254,11 @@
               {
                 "internalType": "uint64",
                 "name": "MaxValidatorNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MinValidatorNum",
                 "type": "uint64"
               },
               {
@@ -237,8 +310,33 @@
                 "type": "uint64"
               },
               {
-                "internalType": "uint64",
+                "internalType": "uint256",
                 "name": "MinGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bool",
+                "name": "StartGasPriceAvailable",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "StartGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MaxGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint64",
+                "name": "GasChangeRateValue",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "GasChangeRateDecimals",
                 "type": "uint64"
               }
             ],
@@ -257,6 +355,54 @@
             ],
             "internalType": "struct MiscParams",
             "name": "MiscParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "bool",
+                "name": "StakeEnable",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxAddStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxUnlockStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "UnlockPeriodEpochNumber",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxPendingInactiveValidatorRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MinDelegateStake",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MinValidatorStake",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MaxValidatorStake",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct StakeParams",
+            "name": "StakeParams",
             "type": "tuple"
           }
         ],
@@ -278,11 +424,6 @@
         [
           {
             "internalType": "uint64",
-            "name": "Version",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
             "name": "Epoch",
             "type": "uint64"
           },
@@ -317,6 +458,11 @@
               {
                 "internalType": "uint64",
                 "name": "MaxValidatorNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MinValidatorNum",
                 "type": "uint64"
               },
               {
@@ -368,8 +514,33 @@
                 "type": "uint64"
               },
               {
-                "internalType": "uint64",
+                "internalType": "uint256",
                 "name": "MinGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bool",
+                "name": "StartGasPriceAvailable",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint256",
+                "name": "StartGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MaxGasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint64",
+                "name": "GasChangeRateValue",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "GasChangeRateDecimals",
                 "type": "uint64"
               }
             ],
@@ -388,6 +559,54 @@
             ],
             "internalType": "struct MiscParams",
             "name": "MiscParams",
+            "type": "tuple"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "bool",
+                "name": "StakeEnable",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxAddStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxUnlockStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "UnlockPeriodEpochNumber",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxPendingInactiveValidatorRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MinDelegateStake",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MinValidatorStake",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "MaxValidatorStake",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct StakeParams",
+            "name": "StakeParams",
             "type": "tuple"
           }
         ],

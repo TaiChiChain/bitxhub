@@ -1,5 +1,127 @@
 [
   {
+    "inputs":
+    [
+      {
+        "internalType": "uint8",
+        "name": "status",
+        "type": "uint8"
+      }
+    ],
+    "name": "incorrectStatus",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "pendingInactiveSetIsFull",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      }
+    ],
+    "name": "JoinedCandidateSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      }
+    ],
+    "name": "JoinedPendingInactiveSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      }
+    ],
+    "name": "LeavedCandidateSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      },
+      {
+        "components":
+        [
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "desc",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "imageURL",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "websiteURL",
+            "type": "string"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct NodeMetaData",
+        "name": "metaData",
+        "type": "tuple"
+      }
+    ],
+    "name": "UpdateMetaData",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "newOperatorAddress",
+        "type": "string"
+      }
+    ],
+    "name": "UpdateOperator",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "GetActiveValidatorSet",
     "outputs":
@@ -593,7 +715,7 @@
         "type": "uint64"
       }
     ],
-    "name": "leaveValidatorSet",
+    "name": "leaveValidatorOrCandidateSet",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
