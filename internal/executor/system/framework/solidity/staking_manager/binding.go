@@ -39,7 +39,7 @@ type StakingManager interface {
 	Withdraw(poolID uint64, owner common.Address, liquidStakingTokenID *big.Int, amount *big.Int) error
 }
 
-// StakingManagerStake represents a Stake event raised by the StakingManager contract.
+// EventStake represents a Stake event raised by the StakingManager contract.
 type EventStake struct {
 	PoolID uint64
 	Owner  common.Address
@@ -47,10 +47,10 @@ type EventStake struct {
 }
 
 func (_event *EventStake) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Stake}"])
+	return packer.PackEvent(_event, abi.Events["Stake"])
 }
 
-// StakingManagerUnlock represents a Unlock event raised by the StakingManager contract.
+// EventUnlock represents a Unlock event raised by the StakingManager contract.
 type EventUnlock struct {
 	PoolID               uint64
 	Owner                common.Address
@@ -59,10 +59,10 @@ type EventUnlock struct {
 }
 
 func (_event *EventUnlock) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Unlock}"])
+	return packer.PackEvent(_event, abi.Events["Unlock"])
 }
 
-// StakingManagerWithdraw represents a Withdraw event raised by the StakingManager contract.
+// EventWithdraw represents a Withdraw event raised by the StakingManager contract.
 type EventWithdraw struct {
 	PoolID               uint64
 	Owner                common.Address
@@ -71,5 +71,5 @@ type EventWithdraw struct {
 }
 
 func (_event *EventWithdraw) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Withdraw}"])
+	return packer.PackEvent(_event, abi.Events["Withdraw"])
 }

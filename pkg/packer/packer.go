@@ -32,9 +32,9 @@ func PackEvent(eventStruct any, event abi.Event) (*types.EvmLog, error) {
 	v := reflect.ValueOf(eventStruct).Elem()
 	for _, input := range event.Inputs {
 		if !input.Indexed {
-			noIndexedArgs = append(noIndexedArgs, v.FieldByName(input.Name).Interface())
+			noIndexedArgs = append(noIndexedArgs, v.FieldByName(abi.ToCamelCase(input.Name)).Interface())
 		} else {
-			topicArgs = append(topicArgs, []any{v.FieldByName(input.Name).Interface()})
+			topicArgs = append(topicArgs, []any{v.FieldByName(abi.ToCamelCase(input.Name)).Interface()})
 		}
 	}
 
@@ -77,9 +77,9 @@ func PackError(errStruct any, abiErr abi.Error) error {
 	}
 	selector := common.CopyBytes(abiErr.ID.Bytes()[:4])
 	var args []any
-	v := reflect.ValueOf(errStruct)
+	v := reflect.ValueOf(errStruct).Elem()
 	for _, input := range abiErr.Inputs {
-		args = append(args, v.FieldByName(input.Name).Interface())
+		args = append(args, v.FieldByName(abi.ToCamelCase(input.Name)).Interface())
 	}
 	packed, err := abiErr.Inputs.Pack(args...)
 	if err != nil {
