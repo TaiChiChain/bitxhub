@@ -27,6 +27,7 @@ type ConsensusParams struct {
 	CheckpointPeriod                                   uint64
 	HighWatermarkCheckpointPeriod                      uint64
 	MaxValidatorNum                                    uint64
+	MinValidatorNum                                    uint64
 	BlockMaxTxNum                                      uint64
 	EnableTimedGenEmptyBlock                           bool
 	NotActiveWeight                                    int64
@@ -38,19 +39,24 @@ type ConsensusParams struct {
 
 // EpochInfo is an auto generated low-level Go binding around an user-defined struct.
 type EpochInfo struct {
-	Version         uint64
 	Epoch           uint64
 	EpochPeriod     uint64
 	StartBlock      uint64
 	ConsensusParams ConsensusParams
 	FinanceParams   FinanceParams
 	MiscParams      MiscParams
+	StakeParams     StakeParams
 }
 
 // FinanceParams is an auto generated low-level Go binding around an user-defined struct.
 type FinanceParams struct {
-	GasLimit    uint64
-	MinGasPrice uint64
+	GasLimit               uint64
+	MinGasPrice            *big.Int
+	StartGasPriceAvailable bool
+	StartGasPrice          *big.Int
+	MaxGasPrice            *big.Int
+	GasChangeRateValue     uint64
+	GasChangeRateDecimals  uint64
 }
 
 // MiscParams is an auto generated low-level Go binding around an user-defined struct.
@@ -58,20 +64,32 @@ type MiscParams struct {
 	TxMaxSize uint64
 }
 
+// StakeParams is an auto generated low-level Go binding around an user-defined struct.
+type StakeParams struct {
+	StakeEnable                      bool
+	MaxAddStakeRatio                 uint64
+	MaxUnlockStakeRatio              uint64
+	UnlockPeriodEpochNumber          uint64
+	MaxPendingInactiveValidatorRatio uint64
+	MinDelegateStake                 *big.Int
+	MinValidatorStake                *big.Int
+	MaxValidatorStake                *big.Int
+}
+
 type EpochManager interface {
 
 	// CurrentEpoch is a free data retrieval call binding the contract method 0x76671808.
 	//
-	// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+	// Solidity: function currentEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 	CurrentEpoch() (EpochInfo, error)
 
 	// HistoryEpoch is a free data retrieval call binding the contract method 0x7ba5c50a.
 	//
-	// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+	// Solidity: function historyEpoch(uint64 epochID) view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 	HistoryEpoch(epochID uint64) (EpochInfo, error)
 
 	// NextEpoch is a free data retrieval call binding the contract method 0xaea0e78b.
 	//
-	// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint64),(uint64)) epochInfo)
+	// Solidity: function nextEpoch() view returns((uint64,uint64,uint64,(string,uint64,uint64,uint64,uint64,uint64,bool,int64,uint64,uint64,uint64,uint64),(uint64,uint256,bool,uint256,uint256,uint64,uint64),(uint64),(bool,uint64,uint64,uint64,uint64,uint256,uint256,uint256)) epochInfo)
 	NextEpoch() (EpochInfo, error)
 }

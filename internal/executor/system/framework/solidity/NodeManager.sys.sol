@@ -33,9 +33,18 @@ struct ConsensusVotingPower {
 }
 
 interface NodeManager {
+    error incorrectStatus(uint8 status);
+    error pendingInactiveSetIsFull();
+
+    event JoinedCandidateSet(uint64 indexed nodeID);
+    event LeavedCandidateSet(uint64 indexed nodeID);
+    event JoinedPendingInactiveSet(uint64 indexed nodeID);
+    event UpdateMetaData(uint64 indexed nodeID, NodeMetaData metaData);
+    event UpdateOperator(uint64 indexed nodeID, string newOperatorAddress);
+
     function joinCandidateSet(uint64 nodeID) external;
 
-    function leaveValidatorSet(uint64 nodeID) external;
+    function leaveValidatorOrCandidateSet(uint64 nodeID) external;
 
     function updateMetaData(uint64 nodeID, NodeMetaData memory metaData) external;
 

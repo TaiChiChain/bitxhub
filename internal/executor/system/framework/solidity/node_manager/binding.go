@@ -53,10 +53,10 @@ type NodeManager interface {
 	// Solidity: function joinCandidateSet(uint64 nodeID) returns()
 	JoinCandidateSet(nodeID uint64) error
 
-	// LeaveValidatorSet is a paid mutator transaction binding the contract method 0xede1f5d1.
+	// LeaveValidatorOrCandidateSet is a paid mutator transaction binding the contract method 0xe2aa7a23.
 	//
-	// Solidity: function leaveValidatorSet(uint64 nodeID) returns()
-	LeaveValidatorSet(nodeID uint64) error
+	// Solidity: function leaveValidatorOrCandidateSet(uint64 nodeID) returns()
+	LeaveValidatorOrCandidateSet(nodeID uint64) error
 
 	// UpdateMetaData is a paid mutator transaction binding the contract method 0xee99437a.
 	//
@@ -107,4 +107,68 @@ type NodeManager interface {
 	//
 	// Solidity: function GetTotalNodeCount() view returns(uint64)
 	GetTotalNodeCount() (uint64, error)
+}
+
+// EventJoinedCandidateSet represents a JoinedCandidateSet event raised by the NodeManager contract.
+type EventJoinedCandidateSet struct {
+	NodeID uint64
+}
+
+func (_event *EventJoinedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["JoinedCandidateSet"])
+}
+
+// EventJoinedPendingInactiveSet represents a JoinedPendingInactiveSet event raised by the NodeManager contract.
+type EventJoinedPendingInactiveSet struct {
+	NodeID uint64
+}
+
+func (_event *EventJoinedPendingInactiveSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["JoinedPendingInactiveSet"])
+}
+
+// EventLeavedCandidateSet represents a LeavedCandidateSet event raised by the NodeManager contract.
+type EventLeavedCandidateSet struct {
+	NodeID uint64
+}
+
+func (_event *EventLeavedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["LeavedCandidateSet"])
+}
+
+// EventUpdateMetaData represents a UpdateMetaData event raised by the NodeManager contract.
+type EventUpdateMetaData struct {
+	NodeID   uint64
+	MetaData NodeMetaData
+}
+
+func (_event *EventUpdateMetaData) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["UpdateMetaData"])
+}
+
+// EventUpdateOperator represents a UpdateOperator event raised by the NodeManager contract.
+type EventUpdateOperator struct {
+	NodeID             uint64
+	NewOperatorAddress string
+}
+
+func (_event *EventUpdateOperator) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["UpdateOperator"])
+}
+
+// ErrorIncorrectStatus represents a IncorrectStatus error raised by the NodeManager contract.
+type ErrorIncorrectStatus struct {
+	Status uint8
+}
+
+func (_error *ErrorIncorrectStatus) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["incorrectStatus"])
+}
+
+// ErrorPendingInactiveSetIsFull represents a PendingInactiveSetIsFull error raised by the NodeManager contract.
+type ErrorPendingInactiveSetIsFull struct {
+}
+
+func (_error *ErrorPendingInactiveSetIsFull) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["pendingInactiveSetIsFull"])
 }
