@@ -1,28 +1,29 @@
 package storagemgr
 
 import (
-	"golang.org/x/exp/rand"
 	"testing"
 	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 func TestCacheWrapperSpaceAmplify(t *testing.T) {
-	//size := atomic.Uint64{}
-	//cache := NewCacheWrapper(1024, true)
+	// size := atomic.Uint64{}
+	// cache := NewCacheWrapper(1024, true)
 	//
-	//wg := sync.WaitGroup{}
-	//wg.Add(1)
-	//go func() {
+	// wg := sync.WaitGroup{}
+	// wg.Add(1)
+	// go func() {
 	//	for {
 	//		time.Sleep(1 * time.Second)
 	//		metrics := cache.ExportMetrics()
 	//		fmt.Printf("real cache size = %v (KB)\n", metrics.CacheSize/1024)
 	//		fmt.Printf("count cache size = %v (KB)\n", size.Load()/1024)
 	//	}
-	//}()
+	// }()
 	//
-	//wg.Add(1)
-	//go func() {
+	// wg.Add(1)
+	// go func() {
 	//	keys := make([][]byte, 0)
 	//	threshold := 10000000
 	//	for {
@@ -40,9 +41,9 @@ func TestCacheWrapperSpaceAmplify(t *testing.T) {
 	//	for i := 0; i < threshold; i++ {
 	//		cache.Del(keys[i])
 	//	}
-	//}()
+	// }()
 	//
-	//wg.Wait()
+	// wg.Wait()
 }
 
 func getRandomHexKV(lk, lv int) (k []byte, v []byte) {
