@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/pkg/errors"
@@ -242,7 +243,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		}
 	}
 
-	chainState := chainstate.NewChainState(rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*types.NodeInfo, error) {
+	chainState := chainstate.NewChainState(rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*node_manager.NodeInfo, error) {
 		lg := vl.NewView()
 		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
 		nodeInfo, err := nodeManagerContract.GetNodeInfo(nodeID)
@@ -422,7 +423,7 @@ func (axm *AxiomLedger) initChainState() error {
 		return err
 	}
 
-	if err := axm.ChainState.UpdateByEpochInfo(currentEpoch, lo.SliceToMap(votingPowers, func(item framework.ConsensusVotingPower) (uint64, int64) {
+	if err := axm.ChainState.UpdateByEpochInfo(currentEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
 		return item.NodeID, item.ConsensusVotingPower
 	})); err != nil {
 		return err

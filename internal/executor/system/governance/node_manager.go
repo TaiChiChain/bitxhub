@@ -3,6 +3,7 @@ package governance
 import (
 	"encoding/json"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -29,17 +30,17 @@ var (
 var _ ProposalHandler = (*NodeManager)(nil)
 
 type NodeRegisterExtraArgsSignStruct struct {
-	ConsensusPubKey string             `json:"consensus_pub_key"`
-	P2PPubKey       string             `json:"p2p_pub_key"`
-	MetaData        types.NodeMetaData `json:"meta_data"`
+	ConsensusPubKey string                    `json:"consensus_pub_key"`
+	P2PPubKey       string                    `json:"p2p_pub_key"`
+	MetaData        node_manager.NodeMetaData `json:"meta_data"`
 }
 
 type NodeRegisterExtraArgs struct {
-	ConsensusPubKey              string             `json:"consensus_pub_key"`
-	P2PPubKey                    string             `json:"p2p_pub_key"`
-	MetaData                     types.NodeMetaData `json:"meta_data"`
-	ConsensusPrivateKeySignature string             `json:"consensus_private_key_signature"`
-	P2PPrivateKeySignature       string             `json:"p2p_private_key_signature"`
+	ConsensusPubKey              string                    `json:"consensus_pub_key"`
+	P2PPubKey                    string                    `json:"p2p_pub_key"`
+	MetaData                     node_manager.NodeMetaData `json:"meta_data"`
+	ConsensusPrivateKeySignature string                    `json:"consensus_private_key_signature"`
+	P2PPrivateKeySignature       string                    `json:"p2p_private_key_signature"`
 }
 
 type NodeRemoveExtraArgs struct {
@@ -115,7 +116,7 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 		return ErrRegisterExtraArgs
 	}
 
-	consensusPubKey, p2pPubKey, p2pID, err := framework.CheckNodeInfo(types.NodeInfo{
+	consensusPubKey, p2pPubKey, p2pID, err := framework.CheckNodeInfo(node_manager.NodeInfo{
 		ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
 		P2PPubKey:       nodeExtraArgs.P2PPubKey,
 		OperatorAddress: nm.gov.Ctx.From.String(),
@@ -168,7 +169,7 @@ func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, 
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node info %d", nodeExtraArgs.NodeID)
 	}
-	if nodeInfo.Status == types.NodeStatusExited {
+	if nodeInfo.Status == uint8(types.NodeStatusExited) {
 		return errors.Errorf("node %d [%s] already exited", nodeExtraArgs.NodeID, nodeInfo.MetaData.Name)
 	}
 
@@ -196,12 +197,12 @@ func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	_, err := nodeManagerContract.InternalRegisterNode(types.NodeInfo{
+	_, err := nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
 		ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
 		P2PPubKey:       nodeExtraArgs.P2PPubKey,
 		OperatorAddress: proposal.Proposer,
 		MetaData:        nodeExtraArgs.MetaData,
-		Status:          types.NodeStatusDataSyncer,
+		Status:          uint8(types.NodeStatusDataSyncer),
 	})
 	if err != nil {
 		return err
