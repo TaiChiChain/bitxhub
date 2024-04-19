@@ -150,6 +150,9 @@ define generate-abi
 	echo "";
 endef
 
+axmgen-check:
+	@type "axmgen" 2> /dev/null || (echo 'axmgen is not installed, installing axmgen' && make axmgen)
+
 ## make generate-system-contracts-binding: Generate system contracts abi binding
-generate-system-contracts-binding:
+generate-system-contracts-binding: axmgen-check
 	@$(foreach contract, $(SYSTEM_CONTRACTS),$(call generate-abi, $(contract)))

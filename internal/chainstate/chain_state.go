@@ -3,6 +3,7 @@ package chainstate
 import (
 	"sync"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -12,7 +13,7 @@ import (
 )
 
 type ExpandedNodeInfo struct {
-	types.NodeInfo
+	node_manager.NodeInfo
 	P2PPubKey       *crypto.Ed25519PublicKey
 	ConsensusPubKey *crypto.Bls12381PublicKey
 }
@@ -26,7 +27,7 @@ type ChainState struct {
 	nodeInfoCacheLock     sync.RWMutex
 	p2pID2NodeIDCacheLock sync.RWMutex
 	epochInfoCacheLock    sync.RWMutex
-	getNodeInfoFn         func(uint64) (*types.NodeInfo, error)
+	getNodeInfoFn         func(uint64) (*node_manager.NodeInfo, error)
 	getNodeIDByP2PIDFn    func(p2pID string) (uint64, error)
 	getEpochInfoFn        func(epoch uint64) (*types.EpochInfo, error)
 	nodeInfoCache         map[uint64]*ExpandedNodeInfo
@@ -45,10 +46,10 @@ type ChainState struct {
 	IsDataSyncer bool
 }
 
-func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPubKey *crypto.Bls12381PublicKey, getNodeInfoFn func(uint64) (*types.NodeInfo, error), getNodeIDByP2PIDFn func(p2pID string) (uint64, error), getEpochInfoFn func(epoch uint64) (*types.EpochInfo, error)) *ChainState {
+func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPubKey *crypto.Bls12381PublicKey, getNodeInfoFn func(uint64) (*node_manager.NodeInfo, error), getNodeIDByP2PIDFn func(p2pID string) (uint64, error), getEpochInfoFn func(epoch uint64) (*types.EpochInfo, error)) *ChainState {
 	selfRegistered := false
 	selfNodeInfo := &ExpandedNodeInfo{
-		NodeInfo: types.NodeInfo{
+		NodeInfo: node_manager.NodeInfo{
 			P2PID: p2pID,
 		},
 		P2PPubKey:       p2pPubKey,

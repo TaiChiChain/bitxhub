@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -33,19 +34,19 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 		}
 
 		nodeInfoMap[nodeID] = &ExpandedNodeInfo{
-			NodeInfo: types.NodeInfo{
+			NodeInfo: node_manager.NodeInfo{
 				ID:              nodeID,
 				ConsensusPubKey: nodeInfo.ConsensusPubKey,
 				P2PPubKey:       nodeInfo.P2PPubKey,
 				P2PID:           p2pID,
 				OperatorAddress: nodeInfo.OperatorAddress,
-				MetaData: types.NodeMetaData{
+				MetaData: node_manager.NodeMetaData{
 					Name:       nodeInfo.MetaData.Name,
 					Desc:       nodeInfo.MetaData.Desc,
 					ImageURL:   nodeInfo.MetaData.ImageURL,
 					WebsiteURL: nodeInfo.MetaData.WebsiteURL,
 				},
-				Status: types.NodeStatusActive,
+				Status: uint8(types.NodeStatusActive),
 			},
 			P2PPubKey:       p2pPubKey,
 			ConsensusPubKey: consensusPubKey,
@@ -61,7 +62,7 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 		nodeInfoCacheLock:     sync.RWMutex{},
 		p2pID2NodeIDCacheLock: sync.RWMutex{},
 		epochInfoCacheLock:    sync.RWMutex{},
-		getNodeInfoFn: func(u uint64) (*types.NodeInfo, error) {
+		getNodeInfoFn: func(u uint64) (*node_manager.NodeInfo, error) {
 			return nil, errors.New("node not found")
 		},
 		getNodeIDByP2PIDFn: func(p2pID string) (uint64, error) {
