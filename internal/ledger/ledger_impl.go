@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -28,7 +28,7 @@ type SnapInfo struct {
 	SnapBlockHeader *types.BlockHeader
 }
 
-func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, snapshot storage.Storage, bf *blockfile.BlockFile) (*Ledger, error) {
+func NewLedgerWithStores(repo *repo.Repo, blockchainStore kv.Storage, ldb, snapshot kv.Storage, bf blockfile.BlockFile) (*Ledger, error) {
 	var err error
 	ledger := &Ledger{}
 	if blockchainStore != nil || bf != nil {
@@ -67,6 +67,10 @@ func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, 
 	}
 
 	return ledger, nil
+}
+
+func NewMemory(repo *repo.Repo) (*Ledger, error) {
+	return NewLedgerWithStores(repo, kv.NewMemory(), kv.NewMemory(), kv.NewMemory(), blockfile.NewMemory())
 }
 
 func NewLedger(rep *repo.Repo) (*Ledger, error) {

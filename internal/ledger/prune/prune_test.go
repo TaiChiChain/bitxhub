@@ -2,18 +2,15 @@ package prune
 
 import (
 	"crypto/rand"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/storage/pebble"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -27,9 +24,7 @@ func makeLeafNode(str string) *types.LeafNode {
 
 func TestPruneCacheUpdate(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
 	pruneCache := NewPruneCache(createMockRepo(t), pStateStorage, accountTrieCache, storageTrieCache, logger)
@@ -129,9 +124,7 @@ func TestPruneCacheUpdate(t *testing.T) {
 
 func TestPruneCacheRollback(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -194,7 +187,7 @@ func TestPruneCacheRollback(t *testing.T) {
 	batch.Commit()
 	batch.Reset()
 
-	err = tc.Rollback(1)
+	err := tc.Rollback(1)
 	require.Nil(t, err)
 
 	// verify version 1
@@ -269,9 +262,7 @@ func TestPruneCacheRollback(t *testing.T) {
 
 func TestPruningFlushByMaxBlockNum(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -325,9 +316,7 @@ func TestPruningFlushByMaxBlockNum(t *testing.T) {
 
 func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -336,7 +325,7 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	batch := pStateStorage.NewBatch()
 
 	bigV := make([]byte, maxFlushBatchSizeThreshold)
-	rand.Read(bigV)
+	_, _ = rand.Read(bigV)
 	trieJournal := &types.StateDelta{
 		Journal: []*types.TrieJournal{
 			{
@@ -396,9 +385,7 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 
 func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -445,8 +432,7 @@ func TestName(t *testing.T) {
 }
 
 func createMockRepo(t *testing.T) *repo.Repo {
-	r, err := repo.Default(t.TempDir())
-	require.Nil(t, err)
+	r := repo.MockRepo(t)
 	r.Config.Ledger.StateLedgerReservedHistoryBlockNum = 10
 	// speed up unit test
 	{

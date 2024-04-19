@@ -76,7 +76,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 	return &types.EpochInfo{
 		Epoch:       1,
 		EpochPeriod: 100,
-		StartBlock:  1,
+		StartBlock:  0,
 		ConsensusParams: types.ConsensusParams{
 			ProposerElectionType:          types.ProposerElectionTypeWRF,
 			CheckpointPeriod:              1,
@@ -119,7 +119,10 @@ func DefaultGenesisConfig() *GenesisConfig {
 	if testNetGenesisBuilder, ok := TestNetGenesisConfigBuilderMap[BuildNet]; ok {
 		return testNetGenesisBuilder()
 	}
+	return defaultGenesisConfig()
+}
 
+func defaultGenesisConfig() *GenesisConfig {
 	return &GenesisConfig{
 		ChainID:   1356,
 		Timestamp: 1704038400,

@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
-	"github.com/axiomesh/axiom-kit/storage/leveldb"
-	"github.com/axiomesh/axiom-kit/storage/pebble"
+	"github.com/axiomesh/axiom-kit/storage/kv"
+	"github.com/axiomesh/axiom-kit/storage/kv/leveldb"
+	"github.com/axiomesh/axiom-kit/storage/kv/pebble"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
@@ -35,9 +35,9 @@ func TestAccount_GetState(t *testing.T) {
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage    storage.Storage
-		stateStorage    storage.Storage
-		snapshotStorage storage.Storage
+		blockStorage    kv.Storage
+		stateStorage    kv.Storage
+		snapshotStorage kv.Storage
 	}{
 		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
 		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
@@ -108,9 +108,9 @@ func TestAccount_AccountBalance(t *testing.T) {
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage    storage.Storage
-		stateStorage    storage.Storage
-		snapshotStorage storage.Storage
+		blockStorage    kv.Storage
+		stateStorage    kv.Storage
+		snapshotStorage kv.Storage
 	}{
 		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
 		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
@@ -165,9 +165,9 @@ func TestAccount_setNonce(t *testing.T) {
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage    storage.Storage
-		stateStorage    storage.Storage
-		snapshotStorage storage.Storage
+		blockStorage    kv.Storage
+		stateStorage    kv.Storage
+		snapshotStorage kv.Storage
 	}{
 		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
 		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},
@@ -193,8 +193,7 @@ func TestAccount_setNonce(t *testing.T) {
 }
 
 func TestAccount_InitJMTError(t *testing.T) {
-	lStateStorage, err := leveldb.NewMemory()
-	assert.Nil(t, err)
+	lStateStorage := kv.NewMemory()
 	ac, err := NewAccountCache(0, true)
 	assert.Nil(t, err)
 
@@ -233,9 +232,9 @@ func TestAccount_getAccountJournal(t *testing.T) {
 	assert.Nil(t, err)
 
 	testcase := map[string]struct {
-		blockStorage    storage.Storage
-		stateStorage    storage.Storage
-		snapshotStorage storage.Storage
+		blockStorage    kv.Storage
+		stateStorage    kv.Storage
+		snapshotStorage kv.Storage
 	}{
 		"leveldb": {blockStorage: lBlockStorage, stateStorage: lStateStorage, snapshotStorage: lSnapshotStorage},
 		"pebble":  {blockStorage: pBlockStorage, stateStorage: pStateStorage, snapshotStorage: pSnapshotStorage},

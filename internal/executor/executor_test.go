@@ -14,15 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -33,25 +31,19 @@ const (
 )
 
 func TestNew(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
+	r := repo.MockRepo(t)
+	mockLedger, err := ledger.NewMemory(r)
 	assert.Nil(t, err)
-
-	mockCtl := gomock.NewController(t)
-	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	mockLedger := &ledger.Ledger{
-		ChainLedger: chainLedger,
-		StateLedger: stateLedger,
-	}
 
 	// mock data for ledger
 	chainMeta := &types.ChainMeta{
-		Height:    1,
+		Height:    0,
 		BlockHash: types.NewHashByStr(from),
 	}
-	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.ChainMeta = chainMeta
 
-	executor, err := New(r, mockLedger)
+	executor, err := New(r, mockLedger, chainState)
 	assert.Nil(t, err)
 	assert.NotNil(t, executor)
 
@@ -61,8 +53,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestGetEvm(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
+	r := repo.MockRepo(t)
 
 	mockCtl := gomock.NewController(t)
 	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
@@ -74,7 +65,7 @@ func TestGetEvm(t *testing.T) {
 
 	// mock data for ledger
 	chainMeta := &types.ChainMeta{
-		Height:    1,
+		Height:    0,
 		BlockHash: types.NewHashByStr(from),
 	}
 	// mock block for ledger
@@ -92,11 +83,11 @@ func TestGetEvm(t *testing.T) {
 		GasPrice:       0,
 		GasUsed:        0,
 		ProposerNodeID: 0,
-		Extra:          nil,
 	}
 	chainLedger.EXPECT().GetBlockHeader(gomock.Any()).Return(blockHeader, nil).Times(3)
-
-	executor, err := New(r, mockLedger)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.ChainMeta = chainMeta
+	executor, err := New(r, mockLedger, chainState)
 	assert.Nil(t, err)
 	assert.NotNil(t, executor)
 
@@ -138,8 +129,7 @@ func TestGetChainConfig(t *testing.T) {
 }
 
 func TestGetBlockHashFunc(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
+	r := repo.MockRepo(t)
 
 	mockCtl := gomock.NewController(t)
 	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
@@ -151,7 +141,7 @@ func TestGetBlockHashFunc(t *testing.T) {
 
 	// mock data for ledger
 	chainMeta := &types.ChainMeta{
-		Height:    1,
+		Height:    0,
 		BlockHash: types.NewHashByStr(from),
 	}
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
@@ -167,37 +157,32 @@ func TestGetBlockHashFunc(t *testing.T) {
 		GasPrice:       0,
 		GasUsed:        0,
 		ProposerNodeID: 0,
-		Extra:          nil,
 	}, nil).AnyTimes()
-
-	executor, _ := New(r, mockLedger)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.ChainMeta = chainMeta
+	executor, _ := New(r, mockLedger, chainState)
 
 	getHash := getBlockHashFunc(executor.ledger.ChainLedger)
 	getHash(10)
 }
 
 func TestBlockExecutor_ExecuteBlock(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
-	r.GenesisConfig.EpochInfo.StartBlock = 2
+	r := repo.MockRepo(t)
+	r.GenesisConfig.EpochInfo.StartBlock = 0
 	r.GenesisConfig.EpochInfo.EpochPeriod = 1
-	r.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = 1000000000000
-	r.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice = 10000000000000
 
-	mockLedger, _ := initLedger(t, "", "leveldb")
-	assert.Nil(t, err)
+	mockLedger, err := ledger.NewMemory(r)
+	require.Nil(t, err)
 
 	genesisBlock := &types.Block{
 		Header: &types.BlockHeader{
-			Number:   1,
+			Number:   0,
 			GasPrice: minGasPrice * 5,
 		},
 	}
 
-	err = framework.InitEpochInfo(mockLedger.StateLedger, r.GenesisConfig.EpochInfo)
-	assert.Nil(t, err)
-
-	err = system.GenesisInit(r.GenesisConfig, mockLedger.StateLedger)
+	nvm := system.New()
+	err = nvm.GenesisInit(r.GenesisConfig, mockLedger.StateLedger)
 	assert.Nil(t, err)
 
 	mockLedger.StateLedger.Finalise()
@@ -207,7 +192,13 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	genesisBlock.Header.StateRoot = stateRoot
 	mockLedger.PersistBlockData(&ledger.BlockData{Block: genesisBlock})
 
-	exec, err := New(r, mockLedger)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.ChainMeta = &types.ChainMeta{
+		Height:    0,
+		GasPrice:  new(big.Int),
+		BlockHash: genesisBlock.Hash(),
+	}
+	exec, err := New(r, mockLedger, chainState)
 	assert.Nil(t, err)
 
 	var txs []*types.Transaction
@@ -232,15 +223,15 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	}()
 
 	// send blocks to executor
-	commitEvent1 := mockCommitEvent(uint64(2), nil)
+	commitEvent1 := mockCommitEvent(uint64(1), nil)
 
-	commitEvent2 := mockCommitEvent(uint64(3), txs)
+	commitEvent2 := mockCommitEvent(uint64(2), txs)
 	exec.AsyncExecuteBlock(commitEvent1)
 	exec.AsyncExecuteBlock(commitEvent2)
 
 	blockRes1 := <-ch
 
-	assert.EqualValues(t, 2, blockRes1.Block.Header.Number)
+	assert.EqualValues(t, 1, blockRes1.Block.Header.Number)
 	assert.Equal(t, 0, len(blockRes1.Block.Transactions))
 	assert.Equal(t, 0, len(blockRes1.TxPointerList))
 
@@ -248,7 +239,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	assert.Equal(t, blockRes1, remoteBlockRes1)
 
 	blockRes2 := <-ch
-	assert.EqualValues(t, 3, blockRes2.Block.Header.Number)
+	assert.EqualValues(t, 2, blockRes2.Block.Header.Number)
 	assert.Equal(t, 2, len(blockRes2.Block.Transactions))
 	assert.Equal(t, 2, len(blockRes2.TxPointerList))
 
@@ -264,11 +255,11 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 		oldBlock := blockRes1.Block
 		// send rollback block to executor
-		rollbackCommitEvent := mockCommitEvent(uint64(2), txs)
+		rollbackCommitEvent := mockCommitEvent(uint64(1), txs)
 		exec.AsyncExecuteBlock(rollbackCommitEvent)
 
 		blockRes := <-ch
-		assert.EqualValues(t, 2, blockRes.Block.Header.Number)
+		assert.EqualValues(t, 1, blockRes.Block.Header.Number)
 		assert.Equal(t, len(txs), len(blockRes.Block.Transactions))
 		assert.Equal(t, genesisBlock.Hash().String(), blockRes.Block.Header.ParentHash.String())
 		assert.NotEqual(t, oldBlock.Hash().String(), blockRes.Block.Hash().String())
@@ -278,14 +269,13 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 		// handle panic error
 		defer func() {
-			if r := recover(); r != nil {
-				assert.NotNil(t, r)
-				assert.Contains(t, fmt.Sprintf("%v", r), "get block header with height 0 from blockfile failed")
-			}
+			r := recover()
+			assert.NotNil(t, r)
+			assert.Contains(t, fmt.Sprintf("%v", r), "cannot rollback genesis block")
 		}()
 
 		// send rollback block to executor, but rollback error
-		rollbackCommitEvent1 := mockCommitEvent(uint64(1), nil)
+		rollbackCommitEvent1 := mockCommitEvent(uint64(0), nil)
 		exec.processExecuteEvent(rollbackCommitEvent1)
 	})
 
@@ -294,16 +284,16 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
 				assert.NotNil(t, r)
-				assert.Contains(t, fmt.Sprintf("%v", r), "get block header with height 0 from blockfile failed")
+				assert.Contains(t, fmt.Sprintf("%v", r), "cannot rollback genesis block")
 			}
 		}()
 		// send rollback block to executor, but rollback error
-		rollbackCommitEvent1 := mockCommitEvent(uint64(1), nil)
+		rollbackCommitEvent1 := mockCommitEvent(uint64(0), nil)
 		exec.processExecuteEvent(rollbackCommitEvent1)
 	})
 
 	t.Run("test get block with error", func(t *testing.T) {
-		errorGetBlock := errors.New("out of bounds")
+		errorGetBlock := errors.New("out-order")
 		// handle panic error
 		defer func() {
 			if r := recover(); r != nil {
@@ -330,9 +320,8 @@ func mockCommitEvent(blockNumber uint64, txs []*types.Transaction) *consensuscom
 
 func mockBlock(blockNumber uint64, txs []*types.Transaction) *types.Block {
 	header := &types.BlockHeader{
-		Number:          blockNumber,
-		Timestamp:       time.Now().Unix(),
-		ProposerAccount: "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
+		Number:    blockNumber,
+		Timestamp: time.Now().Unix(),
 	}
 
 	block := &types.Block{
@@ -371,74 +360,58 @@ func mockTx(t *testing.T, nonce ...uint64) *types.Transaction {
 }
 
 func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
-	r.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = 1000000000000
-	r.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice = 10000000000000
+	r := repo.MockRepo(t)
 
-	testcase := map[string]struct {
-		blockStorage storage.Storage
-		stateStorage storage.Storage
-	}{
-		"leveldb": {},
-		"pebble":  {},
+	ldg, err := ledger.NewMemory(r)
+	require.Nil(t, err)
+
+	signer, err := types.GenerateSigner()
+	require.Nil(t, err)
+	to := types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7")
+
+	dummyRootHash := common2.Hash{}
+	ldg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), 1)
+	ldg.StateLedger.SetBalance(signer.Addr, new(big.Int).Mul(big.NewInt(5000000000000), big.NewInt(21000*10000)))
+	account := ldg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
+	balance, _ := new(big.Int).SetString("100000000000000000000", 10)
+	account.SetState([]byte("axcBalances-0xf16F8B02df2Dd7c4043C41F3f1EBB17f15358888"), balance.Bytes())
+	ldg.StateLedger.Finalise()
+	rootHash, err := ldg.StateLedger.Commit()
+	require.Nil(t, err)
+	require.NotNil(t, rootHash)
+	block1 := mockBlock(0, nil)
+	// refresh block
+	block1.Header.StateRoot = rootHash
+	err = ldg.ChainLedger.PersistExecutionResult(block1, nil)
+	require.Nil(t, err)
+
+	// mock data for ledger
+	chainMeta := &types.ChainMeta{
+		Height:    0,
+		GasPrice:  big.NewInt(minGasPrice),
+		BlockHash: types.NewHash([]byte(from)),
 	}
+	ldg.ChainLedger.UpdateChainMeta(chainMeta)
 
-	for kvType := range testcase {
-		t.Run(kvType, func(t *testing.T) {
-			err = storagemgr.Initialize(kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-			require.Nil(t, err)
-			ldg, err := ledger.NewLedger(createMockRepo(t))
-			require.Nil(t, err)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	executor, err := New(r, ldg, chainState)
+	require.Nil(t, err)
+	err = executor.Start()
+	require.Nil(t, err)
 
-			signer, err := types.GenerateSigner()
-			require.Nil(t, err)
-			to := types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7")
+	ch := make(chan events.ExecutedEvent)
+	sub := executor.SubscribeBlockEvent(ch)
+	defer sub.Unsubscribe()
 
-			dummyRootHash := common2.Hash{}
-			ldg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), 1)
-			ldg.StateLedger.SetBalance(signer.Addr, new(big.Int).Mul(big.NewInt(5000000000000), big.NewInt(21000*10000)))
-			account := ldg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))
-			balance, _ := new(big.Int).SetString("100000000000000000000", 10)
-			account.SetState([]byte("axcBalances-0xf16F8B02df2Dd7c4043C41F3f1EBB17f15358888"), balance.Bytes())
-			ldg.StateLedger.Finalise()
-			rootHash, err := ldg.StateLedger.Commit()
-			require.Nil(t, err)
-			require.NotNil(t, rootHash)
-			block1 := mockBlock(1, nil)
-			// refresh block
-			block1.Header.StateRoot = rootHash
-			err = ldg.ChainLedger.PersistExecutionResult(block1, nil)
-			require.Nil(t, err)
+	tx1 := mockTransferTx(t, signer, to, 0, 1)
+	tx2 := mockTransferTx(t, signer, to, 1, 1)
+	tx3 := mockTransferTx(t, signer, to, 2, 1)
+	commitEvent := mockCommitEvent(1, []*types.Transaction{tx1, tx2, tx3})
+	executor.AsyncExecuteBlock(commitEvent)
 
-			// mock data for ledger
-			chainMeta := &types.ChainMeta{
-				Height:    1,
-				GasPrice:  big.NewInt(minGasPrice),
-				BlockHash: types.NewHash([]byte(from)),
-			}
-			ldg.ChainLedger.UpdateChainMeta(chainMeta)
-
-			executor, err := New(r, ldg)
-			require.Nil(t, err)
-			err = executor.Start()
-			require.Nil(t, err)
-
-			ch := make(chan events.ExecutedEvent)
-			sub := executor.SubscribeBlockEvent(ch)
-			defer sub.Unsubscribe()
-
-			tx1 := mockTransferTx(t, signer, to, 0, 1)
-			tx2 := mockTransferTx(t, signer, to, 1, 1)
-			tx3 := mockTransferTx(t, signer, to, 2, 1)
-			commitEvent := mockCommitEvent(2, []*types.Transaction{tx1, tx2, tx3})
-			executor.AsyncExecuteBlock(commitEvent)
-
-			block := <-ch
-			require.EqualValues(t, 2, block.Block.Height())
-			require.EqualValues(t, 3, ldg.StateLedger.GetBalance(to).Uint64())
-		})
-	}
+	block := <-ch
+	require.EqualValues(t, 1, block.Block.Height())
+	require.EqualValues(t, 3, ldg.StateLedger.GetBalance(to).Uint64())
 }
 
 func mockTransferTx(t *testing.T, s *types.Signer, to *types.Address, nonce, amount int) *types.Transaction {
@@ -447,16 +420,8 @@ func mockTransferTx(t *testing.T, s *types.Signer, to *types.Address, nonce, amo
 	return tx
 }
 
-func createMockRepo(t *testing.T) *repo.Repo {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
-
-	return r
-}
-
 func executorStart(t *testing.T) *BlockExecutor {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
+	r := repo.MockRepo(t)
 
 	mockCtl := gomock.NewController(t)
 	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
@@ -468,26 +433,13 @@ func executorStart(t *testing.T) *BlockExecutor {
 
 	// mock data for ledger
 	chainMeta := &types.ChainMeta{
-		Height:    1,
+		Height:    0,
 		BlockHash: types.NewHashByStr(from),
 	}
 	chainLedger.EXPECT().GetChainMeta().Return(chainMeta).AnyTimes()
-
-	executor, _ := New(r, mockLedger)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.ChainMeta = chainMeta
+	executor, err := New(r, mockLedger, chainState)
+	require.Nil(t, err)
 	return executor
-}
-
-func initLedger(t *testing.T, repoRoot string, kv string) (*ledger.Ledger, string) {
-	rep := createMockRepo(t)
-	if repoRoot != "" {
-		rep.RepoRoot = repoRoot
-	}
-
-	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-	require.Nil(t, err)
-	rep.Config.Monitor.EnableExpensive = true
-	l, err := ledger.NewLedger(rep)
-	require.Nil(t, err)
-
-	return l, rep.RepoRoot
 }

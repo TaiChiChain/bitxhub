@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 
 	jmt "github.com/axiomesh/axiom-kit/jmt"
-	storage "github.com/axiomesh/axiom-kit/storage"
+	kv "github.com/axiomesh/axiom-kit/storage/kv"
 	types "github.com/axiomesh/axiom-kit/types"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/ethereum/go-ethereum/common"
@@ -1882,7 +1882,7 @@ func (c *MockStateLedgerHasSuicideCall) DoAndReturn(f func(*types.Address) bool)
 }
 
 // IterateTrie mocks base method.
-func (m *MockStateLedger) IterateTrie(snapshotMeta *ledger.SnapshotMeta, kv storage.Storage, errC chan error) {
+func (m *MockStateLedger) IterateTrie(snapshotMeta *ledger.SnapshotMeta, kv kv.Storage, errC chan error) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "IterateTrie", snapshotMeta, kv, errC)
 }
@@ -1906,13 +1906,13 @@ func (c *MockStateLedgerIterateTrieCall) Return() *MockStateLedgerIterateTrieCal
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerIterateTrieCall) Do(f func(*ledger.SnapshotMeta, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Do(f func(*ledger.SnapshotMeta, kv.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*ledger.SnapshotMeta, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*ledger.SnapshotMeta, kv.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

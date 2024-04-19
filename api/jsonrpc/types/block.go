@@ -120,8 +120,8 @@ const (
 	// PendingBlockNumber mapping from "pending" to -1 for tm query
 	PendingBlockNumber = BlockNumber(-1)
 
-	// EarliestBlockNumber mapping from "earliest" to 1 for tm query (earliest query not supported)
-	EarliestBlockNumber = BlockNumber(1)
+	// EarliestBlockNumber mapping from "earliest" to 1 for tm query
+	EarliestBlockNumber = BlockNumber(0)
 )
 
 // NewBlockNumber creates a new BlockNumber instance.

@@ -8,7 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -20,7 +20,7 @@ type Snapshot struct {
 
 	accountSnapshotCache  *storagemgr.CacheWrapper
 	contractSnapshotCache *storagemgr.CacheWrapper
-	backend               storage.Storage
+	backend               kv.Storage
 
 	lock sync.RWMutex
 
@@ -36,7 +36,7 @@ var (
 // maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
 const maxBatchSize = 64 * 1024 * 1024
 
-func NewSnapshot(rep *repo.Repo, backend storage.Storage, logger logrus.FieldLogger) *Snapshot {
+func NewSnapshot(rep *repo.Repo, backend kv.Storage, logger logrus.FieldLogger) *Snapshot {
 	return &Snapshot{
 		rep:                   rep,
 		accountSnapshotCache:  storagemgr.NewCacheWrapper(rep.Config.Snapshot.AccountSnapshotCacheMegabytesLimit, true),
@@ -238,6 +238,6 @@ func (snap *Snapshot) ResetMetrics() {
 	snap.accountSnapshotCache.ResetCounterMetrics()
 }
 
-func (snap *Snapshot) Batch() storage.Batch {
+func (snap *Snapshot) Batch() kv.Batch {
 	return snap.backend.NewBatch()
 }

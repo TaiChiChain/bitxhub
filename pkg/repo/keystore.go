@@ -72,10 +72,6 @@ func ReadP2PKeystore(repoPath string) (*P2PKeystore, error) {
 }
 
 func GenerateConsensusKeystore(repoPath string, privateKeyStr string, password string) (*ConsensusKeystore, error) {
-	if password == "" {
-		password = DefaultKeystorePassword
-		fmt.Println("keystore password is empty, will use default:", password)
-	}
 	var privateKey *crypto.Bls12381PrivateKey
 	var err error
 	if privateKeyStr != "" {

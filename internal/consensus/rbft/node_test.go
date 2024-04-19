@@ -21,20 +21,13 @@ import (
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-var validTxsCh = make(chan *precheck.ValidTxs, 1024)
-
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-	assert.Nil(t, err)
 	mockRbft := rbft.NewMockMinimalNode[types.Transaction, *types.Transaction](ctrl)
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
 		ID:     uint64(1),
@@ -63,7 +56,7 @@ func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 		network:    consensusConf.Network,
 		ctx:        ctx,
 		cancel:     cancel,
-		txCache:    txcache.NewTxCache(consensusConf.Config.TxCache.SetTimeout.ToDuration(), uint64(consensusConf.Config.TxCache.SetSize), consensusConf.Logger),
+		txCache:    txcache.NewTxCache(consensusConf.Repo.ConsensusConfig.TxCache.SetTimeout.ToDuration(), uint64(consensusConf.Repo.ConsensusConfig.TxCache.SetSize), consensusConf.Logger),
 		txFeed:     event.Feed{},
 		txPreCheck: mockPrecheckMgr,
 		txpool:     consensusConf.TxPool,
@@ -138,11 +131,11 @@ func TestInit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	node := MockMinNode(ctrl, t)
 
-	node.config.Config.Rbft.EnableMultiPipes = false
+	node.config.Repo.ConsensusConfig.Rbft.EnableMultiPipes = false
 	err := node.initConsensusMsgPipes()
 	ast.Nil(err)
 
-	node.config.Config.Rbft.EnableMultiPipes = true
+	node.config.Repo.ConsensusConfig.Rbft.EnableMultiPipes = true
 	err = node.initConsensusMsgPipes()
 	ast.Nil(err)
 }
@@ -162,65 +155,46 @@ func TestNewNode(t *testing.T) {
 			expectedErrMsg: "",
 		},
 		{
-			name: "invalid config",
-			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
-				// illegal config
-				consensusConf.GetCurrentEpochInfoFromEpochMgrContractFunc = func() (*types.EpochInfo, error) {
-					return nil, errors.New("get epoch info error")
-				}
-			},
-			expectedErrMsg: "get epoch info error",
-		},
-		{
 			name: "new adaptor err",
 			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
 				// illegal storage type
-				consensusConf.ConsensusStorageType = "invalidType"
+				consensusConf.Repo.Config.Consensus.StorageType = "invalidType"
 			},
 			expectedErrMsg: "unsupported consensus storage type",
 		},
 		{
-			name: "new rbft err",
-			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
-				// illegal genesis epoch
-				consensusConf.GenesisEpochInfo.Epoch = 100
-			},
-			expectedErrMsg: "genesis epoch and start_block must be 1",
-		},
-
-		{
 			name: "enable p2p limit",
 			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
 				// illegal genesis epoch
-				consensusConf.Config.Limit.Enable = true
-				consensusConf.Config.Limit.Limit = 100
-				consensusConf.Config.Limit.Burst = 100
+				consensusConf.Repo.ConsensusConfig.Limit.Enable = true
+				consensusConf.Repo.ConsensusConfig.Limit.Limit = 100
+				consensusConf.Repo.ConsensusConfig.Limit.Burst = 100
 			},
 			expectedErrMsg: "",
 		},
 	}
 
 	for _, tc := range testCase {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-		ast := assert.New(t)
-		err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-		ast.Nil(err)
+			ast := assert.New(t)
 
-		logger := log.NewWithModule("consensus")
-		consensusConf, _ := testutil.MockConsensusConfig(logger, ctrl, t)
-		tc.setupMocks(consensusConf, ctrl)
-		node, err := NewNode(consensusConf)
+			logger := log.NewWithModule("consensus")
+			consensusConf, _ := testutil.MockConsensusConfig(logger, ctrl, t)
+			tc.setupMocks(consensusConf, ctrl)
+			node, err := NewNode(consensusConf)
 
-		if tc.expectedErrMsg != "" {
-			ast.NotNil(err)
-			ast.True(strings.Contains(err.Error(), tc.expectedErrMsg))
-		} else {
-			ast.Nil(err)
-			ast.NotNil(node)
-			node.Stop()
-		}
+			if tc.expectedErrMsg != "" {
+				ast.NotNil(err)
+				ast.True(strings.Contains(err.Error(), tc.expectedErrMsg))
+			} else {
+				ast.Nil(err)
+				ast.NotNil(node)
+				node.Stop()
+			}
+		})
 	}
 }
 
@@ -422,24 +396,16 @@ func TestQuorum(t *testing.T) {
 	ast := assert.New(t)
 	ctrl := gomock.NewController(t)
 	node := MockMinNode(ctrl, t)
-	node.stack.EpochInfo.ValidatorSet = []types.NodeInfo{}
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 1})
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 2})
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 3})
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 4})
-
 	// N = 3f + 1, f=1
-	quorum := node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
+	quorum := node.Quorum(4)
 	ast.Equal(uint64(3), quorum)
 
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 5})
 	// N = 3f + 2, f=1
-	quorum = node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
+	quorum = node.Quorum(5)
 	ast.Equal(uint64(4), quorum)
 
-	node.stack.EpochInfo.ValidatorSet = append(node.stack.EpochInfo.ValidatorSet, types.NodeInfo{ID: 6})
 	// N = 3f + 3, f=1
-	quorum = node.Quorum(uint64(len(node.stack.EpochInfo.ValidatorSet)))
+	quorum = node.Quorum(6)
 	ast.Equal(uint64(4), quorum)
 }
 
