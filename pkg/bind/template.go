@@ -146,24 +146,24 @@ var (
 	}
 	
 	{{range .Events}}
-		// {{$contract.Type}}{{.Normalized.Name}} represents a {{.Normalized.Name}} event raised by the {{$contract.Type}} contract.
+		// Event{{.Normalized.Name}} represents a {{.Normalized.Name}} event raised by the {{$contract.Type}} contract.
 		type Event{{.Normalized.Name}} struct { {{range .Normalized.Inputs}}
 			{{capitalise .Name}} {{if .Indexed}}{{bindtopictype .Type $structs}}{{else}}{{bindtype .Type $structs}}{{end}} {{end}}
 		}
 
 		func (_event *Event{{.Normalized.Name}}) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-			return packer.PackEvent(_event, abi.Events["{{.Normalized.Name}}}"])
+			return packer.PackEvent(_event, abi.Events["{{.Normalized.Name}}"])
 		}
 	{{end}}
 
 	{{range .Errors}}
-		// {{$contract.Type}}{{.Normalized.Name}} represents a {{.Normalized.Name}} error raised by the {{$contract.Type}} contract.
+		// Error{{.Normalized.Name}} represents a {{.Normalized.Name}} error raised by the {{$contract.Type}} contract.
 		type Error{{.Normalized.Name}} struct { {{range .Normalized.Inputs}}
 			{{capitalise .Name}} {{bindtype .Type $structs}} {{end}}
 		}
 
 		func (_error *Error{{.Normalized.Name}}) Pack(abi abi.ABI) error {
-			return packer.PackError(_error, abi.Errors["{{.Original.Name}}}"])
+			return packer.PackError(_error, abi.Errors["{{.Original.Name}}"])
 		}
 	{{end}}
 {{end}}

@@ -62,7 +62,7 @@ type Governance interface {
 	Proposal(proposalID uint64) (Proposal, error)
 }
 
-// GovernancePropose represents a Propose event raised by the Governance contract.
+// EventPropose represents a Propose event raised by the Governance contract.
 type EventPropose struct {
 	ProposalID   uint64
 	ProposalType uint8
@@ -71,10 +71,10 @@ type EventPropose struct {
 }
 
 func (_event *EventPropose) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Propose}"])
+	return packer.PackEvent(_event, abi.Events["Propose"])
 }
 
-// GovernanceVote represents a Vote event raised by the Governance contract.
+// EventVote represents a Vote event raised by the Governance contract.
 type EventVote struct {
 	ProposalID   uint64
 	ProposalType uint8
@@ -83,5 +83,5 @@ type EventVote struct {
 }
 
 func (_event *EventVote) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Vote}"])
+	return packer.PackEvent(_event, abi.Events["Vote"])
 }

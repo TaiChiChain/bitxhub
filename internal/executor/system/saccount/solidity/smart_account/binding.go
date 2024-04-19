@@ -91,12 +91,12 @@ type SmartAccount interface {
 	Receive() error
 }
 
-// SmartAccountSmartAccountInitialized represents a SmartAccountInitialized event raised by the SmartAccount contract.
+// EventSmartAccountInitialized represents a SmartAccountInitialized event raised by the SmartAccount contract.
 type EventSmartAccountInitialized struct {
 	EntryPoint common.Address
 	Owner      common.Address
 }
 
 func (_event *EventSmartAccountInitialized) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["SmartAccountInitialized}"])
+	return packer.PackEvent(_event, abi.Events["SmartAccountInitialized"])
 }
