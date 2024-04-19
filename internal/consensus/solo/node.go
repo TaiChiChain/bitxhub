@@ -246,7 +246,7 @@ func (n *Node) listenEvent() {
 						digestList[index] = n.batchDigestM[height]
 						delete(n.batchDigestM, height)
 					})
-
+					fmt.Println("RemoveBatches", len(digestList), digestList)
 					n.txpool.RemoveBatches(digestList)
 				}
 
@@ -405,10 +405,16 @@ func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *
 		"tx_count":   len(batch.TxList),
 	}).Debugf("Receive proposal from txpool")
 
+	// genesis block
+	nextBlock := n.lastExec + 1
+	if n.config.ChainState.ChainMeta.BlockHash.IsZero() {
+		nextBlock = 0
+	}
+
 	block := &types.Block{
 		Header: &types.BlockHeader{
 			Epoch:     1,
-			Number:    n.lastExec + 1,
+			Number:    nextBlock,
 			Timestamp: batch.Timestamp / int64(time.Second),
 		},
 		Transactions: batch.TxList,
@@ -421,7 +427,7 @@ func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *
 		Block: block,
 	}
 	n.batchDigestM[block.Height()] = batch.BatchHash
-	n.lastExec++
+	n.lastExec = nextBlock
 	n.commitC <- executeEvent
 	n.logger.Infof("======== Call execute, height=%d", n.lastExec)
 }

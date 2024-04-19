@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network"
@@ -27,7 +27,7 @@ var _ rbft.EpochService = (*RBFTAdaptor)(nil)
 var _ rbft.Ledger = (*RBFTAdaptor)(nil)
 
 type RBFTAdaptor struct {
-	epochStore        storage.Storage
+	epochStore        kv.Storage
 	store             rbft.Storage
 	network           network.Network
 	msgPipes          map[int32]p2p.Pipe

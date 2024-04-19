@@ -670,7 +670,8 @@ func (p *txPoolImpl[T, Constraint]) dispatchPoolInfoEvent(event *poolInfoEvent) 
 	case reqChainInfoEvent:
 		req := event.Event.(*reqChainInfoMsg)
 		info := &commonpool.ChainInfo{
-			Height: p.chainInfo.Height,
+			GasPrice: p.chainInfo.GasPrice,
+			Height:   p.chainInfo.Height,
 			EpochConf: &commonpool.EpochConfig{
 				BatchSize:           p.chainInfo.EpochConf.BatchSize,
 				EnableGenEmptyBatch: p.chainInfo.EpochConf.EnableGenEmptyBatch,
@@ -743,6 +744,7 @@ func (p *txPoolImpl[T, Constraint]) handleUpdateChainInfo(newChainInfo *commonpo
 	if newChainInfo.EpochConf != nil {
 		p.chainInfo.EpochConf = newChainInfo.EpochConf
 	}
+	p.chainInfo.GasPrice = newChainInfo.GasPrice
 }
 
 func (p *txPoolImpl[T, Constraint]) handleGcAccountEvent() int {

@@ -3,16 +3,19 @@ package adaptor
 import (
 	"github.com/samber/lo"
 
-	"github.com/axiomesh/axiom-kit/types"
+	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 )
 
-func (a *RBFTAdaptor) GetNodeInfo(nodeID uint64) (*types.NodeInfo, error) {
+func (a *RBFTAdaptor) GetNodeInfo(nodeID uint64) (*rbft.NodeInfo, error) {
 	nodeInfo, err := a.config.ChainState.GetNodeInfo(nodeID)
 	if err != nil {
 		return nil, err
 	}
-	return &nodeInfo.NodeInfo, nil
+	return &rbft.NodeInfo{
+		ID:        nodeInfo.ID,
+		P2PNodeID: nodeInfo.P2PID,
+	}, nil
 }
 
 func (a *RBFTAdaptor) GetNodeIDByP2PID(p2pID string) (uint64, error) {

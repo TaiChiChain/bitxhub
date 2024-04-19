@@ -79,7 +79,10 @@ func DefaultConsensusConfig() *ConsensusConfig {
 	if testNetConsensusConfigBuilder, ok := TestNetConsensusConfigBuilderMap[BuildNet]; ok {
 		return testNetConsensusConfigBuilder()
 	}
+	return defaultConsensusConfig()
+}
 
+func defaultConsensusConfig() *ConsensusConfig {
 	// nolint
 	return &ConsensusConfig{
 		TimedGenBlock: TimedGenBlock{

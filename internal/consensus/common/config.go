@@ -7,7 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
@@ -31,7 +31,7 @@ type Config struct {
 	GetAccountBalance  func(address string) *big.Int
 	GetAccountNonce    func(address *types.Address) uint64
 	GetArchiveModeFunc func() bool
-	EpochStore         storage.Storage
+	EpochStore         kv.Storage
 }
 
 type Option func(*Config)
@@ -114,7 +114,7 @@ func WithGetAccountNonceFunc(f func(address *types.Address) uint64) Option {
 	}
 }
 
-func WithEpochStore(epochStore storage.Storage) Option {
+func WithEpochStore(epochStore kv.Storage) Option {
 	return func(config *Config) {
 		config.EpochStore = epochStore
 	}

@@ -104,8 +104,7 @@ func TestSwarm_OnConnected(t *testing.T) {
 }
 
 func generateMockConfig(t *testing.T) *repo.GenesisConfig {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
+	r := repo.MockRepo(t)
 	config := r.GenesisConfig
 
 	for i := 0; i < 4; i++ {
@@ -134,8 +133,7 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 	var swarms []*networkImpl
 	var addrs []peer.AddrInfo
 	for i := 0; i < peerCnt; i++ {
-		rep, err := repo.Default(t.TempDir())
-		require.Nil(t, err)
+		rep := repo.MockRepoWithNodeID(t, uint64(i+1))
 		if versionChange && i == peerCnt-1 {
 			repo.BuildVersionSecret = "Shanghai"
 		}

@@ -222,6 +222,10 @@ func DefaultConfig() *Config {
 	if testNetConfigBuilder, ok := TestNetConfigBuilderMap[BuildNet]; ok {
 		return testNetConfigBuilder()
 	}
+	return defaultConfig()
+}
+
+func defaultConfig() *Config {
 	return &Config{
 		Ulimit: 65535,
 		Port: Port{

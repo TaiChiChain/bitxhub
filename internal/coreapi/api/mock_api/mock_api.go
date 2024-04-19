@@ -10,9 +10,12 @@
 package mock_api
 
 import (
+	context "context"
+	big "math/big"
 	reflect "reflect"
 
 	types "github.com/axiomesh/axiom-kit/types"
+	chainstate "github.com/axiomesh/axiom-ledger/internal/chainstate"
 	api "github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/axiomesh/axiom-ledger/internal/sync/common"
@@ -45,11 +48,6 @@ func NewMockCoreAPI(ctrl *gomock.Controller) *MockCoreAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockCoreAPI) EXPECT() *MockCoreAPIMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockCoreAPI) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // Broker mocks base method.
@@ -124,6 +122,44 @@ func (c *MockCoreAPIChainCall) Do(f func() api.ChainAPI) *MockCoreAPIChainCall {
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockCoreAPIChainCall) DoAndReturn(f func() api.ChainAPI) *MockCoreAPIChainCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ChainState mocks base method.
+func (m *MockCoreAPI) ChainState() *chainstate.ChainState {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ChainState")
+	ret0, _ := ret[0].(*chainstate.ChainState)
+	return ret0
+}
+
+// ChainState indicates an expected call of ChainState.
+func (mr *MockCoreAPIMockRecorder) ChainState() *MockCoreAPIChainStateCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChainState", reflect.TypeOf((*MockCoreAPI)(nil).ChainState))
+	return &MockCoreAPIChainStateCall{Call: call}
+}
+
+// MockCoreAPIChainStateCall wrap *gomock.Call
+type MockCoreAPIChainStateCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockCoreAPIChainStateCall) Return(arg0 *chainstate.ChainState) *MockCoreAPIChainStateCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockCoreAPIChainStateCall) Do(f func() *chainstate.ChainState) *MockCoreAPIChainStateCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockCoreAPIChainStateCall) DoAndReturn(f func() *chainstate.ChainState) *MockCoreAPIChainStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -263,11 +299,6 @@ func NewMockBrokerAPI(ctrl *gomock.Controller) *MockBrokerAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBrokerAPI) EXPECT() *MockBrokerAPIMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockBrokerAPI) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // ChainConfig mocks base method.
@@ -836,11 +867,6 @@ func (m *MockNetworkAPI) EXPECT() *MockNetworkAPIMockRecorder {
 	return m.recorder
 }
 
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockNetworkAPI) ISGOMOCK() struct{} {
-	return struct{}{}
-}
-
 // PeerInfo mocks base method.
 func (m *MockNetworkAPI) PeerInfo() ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -901,11 +927,6 @@ func NewMockChainAPI(ctrl *gomock.Controller) *MockChainAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockChainAPI) EXPECT() *MockChainAPIMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockChainAPI) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // Meta mocks base method.
@@ -1045,11 +1066,6 @@ func NewMockFeedAPI(ctrl *gomock.Controller) *MockFeedAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockFeedAPI) EXPECT() *MockFeedAPIMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockFeedAPI) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // BloomStatus mocks base method.
@@ -1228,9 +1244,46 @@ func (m *MockGasAPI) EXPECT() *MockGasAPIMockRecorder {
 	return m.recorder
 }
 
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockGasAPI) ISGOMOCK() struct{} {
-	return struct{}{}
+// FeeHistory mocks base method.
+func (m *MockGasAPI) FeeHistory(ctx context.Context, blockCount, lastBlock uint64, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FeeHistory", ctx, blockCount, lastBlock, rewardPercentiles)
+	ret0, _ := ret[0].(*big.Int)
+	ret1, _ := ret[1].([][]*big.Int)
+	ret2, _ := ret[2].([]*big.Int)
+	ret3, _ := ret[3].([]float64)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
+}
+
+// FeeHistory indicates an expected call of FeeHistory.
+func (mr *MockGasAPIMockRecorder) FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles any) *MockGasAPIFeeHistoryCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FeeHistory", reflect.TypeOf((*MockGasAPI)(nil).FeeHistory), ctx, blockCount, lastBlock, rewardPercentiles)
+	return &MockGasAPIFeeHistoryCall{Call: call}
+}
+
+// MockGasAPIFeeHistoryCall wrap *gomock.Call
+type MockGasAPIFeeHistoryCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockGasAPIFeeHistoryCall) Return(arg0 *big.Int, arg1 [][]*big.Int, arg2 []*big.Int, arg3 []float64, arg4 error) *MockGasAPIFeeHistoryCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2, arg3, arg4)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockGasAPIFeeHistoryCall) Do(f func(context.Context, uint64, uint64, []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error)) *MockGasAPIFeeHistoryCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockGasAPIFeeHistoryCall) DoAndReturn(f func(context.Context, uint64, uint64, []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error)) *MockGasAPIFeeHistoryCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
 }
 
 // GetCurrentGasPrice mocks base method.
@@ -1311,6 +1364,45 @@ func (c *MockGasAPIGetGasPriceCall) DoAndReturn(f func() (uint64, error)) *MockG
 	return c
 }
 
+// SuggestGasTipCap mocks base method.
+func (m *MockGasAPI) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SuggestGasTipCap", ctx)
+	ret0, _ := ret[0].(*big.Int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SuggestGasTipCap indicates an expected call of SuggestGasTipCap.
+func (mr *MockGasAPIMockRecorder) SuggestGasTipCap(ctx any) *MockGasAPISuggestGasTipCapCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SuggestGasTipCap", reflect.TypeOf((*MockGasAPI)(nil).SuggestGasTipCap), ctx)
+	return &MockGasAPISuggestGasTipCapCall{Call: call}
+}
+
+// MockGasAPISuggestGasTipCapCall wrap *gomock.Call
+type MockGasAPISuggestGasTipCapCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockGasAPISuggestGasTipCapCall) Return(arg0 *big.Int, arg1 error) *MockGasAPISuggestGasTipCapCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockGasAPISuggestGasTipCapCall) Do(f func(context.Context) (*big.Int, error)) *MockGasAPISuggestGasTipCapCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockGasAPISuggestGasTipCapCall) DoAndReturn(f func(context.Context) (*big.Int, error)) *MockGasAPISuggestGasTipCapCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // MockTxPoolAPI is a mock of TxPoolAPI interface.
 type MockTxPoolAPI struct {
 	ctrl     *gomock.Controller
@@ -1332,11 +1424,6 @@ func NewMockTxPoolAPI(ctrl *gomock.Controller) *MockTxPoolAPI {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockTxPoolAPI) EXPECT() *MockTxPoolAPIMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockTxPoolAPI) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // GetAccountMeta mocks base method.

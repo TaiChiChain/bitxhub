@@ -5,7 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -15,7 +15,7 @@ type prunner struct {
 	rep    *repo.Repo
 	states *states
 
-	ledgerStorageBackend storage.Storage
+	ledgerStorageBackend kv.Storage
 	accountTrieCache     *storagemgr.CacheWrapper
 	storageTrieCache     *storagemgr.CacheWrapper
 
@@ -32,7 +32,7 @@ var (
 	maxFlushBatchSizeThreshold     = 32 * 1024 * 1024 // 32MB
 )
 
-func NewPrunner(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, states *states, logger logrus.FieldLogger) *prunner {
+func NewPrunner(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, states *states, logger logrus.FieldLogger) *prunner {
 	return &prunner{
 		rep:                  rep,
 		ledgerStorageBackend: ledgerStorage,

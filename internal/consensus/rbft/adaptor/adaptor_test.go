@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
@@ -15,14 +14,10 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	network "github.com/axiomesh/axiom-p2p"
 )
 
 func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	cfg, _ := testutil.MockConsensusConfig(logger, ctrl, t)
 	stack, err := NewRBFTAdaptor(cfg)
@@ -42,11 +37,9 @@ func mockAdaptor(ctrl *gomock.Controller, t *testing.T) *RBFTAdaptor {
 }
 
 func mockAdaptorWithStorageType(ctrl *gomock.Controller, t *testing.T, typ string) *RBFTAdaptor {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-	assert.Nil(t, err)
 	logger := log.NewWithModule("consensus")
 	cfg, _ := testutil.MockConsensusConfig(logger, ctrl, t)
-	cfg.ConsensusStorageType = typ
+	cfg.Repo.Config.Consensus.StorageType = typ
 	stack, err := NewRBFTAdaptor(cfg)
 	assert.Nil(t, err)
 
@@ -71,18 +64,18 @@ func TestSignAndVerify(t *testing.T) {
 	msgSign, err := adaptor.Sign([]byte("test sign"))
 	ast.Nil(err)
 
-	err = adaptor.Verify(adaptor.network.PeerID(), msgSign, []byte("test sign"))
+	err = adaptor.Verify(1, msgSign, []byte("test sign"))
 	ast.Nil(err)
 
-	err = adaptor.Verify("wrong", msgSign, []byte("test sign"))
+	err = adaptor.Verify(2, msgSign, []byte("test sign"))
 	ast.Error(err)
 
-	err = adaptor.Verify(adaptor.network.PeerID(), msgSign, []byte("wrong sign"))
+	err = adaptor.Verify(1, msgSign, []byte("wrong sign"))
 	ast.Error(err)
 
 	wrongSign := msgSign
 	wrongSign[0] = 255 - wrongSign[0]
-	err = adaptor.Verify(adaptor.network.PeerID(), wrongSign, []byte("test sign"))
+	err = adaptor.Verify(1, wrongSign, []byte("test sign"))
 	ast.Error(err)
 }
 
@@ -100,7 +93,7 @@ func TestExecute(t *testing.T) {
 	}
 
 	txs = append(txs, tx, tx)
-	adaptor.Execute(txs, []bool{true}, uint64(2), time.Now().UnixNano(), "", 0)
+	adaptor.Execute(txs, []bool{true}, uint64(2), time.Now().UnixNano(), 0)
 	ready := <-adaptor.ReadyC
 	ast.Equal(uint64(2), ready.Height)
 }
@@ -140,14 +133,6 @@ func TestStateUpdate(t *testing.T) {
 		Checkpoint: ckp,
 	}
 
-	peerSet := make([]string, 0)
-	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
-	lo.ForEach(vSet, func(item types.NodeInfo, index int) {
-		if item.P2PNodeID != adaptor.network.PeerID() {
-			peerSet = append(peerSet, item.P2PNodeID)
-		}
-	})
-
 	t.Run("StateUpdate with receive stop signal", func(t *testing.T) {
 		block4 := testutil.ConstructBlock("block4", uint64(4))
 		testutil.SetMockBlockLedger(block4, false)
@@ -184,14 +169,24 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 		Checkpoint: ckp,
 	}
 
-	peerSet := make([]*consensus.QuorumValidator, 0)
-	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
-	lo.ForEach(vSet, func(item types.NodeInfo, index int) {
-		peerSet = append(peerSet, &consensus.QuorumValidator{
-			Id:     item.ID,
-			PeerId: item.P2PNodeID,
-		})
-	})
+	peerSet := []*consensus.QuorumValidator{
+		{
+			Id:     1,
+			PeerId: "1",
+		},
+		{
+			Id:     2,
+			PeerId: "2",
+		},
+		{
+			Id:     3,
+			PeerId: "3",
+		},
+		{
+			Id:     4,
+			PeerId: "5",
+		},
+	}
 
 	// add self to validators
 	peerSet = append(peerSet, &consensus.QuorumValidator{
@@ -204,7 +199,6 @@ func TestStateUpdateWithEpochChange(t *testing.T) {
 		Validators: &consensus.QuorumValidators{Validators: peerSet},
 	}
 
-	adaptor.EpochInfo.ValidatorSet = make([]types.NodeInfo, 0)
 	adaptor.StateUpdate(0, block3.Header.Number, block3.Hash().String(),
 		[]*consensus.SignedCheckpoint{signCkp}, epochChange)
 
@@ -225,6 +219,7 @@ func TestStateUpdateWithRollback(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	adaptor := mockAdaptor(ctrl, t)
+	adaptor.config.ChainState.ChainMeta = testutil.GetChainMetaFunc()
 	block2 := testutil.ConstructBlock("block2", uint64(2))
 	testutil.SetMockBlockLedger(block2, false)
 	defer testutil.ResetMockBlockLedger()
@@ -242,16 +237,8 @@ func TestStateUpdateWithRollback(t *testing.T) {
 		Checkpoint: ckp,
 	}
 
-	peerSet := make([]string, 0)
-	vSet := adaptor.config.GenesisEpochInfo.ValidatorSet
-	lo.ForEach(vSet, func(item types.NodeInfo, index int) {
-		if item.P2PNodeID != adaptor.network.PeerID() {
-			peerSet = append(peerSet, item.P2PNodeID)
-		}
-	})
-
 	block4 := testutil.ConstructBlock("block4", uint64(4))
-	testutil.SetMockChainMeta(&types.ChainMeta{Height: uint64(4), BlockHash: block4.Hash()})
+	adaptor.config.ChainState.ChainMeta = &types.ChainMeta{Height: uint64(4), BlockHash: block4.Hash()}
 	defer testutil.ResetMockChainMeta()
 
 	testutil.SetMockBlockLedger(block3, true)

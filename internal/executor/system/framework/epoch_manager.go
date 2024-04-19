@@ -39,6 +39,13 @@ type EpochManager struct {
 }
 
 func (m *EpochManager) GenesisInit(genesis *repo.GenesisConfig) error {
+	if genesis.EpochInfo.StartBlock != 0 {
+		return errors.Errorf("genesis epoch start block must be 0")
+	}
+	if genesis.EpochInfo.Epoch != 1 {
+		return errors.Errorf("genesis epoch number must be 1")
+	}
+
 	if err := genesis.EpochInfo.Validate(); err != nil {
 		return errors.Wrapf(err, "invalid genesis epoch info")
 	}

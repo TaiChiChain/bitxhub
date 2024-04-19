@@ -13,7 +13,7 @@ import (
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/jmt"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
@@ -43,7 +43,7 @@ type StateLedgerImpl struct {
 	accountTrie  *jmt.JMT      // keep track of the latest world state (dirty or committed)
 
 	pruneCache       *prune.PruneCache
-	backend          storage.Storage
+	backend          kv.Storage
 	accountTrieCache *storagemgr.CacheWrapper
 	storageTrieCache *storagemgr.CacheWrapper
 
@@ -235,7 +235,7 @@ func (l *StateLedgerImpl) Finalise() {
 	l.ClearChangerAndRefund()
 }
 
-func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv storage.Storage, errC chan error) {
+func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage, errC chan error) {
 	stateRoot := snapshotMeta.BlockHeader.StateRoot.ETHHash()
 	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", snapshotMeta.BlockHeader.Hash(), stateRoot)
 
@@ -378,7 +378,7 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 	return trie.Prove(key)
 }
 
-func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage storage.Storage) (StateLedger, error) {
+func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (StateLedger, error) {
 	stateCachedStorage := storagemgr.NewCachedStorage(stateStorage, 128).(*storagemgr.CachedStorage)
 	accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
