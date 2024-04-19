@@ -56,15 +56,7 @@ type NewNodeInfo struct {
 	OperatorAddress string
 
 	// Meta data (can update)
-	MetaData types.NodeMetaData
-}
-
-type ConsensusVotingPower struct {
-	NodeID uint64
-
-	// Consensus voting weight (calculated by active stake).
-	// TODO: convert type to big.Int
-	ConsensusVotingPower int64
+	MetaData node_manager.NodeMetaData
 }
 
 type NodeManager struct {
@@ -73,7 +65,7 @@ type NodeManager struct {
 	nextNodeID *common.VMSlot[uint64]
 
 	// store all registered node info (including exited nodes)
-	nodeRegistry *common.VMMap[uint64, types.NodeInfo]
+	nodeRegistry *common.VMMap[uint64, node_manager.NodeInfo]
 
 	// p2p id to node id
 	nodeP2PIDIndex *common.VMMap[string, uint64]
@@ -88,44 +80,10 @@ type NodeManager struct {
 	nextEpochUpdatedNodeIDSet *common.VMSlot[[]uint64]
 
 	// store all new node info in the next epoch, will clean up in the next epoch
-	nextEpochUpdateNodes *common.VMMap[uint64, types.NodeInfo]
+	nextEpochUpdateNodes *common.VMMap[uint64, node_manager.NodeInfo]
 
 	// including Candidate and ActiveValidator
-	activeValidatorVotingPowers *common.VMSlot[[]ConsensusVotingPower]
-}
-
-func nodeInfoToBinding(input types.NodeInfo) node_manager.NodeInfo {
-	return node_manager.NodeInfo{
-		ID:              input.ID,
-		ConsensusPubKey: input.ConsensusPubKey,
-		P2PPubKey:       input.P2PPubKey,
-		P2PID:           input.P2PID,
-		OperatorAddress: input.OperatorAddress,
-		MetaData: node_manager.NodeMetaData{
-			Name:       input.MetaData.Name,
-			Desc:       input.MetaData.Desc,
-			ImageURL:   input.MetaData.ImageURL,
-			WebsiteURL: input.MetaData.WebsiteURL,
-		},
-		Status: uint8(input.Status),
-	}
-}
-
-func bindingToNodeInfo(input node_manager.NodeInfo) types.NodeInfo {
-	return types.NodeInfo{
-		ID:              input.ID,
-		ConsensusPubKey: input.ConsensusPubKey,
-		P2PPubKey:       input.P2PPubKey,
-		P2PID:           input.P2PID,
-		OperatorAddress: input.OperatorAddress,
-		MetaData: types.NodeMetaData{
-			Name:       input.MetaData.Name,
-			Desc:       input.MetaData.Desc,
-			ImageURL:   input.MetaData.ImageURL,
-			WebsiteURL: input.MetaData.WebsiteURL,
-		},
-		Status: types.NodeStatus(input.Status),
-	}
+	activeValidatorVotingPowers *common.VMSlot[[]node_manager.ConsensusVotingPower]
 }
 
 func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -138,16 +96,16 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 
 	minValidatorStake := genesis.EpochInfo.StakeParams.MinValidatorStake.ToBigInt()
 	// check node info
-	nodeInfoMap := make(map[uint64]*types.NodeInfo, len(genesis.Nodes))
+	nodeInfoMap := make(map[uint64]*node_manager.NodeInfo, len(genesis.Nodes))
 	nodeCfgMap := make(map[uint64]*repo.GenesisNodeInfo, len(genesis.Nodes))
 	nodeStakeNumberMap := make(map[uint64]*big.Int, len(genesis.Nodes))
 	for i, nodeCfg := range genesis.Nodes {
-		nodeInfo := &types.NodeInfo{
+		nodeInfo := &node_manager.NodeInfo{
 			ID:              uint64(i + 1),
 			ConsensusPubKey: nodeCfg.ConsensusPubKey,
 			P2PPubKey:       nodeCfg.P2PPubKey,
 			OperatorAddress: nodeCfg.OperatorAddress,
-			MetaData: types.NodeMetaData{
+			MetaData: node_manager.NodeMetaData{
 				Name:       nodeCfg.MetaData.Name,
 				Desc:       nodeCfg.MetaData.Desc,
 				ImageURL:   nodeCfg.MetaData.ImageURL,
@@ -178,7 +136,7 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		if nodeCfg.IsDataSyncer {
 			dataSyncers = append(dataSyncers, nodeInfo.ID)
 		} else {
-			if minValidatorStake.Cmp(nodeStakeNumberMap[nodeInfo.ID]) >= 0 {
+			if minValidatorStake.Cmp(nodeStakeNumberMap[nodeInfo.ID]) < 0 {
 				pendingValidators = append(pendingValidators, nodeInfo.ID)
 			} else {
 				candidates = append(candidates, nodeInfo.ID)
@@ -221,7 +179,7 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 	registerNodesFn := func(nodeIDs []uint64, nodeStatus types.NodeStatus) error {
 		for _, nodeID := range nodeIDs {
 			nodeInfo := nodeInfoMap[nodeID]
-			nodeInfo.Status = nodeStatus
+			nodeInfo.Status = uint8(nodeStatus)
 			if _, err := n.registerNode(*nodeInfo, true); err != nil {
 				return errors.Wrapf(err, "failed to register node %d", nodeID)
 			}
@@ -293,11 +251,11 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		return err
 	}
 	axcUnit := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
-	activeValidatorVotingPowers := lo.Map(activeValidators, func(item uint64, index int) ConsensusVotingPower {
+	activeValidatorVotingPowers := lo.Map(activeValidators, func(item uint64, index int) node_manager.ConsensusVotingPower {
 		stakeNumber := nodeStakeNumberMap[item]
 		// convert unit `mol` to `axc`
 		standardizedStakeNumber := stakeNumber.Div(stakeNumber, axcUnit)
-		return ConsensusVotingPower{
+		return node_manager.ConsensusVotingPower{
 			NodeID:               item,
 			ConsensusVotingPower: standardizedStakeNumber.Int64(),
 		}
@@ -313,7 +271,7 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 	n.SystemContractBase.SetContext(ctx)
 
 	n.nextNodeID = common.NewVMSlot[uint64](n.StateAccount, nextNodeIDStorageKey)
-	n.nodeRegistry = common.NewVMMap[uint64, types.NodeInfo](n.StateAccount, nodeRegistry, func(key uint64) string {
+	n.nodeRegistry = common.NewVMMap[uint64, node_manager.NodeInfo](n.StateAccount, nodeRegistry, func(key uint64) string {
 		return fmt.Sprintf("%d", key)
 	})
 	n.nodeP2PIDIndex = common.NewVMMap[string, uint64](n.StateAccount, nodeP2PIDIndex, func(key string) string {
@@ -326,19 +284,19 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 		return key
 	})
 
-	n.nextEpochUpdateNodes = common.NewVMMap[uint64, types.NodeInfo](n.StateAccount, nextEpochUpdateNodes, func(key uint64) string {
+	n.nextEpochUpdateNodes = common.NewVMMap[uint64, node_manager.NodeInfo](n.StateAccount, nextEpochUpdateNodes, func(key uint64) string {
 		return fmt.Sprintf("%d", key)
 	})
 	n.nextEpochUpdatedNodeIDSet = common.NewVMSlot[[]uint64](n.StateAccount, nextEpochUpdatedNodeIDSet)
-	n.activeValidatorVotingPowers = common.NewVMSlot[[]ConsensusVotingPower](n.StateAccount, activeValidatorVotingPowers)
+	n.activeValidatorVotingPowers = common.NewVMSlot[[]node_manager.ConsensusVotingPower](n.StateAccount, activeValidatorVotingPowers)
 }
 
-func (n *NodeManager) InternalRegisterNode(info types.NodeInfo) (id uint64, err error) {
-	info.Status = types.NodeStatusDataSyncer
+func (n *NodeManager) InternalRegisterNode(info node_manager.NodeInfo) (id uint64, err error) {
+	info.Status = uint8(types.NodeStatusDataSyncer)
 	return n.registerNode(info, false)
 }
 
-func (n *NodeManager) registerNode(info types.NodeInfo, isGenesisInit bool) (id uint64, err error) {
+func (n *NodeManager) registerNode(info node_manager.NodeInfo, isGenesisInit bool) (id uint64, err error) {
 	info = StandardizationNodeInfo(info)
 	if n.nodeP2PIDIndex.Has(info.P2PID) {
 		return 0, errors.Errorf("p2p id %s is already in use", info.P2PID)
@@ -360,13 +318,13 @@ func (n *NodeManager) registerNode(info types.NodeInfo, isGenesisInit bool) (id 
 			id = 1
 		}
 		info.ID = id
-		info.Status = types.NodeStatusDataSyncer
+		info.Status = uint8(types.NodeStatusDataSyncer)
 
 		if err = n.nextNodeID.Put(id + 1); err != nil {
 			return 0, err
 		}
 
-		statusIDSet := n.getStatusSet(info.Status)
+		statusIDSet := n.getStatusSet(types.NodeStatusDataSyncer)
 		isExist, set, err := statusIDSet.Get()
 		if err != nil {
 			return 0, err
@@ -410,11 +368,10 @@ func (n *NodeManager) InternalProcessNodeLeave() error {
 		if err != nil {
 			return err
 		}
-		innerInfo := bindingToNodeInfo(info)
 		// modify its status
-		innerInfo.Status = types.NodeStatusExited
+		info.Status = uint8(types.NodeStatusExited)
 		// put it back
-		if err = n.nodeRegistry.Put(id, innerInfo); err != nil {
+		if err = n.nodeRegistry.Put(id, info); err != nil {
 			return err
 		}
 	}
@@ -455,7 +412,7 @@ func (n *NodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
 	return append(candidateIDs, validateIDs...), nil
 }
 
-func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowers []ConsensusVotingPower) error {
+func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
 	allValidaNodes, err := n.InternalGetConsensusCandidateNodeIDs()
 	if err != nil {
 		return err
@@ -472,7 +429,7 @@ func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowe
 		if !isExist {
 			return ErrNodeNotFound
 		}
-		nodeInfo.Status = types.NodeStatusActive
+		nodeInfo.Status = uint8(types.NodeStatusActive)
 		if err = n.nodeRegistry.Put(nodeId, nodeInfo); err != nil {
 			return err
 		}
@@ -502,16 +459,15 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
-	innerNode := bindingToNodeInfo(nodeInfo)
 	// check permission
-	if n.Ctx.From != ethcommon.HexToAddress(innerNode.OperatorAddress) {
+	if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
 		return ErrPermissionDenied
 	}
-	if innerNode.Status != types.NodeStatusDataSyncer {
+	if nodeInfo.Status != uint8(types.NodeStatusDataSyncer) {
 		return ErrNodeStatusIncorrect
 	}
 	// TODO: precheck
-	return n.operatorTransferStatus(types.NodeStatusDataSyncer, types.NodeStatusCandidate, nodeID)
+	return n.operatorTransferStatus(uint8(types.NodeStatusDataSyncer), uint8(types.NodeStatusCandidate), nodeID)
 }
 
 func (n *NodeManager) LeaveValidatorSet(nodeID uint64) error {
@@ -543,7 +499,7 @@ func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMe
 
 	newNodeInfo := NewNodeInfo{
 		OperatorAddress: nodeInfo.OperatorAddress,
-		MetaData: types.NodeMetaData{
+		MetaData: node_manager.NodeMetaData{
 			Name:       metaData.Name,
 			Desc:       metaData.Desc,
 			ImageURL:   metaData.ImageURL,
@@ -558,7 +514,7 @@ func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMe
 	if err := n.nodeNameIndex.Put(newNodeInfo.MetaData.Name, nodeID); err != nil {
 		return err
 	}
-	return n.updateNodeInfo(nodeID, bindingToNodeInfo(nodeInfo), newNodeInfo)
+	return n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo)
 }
 
 func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) error {
@@ -572,17 +528,17 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) e
 	}
 	newNodeInfo := NewNodeInfo{
 		OperatorAddress: newOperatorAddress,
-		MetaData: types.NodeMetaData{
+		MetaData: node_manager.NodeMetaData{
 			Name:       nodeInfo.MetaData.Name,
 			Desc:       nodeInfo.MetaData.Desc,
 			ImageURL:   nodeInfo.MetaData.ImageURL,
 			WebsiteURL: nodeInfo.MetaData.WebsiteURL,
 		},
 	}
-	return n.updateNodeInfo(nodeID, bindingToNodeInfo(nodeInfo), newNodeInfo)
+	return n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo)
 }
 
-func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo types.NodeInfo, newNodeInfo NewNodeInfo) error {
+func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo node_manager.NodeInfo, newNodeInfo NewNodeInfo) error {
 	if n.Ctx.From.String() != oldNodeInfo.OperatorAddress {
 		return ErrPermissionDenied
 	}
@@ -599,7 +555,7 @@ func (n *NodeManager) GetNodeInfo(nodeID uint64) (info node_manager.NodeInfo, er
 	if !isExist {
 		return node_manager.NodeInfo{}, ErrNodeNotFound
 	}
-	return nodeInfoToBinding(nodeInfo), nil
+	return nodeInfo, nil
 }
 
 func (n *NodeManager) GetNodeIDByP2PID(p2pID string) (uint64, error) {
@@ -718,7 +674,7 @@ func (n *NodeManager) GetExitedSet() (infos []node_manager.NodeInfo, err error) 
 	return n.GetNodeInfos(nodes)
 }
 
-func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []ConsensusVotingPower, err error) {
+func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []node_manager.ConsensusVotingPower, err error) {
 	votingPowers, err = n.activeValidatorVotingPowers.MustGet()
 	if err != nil {
 		return nil, err
@@ -726,23 +682,22 @@ func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []Consensus
 	return votingPowers, nil
 }
 
-func (n *NodeManager) operatorTransferStatus(from types.NodeStatus, to types.NodeStatus, nodeID uint64) error {
+func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeID uint64) error {
 	nodeInfo, err := n.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
 	}
-	innerNode := bindingToNodeInfo(nodeInfo)
 	if nodeInfo.OperatorAddress != n.Ctx.From.String() {
 		return ErrPermissionDenied
 	}
-	if innerNode.Status != from {
+	if nodeInfo.Status != from {
 		return ErrNodeStatusIncorrect
 	}
-	innerNode.Status = to
-	if err = n.nodeRegistry.Put(nodeID, innerNode); err != nil {
+	nodeInfo.Status = to
+	if err = n.nodeRegistry.Put(nodeID, nodeInfo); err != nil {
 		return err
 	}
-	fromSlot := n.getStatusSet(from)
+	fromSlot := n.getStatusSet(types.NodeStatus(from))
 	isExist, fromSets, err := fromSlot.Get()
 	if err != nil {
 		return err
@@ -764,7 +719,7 @@ func (n *NodeManager) operatorTransferStatus(from types.NodeStatus, to types.Nod
 	if err = fromSlot.Put(fromSets); err != nil {
 		return err
 	}
-	toSlot := n.getStatusSet(to)
+	toSlot := n.getStatusSet(types.NodeStatus(to))
 	isExist, toSets, err := toSlot.Get()
 	if err != nil {
 		return err
@@ -784,14 +739,14 @@ func (n *NodeManager) getStatusSet(status types.NodeStatus) *common.VMSlot[[]uin
 	return common.NewVMSlot[[]uint64](n.StateAccount, statusPrefix+strconv.Itoa(int(status)))
 }
 
-func StandardizationNodeInfo(info types.NodeInfo) types.NodeInfo {
-	return types.NodeInfo{
+func StandardizationNodeInfo(info node_manager.NodeInfo) node_manager.NodeInfo {
+	return node_manager.NodeInfo{
 		ID:              info.ID,
 		ConsensusPubKey: hexutil.Encode(hexutil.Decode(info.ConsensusPubKey)),
 		P2PPubKey:       hexutil.Encode(hexutil.Decode(info.P2PPubKey)),
 		P2PID:           info.P2PID,
 		OperatorAddress: hexutil.Encode(hexutil.Decode(info.OperatorAddress)),
-		MetaData: types.NodeMetaData{
+		MetaData: node_manager.NodeMetaData{
 			Name:       info.MetaData.Name,
 			Desc:       info.MetaData.Desc,
 			ImageURL:   info.MetaData.ImageURL,
@@ -801,7 +756,7 @@ func StandardizationNodeInfo(info types.NodeInfo) types.NodeInfo {
 	}
 }
 
-func CheckNodeInfo(nodeInfo types.NodeInfo) (consensusPubKey *crypto.Bls12381PublicKey, p2pPubKey *crypto.Ed25519PublicKey, p2pID string, err error) {
+func CheckNodeInfo(nodeInfo node_manager.NodeInfo) (consensusPubKey *crypto.Bls12381PublicKey, p2pPubKey *crypto.Ed25519PublicKey, p2pID string, err error) {
 	if nodeInfo.MetaData.Name == "" {
 		return nil, nil, "", errors.New("node name cannot be empty")
 	}

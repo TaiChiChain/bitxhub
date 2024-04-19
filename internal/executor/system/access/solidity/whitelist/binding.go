@@ -56,32 +56,32 @@ type Whitelist interface {
 	QueryProviderInfo(addr common.Address) (ProviderInfo, error)
 }
 
-// WhitelistRemove represents a Remove event raised by the Whitelist contract.
+// EventRemove represents a Remove event raised by the Whitelist contract.
 type EventRemove struct {
 	Submitter common.Address
 	Addresses []common.Address
 }
 
 func (_event *EventRemove) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Remove}"])
+	return packer.PackEvent(_event, abi.Events["Remove"])
 }
 
-// WhitelistSubmit represents a Submit event raised by the Whitelist contract.
+// EventSubmit represents a Submit event raised by the Whitelist contract.
 type EventSubmit struct {
 	Submitter common.Address
 	Addresses []common.Address
 }
 
 func (_event *EventSubmit) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Submit}"])
+	return packer.PackEvent(_event, abi.Events["Submit"])
 }
 
-// WhitelistUpdateProviders represents a UpdateProviders event raised by the Whitelist contract.
+// EventUpdateProviders represents a UpdateProviders event raised by the Whitelist contract.
 type EventUpdateProviders struct {
 	IsAdd     bool
 	Providers []ProviderInfo
 }
 
 func (_event *EventUpdateProviders) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["UpdateProviders}"])
+	return packer.PackEvent(_event, abi.Events["UpdateProviders"])
 }
