@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -29,7 +30,7 @@ func TestGetGasPrice(t *testing.T) {
 	GasPriceBySize(t, 100, 900000000000, ErrGasOutOfRange)
 }
 
-func GasPriceBySize(t *testing.T, size int, parentGasPrice int64, expectErr error) uint64 {
+func GasPriceBySize(t *testing.T, size int, parentGasPrice uint64, expectErr error) uint64 {
 	// mock block for ledger
 	block := &types.Block{
 		Header:       &types.BlockHeader{GasPrice: parentGasPrice},
@@ -43,31 +44,27 @@ func GasPriceBySize(t *testing.T, size int, parentGasPrice int64, expectErr erro
 		return txs
 	}
 	block.Transactions = prepareTxs(size)
-	config := generateMockConfig(t)
-	gasPrice := NewGas(config)
-	gas, err := gasPrice.CalNextGasPrice(uint64(parentGasPrice), size)
+	rep := repo.MockRepo(t)
+	chainState := chainstate.NewMockChainState(rep.GenesisConfig, nil)
+	gasPrice := NewGas(chainState)
+	gas, err := gasPrice.CalNextGasPrice(parentGasPrice, size)
 	if expectErr != nil {
 		assert.EqualError(t, err, expectErr.Error())
 		return 0
 	}
 	assert.Nil(t, err)
-	return checkResult(t, block, config, parentGasPrice, gas)
+	return checkResult(t, block, rep, parentGasPrice, gas)
 }
 
-func generateMockConfig(t *testing.T) *repo.Repo {
-	rep, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
-	return rep
-}
-
-func checkResult(t *testing.T, block *types.Block, config *repo.Repo, parentGasPrice int64, gas uint64) uint64 {
-	percentage := 2 * (float64(len(block.Transactions)) - float64(config.EpochInfo.ConsensusParams.BlockMaxTxNum)/2) / float64(config.EpochInfo.ConsensusParams.BlockMaxTxNum)
-	actualGas := uint64(float64(parentGasPrice) * (1 + percentage*float64(config.GenesisConfig.EpochInfo.FinanceParams.GasChangeRateValue)/math.Pow10(int(config.GenesisConfig.EpochInfo.FinanceParams.GasChangeRateDecimals))))
-	if actualGas > config.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice {
-		actualGas = config.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice
+func checkResult(t *testing.T, block *types.Block, config *repo.Repo, parentGasPrice uint64, gas uint64) uint64 {
+	epochInfo := config.GenesisConfig.EpochInfo
+	percentage := 2 * (float64(len(block.Transactions)) - float64(epochInfo.ConsensusParams.BlockMaxTxNum)/2) / float64(epochInfo.ConsensusParams.BlockMaxTxNum)
+	actualGas := uint64(float64(parentGasPrice) * (1 + percentage*float64(epochInfo.FinanceParams.GasChangeRateValue)/math.Pow10(int(epochInfo.FinanceParams.GasChangeRateDecimals))))
+	if actualGas > epochInfo.FinanceParams.MaxGasPrice.ToBigInt().Uint64() {
+		actualGas = epochInfo.FinanceParams.MaxGasPrice.ToBigInt().Uint64()
 	}
-	if actualGas < config.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice {
-		actualGas = config.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice
+	if actualGas < config.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice.ToBigInt().Uint64() {
+		actualGas = epochInfo.FinanceParams.MinGasPrice.ToBigInt().Uint64()
 	}
 	assert.Equal(t, actualGas, gas, "Gas price is not correct")
 	return gas

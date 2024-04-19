@@ -2,6 +2,7 @@ package solo
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
@@ -28,23 +28,17 @@ import (
 )
 
 func TestNode_Start(t *testing.T) {
-	repoRoot := t.TempDir()
-	r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
-	require.Nil(t, err)
+	rep := repo.MockRepo(t)
 
 	mockCtl := gomock.NewController(t)
 	mockNetwork := mock_network.NewMockNetwork(mockCtl)
-	s, err := types.GenerateSigner()
-	assert.Nil(t, err)
 	config, err := common.GenerateConfig(
-		common.WithChainState(&chainstate.ChainState{}),
-		common.WithPrivKey(s.Sk),
-		common.WithConfig(r.RepoRoot, r.ConsensusConfig),
-		common.WithGenesisEpochInfo(r.GenesisConfig.EpochInfo),
+		common.WithChainState(chainstate.NewMockChainState(rep.GenesisConfig, nil)),
+		common.WithRepo(rep),
+		common.WithGenesisEpochInfo(rep.GenesisConfig.EpochInfo),
 		common.WithLogger(log.NewWithModule("consensus")),
-		common.WithApplied(1),
+		common.WithApplied(0),
 		common.WithNetwork(mockNetwork),
-		common.WithApplied(1),
 		common.WithGetAccountNonceFunc(func(address *types.Address) uint64 {
 			return 0
 		}),
@@ -52,15 +46,7 @@ func TestNode_Start(t *testing.T) {
 			maxGasPrice := new(big.Int).Mul(big.NewInt(10000), big.NewInt(1e9))
 			return new(big.Int).Mul(big.NewInt(math.MaxInt64), maxGasPrice)
 		}),
-		common.WithGetChainMetaFunc(func() *types.ChainMeta {
-			return &types.ChainMeta{
-				GasPrice: big.NewInt(0),
-			}
-		}),
 		common.WithTxPool(mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, mockCtl)),
-		common.WithGetCurrentEpochInfoFromEpochMgrContractFunc(func() (*types.EpochInfo, error) {
-			return r.GenesisConfig.EpochInfo, nil
-		}),
 	)
 	require.Nil(t, err)
 
@@ -105,7 +91,7 @@ func TestNode_Start(t *testing.T) {
 	solo.notifyGenerateBatch(txpool.GenBatchSizeEvent)
 
 	commitEvent := <-solo.Commit()
-	require.Equal(t, uint64(2), commitEvent.Block.Header.Number)
+	require.Equal(t, uint64(0), commitEvent.Block.Header.Number)
 	require.Equal(t, 1, len(commitEvent.Block.Transactions))
 	blockHash := commitEvent.Block.Hash()
 
@@ -128,61 +114,61 @@ func TestTimedBlock(t *testing.T) {
 	event1 := <-node.commitC
 	ast.NotNil(event1)
 	ast.Equal(len(event1.Block.Transactions), 0)
-	ast.Equal(event1.Block.Header.Number, uint64(1))
+	ast.Equal(uint64(0), event1.Block.Header.Number)
+
+	// init genesis block
+	node.config.ChainState.ChainMeta.BlockHash = types.NewHashByStr("0xe9FC370DD36C9BD5f67cCfbc031C909F53A3d8bC7084C01362c55f2D42bA841c")
 
 	event2 := <-node.commitC
 	ast.NotNil(event2)
 	ast.Equal(len(event2.Block.Transactions), 0)
-	ast.Equal(event2.Block.Header.Number, uint64(2))
+	ast.Equal(uint64(1), event2.Block.Header.Number)
 }
 
 func TestNode_ReportState(t *testing.T) {
-	t.Run("test report state", func(t *testing.T) {
-		ast := assert.New(t)
-		node, err := mockSoloNode(t, false)
+	ast := assert.New(t)
+	node, err := mockSoloNode(t, false)
+	ast.Nil(err)
+
+	err = node.Start()
+	ast.Nil(err)
+	defer node.Stop()
+	node.batchDigestM[9] = "test"
+	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
+	// ensure last event(report state) had been processed
+	node.GetLowWatermark()
+	ast.Equal(0, len(node.batchDigestM))
+
+	txList, _ := prepareMultiTx(t, 10)
+	ast.Equal(10, len(txList))
+
+	txSubscribeCh := make(chan []*types.Transaction, 1)
+	sub := node.SubscribeTxEvent(txSubscribeCh)
+	defer sub.Unsubscribe()
+
+	for _, tx := range txList {
+		err = node.Prepare(tx)
 		ast.Nil(err)
+		<-txSubscribeCh
+		// sleep to make sure the tx is generated to the batch
+		time.Sleep(batchTimeout + 10*time.Millisecond)
+	}
 
-		err = node.Start()
-		ast.Nil(err)
-		defer node.Stop()
-		node.batchDigestM[10] = "test"
-		node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
-		// ensure last event(report state) had been processed
-		node.GetLowWatermark()
-		ast.Equal(0, len(node.batchDigestM))
-
-		txList, _ := prepareMultiTx(t, 10)
-		ast.Equal(10, len(txList))
-
-		txSubscribeCh := make(chan []*types.Transaction, 1)
-		sub := node.SubscribeTxEvent(txSubscribeCh)
-		defer sub.Unsubscribe()
-
-		for _, tx := range txList {
-			err = node.Prepare(tx)
-			ast.Nil(err)
-			<-txSubscribeCh
-			// sleep to make sure the tx is generated to the batch
-			time.Sleep(batchTimeout + 10*time.Millisecond)
-		}
-
-		// trigger the report state
-		pointer9 := &events.TxPointer{
-			Hash:    txList[9].GetHash(),
-			Account: txList[9].RbftGetFrom(),
-			Nonce:   txList[9].RbftGetNonce(),
-		}
-		node.getCurrentEpochInfoFunc = func() (*types.EpochInfo, error) {
-			return &types.EpochInfo{Epoch: 2, StartBlock: 10, EpochPeriod: 10, ConsensusParams: rbft.ConsensusParams{EnableTimedGenEmptyBlock: true}}, nil
-		}
-		node.epcCnf.epochPeriod = 10
-		node.ReportState(10, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
-		node.GetLowWatermark()
-		ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")
-		ast.Equal(0, len(node.batchDigestM))
-		ast.True(node.epcCnf.enableGenEmptyBlock)
-		ast.Equal(uint64(10), node.epcCnf.startBlock)
-	})
+	// trigger the report state
+	pointer9 := &events.TxPointer{
+		Hash:    txList[9].GetHash(),
+		Account: txList[9].RbftGetFrom(),
+		Nonce:   txList[9].RbftGetNonce(),
+	}
+	node.config.ChainState.EpochInfo = &types.EpochInfo{Epoch: 2, StartBlock: 10, EpochPeriod: 10, ConsensusParams: types.ConsensusParams{EnableTimedGenEmptyBlock: true}}
+	node.epcCnf.epochPeriod = 10
+	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
+	node.GetLowWatermark()
+	fmt.Println("GetPendingTxByHash", txList[9].RbftGetTxHash())
+	ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")
+	ast.Equal(0, len(node.batchDigestM))
+	ast.True(node.epcCnf.enableGenEmptyBlock)
+	ast.Equal(uint64(10), node.epcCnf.startBlock)
 }
 
 func prepareMultiTx(t *testing.T, count int) ([]*types.Transaction, *types.Signer) {
@@ -282,9 +268,7 @@ func TestNode_Prepare(t *testing.T) {
 		ast := assert.New(t)
 
 		logger := log.NewWithModule("consensus")
-		repoRoot := t.TempDir()
-		r, err := repo.Load(repo.DefaultKeyJsonPassword, repoRoot, true)
-		ast.Nil(err)
+		rep := repo.MockRepo(t)
 
 		recvCh := make(chan consensusEvent, maxChanSize)
 		mockCtl := gomock.NewController(t)
@@ -302,8 +286,8 @@ func TestNode_Prepare(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		soloNode := &Node{
 			config: &common.Config{
-				Config:  r.ConsensusConfig,
-				PrivKey: s.Sk,
+				Repo:       rep,
+				ChainState: chainstate.NewMockChainState(rep.GenesisConfig, nil),
 			},
 			lastExec:     uint64(0),
 			commitC:      make(chan *common.CommitEvent, maxChanSize),
@@ -317,9 +301,9 @@ func TestNode_Prepare(t *testing.T) {
 			cancel:       cancel,
 			txPreCheck:   mockPrecheck,
 			epcCnf: &epochConfig{
-				epochPeriod:         r.GenesisConfig.EpochInfo.EpochPeriod,
-				startBlock:          r.GenesisConfig.EpochInfo.StartBlock,
-				checkpoint:          r.GenesisConfig.EpochInfo.ConsensusParams.CheckpointPeriod,
+				epochPeriod:         rep.GenesisConfig.EpochInfo.EpochPeriod,
+				startBlock:          rep.GenesisConfig.EpochInfo.StartBlock,
+				checkpoint:          rep.GenesisConfig.EpochInfo.ConsensusParams.CheckpointPeriod,
 				enableGenEmptyBlock: false,
 			},
 		}

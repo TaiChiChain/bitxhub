@@ -4,7 +4,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
@@ -41,12 +41,12 @@ type CommitEvent struct {
 	StateUpdatedCheckpoint *consensus.Checkpoint
 }
 
-func StoreEpochState(epochStore storage.Storage, key string, value []byte) error {
+func StoreEpochState(epochStore kv.Storage, key string, value []byte) error {
 	epochStore.Put([]byte("epoch."+key), value)
 	return nil
 }
 
-func ReadEpochState(epochStore storage.Storage, key string) ([]byte, error) {
+func ReadEpochState(epochStore kv.Storage, key string) ([]byte, error) {
 	b := epochStore.Get([]byte("epoch." + key))
 	if b == nil {
 		return nil, errors.New("not found")

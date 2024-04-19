@@ -23,9 +23,9 @@ type ValidatorInfo struct {
 }
 
 type ChainState struct {
-	nodeInfoCacheLock     *sync.RWMutex
-	p2pID2NodeIDCacheLock *sync.RWMutex
-	epochInfoCacheLock    *sync.RWMutex
+	nodeInfoCacheLock     sync.RWMutex
+	p2pID2NodeIDCacheLock sync.RWMutex
+	epochInfoCacheLock    sync.RWMutex
 	getNodeInfoFn         func(uint64) (*types.NodeInfo, error)
 	getNodeIDByP2PIDFn    func(p2pID string) (uint64, error)
 	getEpochInfoFn        func(epoch uint64) (*types.EpochInfo, error)
@@ -64,9 +64,9 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 	}
 
 	return &ChainState{
-		nodeInfoCacheLock:     &sync.RWMutex{},
-		p2pID2NodeIDCacheLock: &sync.RWMutex{},
-		epochInfoCacheLock:    &sync.RWMutex{},
+		nodeInfoCacheLock:     sync.RWMutex{},
+		p2pID2NodeIDCacheLock: sync.RWMutex{},
+		epochInfoCacheLock:    sync.RWMutex{},
 		getNodeInfoFn:         getNodeInfoFn,
 		getNodeIDByP2PIDFn:    getNodeIDByP2PIDFn,
 		getEpochInfoFn:        getEpochInfoFn,
@@ -75,39 +75,6 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 		epochInfoCache:        make(map[uint64]*types.EpochInfo),
 		selfRegistered:        selfRegistered,
 		SelfNodeInfo:          selfNodeInfo,
-	}
-}
-
-func NewMockChainState(selfNodeID uint64, nodeInfoMap map[uint64]*ExpandedNodeInfo, epochMap map[uint64]*types.EpochInfo) *ChainState {
-	var currentEpochID uint64
-	var currentEpoch *types.EpochInfo
-	for epochID, epochInfo := range epochMap {
-		if epochID > currentEpochID {
-			currentEpochID = epochID
-			currentEpoch = epochInfo
-		}
-	}
-
-	return &ChainState{
-		nodeInfoCacheLock:     &sync.RWMutex{},
-		p2pID2NodeIDCacheLock: &sync.RWMutex{},
-		epochInfoCacheLock:    &sync.RWMutex{},
-		getNodeInfoFn: func(u uint64) (*types.NodeInfo, error) {
-			return nil, errors.New("node not found")
-		},
-		getNodeIDByP2PIDFn: func(p2pID string) (uint64, error) {
-			return 0, errors.New("node not found")
-		},
-		getEpochInfoFn: func(epoch uint64) (*types.EpochInfo, error) {
-			return nil, errors.New("epoch not found")
-		},
-		nodeInfoCache: nodeInfoMap,
-		p2pID2NodeIDCache: lo.MapEntries(nodeInfoMap, func(key uint64, value *ExpandedNodeInfo) (string, uint64) {
-			return value.NodeInfo.P2PID, key
-		}),
-		epochInfoCache: epochMap,
-		EpochInfo:      currentEpoch,
-		SelfNodeInfo:   nodeInfoMap[selfNodeID],
 	}
 }
 
@@ -193,7 +160,7 @@ func (c *ChainState) GetEpochInfo(epoch uint64) (*types.EpochInfo, error) {
 	defer c.epochInfoCacheLock.Unlock()
 	epochInfo, ok := c.epochInfoCache[epoch]
 	if ok {
-		return nil, nil
+		return epochInfo, nil
 	}
 	var err error
 	epochInfo, err = c.getEpochInfoFn(epoch)

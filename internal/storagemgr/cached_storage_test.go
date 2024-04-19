@@ -7,18 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 )
 
 func TestCachedStorage(t *testing.T) {
-	err := Initialize(repo.KVStorageTypePebble, repo.KVStorageCacheSize, repo.KVStorageSync, true)
-	require.Nil(t, err)
-
-	s, err := Open(repo.GetStoragePath(t.TempDir()))
-	require.Nil(t, err)
-	require.NotNil(t, s)
-
-	c := NewCachedStorage(s, 10)
+	c := NewCachedStorage(kv.NewMemory(), 10)
 
 	tests := []struct {
 		key   []byte
@@ -94,10 +87,7 @@ func TestCachedStorage(t *testing.T) {
 	})
 
 	t.Run("batch_reset", func(t *testing.T) {
-		kv, err := Open(repo.GetStoragePath(t.TempDir()))
-		require.Nil(t, err)
-		require.NotNil(t, kv)
-		c = NewCachedStorage(kv, 10)
+		c = NewCachedStorage(kv.NewMemory(), 10)
 		b := c.NewBatch()
 		keys := [][]byte{
 			[]byte("k111"),

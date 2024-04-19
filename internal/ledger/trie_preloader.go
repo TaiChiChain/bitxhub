@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/jmt"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 )
 
 var (
@@ -56,14 +56,14 @@ func ResetTriePreloaderMetrics() {
 // huge trie loading when commit state
 type triePreloader struct {
 	logger     logrus.FieldLogger
-	db         storage.Storage // load trie node would be cached in this db
+	db         kv.Storage // load trie node would be cached in this db
 	pruneCache jmt.PruneCache
 	rootHash   common.Hash
 
 	loaders map[string]*subPreloader
 }
 
-func newTriePreloader(logger logrus.FieldLogger, db storage.Storage, pruneCache jmt.PruneCache, rootHash common.Hash) *triePreloader {
+func newTriePreloader(logger logrus.FieldLogger, db kv.Storage, pruneCache jmt.PruneCache, rootHash common.Hash) *triePreloader {
 	return &triePreloader{
 		logger:     logger,
 		db:         db,
@@ -105,7 +105,7 @@ func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
 // The subPreloader would process all requests from the same trie.
 type subPreloader struct {
 	logger logrus.FieldLogger
-	db     storage.Storage
+	db     kv.Storage
 
 	// pruneCache jmt.PruneCache
 	rootHash common.Hash

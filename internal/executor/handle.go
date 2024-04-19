@@ -45,6 +45,10 @@ func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height ui
 }
 
 func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
+	if newBlock.Height() == 0 {
+		return errors.New("cannot rollback genesis block")
+	}
+
 	// rollback from stateLedger、chainLedger and blockFile
 	err := exec.ledger.Rollback(newBlock.Height() - 1)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 
 	consensuspb "github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
@@ -49,7 +49,7 @@ type AxiomLedger struct {
 	Network       network.Network
 	Sync          synccomm.Sync
 
-	epochStore storage.Storage
+	epochStore kv.Storage
 	snapMeta   *snapMeta
 }
 
@@ -218,7 +218,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 
 	var syncMgr *sync.SyncManager
-	var epochStore storage.Storage
+	var epochStore kv.Storage
 	if !rep.StartArgs.ReadonlyMode {
 		epochStore, err = storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch), storagemgr.Epoch)
 		if err != nil {

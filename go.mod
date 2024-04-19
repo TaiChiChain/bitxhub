@@ -7,8 +7,8 @@ replace github.com/ethereum/go-ethereum v1.12.0 => github.com/axiomesh/go-ethere
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
-	github.com/axiomesh/axiom-bft v0.0.3-0.20240417065410-9c0acd09ede0
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240417065017-2256cb3fba39
+	github.com/axiomesh/axiom-bft v0.0.3-0.20240419061747-b7386682911d
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240419042837-404f0cb9987f
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
@@ -28,7 +28,6 @@ require (
 	github.com/multiformats/go-multiaddr v0.9.0
 	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/pelletier/go-toml/v2 v2.2.0
-	github.com/pingcap/errors v0.11.4
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/common v0.44.0

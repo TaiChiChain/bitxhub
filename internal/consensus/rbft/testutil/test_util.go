@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -86,10 +86,6 @@ func MockMiniNetwork(ctrl *gomock.Controller, selfAddr string) *mock_network.Moc
 	mockPipe.EXPECT().Receive(gomock.Any()).Return(nil).AnyTimes()
 
 	mock.EXPECT().CreatePipe(gomock.Any(), gomock.Any()).Return(mockPipe, nil).AnyTimes()
-
-	N := 3
-	f := (N - 1) / 3
-	mock.EXPECT().CountConnectedValidators().Return(uint64((N + f + 2) / 2)).AnyTimes()
 	mock.EXPECT().PeerID().Return(selfAddr).AnyTimes()
 	return mock
 }
@@ -119,28 +115,24 @@ func MockMiniBlockSync(ctrl *gomock.Controller) *mock_sync.MockSync {
 }
 
 func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *testing.T) (*common.Config, txpool.TxPool[types.Transaction, *types.Transaction]) {
-	s, err := types.GenerateSigner()
-	assert.Nil(t, err)
+	rep := repo.MockRepo(t)
 
-	genesisEpochInfo := repo.GenesisEpochInfo()
-	rep := t.TempDir()
-
-	epochStore, err := storagemgr.Open(repo.GetStoragePath(rep, storagemgr.Epoch))
+	epochStore, err := storagemgr.Open(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch))
 	require.Nil(t, err)
+
+	chainState := chainstate.NewMockChainState(rep.GenesisConfig, map[uint64]*types.EpochInfo{
+		1: rep.GenesisConfig.EpochInfo.Clone(),
+		2: rep.GenesisConfig.EpochInfo.Clone(),
+	})
+	chainState.ChainMeta = GetChainMetaFunc()
+
 	conf := &common.Config{
-		RepoRoot:             rep,
-		Config:               repo.DefaultConsensusConfig(),
-		Logger:               logger,
-		ConsensusType:        "",
-		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
-		PrivKey:              s.Sk,
-		GenesisEpochInfo:     genesisEpochInfo,
-		Applied:              0,
-		Digest:               "",
-		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*types.EpochInfo, error) {
-			return genesisEpochInfo, nil
-		},
-		GetChainMetaFunc: GetChainMetaFunc,
+		Repo:             repo.MockRepo(t),
+		Logger:           logger,
+		GenesisEpochInfo: rep.GenesisConfig.EpochInfo,
+		Applied:          0,
+		Digest:           "",
+		ChainState:       chainState,
 		GetBlockHeaderFunc: func(height uint64) (*types.BlockHeader, error) {
 			if block, ok := mockLocalBlockLedger[height]; ok {
 				return block.Header, nil
@@ -151,17 +143,10 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		GetAccountNonce: func(address *types.Address) uint64 {
 			return 0
 		},
-		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*types.EpochInfo, error) {
-			return genesisEpochInfo, nil
-		},
-
 		EpochStore: epochStore,
 	}
 
-	p2pID, err := repo.KeyToNodeID(s.Sk)
-	assert.Nil(t, err)
-
-	mockNetwork := MockMiniNetwork(ctrl, p2pID)
+	mockNetwork := MockMiniNetwork(ctrl, rep.P2PKeystore.P2PID())
 	conf.Network = mockNetwork
 
 	mockBlockSync := MockMiniBlockSync(ctrl)

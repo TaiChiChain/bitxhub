@@ -10,10 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -38,23 +38,17 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 		}
 		return val
 	}
-	getChainmetaFn := func() *types.ChainMeta {
-		return &types.ChainMeta{
-			GasPrice: big.NewInt(0),
-		}
-	}
-
 	ctrl := gomock.NewController(t)
 	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, ctrl)
-
+	r := repo.MockRepo(t)
 	cnf := &common2.Config{
 		Logger: logger,
 		GenesisEpochInfo: &types.EpochInfo{
-			MiscParams: rbft.MiscParams{
+			MiscParams: types.MiscParams{
 				TxMaxSize: repo.DefaultTxMaxSize,
 			},
 		},
-		GetChainMetaFunc:  getChainmetaFn,
+		ChainState:        chainstate.NewMockChainState(r.GenesisConfig, nil),
 		GetAccountBalance: getAccountBalance,
 		TxPool:            mockPool,
 	}

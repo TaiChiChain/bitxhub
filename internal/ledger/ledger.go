@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 
 	"github.com/axiomesh/axiom-kit/jmt"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 )
 
@@ -91,7 +91,7 @@ type StateLedger interface {
 	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error)
 
-	IterateTrie(snapshotMeta *SnapshotMeta, kv storage.Storage, errC chan error)
+	IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage, errC chan error)
 
 	GetTrieSnapshotMeta() (*SnapshotMeta, error)
 

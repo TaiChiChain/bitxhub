@@ -18,9 +18,8 @@ import (
 func TestNewEVMBlockContextAdaptor(t *testing.T) {
 	Block := &types.Block{
 		Header: &types.BlockHeader{
-			Number:          1,
-			Timestamp:       0,
-			ProposerAccount: "0x5f9f18f7c3a6e5e4c0b877fe3e688ab08840b997",
+			Number:    1,
+			Timestamp: 0,
 		},
 	}
 	getHashFunc := func(n uint64) ethcommon.Hash {
@@ -31,8 +30,8 @@ func TestNewEVMBlockContextAdaptor(t *testing.T) {
 		return ethcommon.BytesToHash(hash.Bytes())
 	}
 
-	adaptor := NewEVMBlockContextAdaptor(Block.Height(), uint64(Block.Header.Timestamp), Block.Header.ProposerAccount, getHashFunc)
-	assert.Equal(t, strings.ToLower(Block.Header.ProposerAccount), strings.ToLower(adaptor.Coinbase.Hex()))
+	adaptor := NewEVMBlockContextAdaptor(Block.Height(), uint64(Block.Header.Timestamp), "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013", getHashFunc)
+	assert.Equal(t, strings.ToLower("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"), strings.ToLower(adaptor.Coinbase.Hex()))
 	assert.Equal(t, Block.Height(), adaptor.BlockNumber.Uint64())
 	assert.Equal(t, uint64(Block.Header.Timestamp), adaptor.Time)
 }
