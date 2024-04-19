@@ -220,7 +220,7 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	if err := nodeManagerContract.LeaveValidatorSet(nodeExtraArgs.NodeID); err != nil {
+	if err := nodeManagerContract.LeaveValidatorOrCandidateSet(nodeExtraArgs.NodeID); err != nil {
 		return err
 	}
 

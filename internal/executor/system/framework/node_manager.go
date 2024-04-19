@@ -32,11 +32,9 @@ const (
 )
 
 var (
-	ErrNodeStatusIncorrect     = errors.New("node status is incorrect")
 	ErrNodeNotFound            = errors.New("node not found")
 	ErrStatusSetNotFound       = errors.New("status set not found")
 	ErrNodeNotFoundInStatusSet = errors.New("node not found in status set")
-	ErrNodeAlreadyInStatusSet  = errors.New("node is already in status set")
 	ErrPermissionDenied        = errors.New("permission denied")
 )
 
@@ -84,6 +82,25 @@ type NodeManager struct {
 
 	// including Candidate and ActiveValidator
 	activeValidatorVotingPowers *common.VMSlot[[]node_manager.ConsensusVotingPower]
+}
+
+type sortNodeInfo struct {
+	stakeValue *big.Int
+	node_manager.NodeInfo
+}
+
+type sortNodeInfos []sortNodeInfo
+
+func (s sortNodeInfos) Len() int {
+	return len(s)
+}
+
+func (s sortNodeInfos) Less(i int, j int) bool {
+	return s[i].stakeValue.Cmp(s[j].stakeValue) < 0
+}
+
+func (s sortNodeInfos) Swap(i int, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
 func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -352,6 +369,71 @@ func (n *NodeManager) registerNode(info node_manager.NodeInfo, isGenesisInit boo
 	return info.ID, nil
 }
 
+// InternalTurnIntoNewEpoch turn into new epoch, should be called after stakeManager epoch change
+// since the active stake value will impact on the sort
+func (n *NodeManager) InternalTurnIntoNewEpoch(epochInfo *types.EpochInfo) error {
+	// process node leave first
+	if err := n.InternalProcessNodeLeave(); err != nil {
+		return err
+	}
+	// sort all candidates and validators
+	nodesIDs, err := n.InternalGetConsensusCandidateNodeIDs()
+	if err != nil {
+		return err
+	}
+	nodeInfos, err := n.GetNodeInfos(nodesIDs)
+	if err != nil {
+		return err
+	}
+	sortInfos := make(sortNodeInfos, len(nodeInfos))
+	stakeManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
+	for i, info := range nodeInfos {
+		stakeValue := stakeManager.GetPoolActiveStake(info.ID)
+		sortInfos[i] = sortNodeInfo{
+			stakeValue: stakeValue,
+			NodeInfo:   info,
+		}
+	}
+	sort.Sort(sortInfos)
+	maxValidator := epochInfo.ConsensusParams.MaxValidatorNum
+	minValidator := epochInfo.ConsensusParams.MinValidatorNum
+	minStakeValue := epochInfo.StakeParams.MinValidatorStake
+	var validatorsIDs, candidatesIDs []uint64
+	var validators, candidates []node_manager.NodeInfo
+	// traverse from highest to lowest
+	for i := len(sortInfos) - 1; i >= 0; i-- {
+		// only add to validator if it has enough stake and validator set is not full
+		if sortInfos[i].stakeValue.Cmp(minStakeValue.ToBigInt()) >= 0 && uint64(len(validators)) < maxValidator {
+			// reset node status
+			sortInfos[i].Status = uint8(types.NodeStatusActive)
+			// put node into validator nodes
+			validators = append(validators, sortInfos[i].NodeInfo)
+			// record relative node id
+			validatorsIDs = append(validatorsIDs, sortInfos[i].ID)
+		} else {
+			// reset node status
+			sortInfos[i].Status = uint8(types.NodeStatusCandidate)
+			// put node into candidate nodes
+			candidates = append(candidates, sortInfos[i].NodeInfo)
+			// record relative node id
+			candidatesIDs = append(candidatesIDs, sortInfos[i].ID)
+		}
+	}
+	// revert if not enough validators
+	if uint64(len(validators)) < minValidator {
+		return errors.New("not enough validators")
+	}
+	candidateSet := n.getStatusSet(types.NodeStatusCandidate)
+	validatorSet := n.getStatusSet(types.NodeStatusActive)
+	if err = candidateSet.Put(candidatesIDs); err != nil {
+		return err
+	}
+	if err = validatorSet.Put(validatorsIDs); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (n *NodeManager) InternalProcessNodeLeave() error {
 	pendingInactiveSlot := n.getStatusSet(types.NodeStatusPendingInactive)
 	// get pending inactive sets
@@ -459,31 +541,66 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
-	// check permission
-	if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
-		return ErrPermissionDenied
+	if err = n.operatorTransferStatus(uint8(types.NodeStatusDataSyncer), uint8(types.NodeStatusCandidate), &nodeInfo); err != nil {
+		return err
 	}
-	if nodeInfo.Status != uint8(types.NodeStatusDataSyncer) {
-		return ErrNodeStatusIncorrect
-	}
-	// TODO: precheck
-	return n.operatorTransferStatus(uint8(types.NodeStatusDataSyncer), uint8(types.NodeStatusCandidate), nodeID)
+	n.EmitEvent(&node_manager.EventJoinedCandidateSet{
+		NodeID: nodeID,
+	})
+	return nil
 }
 
-func (n *NodeManager) LeaveValidatorSet(nodeID uint64) error {
+func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
 	nodeInfo, err := n.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
 	}
-	// governance has permission
-	if !n.Ctx.CallFromSystem {
-		// check permission
-		if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
-			return ErrPermissionDenied
+	switch types.NodeStatus(nodeInfo.Status) {
+	case types.NodeStatusActive:
+		// get active set
+		isExist, activeSet, err := n.getStatusSet(types.NodeStatusActive).Get()
+		if err != nil {
+			return err
 		}
+		if !isExist {
+			return errors.New("active set is empty")
+		}
+		// get pending inactive set
+		isExist, pendingInactiveSet, err := n.getStatusSet(types.NodeStatusPendingInactive).Get()
+		if err != nil {
+			return err
+		}
+		if !isExist {
+			pendingInactiveSet = []uint64{}
+		}
+		// get epoch info
+		epochInfo, err := EpochManagerBuildConfig.Build(n.CrossCallSystemContractContext()).CurrentEpoch()
+		if err != nil {
+			return err
+		}
+		// calculate the max pending inactive number
+		maxPendingInactiveNumber := new(big.Int).Div(
+			new(big.Int).Mul(big.NewInt(10000), big.NewInt(int64(len(activeSet)))),
+			new(big.Int).SetUint64(epochInfo.StakeParams.MaxPendingInactiveValidatorRatio))
+		// check if the pending inactive set still has sparse space to leave
+		if uint64(len(pendingInactiveSet))+1 >= maxPendingInactiveNumber.Uint64() {
+			return n.Revert(&node_manager.ErrorPendingInactiveSetIsFull{})
+		}
+		// transfer the status
+		if err = n.operatorTransferStatus(uint8(types.NodeStatusActive), uint8(types.NodeStatusPendingInactive), &nodeInfo); err != nil {
+			return err
+		}
+		n.EmitEvent(&node_manager.EventJoinedPendingInactiveSet{NodeID: nodeID})
+		return nil
+	case types.NodeStatusCandidate:
+		if err = n.operatorTransferStatus(uint8(types.NodeStatusCandidate), uint8(types.NodeStatusExited), &nodeInfo); err != nil {
+			return err
+		}
+		n.EmitEvent(&node_manager.EventLeavedCandidateSet{NodeID: nodeID})
+		return nil
+	default:
+		return n.Revert(&node_manager.ErrorIncorrectStatus{Status: nodeInfo.Status})
 	}
-	// TODO: support it
-	panic("not support yet")
 }
 
 func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMetaData) error {
@@ -514,7 +631,11 @@ func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMe
 	if err := n.nodeNameIndex.Put(newNodeInfo.MetaData.Name, nodeID); err != nil {
 		return err
 	}
-	return n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo)
+	if err = n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo); err != nil {
+		return err
+	}
+	n.EmitEvent(&node_manager.EventUpdateMetaData{NodeID: nodeID, MetaData: metaData})
+	return nil
 }
 
 func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) error {
@@ -535,7 +656,11 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) e
 			WebsiteURL: nodeInfo.MetaData.WebsiteURL,
 		},
 	}
-	return n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo)
+	if err = n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo); err != nil {
+		return err
+	}
+	n.EmitEvent(&node_manager.EventUpdateOperator{NodeID: nodeID, NewOperatorAddress: newOperatorAddress})
+	return nil
 }
 
 func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo node_manager.NodeInfo, newNodeInfo NewNodeInfo) error {
@@ -682,32 +807,42 @@ func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []node_mana
 	return votingPowers, nil
 }
 
-func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeID uint64) error {
-	nodeInfo, err := n.GetNodeInfo(nodeID)
-	if err != nil {
-		return err
+func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeInfo *node_manager.NodeInfo) error {
+	if from == to {
+		return errors.New("from and to status cannot be the same")
 	}
-	if nodeInfo.OperatorAddress != n.Ctx.From.String() {
-		return ErrPermissionDenied
+	// check permission, must be called from operator or system contract
+	// governance has permission
+	if !n.Ctx.CallFromSystem {
+		// check permission
+		if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
+			return ErrPermissionDenied
+		}
 	}
+	// check status
 	if nodeInfo.Status != from {
-		return ErrNodeStatusIncorrect
+		return n.Revert(&node_manager.ErrorIncorrectStatus{Status: from})
 	}
+	// update status
 	nodeInfo.Status = to
-	if err = n.nodeRegistry.Put(nodeID, nodeInfo); err != nil {
+	// update nodeInfo
+	if err := n.nodeRegistry.Put(nodeInfo.ID, *nodeInfo); err != nil {
 		return err
 	}
+	// get from status set, e.g. candidate
 	fromSlot := n.getStatusSet(types.NodeStatus(from))
 	isExist, fromSets, err := fromSlot.Get()
 	if err != nil {
 		return err
 	}
+	// from status set cannot be empty
 	if !isExist {
 		return ErrStatusSetNotFound
 	}
+	// find node from the set and remove the node
 	index := -1
 	for i, id := range fromSets {
-		if id == nodeID {
+		if id == nodeInfo.ID {
 			index = i
 			break
 		}
@@ -716,9 +851,11 @@ func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeID uint64
 		return ErrNodeNotFoundInStatusSet
 	}
 	fromSets = append(fromSets[:index], fromSets[index+1:]...)
+	// update the set
 	if err = fromSlot.Put(fromSets); err != nil {
 		return err
 	}
+	// get to status set, e.g. pending inactive
 	toSlot := n.getStatusSet(types.NodeStatus(to))
 	isExist, toSets, err := toSlot.Get()
 	if err != nil {
@@ -727,12 +864,7 @@ func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeID uint64
 	if !isExist {
 		toSets = []uint64{}
 	}
-	for _, id := range toSets {
-		if id == nodeID {
-			return ErrNodeAlreadyInStatusSet
-		}
-	}
-	return toSlot.Put(append(toSets, nodeID))
+	return toSlot.Put(append(toSets, nodeInfo.ID))
 }
 
 func (n *NodeManager) getStatusSet(status types.NodeStatus) *common.VMSlot[[]uint64] {
