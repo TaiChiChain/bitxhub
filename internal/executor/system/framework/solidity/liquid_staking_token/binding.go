@@ -114,7 +114,7 @@ type LiquidStakingToken interface {
 	OwnerOf(_tokenId *big.Int) (common.Address, error)
 }
 
-// LiquidStakingTokenApproval represents a Approval event raised by the LiquidStakingToken contract.
+// EventApproval represents a Approval event raised by the LiquidStakingToken contract.
 type EventApproval struct {
 	Owner    common.Address
 	Approved common.Address
@@ -122,10 +122,10 @@ type EventApproval struct {
 }
 
 func (_event *EventApproval) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Approval}"])
+	return packer.PackEvent(_event, abi.Events["Approval"])
 }
 
-// LiquidStakingTokenApprovalForAll represents a ApprovalForAll event raised by the LiquidStakingToken contract.
+// EventApprovalForAll represents a ApprovalForAll event raised by the LiquidStakingToken contract.
 type EventApprovalForAll struct {
 	Owner    common.Address
 	Operator common.Address
@@ -133,10 +133,10 @@ type EventApprovalForAll struct {
 }
 
 func (_event *EventApprovalForAll) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["ApprovalForAll}"])
+	return packer.PackEvent(_event, abi.Events["ApprovalForAll"])
 }
 
-// LiquidStakingTokenTransfer represents a Transfer event raised by the LiquidStakingToken contract.
+// EventTransfer represents a Transfer event raised by the LiquidStakingToken contract.
 type EventTransfer struct {
 	From    common.Address
 	To      common.Address
@@ -144,5 +144,5 @@ type EventTransfer struct {
 }
 
 func (_event *EventTransfer) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Transfer}"])
+	return packer.PackEvent(_event, abi.Events["Transfer"])
 }
