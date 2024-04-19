@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -25,7 +26,7 @@ func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 			panic(err)
 		}
 
-		if err := exec.chainState.UpdateByEpochInfo(newEpoch, lo.SliceToMap(votingPowers, func(item framework.ConsensusVotingPower) (uint64, int64) {
+		if err := exec.chainState.UpdateByEpochInfo(newEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
 			return item.NodeID, item.ConsensusVotingPower
 		})); err != nil {
 			panic(err)
