@@ -7,11 +7,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
-
-	"github.com/axiomesh/axiom-bft/common/consensus"
 )
 
 // ChainLedger handles block, transaction and receipt data.
@@ -165,11 +164,14 @@ type StateAccessor interface {
 	// Commit commits the state data
 	Commit() (*types.Hash, error)
 
-	// Suicide
-	Suicide(*types.Address) bool
+	// SelfDestruct
+	SelfDestruct(*types.Address) bool
 
-	// HasSuicide
-	HasSuicide(*types.Address) bool
+	// HasSelfDestructed
+	HasSelfDestructed(*types.Address) bool
+
+	// Selfdestruct6780
+	Selfdestruct6780(*types.Address)
 
 	// Exist
 	Exist(*types.Address) bool
@@ -238,15 +240,19 @@ type IAccount interface {
 
 	IsEmpty() bool
 
-	Suicided() bool
+	SelfDestructed() bool
 
-	SetSuicided(bool)
+	SetSelfDestructed(bool)
 
 	SetEnableExpensiveMetric(bool)
 
 	GetStorageRootHash() common.Hash
 
 	GetStorageRoot() common.Hash
+
+	SetCreated(bool)
+
+	IsCreated() bool
 }
 
 var _ vm.StateDB = (*EvmStateDBAdaptor)(nil)

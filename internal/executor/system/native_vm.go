@@ -390,11 +390,13 @@ func (nvm *NativeVM) setEVMPrecompiled(addr string) {
 	vm.PrecompiledAddressesBerlin = append(vm.PrecompiledAddressesBerlin, ethcommon.HexToAddress(addr))
 	vm.PrecompiledAddressesHomestead = append(vm.PrecompiledAddressesHomestead, ethcommon.HexToAddress(addr))
 	vm.PrecompiledAddressesIstanbul = append(vm.PrecompiledAddressesIstanbul, ethcommon.HexToAddress(addr))
+	vm.PrecompiledAddressesCancun = append(vm.PrecompiledAddressesCancun, ethcommon.HexToAddress(addr))
 
 	vm.PrecompiledContractsBerlin[ethcommon.HexToAddress(addr)] = nvm
 	vm.PrecompiledContractsByzantium[ethcommon.HexToAddress(addr)] = nvm
 	vm.PrecompiledContractsHomestead[ethcommon.HexToAddress(addr)] = nvm
 	vm.PrecompiledContractsIstanbul[ethcommon.HexToAddress(addr)] = nvm
+	vm.PrecompiledContractsCancun[ethcommon.HexToAddress(addr)] = nvm
 }
 
 func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContract {

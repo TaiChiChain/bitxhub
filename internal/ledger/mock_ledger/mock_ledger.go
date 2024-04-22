@@ -45,6 +45,11 @@ func (m *MockChainLedger) EXPECT() *MockChainLedgerMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockChainLedger) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // BatchPersistExecutionResult mocks base method.
 func (m *MockChainLedger) BatchPersistExecutionResult(batchBlock []*types.Block, BatchReceipts [][]*types.Receipt) error {
 	m.ctrl.T.Helper()
@@ -54,31 +59,31 @@ func (m *MockChainLedger) BatchPersistExecutionResult(batchBlock []*types.Block,
 }
 
 // BatchPersistExecutionResult indicates an expected call of BatchPersistExecutionResult.
-func (mr *MockChainLedgerMockRecorder) BatchPersistExecutionResult(batchBlock, BatchReceipts any) *ChainLedgerBatchPersistExecutionResultCall {
+func (mr *MockChainLedgerMockRecorder) BatchPersistExecutionResult(batchBlock, BatchReceipts any) *MockChainLedgerBatchPersistExecutionResultCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchPersistExecutionResult", reflect.TypeOf((*MockChainLedger)(nil).BatchPersistExecutionResult), batchBlock, BatchReceipts)
-	return &ChainLedgerBatchPersistExecutionResultCall{Call: call}
+	return &MockChainLedgerBatchPersistExecutionResultCall{Call: call}
 }
 
-// ChainLedgerBatchPersistExecutionResultCall wrap *gomock.Call
-type ChainLedgerBatchPersistExecutionResultCall struct {
+// MockChainLedgerBatchPersistExecutionResultCall wrap *gomock.Call
+type MockChainLedgerBatchPersistExecutionResultCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerBatchPersistExecutionResultCall) Return(arg0 error) *ChainLedgerBatchPersistExecutionResultCall {
+func (c *MockChainLedgerBatchPersistExecutionResultCall) Return(arg0 error) *MockChainLedgerBatchPersistExecutionResultCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerBatchPersistExecutionResultCall) Do(f func([]*types.Block, [][]*types.Receipt) error) *ChainLedgerBatchPersistExecutionResultCall {
+func (c *MockChainLedgerBatchPersistExecutionResultCall) Do(f func([]*types.Block, [][]*types.Receipt) error) *MockChainLedgerBatchPersistExecutionResultCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerBatchPersistExecutionResultCall) DoAndReturn(f func([]*types.Block, [][]*types.Receipt) error) *ChainLedgerBatchPersistExecutionResultCall {
+func (c *MockChainLedgerBatchPersistExecutionResultCall) DoAndReturn(f func([]*types.Block, [][]*types.Receipt) error) *MockChainLedgerBatchPersistExecutionResultCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -90,31 +95,31 @@ func (m *MockChainLedger) Close() {
 }
 
 // Close indicates an expected call of Close.
-func (mr *MockChainLedgerMockRecorder) Close() *ChainLedgerCloseCall {
+func (mr *MockChainLedgerMockRecorder) Close() *MockChainLedgerCloseCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockChainLedger)(nil).Close))
-	return &ChainLedgerCloseCall{Call: call}
+	return &MockChainLedgerCloseCall{Call: call}
 }
 
-// ChainLedgerCloseCall wrap *gomock.Call
-type ChainLedgerCloseCall struct {
+// MockChainLedgerCloseCall wrap *gomock.Call
+type MockChainLedgerCloseCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerCloseCall) Return() *ChainLedgerCloseCall {
+func (c *MockChainLedgerCloseCall) Return() *MockChainLedgerCloseCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerCloseCall) Do(f func()) *ChainLedgerCloseCall {
+func (c *MockChainLedgerCloseCall) Do(f func()) *MockChainLedgerCloseCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerCloseCall) DoAndReturn(f func()) *ChainLedgerCloseCall {
+func (c *MockChainLedgerCloseCall) DoAndReturn(f func()) *MockChainLedgerCloseCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -129,31 +134,31 @@ func (m *MockChainLedger) GetBlock(height uint64) (*types.Block, error) {
 }
 
 // GetBlock indicates an expected call of GetBlock.
-func (mr *MockChainLedgerMockRecorder) GetBlock(height any) *ChainLedgerGetBlockCall {
+func (mr *MockChainLedgerMockRecorder) GetBlock(height any) *MockChainLedgerGetBlockCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlock", reflect.TypeOf((*MockChainLedger)(nil).GetBlock), height)
-	return &ChainLedgerGetBlockCall{Call: call}
+	return &MockChainLedgerGetBlockCall{Call: call}
 }
 
-// ChainLedgerGetBlockCall wrap *gomock.Call
-type ChainLedgerGetBlockCall struct {
+// MockChainLedgerGetBlockCall wrap *gomock.Call
+type MockChainLedgerGetBlockCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockCall) Return(arg0 *types.Block, arg1 error) *ChainLedgerGetBlockCall {
+func (c *MockChainLedgerGetBlockCall) Return(arg0 *types.Block, arg1 error) *MockChainLedgerGetBlockCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockCall) Do(f func(uint64) (*types.Block, error)) *ChainLedgerGetBlockCall {
+func (c *MockChainLedgerGetBlockCall) Do(f func(uint64) (*types.Block, error)) *MockChainLedgerGetBlockCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockCall) DoAndReturn(f func(uint64) (*types.Block, error)) *ChainLedgerGetBlockCall {
+func (c *MockChainLedgerGetBlockCall) DoAndReturn(f func(uint64) (*types.Block, error)) *MockChainLedgerGetBlockCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -168,31 +173,31 @@ func (m *MockChainLedger) GetBlockExtra(height uint64) (*types.BlockExtra, error
 }
 
 // GetBlockExtra indicates an expected call of GetBlockExtra.
-func (mr *MockChainLedgerMockRecorder) GetBlockExtra(height any) *ChainLedgerGetBlockExtraCall {
+func (mr *MockChainLedgerMockRecorder) GetBlockExtra(height any) *MockChainLedgerGetBlockExtraCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockExtra", reflect.TypeOf((*MockChainLedger)(nil).GetBlockExtra), height)
-	return &ChainLedgerGetBlockExtraCall{Call: call}
+	return &MockChainLedgerGetBlockExtraCall{Call: call}
 }
 
-// ChainLedgerGetBlockExtraCall wrap *gomock.Call
-type ChainLedgerGetBlockExtraCall struct {
+// MockChainLedgerGetBlockExtraCall wrap *gomock.Call
+type MockChainLedgerGetBlockExtraCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockExtraCall) Return(arg0 *types.BlockExtra, arg1 error) *ChainLedgerGetBlockExtraCall {
+func (c *MockChainLedgerGetBlockExtraCall) Return(arg0 *types.BlockExtra, arg1 error) *MockChainLedgerGetBlockExtraCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockExtraCall) Do(f func(uint64) (*types.BlockExtra, error)) *ChainLedgerGetBlockExtraCall {
+func (c *MockChainLedgerGetBlockExtraCall) Do(f func(uint64) (*types.BlockExtra, error)) *MockChainLedgerGetBlockExtraCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockExtraCall) DoAndReturn(f func(uint64) (*types.BlockExtra, error)) *ChainLedgerGetBlockExtraCall {
+func (c *MockChainLedgerGetBlockExtraCall) DoAndReturn(f func(uint64) (*types.BlockExtra, error)) *MockChainLedgerGetBlockExtraCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -207,31 +212,31 @@ func (m *MockChainLedger) GetBlockHeader(height uint64) (*types.BlockHeader, err
 }
 
 // GetBlockHeader indicates an expected call of GetBlockHeader.
-func (mr *MockChainLedgerMockRecorder) GetBlockHeader(height any) *ChainLedgerGetBlockHeaderCall {
+func (mr *MockChainLedgerMockRecorder) GetBlockHeader(height any) *MockChainLedgerGetBlockHeaderCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeader", reflect.TypeOf((*MockChainLedger)(nil).GetBlockHeader), height)
-	return &ChainLedgerGetBlockHeaderCall{Call: call}
+	return &MockChainLedgerGetBlockHeaderCall{Call: call}
 }
 
-// ChainLedgerGetBlockHeaderCall wrap *gomock.Call
-type ChainLedgerGetBlockHeaderCall struct {
+// MockChainLedgerGetBlockHeaderCall wrap *gomock.Call
+type MockChainLedgerGetBlockHeaderCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockHeaderCall) Return(arg0 *types.BlockHeader, arg1 error) *ChainLedgerGetBlockHeaderCall {
+func (c *MockChainLedgerGetBlockHeaderCall) Return(arg0 *types.BlockHeader, arg1 error) *MockChainLedgerGetBlockHeaderCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockHeaderCall) Do(f func(uint64) (*types.BlockHeader, error)) *ChainLedgerGetBlockHeaderCall {
+func (c *MockChainLedgerGetBlockHeaderCall) Do(f func(uint64) (*types.BlockHeader, error)) *MockChainLedgerGetBlockHeaderCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockHeaderCall) DoAndReturn(f func(uint64) (*types.BlockHeader, error)) *ChainLedgerGetBlockHeaderCall {
+func (c *MockChainLedgerGetBlockHeaderCall) DoAndReturn(f func(uint64) (*types.BlockHeader, error)) *MockChainLedgerGetBlockHeaderCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -246,31 +251,31 @@ func (m *MockChainLedger) GetBlockNumberByHash(hash *types.Hash) (uint64, error)
 }
 
 // GetBlockNumberByHash indicates an expected call of GetBlockNumberByHash.
-func (mr *MockChainLedgerMockRecorder) GetBlockNumberByHash(hash any) *ChainLedgerGetBlockNumberByHashCall {
+func (mr *MockChainLedgerMockRecorder) GetBlockNumberByHash(hash any) *MockChainLedgerGetBlockNumberByHashCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockNumberByHash", reflect.TypeOf((*MockChainLedger)(nil).GetBlockNumberByHash), hash)
-	return &ChainLedgerGetBlockNumberByHashCall{Call: call}
+	return &MockChainLedgerGetBlockNumberByHashCall{Call: call}
 }
 
-// ChainLedgerGetBlockNumberByHashCall wrap *gomock.Call
-type ChainLedgerGetBlockNumberByHashCall struct {
+// MockChainLedgerGetBlockNumberByHashCall wrap *gomock.Call
+type MockChainLedgerGetBlockNumberByHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockNumberByHashCall) Return(arg0 uint64, arg1 error) *ChainLedgerGetBlockNumberByHashCall {
+func (c *MockChainLedgerGetBlockNumberByHashCall) Return(arg0 uint64, arg1 error) *MockChainLedgerGetBlockNumberByHashCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockNumberByHashCall) Do(f func(*types.Hash) (uint64, error)) *ChainLedgerGetBlockNumberByHashCall {
+func (c *MockChainLedgerGetBlockNumberByHashCall) Do(f func(*types.Hash) (uint64, error)) *MockChainLedgerGetBlockNumberByHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockNumberByHashCall) DoAndReturn(f func(*types.Hash) (uint64, error)) *ChainLedgerGetBlockNumberByHashCall {
+func (c *MockChainLedgerGetBlockNumberByHashCall) DoAndReturn(f func(*types.Hash) (uint64, error)) *MockChainLedgerGetBlockNumberByHashCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -285,31 +290,31 @@ func (m *MockChainLedger) GetBlockReceipts(height uint64) ([]*types.Receipt, err
 }
 
 // GetBlockReceipts indicates an expected call of GetBlockReceipts.
-func (mr *MockChainLedgerMockRecorder) GetBlockReceipts(height any) *ChainLedgerGetBlockReceiptsCall {
+func (mr *MockChainLedgerMockRecorder) GetBlockReceipts(height any) *MockChainLedgerGetBlockReceiptsCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockReceipts", reflect.TypeOf((*MockChainLedger)(nil).GetBlockReceipts), height)
-	return &ChainLedgerGetBlockReceiptsCall{Call: call}
+	return &MockChainLedgerGetBlockReceiptsCall{Call: call}
 }
 
-// ChainLedgerGetBlockReceiptsCall wrap *gomock.Call
-type ChainLedgerGetBlockReceiptsCall struct {
+// MockChainLedgerGetBlockReceiptsCall wrap *gomock.Call
+type MockChainLedgerGetBlockReceiptsCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockReceiptsCall) Return(arg0 []*types.Receipt, arg1 error) *ChainLedgerGetBlockReceiptsCall {
+func (c *MockChainLedgerGetBlockReceiptsCall) Return(arg0 []*types.Receipt, arg1 error) *MockChainLedgerGetBlockReceiptsCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockReceiptsCall) Do(f func(uint64) ([]*types.Receipt, error)) *ChainLedgerGetBlockReceiptsCall {
+func (c *MockChainLedgerGetBlockReceiptsCall) Do(f func(uint64) ([]*types.Receipt, error)) *MockChainLedgerGetBlockReceiptsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockReceiptsCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *ChainLedgerGetBlockReceiptsCall {
+func (c *MockChainLedgerGetBlockReceiptsCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *MockChainLedgerGetBlockReceiptsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -324,31 +329,31 @@ func (m *MockChainLedger) GetBlockTxHashList(height uint64) ([]*types.Hash, erro
 }
 
 // GetBlockTxHashList indicates an expected call of GetBlockTxHashList.
-func (mr *MockChainLedgerMockRecorder) GetBlockTxHashList(height any) *ChainLedgerGetBlockTxHashListCall {
+func (mr *MockChainLedgerMockRecorder) GetBlockTxHashList(height any) *MockChainLedgerGetBlockTxHashListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxHashList", reflect.TypeOf((*MockChainLedger)(nil).GetBlockTxHashList), height)
-	return &ChainLedgerGetBlockTxHashListCall{Call: call}
+	return &MockChainLedgerGetBlockTxHashListCall{Call: call}
 }
 
-// ChainLedgerGetBlockTxHashListCall wrap *gomock.Call
-type ChainLedgerGetBlockTxHashListCall struct {
+// MockChainLedgerGetBlockTxHashListCall wrap *gomock.Call
+type MockChainLedgerGetBlockTxHashListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockTxHashListCall) Return(arg0 []*types.Hash, arg1 error) *ChainLedgerGetBlockTxHashListCall {
+func (c *MockChainLedgerGetBlockTxHashListCall) Return(arg0 []*types.Hash, arg1 error) *MockChainLedgerGetBlockTxHashListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockTxHashListCall) Do(f func(uint64) ([]*types.Hash, error)) *ChainLedgerGetBlockTxHashListCall {
+func (c *MockChainLedgerGetBlockTxHashListCall) Do(f func(uint64) ([]*types.Hash, error)) *MockChainLedgerGetBlockTxHashListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockTxHashListCall) DoAndReturn(f func(uint64) ([]*types.Hash, error)) *ChainLedgerGetBlockTxHashListCall {
+func (c *MockChainLedgerGetBlockTxHashListCall) DoAndReturn(f func(uint64) ([]*types.Hash, error)) *MockChainLedgerGetBlockTxHashListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -363,31 +368,31 @@ func (m *MockChainLedger) GetBlockTxList(height uint64) ([]*types.Transaction, e
 }
 
 // GetBlockTxList indicates an expected call of GetBlockTxList.
-func (mr *MockChainLedgerMockRecorder) GetBlockTxList(height any) *ChainLedgerGetBlockTxListCall {
+func (mr *MockChainLedgerMockRecorder) GetBlockTxList(height any) *MockChainLedgerGetBlockTxListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockTxList", reflect.TypeOf((*MockChainLedger)(nil).GetBlockTxList), height)
-	return &ChainLedgerGetBlockTxListCall{Call: call}
+	return &MockChainLedgerGetBlockTxListCall{Call: call}
 }
 
-// ChainLedgerGetBlockTxListCall wrap *gomock.Call
-type ChainLedgerGetBlockTxListCall struct {
+// MockChainLedgerGetBlockTxListCall wrap *gomock.Call
+type MockChainLedgerGetBlockTxListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetBlockTxListCall) Return(arg0 []*types.Transaction, arg1 error) *ChainLedgerGetBlockTxListCall {
+func (c *MockChainLedgerGetBlockTxListCall) Return(arg0 []*types.Transaction, arg1 error) *MockChainLedgerGetBlockTxListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetBlockTxListCall) Do(f func(uint64) ([]*types.Transaction, error)) *ChainLedgerGetBlockTxListCall {
+func (c *MockChainLedgerGetBlockTxListCall) Do(f func(uint64) ([]*types.Transaction, error)) *MockChainLedgerGetBlockTxListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetBlockTxListCall) DoAndReturn(f func(uint64) ([]*types.Transaction, error)) *ChainLedgerGetBlockTxListCall {
+func (c *MockChainLedgerGetBlockTxListCall) DoAndReturn(f func(uint64) ([]*types.Transaction, error)) *MockChainLedgerGetBlockTxListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -401,31 +406,31 @@ func (m *MockChainLedger) GetChainMeta() *types.ChainMeta {
 }
 
 // GetChainMeta indicates an expected call of GetChainMeta.
-func (mr *MockChainLedgerMockRecorder) GetChainMeta() *ChainLedgerGetChainMetaCall {
+func (mr *MockChainLedgerMockRecorder) GetChainMeta() *MockChainLedgerGetChainMetaCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChainMeta", reflect.TypeOf((*MockChainLedger)(nil).GetChainMeta))
-	return &ChainLedgerGetChainMetaCall{Call: call}
+	return &MockChainLedgerGetChainMetaCall{Call: call}
 }
 
-// ChainLedgerGetChainMetaCall wrap *gomock.Call
-type ChainLedgerGetChainMetaCall struct {
+// MockChainLedgerGetChainMetaCall wrap *gomock.Call
+type MockChainLedgerGetChainMetaCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetChainMetaCall) Return(arg0 *types.ChainMeta) *ChainLedgerGetChainMetaCall {
+func (c *MockChainLedgerGetChainMetaCall) Return(arg0 *types.ChainMeta) *MockChainLedgerGetChainMetaCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetChainMetaCall) Do(f func() *types.ChainMeta) *ChainLedgerGetChainMetaCall {
+func (c *MockChainLedgerGetChainMetaCall) Do(f func() *types.ChainMeta) *MockChainLedgerGetChainMetaCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetChainMetaCall) DoAndReturn(f func() *types.ChainMeta) *ChainLedgerGetChainMetaCall {
+func (c *MockChainLedgerGetChainMetaCall) DoAndReturn(f func() *types.ChainMeta) *MockChainLedgerGetChainMetaCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -440,31 +445,31 @@ func (m *MockChainLedger) GetReceipt(hash *types.Hash) (*types.Receipt, error) {
 }
 
 // GetReceipt indicates an expected call of GetReceipt.
-func (mr *MockChainLedgerMockRecorder) GetReceipt(hash any) *ChainLedgerGetReceiptCall {
+func (mr *MockChainLedgerMockRecorder) GetReceipt(hash any) *MockChainLedgerGetReceiptCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReceipt", reflect.TypeOf((*MockChainLedger)(nil).GetReceipt), hash)
-	return &ChainLedgerGetReceiptCall{Call: call}
+	return &MockChainLedgerGetReceiptCall{Call: call}
 }
 
-// ChainLedgerGetReceiptCall wrap *gomock.Call
-type ChainLedgerGetReceiptCall struct {
+// MockChainLedgerGetReceiptCall wrap *gomock.Call
+type MockChainLedgerGetReceiptCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetReceiptCall) Return(arg0 *types.Receipt, arg1 error) *ChainLedgerGetReceiptCall {
+func (c *MockChainLedgerGetReceiptCall) Return(arg0 *types.Receipt, arg1 error) *MockChainLedgerGetReceiptCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, error)) *ChainLedgerGetReceiptCall {
+func (c *MockChainLedgerGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, error)) *MockChainLedgerGetReceiptCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *ChainLedgerGetReceiptCall {
+func (c *MockChainLedgerGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *MockChainLedgerGetReceiptCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -479,31 +484,31 @@ func (m *MockChainLedger) GetTransaction(hash *types.Hash) (*types.Transaction, 
 }
 
 // GetTransaction indicates an expected call of GetTransaction.
-func (mr *MockChainLedgerMockRecorder) GetTransaction(hash any) *ChainLedgerGetTransactionCall {
+func (mr *MockChainLedgerMockRecorder) GetTransaction(hash any) *MockChainLedgerGetTransactionCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransaction", reflect.TypeOf((*MockChainLedger)(nil).GetTransaction), hash)
-	return &ChainLedgerGetTransactionCall{Call: call}
+	return &MockChainLedgerGetTransactionCall{Call: call}
 }
 
-// ChainLedgerGetTransactionCall wrap *gomock.Call
-type ChainLedgerGetTransactionCall struct {
+// MockChainLedgerGetTransactionCall wrap *gomock.Call
+type MockChainLedgerGetTransactionCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetTransactionCall) Return(arg0 *types.Transaction, arg1 error) *ChainLedgerGetTransactionCall {
+func (c *MockChainLedgerGetTransactionCall) Return(arg0 *types.Transaction, arg1 error) *MockChainLedgerGetTransactionCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetTransactionCall) Do(f func(*types.Hash) (*types.Transaction, error)) *ChainLedgerGetTransactionCall {
+func (c *MockChainLedgerGetTransactionCall) Do(f func(*types.Hash) (*types.Transaction, error)) *MockChainLedgerGetTransactionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetTransactionCall) DoAndReturn(f func(*types.Hash) (*types.Transaction, error)) *ChainLedgerGetTransactionCall {
+func (c *MockChainLedgerGetTransactionCall) DoAndReturn(f func(*types.Hash) (*types.Transaction, error)) *MockChainLedgerGetTransactionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -518,31 +523,31 @@ func (m *MockChainLedger) GetTransactionCount(height uint64) (uint64, error) {
 }
 
 // GetTransactionCount indicates an expected call of GetTransactionCount.
-func (mr *MockChainLedgerMockRecorder) GetTransactionCount(height any) *ChainLedgerGetTransactionCountCall {
+func (mr *MockChainLedgerMockRecorder) GetTransactionCount(height any) *MockChainLedgerGetTransactionCountCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionCount", reflect.TypeOf((*MockChainLedger)(nil).GetTransactionCount), height)
-	return &ChainLedgerGetTransactionCountCall{Call: call}
+	return &MockChainLedgerGetTransactionCountCall{Call: call}
 }
 
-// ChainLedgerGetTransactionCountCall wrap *gomock.Call
-type ChainLedgerGetTransactionCountCall struct {
+// MockChainLedgerGetTransactionCountCall wrap *gomock.Call
+type MockChainLedgerGetTransactionCountCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetTransactionCountCall) Return(arg0 uint64, arg1 error) *ChainLedgerGetTransactionCountCall {
+func (c *MockChainLedgerGetTransactionCountCall) Return(arg0 uint64, arg1 error) *MockChainLedgerGetTransactionCountCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetTransactionCountCall) Do(f func(uint64) (uint64, error)) *ChainLedgerGetTransactionCountCall {
+func (c *MockChainLedgerGetTransactionCountCall) Do(f func(uint64) (uint64, error)) *MockChainLedgerGetTransactionCountCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetTransactionCountCall) DoAndReturn(f func(uint64) (uint64, error)) *ChainLedgerGetTransactionCountCall {
+func (c *MockChainLedgerGetTransactionCountCall) DoAndReturn(f func(uint64) (uint64, error)) *MockChainLedgerGetTransactionCountCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -557,31 +562,31 @@ func (m *MockChainLedger) GetTransactionMeta(hash *types.Hash) (*types.Transacti
 }
 
 // GetTransactionMeta indicates an expected call of GetTransactionMeta.
-func (mr *MockChainLedgerMockRecorder) GetTransactionMeta(hash any) *ChainLedgerGetTransactionMetaCall {
+func (mr *MockChainLedgerMockRecorder) GetTransactionMeta(hash any) *MockChainLedgerGetTransactionMetaCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionMeta", reflect.TypeOf((*MockChainLedger)(nil).GetTransactionMeta), hash)
-	return &ChainLedgerGetTransactionMetaCall{Call: call}
+	return &MockChainLedgerGetTransactionMetaCall{Call: call}
 }
 
-// ChainLedgerGetTransactionMetaCall wrap *gomock.Call
-type ChainLedgerGetTransactionMetaCall struct {
+// MockChainLedgerGetTransactionMetaCall wrap *gomock.Call
+type MockChainLedgerGetTransactionMetaCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerGetTransactionMetaCall) Return(arg0 *types.TransactionMeta, arg1 error) *ChainLedgerGetTransactionMetaCall {
+func (c *MockChainLedgerGetTransactionMetaCall) Return(arg0 *types.TransactionMeta, arg1 error) *MockChainLedgerGetTransactionMetaCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerGetTransactionMetaCall) Do(f func(*types.Hash) (*types.TransactionMeta, error)) *ChainLedgerGetTransactionMetaCall {
+func (c *MockChainLedgerGetTransactionMetaCall) Do(f func(*types.Hash) (*types.TransactionMeta, error)) *MockChainLedgerGetTransactionMetaCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerGetTransactionMetaCall) DoAndReturn(f func(*types.Hash) (*types.TransactionMeta, error)) *ChainLedgerGetTransactionMetaCall {
+func (c *MockChainLedgerGetTransactionMetaCall) DoAndReturn(f func(*types.Hash) (*types.TransactionMeta, error)) *MockChainLedgerGetTransactionMetaCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -596,31 +601,31 @@ func (m *MockChainLedger) LoadChainMeta() (*types.ChainMeta, error) {
 }
 
 // LoadChainMeta indicates an expected call of LoadChainMeta.
-func (mr *MockChainLedgerMockRecorder) LoadChainMeta() *ChainLedgerLoadChainMetaCall {
+func (mr *MockChainLedgerMockRecorder) LoadChainMeta() *MockChainLedgerLoadChainMetaCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadChainMeta", reflect.TypeOf((*MockChainLedger)(nil).LoadChainMeta))
-	return &ChainLedgerLoadChainMetaCall{Call: call}
+	return &MockChainLedgerLoadChainMetaCall{Call: call}
 }
 
-// ChainLedgerLoadChainMetaCall wrap *gomock.Call
-type ChainLedgerLoadChainMetaCall struct {
+// MockChainLedgerLoadChainMetaCall wrap *gomock.Call
+type MockChainLedgerLoadChainMetaCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerLoadChainMetaCall) Return(arg0 *types.ChainMeta, arg1 error) *ChainLedgerLoadChainMetaCall {
+func (c *MockChainLedgerLoadChainMetaCall) Return(arg0 *types.ChainMeta, arg1 error) *MockChainLedgerLoadChainMetaCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerLoadChainMetaCall) Do(f func() (*types.ChainMeta, error)) *ChainLedgerLoadChainMetaCall {
+func (c *MockChainLedgerLoadChainMetaCall) Do(f func() (*types.ChainMeta, error)) *MockChainLedgerLoadChainMetaCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerLoadChainMetaCall) DoAndReturn(f func() (*types.ChainMeta, error)) *ChainLedgerLoadChainMetaCall {
+func (c *MockChainLedgerLoadChainMetaCall) DoAndReturn(f func() (*types.ChainMeta, error)) *MockChainLedgerLoadChainMetaCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -634,31 +639,31 @@ func (m *MockChainLedger) PersistExecutionResult(block *types.Block, receipts []
 }
 
 // PersistExecutionResult indicates an expected call of PersistExecutionResult.
-func (mr *MockChainLedgerMockRecorder) PersistExecutionResult(block, receipts any) *ChainLedgerPersistExecutionResultCall {
+func (mr *MockChainLedgerMockRecorder) PersistExecutionResult(block, receipts any) *MockChainLedgerPersistExecutionResultCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistExecutionResult", reflect.TypeOf((*MockChainLedger)(nil).PersistExecutionResult), block, receipts)
-	return &ChainLedgerPersistExecutionResultCall{Call: call}
+	return &MockChainLedgerPersistExecutionResultCall{Call: call}
 }
 
-// ChainLedgerPersistExecutionResultCall wrap *gomock.Call
-type ChainLedgerPersistExecutionResultCall struct {
+// MockChainLedgerPersistExecutionResultCall wrap *gomock.Call
+type MockChainLedgerPersistExecutionResultCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerPersistExecutionResultCall) Return(arg0 error) *ChainLedgerPersistExecutionResultCall {
+func (c *MockChainLedgerPersistExecutionResultCall) Return(arg0 error) *MockChainLedgerPersistExecutionResultCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerPersistExecutionResultCall) Do(f func(*types.Block, []*types.Receipt) error) *ChainLedgerPersistExecutionResultCall {
+func (c *MockChainLedgerPersistExecutionResultCall) Do(f func(*types.Block, []*types.Receipt) error) *MockChainLedgerPersistExecutionResultCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerPersistExecutionResultCall) DoAndReturn(f func(*types.Block, []*types.Receipt) error) *ChainLedgerPersistExecutionResultCall {
+func (c *MockChainLedgerPersistExecutionResultCall) DoAndReturn(f func(*types.Block, []*types.Receipt) error) *MockChainLedgerPersistExecutionResultCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -672,31 +677,31 @@ func (m *MockChainLedger) RollbackBlockChain(height uint64) error {
 }
 
 // RollbackBlockChain indicates an expected call of RollbackBlockChain.
-func (mr *MockChainLedgerMockRecorder) RollbackBlockChain(height any) *ChainLedgerRollbackBlockChainCall {
+func (mr *MockChainLedgerMockRecorder) RollbackBlockChain(height any) *MockChainLedgerRollbackBlockChainCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RollbackBlockChain", reflect.TypeOf((*MockChainLedger)(nil).RollbackBlockChain), height)
-	return &ChainLedgerRollbackBlockChainCall{Call: call}
+	return &MockChainLedgerRollbackBlockChainCall{Call: call}
 }
 
-// ChainLedgerRollbackBlockChainCall wrap *gomock.Call
-type ChainLedgerRollbackBlockChainCall struct {
+// MockChainLedgerRollbackBlockChainCall wrap *gomock.Call
+type MockChainLedgerRollbackBlockChainCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerRollbackBlockChainCall) Return(arg0 error) *ChainLedgerRollbackBlockChainCall {
+func (c *MockChainLedgerRollbackBlockChainCall) Return(arg0 error) *MockChainLedgerRollbackBlockChainCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerRollbackBlockChainCall) Do(f func(uint64) error) *ChainLedgerRollbackBlockChainCall {
+func (c *MockChainLedgerRollbackBlockChainCall) Do(f func(uint64) error) *MockChainLedgerRollbackBlockChainCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerRollbackBlockChainCall) DoAndReturn(f func(uint64) error) *ChainLedgerRollbackBlockChainCall {
+func (c *MockChainLedgerRollbackBlockChainCall) DoAndReturn(f func(uint64) error) *MockChainLedgerRollbackBlockChainCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -708,31 +713,31 @@ func (m *MockChainLedger) UpdateChainMeta(arg0 *types.ChainMeta) {
 }
 
 // UpdateChainMeta indicates an expected call of UpdateChainMeta.
-func (mr *MockChainLedgerMockRecorder) UpdateChainMeta(arg0 any) *ChainLedgerUpdateChainMetaCall {
+func (mr *MockChainLedgerMockRecorder) UpdateChainMeta(arg0 any) *MockChainLedgerUpdateChainMetaCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChainMeta", reflect.TypeOf((*MockChainLedger)(nil).UpdateChainMeta), arg0)
-	return &ChainLedgerUpdateChainMetaCall{Call: call}
+	return &MockChainLedgerUpdateChainMetaCall{Call: call}
 }
 
-// ChainLedgerUpdateChainMetaCall wrap *gomock.Call
-type ChainLedgerUpdateChainMetaCall struct {
+// MockChainLedgerUpdateChainMetaCall wrap *gomock.Call
+type MockChainLedgerUpdateChainMetaCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *ChainLedgerUpdateChainMetaCall) Return() *ChainLedgerUpdateChainMetaCall {
+func (c *MockChainLedgerUpdateChainMetaCall) Return() *MockChainLedgerUpdateChainMetaCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *ChainLedgerUpdateChainMetaCall) Do(f func(*types.ChainMeta)) *ChainLedgerUpdateChainMetaCall {
+func (c *MockChainLedgerUpdateChainMetaCall) Do(f func(*types.ChainMeta)) *MockChainLedgerUpdateChainMetaCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *ChainLedgerUpdateChainMetaCall) DoAndReturn(f func(*types.ChainMeta)) *ChainLedgerUpdateChainMetaCall {
+func (c *MockChainLedgerUpdateChainMetaCall) DoAndReturn(f func(*types.ChainMeta)) *MockChainLedgerUpdateChainMetaCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -760,6 +765,11 @@ func (m *MockStateLedger) EXPECT() *MockStateLedgerMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockStateLedger) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // AddAddressToAccessList mocks base method.
 func (m *MockStateLedger) AddAddressToAccessList(arg0 types.Address) {
 	m.ctrl.T.Helper()
@@ -767,31 +777,31 @@ func (m *MockStateLedger) AddAddressToAccessList(arg0 types.Address) {
 }
 
 // AddAddressToAccessList indicates an expected call of AddAddressToAccessList.
-func (mr *MockStateLedgerMockRecorder) AddAddressToAccessList(arg0 any) *StateLedgerAddAddressToAccessListCall {
+func (mr *MockStateLedgerMockRecorder) AddAddressToAccessList(arg0 any) *MockStateLedgerAddAddressToAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAddressToAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddAddressToAccessList), arg0)
-	return &StateLedgerAddAddressToAccessListCall{Call: call}
+	return &MockStateLedgerAddAddressToAccessListCall{Call: call}
 }
 
-// StateLedgerAddAddressToAccessListCall wrap *gomock.Call
-type StateLedgerAddAddressToAccessListCall struct {
+// MockStateLedgerAddAddressToAccessListCall wrap *gomock.Call
+type MockStateLedgerAddAddressToAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddAddressToAccessListCall) Return() *StateLedgerAddAddressToAccessListCall {
+func (c *MockStateLedgerAddAddressToAccessListCall) Return() *MockStateLedgerAddAddressToAccessListCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddAddressToAccessListCall) Do(f func(types.Address)) *StateLedgerAddAddressToAccessListCall {
+func (c *MockStateLedgerAddAddressToAccessListCall) Do(f func(types.Address)) *MockStateLedgerAddAddressToAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddAddressToAccessListCall) DoAndReturn(f func(types.Address)) *StateLedgerAddAddressToAccessListCall {
+func (c *MockStateLedgerAddAddressToAccessListCall) DoAndReturn(f func(types.Address)) *MockStateLedgerAddAddressToAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -803,31 +813,31 @@ func (m *MockStateLedger) AddBalance(arg0 *types.Address, arg1 *big.Int) {
 }
 
 // AddBalance indicates an expected call of AddBalance.
-func (mr *MockStateLedgerMockRecorder) AddBalance(arg0, arg1 any) *StateLedgerAddBalanceCall {
+func (mr *MockStateLedgerMockRecorder) AddBalance(arg0, arg1 any) *MockStateLedgerAddBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBalance", reflect.TypeOf((*MockStateLedger)(nil).AddBalance), arg0, arg1)
-	return &StateLedgerAddBalanceCall{Call: call}
+	return &MockStateLedgerAddBalanceCall{Call: call}
 }
 
-// StateLedgerAddBalanceCall wrap *gomock.Call
-type StateLedgerAddBalanceCall struct {
+// MockStateLedgerAddBalanceCall wrap *gomock.Call
+type MockStateLedgerAddBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddBalanceCall) Return() *StateLedgerAddBalanceCall {
+func (c *MockStateLedgerAddBalanceCall) Return() *MockStateLedgerAddBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddBalanceCall) Do(f func(*types.Address, *big.Int)) *StateLedgerAddBalanceCall {
+func (c *MockStateLedgerAddBalanceCall) Do(f func(*types.Address, *big.Int)) *MockStateLedgerAddBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateLedgerAddBalanceCall {
+func (c *MockStateLedgerAddBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *MockStateLedgerAddBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -839,31 +849,31 @@ func (m *MockStateLedger) AddLog(log *types.EvmLog) {
 }
 
 // AddLog indicates an expected call of AddLog.
-func (mr *MockStateLedgerMockRecorder) AddLog(log any) *StateLedgerAddLogCall {
+func (mr *MockStateLedgerMockRecorder) AddLog(log any) *MockStateLedgerAddLogCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddLog", reflect.TypeOf((*MockStateLedger)(nil).AddLog), log)
-	return &StateLedgerAddLogCall{Call: call}
+	return &MockStateLedgerAddLogCall{Call: call}
 }
 
-// StateLedgerAddLogCall wrap *gomock.Call
-type StateLedgerAddLogCall struct {
+// MockStateLedgerAddLogCall wrap *gomock.Call
+type MockStateLedgerAddLogCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddLogCall) Return() *StateLedgerAddLogCall {
+func (c *MockStateLedgerAddLogCall) Return() *MockStateLedgerAddLogCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddLogCall) Do(f func(*types.EvmLog)) *StateLedgerAddLogCall {
+func (c *MockStateLedgerAddLogCall) Do(f func(*types.EvmLog)) *MockStateLedgerAddLogCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddLogCall) DoAndReturn(f func(*types.EvmLog)) *StateLedgerAddLogCall {
+func (c *MockStateLedgerAddLogCall) DoAndReturn(f func(*types.EvmLog)) *MockStateLedgerAddLogCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -875,31 +885,31 @@ func (m *MockStateLedger) AddPreimage(arg0 types.Hash, arg1 []byte) {
 }
 
 // AddPreimage indicates an expected call of AddPreimage.
-func (mr *MockStateLedgerMockRecorder) AddPreimage(arg0, arg1 any) *StateLedgerAddPreimageCall {
+func (mr *MockStateLedgerMockRecorder) AddPreimage(arg0, arg1 any) *MockStateLedgerAddPreimageCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPreimage", reflect.TypeOf((*MockStateLedger)(nil).AddPreimage), arg0, arg1)
-	return &StateLedgerAddPreimageCall{Call: call}
+	return &MockStateLedgerAddPreimageCall{Call: call}
 }
 
-// StateLedgerAddPreimageCall wrap *gomock.Call
-type StateLedgerAddPreimageCall struct {
+// MockStateLedgerAddPreimageCall wrap *gomock.Call
+type MockStateLedgerAddPreimageCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddPreimageCall) Return() *StateLedgerAddPreimageCall {
+func (c *MockStateLedgerAddPreimageCall) Return() *MockStateLedgerAddPreimageCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddPreimageCall) Do(f func(types.Hash, []byte)) *StateLedgerAddPreimageCall {
+func (c *MockStateLedgerAddPreimageCall) Do(f func(types.Hash, []byte)) *MockStateLedgerAddPreimageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddPreimageCall) DoAndReturn(f func(types.Hash, []byte)) *StateLedgerAddPreimageCall {
+func (c *MockStateLedgerAddPreimageCall) DoAndReturn(f func(types.Hash, []byte)) *MockStateLedgerAddPreimageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -911,31 +921,31 @@ func (m *MockStateLedger) AddRefund(arg0 uint64) {
 }
 
 // AddRefund indicates an expected call of AddRefund.
-func (mr *MockStateLedgerMockRecorder) AddRefund(arg0 any) *StateLedgerAddRefundCall {
+func (mr *MockStateLedgerMockRecorder) AddRefund(arg0 any) *MockStateLedgerAddRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRefund", reflect.TypeOf((*MockStateLedger)(nil).AddRefund), arg0)
-	return &StateLedgerAddRefundCall{Call: call}
+	return &MockStateLedgerAddRefundCall{Call: call}
 }
 
-// StateLedgerAddRefundCall wrap *gomock.Call
-type StateLedgerAddRefundCall struct {
+// MockStateLedgerAddRefundCall wrap *gomock.Call
+type MockStateLedgerAddRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddRefundCall) Return() *StateLedgerAddRefundCall {
+func (c *MockStateLedgerAddRefundCall) Return() *MockStateLedgerAddRefundCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddRefundCall) Do(f func(uint64)) *StateLedgerAddRefundCall {
+func (c *MockStateLedgerAddRefundCall) Do(f func(uint64)) *MockStateLedgerAddRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddRefundCall) DoAndReturn(f func(uint64)) *StateLedgerAddRefundCall {
+func (c *MockStateLedgerAddRefundCall) DoAndReturn(f func(uint64)) *MockStateLedgerAddRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -947,31 +957,31 @@ func (m *MockStateLedger) AddSlotToAccessList(arg0 types.Address, arg1 types.Has
 }
 
 // AddSlotToAccessList indicates an expected call of AddSlotToAccessList.
-func (mr *MockStateLedgerMockRecorder) AddSlotToAccessList(arg0, arg1 any) *StateLedgerAddSlotToAccessListCall {
+func (mr *MockStateLedgerMockRecorder) AddSlotToAccessList(arg0, arg1 any) *MockStateLedgerAddSlotToAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSlotToAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddSlotToAccessList), arg0, arg1)
-	return &StateLedgerAddSlotToAccessListCall{Call: call}
+	return &MockStateLedgerAddSlotToAccessListCall{Call: call}
 }
 
-// StateLedgerAddSlotToAccessListCall wrap *gomock.Call
-type StateLedgerAddSlotToAccessListCall struct {
+// MockStateLedgerAddSlotToAccessListCall wrap *gomock.Call
+type MockStateLedgerAddSlotToAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddSlotToAccessListCall) Return() *StateLedgerAddSlotToAccessListCall {
+func (c *MockStateLedgerAddSlotToAccessListCall) Return() *MockStateLedgerAddSlotToAccessListCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddSlotToAccessListCall) Do(f func(types.Address, types.Hash)) *StateLedgerAddSlotToAccessListCall {
+func (c *MockStateLedgerAddSlotToAccessListCall) Do(f func(types.Address, types.Hash)) *MockStateLedgerAddSlotToAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddSlotToAccessListCall) DoAndReturn(f func(types.Address, types.Hash)) *StateLedgerAddSlotToAccessListCall {
+func (c *MockStateLedgerAddSlotToAccessListCall) DoAndReturn(f func(types.Address, types.Hash)) *MockStateLedgerAddSlotToAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -985,31 +995,31 @@ func (m *MockStateLedger) AddressInAccessList(arg0 types.Address) bool {
 }
 
 // AddressInAccessList indicates an expected call of AddressInAccessList.
-func (mr *MockStateLedgerMockRecorder) AddressInAccessList(arg0 any) *StateLedgerAddressInAccessListCall {
+func (mr *MockStateLedgerMockRecorder) AddressInAccessList(arg0 any) *MockStateLedgerAddressInAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressInAccessList", reflect.TypeOf((*MockStateLedger)(nil).AddressInAccessList), arg0)
-	return &StateLedgerAddressInAccessListCall{Call: call}
+	return &MockStateLedgerAddressInAccessListCall{Call: call}
 }
 
-// StateLedgerAddressInAccessListCall wrap *gomock.Call
-type StateLedgerAddressInAccessListCall struct {
+// MockStateLedgerAddressInAccessListCall wrap *gomock.Call
+type MockStateLedgerAddressInAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerAddressInAccessListCall) Return(arg0 bool) *StateLedgerAddressInAccessListCall {
+func (c *MockStateLedgerAddressInAccessListCall) Return(arg0 bool) *MockStateLedgerAddressInAccessListCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerAddressInAccessListCall) Do(f func(types.Address) bool) *StateLedgerAddressInAccessListCall {
+func (c *MockStateLedgerAddressInAccessListCall) Do(f func(types.Address) bool) *MockStateLedgerAddressInAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerAddressInAccessListCall) DoAndReturn(f func(types.Address) bool) *StateLedgerAddressInAccessListCall {
+func (c *MockStateLedgerAddressInAccessListCall) DoAndReturn(f func(types.Address) bool) *MockStateLedgerAddressInAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1021,31 +1031,31 @@ func (m *MockStateLedger) Clear() {
 }
 
 // Clear indicates an expected call of Clear.
-func (mr *MockStateLedgerMockRecorder) Clear() *StateLedgerClearCall {
+func (mr *MockStateLedgerMockRecorder) Clear() *MockStateLedgerClearCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockStateLedger)(nil).Clear))
-	return &StateLedgerClearCall{Call: call}
+	return &MockStateLedgerClearCall{Call: call}
 }
 
-// StateLedgerClearCall wrap *gomock.Call
-type StateLedgerClearCall struct {
+// MockStateLedgerClearCall wrap *gomock.Call
+type MockStateLedgerClearCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerClearCall) Return() *StateLedgerClearCall {
+func (c *MockStateLedgerClearCall) Return() *MockStateLedgerClearCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerClearCall) Do(f func()) *StateLedgerClearCall {
+func (c *MockStateLedgerClearCall) Do(f func()) *MockStateLedgerClearCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerClearCall) DoAndReturn(f func()) *StateLedgerClearCall {
+func (c *MockStateLedgerClearCall) DoAndReturn(f func()) *MockStateLedgerClearCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1057,31 +1067,31 @@ func (m *MockStateLedger) ClearChangerAndRefund() {
 }
 
 // ClearChangerAndRefund indicates an expected call of ClearChangerAndRefund.
-func (mr *MockStateLedgerMockRecorder) ClearChangerAndRefund() *StateLedgerClearChangerAndRefundCall {
+func (mr *MockStateLedgerMockRecorder) ClearChangerAndRefund() *MockStateLedgerClearChangerAndRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChangerAndRefund", reflect.TypeOf((*MockStateLedger)(nil).ClearChangerAndRefund))
-	return &StateLedgerClearChangerAndRefundCall{Call: call}
+	return &MockStateLedgerClearChangerAndRefundCall{Call: call}
 }
 
-// StateLedgerClearChangerAndRefundCall wrap *gomock.Call
-type StateLedgerClearChangerAndRefundCall struct {
+// MockStateLedgerClearChangerAndRefundCall wrap *gomock.Call
+type MockStateLedgerClearChangerAndRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerClearChangerAndRefundCall) Return() *StateLedgerClearChangerAndRefundCall {
+func (c *MockStateLedgerClearChangerAndRefundCall) Return() *MockStateLedgerClearChangerAndRefundCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerClearChangerAndRefundCall) Do(f func()) *StateLedgerClearChangerAndRefundCall {
+func (c *MockStateLedgerClearChangerAndRefundCall) Do(f func()) *MockStateLedgerClearChangerAndRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerClearChangerAndRefundCall) DoAndReturn(f func()) *StateLedgerClearChangerAndRefundCall {
+func (c *MockStateLedgerClearChangerAndRefundCall) DoAndReturn(f func()) *MockStateLedgerClearChangerAndRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1093,31 +1103,31 @@ func (m *MockStateLedger) Close() {
 }
 
 // Close indicates an expected call of Close.
-func (mr *MockStateLedgerMockRecorder) Close() *StateLedgerCloseCall {
+func (mr *MockStateLedgerMockRecorder) Close() *MockStateLedgerCloseCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStateLedger)(nil).Close))
-	return &StateLedgerCloseCall{Call: call}
+	return &MockStateLedgerCloseCall{Call: call}
 }
 
-// StateLedgerCloseCall wrap *gomock.Call
-type StateLedgerCloseCall struct {
+// MockStateLedgerCloseCall wrap *gomock.Call
+type MockStateLedgerCloseCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerCloseCall) Return() *StateLedgerCloseCall {
+func (c *MockStateLedgerCloseCall) Return() *MockStateLedgerCloseCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerCloseCall) Do(f func()) *StateLedgerCloseCall {
+func (c *MockStateLedgerCloseCall) Do(f func()) *MockStateLedgerCloseCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerCloseCall) DoAndReturn(f func()) *StateLedgerCloseCall {
+func (c *MockStateLedgerCloseCall) DoAndReturn(f func()) *MockStateLedgerCloseCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1132,31 +1142,31 @@ func (m *MockStateLedger) Commit() (*types.Hash, error) {
 }
 
 // Commit indicates an expected call of Commit.
-func (mr *MockStateLedgerMockRecorder) Commit() *StateLedgerCommitCall {
+func (mr *MockStateLedgerMockRecorder) Commit() *MockStateLedgerCommitCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockStateLedger)(nil).Commit))
-	return &StateLedgerCommitCall{Call: call}
+	return &MockStateLedgerCommitCall{Call: call}
 }
 
-// StateLedgerCommitCall wrap *gomock.Call
-type StateLedgerCommitCall struct {
+// MockStateLedgerCommitCall wrap *gomock.Call
+type MockStateLedgerCommitCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerCommitCall) Return(arg0 *types.Hash, arg1 error) *StateLedgerCommitCall {
+func (c *MockStateLedgerCommitCall) Return(arg0 *types.Hash, arg1 error) *MockStateLedgerCommitCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerCommitCall) Do(f func() (*types.Hash, error)) *StateLedgerCommitCall {
+func (c *MockStateLedgerCommitCall) Do(f func() (*types.Hash, error)) *MockStateLedgerCommitCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerCommitCall) DoAndReturn(f func() (*types.Hash, error)) *StateLedgerCommitCall {
+func (c *MockStateLedgerCommitCall) DoAndReturn(f func() (*types.Hash, error)) *MockStateLedgerCommitCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1170,31 +1180,31 @@ func (m *MockStateLedger) Empty(arg0 *types.Address) bool {
 }
 
 // Empty indicates an expected call of Empty.
-func (mr *MockStateLedgerMockRecorder) Empty(arg0 any) *StateLedgerEmptyCall {
+func (mr *MockStateLedgerMockRecorder) Empty(arg0 any) *MockStateLedgerEmptyCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockStateLedger)(nil).Empty), arg0)
-	return &StateLedgerEmptyCall{Call: call}
+	return &MockStateLedgerEmptyCall{Call: call}
 }
 
-// StateLedgerEmptyCall wrap *gomock.Call
-type StateLedgerEmptyCall struct {
+// MockStateLedgerEmptyCall wrap *gomock.Call
+type MockStateLedgerEmptyCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerEmptyCall) Return(arg0 bool) *StateLedgerEmptyCall {
+func (c *MockStateLedgerEmptyCall) Return(arg0 bool) *MockStateLedgerEmptyCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerEmptyCall) Do(f func(*types.Address) bool) *StateLedgerEmptyCall {
+func (c *MockStateLedgerEmptyCall) Do(f func(*types.Address) bool) *MockStateLedgerEmptyCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerEmptyCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerEmptyCall {
+func (c *MockStateLedgerEmptyCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerEmptyCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1208,31 +1218,31 @@ func (m *MockStateLedger) Exist(arg0 *types.Address) bool {
 }
 
 // Exist indicates an expected call of Exist.
-func (mr *MockStateLedgerMockRecorder) Exist(arg0 any) *StateLedgerExistCall {
+func (mr *MockStateLedgerMockRecorder) Exist(arg0 any) *MockStateLedgerExistCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exist", reflect.TypeOf((*MockStateLedger)(nil).Exist), arg0)
-	return &StateLedgerExistCall{Call: call}
+	return &MockStateLedgerExistCall{Call: call}
 }
 
-// StateLedgerExistCall wrap *gomock.Call
-type StateLedgerExistCall struct {
+// MockStateLedgerExistCall wrap *gomock.Call
+type MockStateLedgerExistCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerExistCall) Return(arg0 bool) *StateLedgerExistCall {
+func (c *MockStateLedgerExistCall) Return(arg0 bool) *MockStateLedgerExistCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerExistCall) Do(f func(*types.Address) bool) *StateLedgerExistCall {
+func (c *MockStateLedgerExistCall) Do(f func(*types.Address) bool) *MockStateLedgerExistCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerExistCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerExistCall {
+func (c *MockStateLedgerExistCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerExistCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1244,31 +1254,31 @@ func (m *MockStateLedger) Finalise() {
 }
 
 // Finalise indicates an expected call of Finalise.
-func (mr *MockStateLedgerMockRecorder) Finalise() *StateLedgerFinaliseCall {
+func (mr *MockStateLedgerMockRecorder) Finalise() *MockStateLedgerFinaliseCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockStateLedger)(nil).Finalise))
-	return &StateLedgerFinaliseCall{Call: call}
+	return &MockStateLedgerFinaliseCall{Call: call}
 }
 
-// StateLedgerFinaliseCall wrap *gomock.Call
-type StateLedgerFinaliseCall struct {
+// MockStateLedgerFinaliseCall wrap *gomock.Call
+type MockStateLedgerFinaliseCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerFinaliseCall) Return() *StateLedgerFinaliseCall {
+func (c *MockStateLedgerFinaliseCall) Return() *MockStateLedgerFinaliseCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerFinaliseCall) Do(f func()) *StateLedgerFinaliseCall {
+func (c *MockStateLedgerFinaliseCall) Do(f func()) *MockStateLedgerFinaliseCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerFinaliseCall) DoAndReturn(f func()) *StateLedgerFinaliseCall {
+func (c *MockStateLedgerFinaliseCall) DoAndReturn(f func()) *MockStateLedgerFinaliseCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1280,31 +1290,31 @@ func (m *MockStateLedger) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 }
 
 // GenerateSnapshot indicates an expected call of GenerateSnapshot.
-func (mr *MockStateLedgerMockRecorder) GenerateSnapshot(blockHeader, errC any) *StateLedgerGenerateSnapshotCall {
+func (mr *MockStateLedgerMockRecorder) GenerateSnapshot(blockHeader, errC any) *MockStateLedgerGenerateSnapshotCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSnapshot", reflect.TypeOf((*MockStateLedger)(nil).GenerateSnapshot), blockHeader, errC)
-	return &StateLedgerGenerateSnapshotCall{Call: call}
+	return &MockStateLedgerGenerateSnapshotCall{Call: call}
 }
 
-// StateLedgerGenerateSnapshotCall wrap *gomock.Call
-type StateLedgerGenerateSnapshotCall struct {
+// MockStateLedgerGenerateSnapshotCall wrap *gomock.Call
+type MockStateLedgerGenerateSnapshotCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGenerateSnapshotCall) Return() *StateLedgerGenerateSnapshotCall {
+func (c *MockStateLedgerGenerateSnapshotCall) Return() *MockStateLedgerGenerateSnapshotCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGenerateSnapshotCall) Do(f func(*types.BlockHeader, chan error)) *StateLedgerGenerateSnapshotCall {
+func (c *MockStateLedgerGenerateSnapshotCall) Do(f func(*types.BlockHeader, chan error)) *MockStateLedgerGenerateSnapshotCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGenerateSnapshotCall) DoAndReturn(f func(*types.BlockHeader, chan error)) *StateLedgerGenerateSnapshotCall {
+func (c *MockStateLedgerGenerateSnapshotCall) DoAndReturn(f func(*types.BlockHeader, chan error)) *MockStateLedgerGenerateSnapshotCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1318,31 +1328,31 @@ func (m *MockStateLedger) GetAccount(arg0 *types.Address) ledger.IAccount {
 }
 
 // GetAccount indicates an expected call of GetAccount.
-func (mr *MockStateLedgerMockRecorder) GetAccount(arg0 any) *StateLedgerGetAccountCall {
+func (mr *MockStateLedgerMockRecorder) GetAccount(arg0 any) *MockStateLedgerGetAccountCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccount", reflect.TypeOf((*MockStateLedger)(nil).GetAccount), arg0)
-	return &StateLedgerGetAccountCall{Call: call}
+	return &MockStateLedgerGetAccountCall{Call: call}
 }
 
-// StateLedgerGetAccountCall wrap *gomock.Call
-type StateLedgerGetAccountCall struct {
+// MockStateLedgerGetAccountCall wrap *gomock.Call
+type MockStateLedgerGetAccountCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetAccountCall) Return(arg0 ledger.IAccount) *StateLedgerGetAccountCall {
+func (c *MockStateLedgerGetAccountCall) Return(arg0 ledger.IAccount) *MockStateLedgerGetAccountCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetAccountCall) Do(f func(*types.Address) ledger.IAccount) *StateLedgerGetAccountCall {
+func (c *MockStateLedgerGetAccountCall) Do(f func(*types.Address) ledger.IAccount) *MockStateLedgerGetAccountCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *StateLedgerGetAccountCall {
+func (c *MockStateLedgerGetAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *MockStateLedgerGetAccountCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1356,31 +1366,31 @@ func (m *MockStateLedger) GetBalance(arg0 *types.Address) *big.Int {
 }
 
 // GetBalance indicates an expected call of GetBalance.
-func (mr *MockStateLedgerMockRecorder) GetBalance(arg0 any) *StateLedgerGetBalanceCall {
+func (mr *MockStateLedgerMockRecorder) GetBalance(arg0 any) *MockStateLedgerGetBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockStateLedger)(nil).GetBalance), arg0)
-	return &StateLedgerGetBalanceCall{Call: call}
+	return &MockStateLedgerGetBalanceCall{Call: call}
 }
 
-// StateLedgerGetBalanceCall wrap *gomock.Call
-type StateLedgerGetBalanceCall struct {
+// MockStateLedgerGetBalanceCall wrap *gomock.Call
+type MockStateLedgerGetBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetBalanceCall) Return(arg0 *big.Int) *StateLedgerGetBalanceCall {
+func (c *MockStateLedgerGetBalanceCall) Return(arg0 *big.Int) *MockStateLedgerGetBalanceCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetBalanceCall) Do(f func(*types.Address) *big.Int) *StateLedgerGetBalanceCall {
+func (c *MockStateLedgerGetBalanceCall) Do(f func(*types.Address) *big.Int) *MockStateLedgerGetBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetBalanceCall) DoAndReturn(f func(*types.Address) *big.Int) *StateLedgerGetBalanceCall {
+func (c *MockStateLedgerGetBalanceCall) DoAndReturn(f func(*types.Address) *big.Int) *MockStateLedgerGetBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1394,31 +1404,31 @@ func (m *MockStateLedger) GetCode(arg0 *types.Address) []byte {
 }
 
 // GetCode indicates an expected call of GetCode.
-func (mr *MockStateLedgerMockRecorder) GetCode(arg0 any) *StateLedgerGetCodeCall {
+func (mr *MockStateLedgerMockRecorder) GetCode(arg0 any) *MockStateLedgerGetCodeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCode", reflect.TypeOf((*MockStateLedger)(nil).GetCode), arg0)
-	return &StateLedgerGetCodeCall{Call: call}
+	return &MockStateLedgerGetCodeCall{Call: call}
 }
 
-// StateLedgerGetCodeCall wrap *gomock.Call
-type StateLedgerGetCodeCall struct {
+// MockStateLedgerGetCodeCall wrap *gomock.Call
+type MockStateLedgerGetCodeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetCodeCall) Return(arg0 []byte) *StateLedgerGetCodeCall {
+func (c *MockStateLedgerGetCodeCall) Return(arg0 []byte) *MockStateLedgerGetCodeCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetCodeCall) Do(f func(*types.Address) []byte) *StateLedgerGetCodeCall {
+func (c *MockStateLedgerGetCodeCall) Do(f func(*types.Address) []byte) *MockStateLedgerGetCodeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetCodeCall) DoAndReturn(f func(*types.Address) []byte) *StateLedgerGetCodeCall {
+func (c *MockStateLedgerGetCodeCall) DoAndReturn(f func(*types.Address) []byte) *MockStateLedgerGetCodeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1432,31 +1442,31 @@ func (m *MockStateLedger) GetCodeHash(arg0 *types.Address) *types.Hash {
 }
 
 // GetCodeHash indicates an expected call of GetCodeHash.
-func (mr *MockStateLedgerMockRecorder) GetCodeHash(arg0 any) *StateLedgerGetCodeHashCall {
+func (mr *MockStateLedgerMockRecorder) GetCodeHash(arg0 any) *MockStateLedgerGetCodeHashCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeHash", reflect.TypeOf((*MockStateLedger)(nil).GetCodeHash), arg0)
-	return &StateLedgerGetCodeHashCall{Call: call}
+	return &MockStateLedgerGetCodeHashCall{Call: call}
 }
 
-// StateLedgerGetCodeHashCall wrap *gomock.Call
-type StateLedgerGetCodeHashCall struct {
+// MockStateLedgerGetCodeHashCall wrap *gomock.Call
+type MockStateLedgerGetCodeHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetCodeHashCall) Return(arg0 *types.Hash) *StateLedgerGetCodeHashCall {
+func (c *MockStateLedgerGetCodeHashCall) Return(arg0 *types.Hash) *MockStateLedgerGetCodeHashCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetCodeHashCall) Do(f func(*types.Address) *types.Hash) *StateLedgerGetCodeHashCall {
+func (c *MockStateLedgerGetCodeHashCall) Do(f func(*types.Address) *types.Hash) *MockStateLedgerGetCodeHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetCodeHashCall) DoAndReturn(f func(*types.Address) *types.Hash) *StateLedgerGetCodeHashCall {
+func (c *MockStateLedgerGetCodeHashCall) DoAndReturn(f func(*types.Address) *types.Hash) *MockStateLedgerGetCodeHashCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1470,31 +1480,31 @@ func (m *MockStateLedger) GetCodeSize(arg0 *types.Address) int {
 }
 
 // GetCodeSize indicates an expected call of GetCodeSize.
-func (mr *MockStateLedgerMockRecorder) GetCodeSize(arg0 any) *StateLedgerGetCodeSizeCall {
+func (mr *MockStateLedgerMockRecorder) GetCodeSize(arg0 any) *MockStateLedgerGetCodeSizeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeSize", reflect.TypeOf((*MockStateLedger)(nil).GetCodeSize), arg0)
-	return &StateLedgerGetCodeSizeCall{Call: call}
+	return &MockStateLedgerGetCodeSizeCall{Call: call}
 }
 
-// StateLedgerGetCodeSizeCall wrap *gomock.Call
-type StateLedgerGetCodeSizeCall struct {
+// MockStateLedgerGetCodeSizeCall wrap *gomock.Call
+type MockStateLedgerGetCodeSizeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetCodeSizeCall) Return(arg0 int) *StateLedgerGetCodeSizeCall {
+func (c *MockStateLedgerGetCodeSizeCall) Return(arg0 int) *MockStateLedgerGetCodeSizeCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetCodeSizeCall) Do(f func(*types.Address) int) *StateLedgerGetCodeSizeCall {
+func (c *MockStateLedgerGetCodeSizeCall) Do(f func(*types.Address) int) *MockStateLedgerGetCodeSizeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetCodeSizeCall) DoAndReturn(f func(*types.Address) int) *StateLedgerGetCodeSizeCall {
+func (c *MockStateLedgerGetCodeSizeCall) DoAndReturn(f func(*types.Address) int) *MockStateLedgerGetCodeSizeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1508,31 +1518,31 @@ func (m *MockStateLedger) GetCommittedState(arg0 *types.Address, arg1 []byte) []
 }
 
 // GetCommittedState indicates an expected call of GetCommittedState.
-func (mr *MockStateLedgerMockRecorder) GetCommittedState(arg0, arg1 any) *StateLedgerGetCommittedStateCall {
+func (mr *MockStateLedgerMockRecorder) GetCommittedState(arg0, arg1 any) *MockStateLedgerGetCommittedStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedState", reflect.TypeOf((*MockStateLedger)(nil).GetCommittedState), arg0, arg1)
-	return &StateLedgerGetCommittedStateCall{Call: call}
+	return &MockStateLedgerGetCommittedStateCall{Call: call}
 }
 
-// StateLedgerGetCommittedStateCall wrap *gomock.Call
-type StateLedgerGetCommittedStateCall struct {
+// MockStateLedgerGetCommittedStateCall wrap *gomock.Call
+type MockStateLedgerGetCommittedStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetCommittedStateCall) Return(arg0 []byte) *StateLedgerGetCommittedStateCall {
+func (c *MockStateLedgerGetCommittedStateCall) Return(arg0 []byte) *MockStateLedgerGetCommittedStateCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetCommittedStateCall) Do(f func(*types.Address, []byte) []byte) *StateLedgerGetCommittedStateCall {
+func (c *MockStateLedgerGetCommittedStateCall) Do(f func(*types.Address, []byte) []byte) *MockStateLedgerGetCommittedStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetCommittedStateCall) DoAndReturn(f func(*types.Address, []byte) []byte) *StateLedgerGetCommittedStateCall {
+func (c *MockStateLedgerGetCommittedStateCall) DoAndReturn(f func(*types.Address, []byte) []byte) *MockStateLedgerGetCommittedStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1547,31 +1557,31 @@ func (m *MockStateLedger) GetHistoryRange() (uint64, uint64) {
 }
 
 // GetHistoryRange indicates an expected call of GetHistoryRange.
-func (mr *MockStateLedgerMockRecorder) GetHistoryRange() *StateLedgerGetHistoryRangeCall {
+func (mr *MockStateLedgerMockRecorder) GetHistoryRange() *MockStateLedgerGetHistoryRangeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryRange", reflect.TypeOf((*MockStateLedger)(nil).GetHistoryRange))
-	return &StateLedgerGetHistoryRangeCall{Call: call}
+	return &MockStateLedgerGetHistoryRangeCall{Call: call}
 }
 
-// StateLedgerGetHistoryRangeCall wrap *gomock.Call
-type StateLedgerGetHistoryRangeCall struct {
+// MockStateLedgerGetHistoryRangeCall wrap *gomock.Call
+type MockStateLedgerGetHistoryRangeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetHistoryRangeCall) Return(arg0, arg1 uint64) *StateLedgerGetHistoryRangeCall {
+func (c *MockStateLedgerGetHistoryRangeCall) Return(arg0, arg1 uint64) *MockStateLedgerGetHistoryRangeCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetHistoryRangeCall) Do(f func() (uint64, uint64)) *StateLedgerGetHistoryRangeCall {
+func (c *MockStateLedgerGetHistoryRangeCall) Do(f func() (uint64, uint64)) *MockStateLedgerGetHistoryRangeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetHistoryRangeCall) DoAndReturn(f func() (uint64, uint64)) *StateLedgerGetHistoryRangeCall {
+func (c *MockStateLedgerGetHistoryRangeCall) DoAndReturn(f func() (uint64, uint64)) *MockStateLedgerGetHistoryRangeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1585,31 +1595,31 @@ func (m *MockStateLedger) GetLogs(txHash types.Hash, height uint64) []*types.Evm
 }
 
 // GetLogs indicates an expected call of GetLogs.
-func (mr *MockStateLedgerMockRecorder) GetLogs(txHash, height any) *StateLedgerGetLogsCall {
+func (mr *MockStateLedgerMockRecorder) GetLogs(txHash, height any) *MockStateLedgerGetLogsCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogs", reflect.TypeOf((*MockStateLedger)(nil).GetLogs), txHash, height)
-	return &StateLedgerGetLogsCall{Call: call}
+	return &MockStateLedgerGetLogsCall{Call: call}
 }
 
-// StateLedgerGetLogsCall wrap *gomock.Call
-type StateLedgerGetLogsCall struct {
+// MockStateLedgerGetLogsCall wrap *gomock.Call
+type MockStateLedgerGetLogsCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetLogsCall) Return(arg0 []*types.EvmLog) *StateLedgerGetLogsCall {
+func (c *MockStateLedgerGetLogsCall) Return(arg0 []*types.EvmLog) *MockStateLedgerGetLogsCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetLogsCall) Do(f func(types.Hash, uint64) []*types.EvmLog) *StateLedgerGetLogsCall {
+func (c *MockStateLedgerGetLogsCall) Do(f func(types.Hash, uint64) []*types.EvmLog) *MockStateLedgerGetLogsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetLogsCall) DoAndReturn(f func(types.Hash, uint64) []*types.EvmLog) *StateLedgerGetLogsCall {
+func (c *MockStateLedgerGetLogsCall) DoAndReturn(f func(types.Hash, uint64) []*types.EvmLog) *MockStateLedgerGetLogsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1623,31 +1633,31 @@ func (m *MockStateLedger) GetNonce(arg0 *types.Address) uint64 {
 }
 
 // GetNonce indicates an expected call of GetNonce.
-func (mr *MockStateLedgerMockRecorder) GetNonce(arg0 any) *StateLedgerGetNonceCall {
+func (mr *MockStateLedgerMockRecorder) GetNonce(arg0 any) *MockStateLedgerGetNonceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNonce", reflect.TypeOf((*MockStateLedger)(nil).GetNonce), arg0)
-	return &StateLedgerGetNonceCall{Call: call}
+	return &MockStateLedgerGetNonceCall{Call: call}
 }
 
-// StateLedgerGetNonceCall wrap *gomock.Call
-type StateLedgerGetNonceCall struct {
+// MockStateLedgerGetNonceCall wrap *gomock.Call
+type MockStateLedgerGetNonceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetNonceCall) Return(arg0 uint64) *StateLedgerGetNonceCall {
+func (c *MockStateLedgerGetNonceCall) Return(arg0 uint64) *MockStateLedgerGetNonceCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetNonceCall) Do(f func(*types.Address) uint64) *StateLedgerGetNonceCall {
+func (c *MockStateLedgerGetNonceCall) Do(f func(*types.Address) uint64) *MockStateLedgerGetNonceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetNonceCall) DoAndReturn(f func(*types.Address) uint64) *StateLedgerGetNonceCall {
+func (c *MockStateLedgerGetNonceCall) DoAndReturn(f func(*types.Address) uint64) *MockStateLedgerGetNonceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1661,31 +1671,31 @@ func (m *MockStateLedger) GetOrCreateAccount(arg0 *types.Address) ledger.IAccoun
 }
 
 // GetOrCreateAccount indicates an expected call of GetOrCreateAccount.
-func (mr *MockStateLedgerMockRecorder) GetOrCreateAccount(arg0 any) *StateLedgerGetOrCreateAccountCall {
+func (mr *MockStateLedgerMockRecorder) GetOrCreateAccount(arg0 any) *MockStateLedgerGetOrCreateAccountCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateAccount", reflect.TypeOf((*MockStateLedger)(nil).GetOrCreateAccount), arg0)
-	return &StateLedgerGetOrCreateAccountCall{Call: call}
+	return &MockStateLedgerGetOrCreateAccountCall{Call: call}
 }
 
-// StateLedgerGetOrCreateAccountCall wrap *gomock.Call
-type StateLedgerGetOrCreateAccountCall struct {
+// MockStateLedgerGetOrCreateAccountCall wrap *gomock.Call
+type MockStateLedgerGetOrCreateAccountCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetOrCreateAccountCall) Return(arg0 ledger.IAccount) *StateLedgerGetOrCreateAccountCall {
+func (c *MockStateLedgerGetOrCreateAccountCall) Return(arg0 ledger.IAccount) *MockStateLedgerGetOrCreateAccountCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetOrCreateAccountCall) Do(f func(*types.Address) ledger.IAccount) *StateLedgerGetOrCreateAccountCall {
+func (c *MockStateLedgerGetOrCreateAccountCall) Do(f func(*types.Address) ledger.IAccount) *MockStateLedgerGetOrCreateAccountCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetOrCreateAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *StateLedgerGetOrCreateAccountCall {
+func (c *MockStateLedgerGetOrCreateAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *MockStateLedgerGetOrCreateAccountCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1699,31 +1709,31 @@ func (m *MockStateLedger) GetRefund() uint64 {
 }
 
 // GetRefund indicates an expected call of GetRefund.
-func (mr *MockStateLedgerMockRecorder) GetRefund() *StateLedgerGetRefundCall {
+func (mr *MockStateLedgerMockRecorder) GetRefund() *MockStateLedgerGetRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRefund", reflect.TypeOf((*MockStateLedger)(nil).GetRefund))
-	return &StateLedgerGetRefundCall{Call: call}
+	return &MockStateLedgerGetRefundCall{Call: call}
 }
 
-// StateLedgerGetRefundCall wrap *gomock.Call
-type StateLedgerGetRefundCall struct {
+// MockStateLedgerGetRefundCall wrap *gomock.Call
+type MockStateLedgerGetRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetRefundCall) Return(arg0 uint64) *StateLedgerGetRefundCall {
+func (c *MockStateLedgerGetRefundCall) Return(arg0 uint64) *MockStateLedgerGetRefundCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetRefundCall) Do(f func() uint64) *StateLedgerGetRefundCall {
+func (c *MockStateLedgerGetRefundCall) Do(f func() uint64) *MockStateLedgerGetRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetRefundCall) DoAndReturn(f func() uint64) *StateLedgerGetRefundCall {
+func (c *MockStateLedgerGetRefundCall) DoAndReturn(f func() uint64) *MockStateLedgerGetRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1738,31 +1748,31 @@ func (m *MockStateLedger) GetState(arg0 *types.Address, arg1 []byte) (bool, []by
 }
 
 // GetState indicates an expected call of GetState.
-func (mr *MockStateLedgerMockRecorder) GetState(arg0, arg1 any) *StateLedgerGetStateCall {
+func (mr *MockStateLedgerMockRecorder) GetState(arg0, arg1 any) *MockStateLedgerGetStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockStateLedger)(nil).GetState), arg0, arg1)
-	return &StateLedgerGetStateCall{Call: call}
+	return &MockStateLedgerGetStateCall{Call: call}
 }
 
-// StateLedgerGetStateCall wrap *gomock.Call
-type StateLedgerGetStateCall struct {
+// MockStateLedgerGetStateCall wrap *gomock.Call
+type MockStateLedgerGetStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetStateCall) Return(arg0 bool, arg1 []byte) *StateLedgerGetStateCall {
+func (c *MockStateLedgerGetStateCall) Return(arg0 bool, arg1 []byte) *MockStateLedgerGetStateCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetStateCall) Do(f func(*types.Address, []byte) (bool, []byte)) *StateLedgerGetStateCall {
+func (c *MockStateLedgerGetStateCall) Do(f func(*types.Address, []byte) (bool, []byte)) *MockStateLedgerGetStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bool, []byte)) *StateLedgerGetStateCall {
+func (c *MockStateLedgerGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bool, []byte)) *MockStateLedgerGetStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1777,69 +1787,69 @@ func (m *MockStateLedger) GetTrieSnapshotMeta() (*ledger.SnapshotMeta, error) {
 }
 
 // GetTrieSnapshotMeta indicates an expected call of GetTrieSnapshotMeta.
-func (mr *MockStateLedgerMockRecorder) GetTrieSnapshotMeta() *StateLedgerGetTrieSnapshotMetaCall {
+func (mr *MockStateLedgerMockRecorder) GetTrieSnapshotMeta() *MockStateLedgerGetTrieSnapshotMetaCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTrieSnapshotMeta", reflect.TypeOf((*MockStateLedger)(nil).GetTrieSnapshotMeta))
-	return &StateLedgerGetTrieSnapshotMetaCall{Call: call}
+	return &MockStateLedgerGetTrieSnapshotMetaCall{Call: call}
 }
 
-// StateLedgerGetTrieSnapshotMetaCall wrap *gomock.Call
-type StateLedgerGetTrieSnapshotMetaCall struct {
+// MockStateLedgerGetTrieSnapshotMetaCall wrap *gomock.Call
+type MockStateLedgerGetTrieSnapshotMetaCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerGetTrieSnapshotMetaCall) Return(arg0 *ledger.SnapshotMeta, arg1 error) *StateLedgerGetTrieSnapshotMetaCall {
+func (c *MockStateLedgerGetTrieSnapshotMetaCall) Return(arg0 *ledger.SnapshotMeta, arg1 error) *MockStateLedgerGetTrieSnapshotMetaCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerGetTrieSnapshotMetaCall) Do(f func() (*ledger.SnapshotMeta, error)) *StateLedgerGetTrieSnapshotMetaCall {
+func (c *MockStateLedgerGetTrieSnapshotMetaCall) Do(f func() (*ledger.SnapshotMeta, error)) *MockStateLedgerGetTrieSnapshotMetaCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func() (*ledger.SnapshotMeta, error)) *StateLedgerGetTrieSnapshotMetaCall {
+func (c *MockStateLedgerGetTrieSnapshotMetaCall) DoAndReturn(f func() (*ledger.SnapshotMeta, error)) *MockStateLedgerGetTrieSnapshotMetaCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// HasSuicide mocks base method.
-func (m *MockStateLedger) HasSuicide(arg0 *types.Address) bool {
+// HasSelfDestructed mocks base method.
+func (m *MockStateLedger) HasSelfDestructed(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSuicide", arg0)
+	ret := m.ctrl.Call(m, "HasSelfDestructed", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// HasSuicide indicates an expected call of HasSuicide.
-func (mr *MockStateLedgerMockRecorder) HasSuicide(arg0 any) *StateLedgerHasSuicideCall {
+// HasSelfDestructed indicates an expected call of HasSelfDestructed.
+func (mr *MockStateLedgerMockRecorder) HasSelfDestructed(arg0 any) *MockStateLedgerHasSelfDestructedCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicide", reflect.TypeOf((*MockStateLedger)(nil).HasSuicide), arg0)
-	return &StateLedgerHasSuicideCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSelfDestructed", reflect.TypeOf((*MockStateLedger)(nil).HasSelfDestructed), arg0)
+	return &MockStateLedgerHasSelfDestructedCall{Call: call}
 }
 
-// StateLedgerHasSuicideCall wrap *gomock.Call
-type StateLedgerHasSuicideCall struct {
+// MockStateLedgerHasSelfDestructedCall wrap *gomock.Call
+type MockStateLedgerHasSelfDestructedCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerHasSuicideCall) Return(arg0 bool) *StateLedgerHasSuicideCall {
+func (c *MockStateLedgerHasSelfDestructedCall) Return(arg0 bool) *MockStateLedgerHasSelfDestructedCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerHasSuicideCall) Do(f func(*types.Address) bool) *StateLedgerHasSuicideCall {
+func (c *MockStateLedgerHasSelfDestructedCall) Do(f func(*types.Address) bool) *MockStateLedgerHasSelfDestructedCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerHasSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerHasSuicideCall {
+func (c *MockStateLedgerHasSelfDestructedCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerHasSelfDestructedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1851,31 +1861,31 @@ func (m *MockStateLedger) IterateTrie(blockHeader *types.BlockHeader, nodesId *c
 }
 
 // IterateTrie indicates an expected call of IterateTrie.
-func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, nodesId, kv, errC any) *StateLedgerIterateTrieCall {
+func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, nodesId, kv, errC any) *MockStateLedgerIterateTrieCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), blockHeader, nodesId, kv, errC)
-	return &StateLedgerIterateTrieCall{Call: call}
+	return &MockStateLedgerIterateTrieCall{Call: call}
 }
 
-// StateLedgerIterateTrieCall wrap *gomock.Call
-type StateLedgerIterateTrieCall struct {
+// MockStateLedgerIterateTrieCall wrap *gomock.Call
+type MockStateLedgerIterateTrieCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerIterateTrieCall) Return() *StateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Return() *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *StateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *StateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1890,31 +1900,31 @@ func (m *MockStateLedger) NewView(blockHeader *types.BlockHeader, enableSnapshot
 }
 
 // NewView indicates an expected call of NewView.
-func (mr *MockStateLedgerMockRecorder) NewView(blockHeader, enableSnapshot any) *StateLedgerNewViewCall {
+func (mr *MockStateLedgerMockRecorder) NewView(blockHeader, enableSnapshot any) *MockStateLedgerNewViewCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewView", reflect.TypeOf((*MockStateLedger)(nil).NewView), blockHeader, enableSnapshot)
-	return &StateLedgerNewViewCall{Call: call}
+	return &MockStateLedgerNewViewCall{Call: call}
 }
 
-// StateLedgerNewViewCall wrap *gomock.Call
-type StateLedgerNewViewCall struct {
+// MockStateLedgerNewViewCall wrap *gomock.Call
+type MockStateLedgerNewViewCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerNewViewCall) Return(arg0 ledger.StateLedger, arg1 error) *StateLedgerNewViewCall {
+func (c *MockStateLedgerNewViewCall) Return(arg0 ledger.StateLedger, arg1 error) *MockStateLedgerNewViewCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerNewViewCall) Do(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *StateLedgerNewViewCall {
+func (c *MockStateLedgerNewViewCall) Do(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *MockStateLedgerNewViewCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerNewViewCall) DoAndReturn(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *StateLedgerNewViewCall {
+func (c *MockStateLedgerNewViewCall) DoAndReturn(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *MockStateLedgerNewViewCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1929,31 +1939,31 @@ func (m *MockStateLedger) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 }
 
 // NewViewWithoutCache indicates an expected call of NewViewWithoutCache.
-func (mr *MockStateLedgerMockRecorder) NewViewWithoutCache(blockHeader, enableSnapshot any) *StateLedgerNewViewWithoutCacheCall {
+func (mr *MockStateLedgerMockRecorder) NewViewWithoutCache(blockHeader, enableSnapshot any) *MockStateLedgerNewViewWithoutCacheCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewViewWithoutCache", reflect.TypeOf((*MockStateLedger)(nil).NewViewWithoutCache), blockHeader, enableSnapshot)
-	return &StateLedgerNewViewWithoutCacheCall{Call: call}
+	return &MockStateLedgerNewViewWithoutCacheCall{Call: call}
 }
 
-// StateLedgerNewViewWithoutCacheCall wrap *gomock.Call
-type StateLedgerNewViewWithoutCacheCall struct {
+// MockStateLedgerNewViewWithoutCacheCall wrap *gomock.Call
+type MockStateLedgerNewViewWithoutCacheCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerNewViewWithoutCacheCall) Return(arg0 ledger.StateLedger, arg1 error) *StateLedgerNewViewWithoutCacheCall {
+func (c *MockStateLedgerNewViewWithoutCacheCall) Return(arg0 ledger.StateLedger, arg1 error) *MockStateLedgerNewViewWithoutCacheCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerNewViewWithoutCacheCall) Do(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *StateLedgerNewViewWithoutCacheCall {
+func (c *MockStateLedgerNewViewWithoutCacheCall) Do(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *MockStateLedgerNewViewWithoutCacheCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerNewViewWithoutCacheCall) DoAndReturn(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *StateLedgerNewViewWithoutCacheCall {
+func (c *MockStateLedgerNewViewWithoutCacheCall) DoAndReturn(f func(*types.BlockHeader, bool) (ledger.StateLedger, error)) *MockStateLedgerNewViewWithoutCacheCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1965,31 +1975,31 @@ func (m *MockStateLedger) PrepareBlock(lastStateRoot *types.Hash, currentExecuti
 }
 
 // PrepareBlock indicates an expected call of PrepareBlock.
-func (mr *MockStateLedgerMockRecorder) PrepareBlock(lastStateRoot, currentExecutingHeight any) *StateLedgerPrepareBlockCall {
+func (mr *MockStateLedgerMockRecorder) PrepareBlock(lastStateRoot, currentExecutingHeight any) *MockStateLedgerPrepareBlockCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareBlock", reflect.TypeOf((*MockStateLedger)(nil).PrepareBlock), lastStateRoot, currentExecutingHeight)
-	return &StateLedgerPrepareBlockCall{Call: call}
+	return &MockStateLedgerPrepareBlockCall{Call: call}
 }
 
-// StateLedgerPrepareBlockCall wrap *gomock.Call
-type StateLedgerPrepareBlockCall struct {
+// MockStateLedgerPrepareBlockCall wrap *gomock.Call
+type MockStateLedgerPrepareBlockCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerPrepareBlockCall) Return() *StateLedgerPrepareBlockCall {
+func (c *MockStateLedgerPrepareBlockCall) Return() *MockStateLedgerPrepareBlockCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerPrepareBlockCall) Do(f func(*types.Hash, uint64)) *StateLedgerPrepareBlockCall {
+func (c *MockStateLedgerPrepareBlockCall) Do(f func(*types.Hash, uint64)) *MockStateLedgerPrepareBlockCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerPrepareBlockCall) DoAndReturn(f func(*types.Hash, uint64)) *StateLedgerPrepareBlockCall {
+func (c *MockStateLedgerPrepareBlockCall) DoAndReturn(f func(*types.Hash, uint64)) *MockStateLedgerPrepareBlockCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2004,31 +2014,31 @@ func (m *MockStateLedger) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 }
 
 // Prove indicates an expected call of Prove.
-func (mr *MockStateLedgerMockRecorder) Prove(rootHash, key any) *StateLedgerProveCall {
+func (mr *MockStateLedgerMockRecorder) Prove(rootHash, key any) *MockStateLedgerProveCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prove", reflect.TypeOf((*MockStateLedger)(nil).Prove), rootHash, key)
-	return &StateLedgerProveCall{Call: call}
+	return &MockStateLedgerProveCall{Call: call}
 }
 
-// StateLedgerProveCall wrap *gomock.Call
-type StateLedgerProveCall struct {
+// MockStateLedgerProveCall wrap *gomock.Call
+type MockStateLedgerProveCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerProveCall) Return(arg0 *jmt.ProofResult, arg1 error) *StateLedgerProveCall {
+func (c *MockStateLedgerProveCall) Return(arg0 *jmt.ProofResult, arg1 error) *MockStateLedgerProveCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerProveCall) Do(f func(common.Hash, []byte) (*jmt.ProofResult, error)) *StateLedgerProveCall {
+func (c *MockStateLedgerProveCall) Do(f func(common.Hash, []byte) (*jmt.ProofResult, error)) *MockStateLedgerProveCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerProveCall) DoAndReturn(f func(common.Hash, []byte) (*jmt.ProofResult, error)) *StateLedgerProveCall {
+func (c *MockStateLedgerProveCall) DoAndReturn(f func(common.Hash, []byte) (*jmt.ProofResult, error)) *MockStateLedgerProveCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2040,31 +2050,31 @@ func (m *MockStateLedger) RevertToSnapshot(arg0 int) {
 }
 
 // RevertToSnapshot indicates an expected call of RevertToSnapshot.
-func (mr *MockStateLedgerMockRecorder) RevertToSnapshot(arg0 any) *StateLedgerRevertToSnapshotCall {
+func (mr *MockStateLedgerMockRecorder) RevertToSnapshot(arg0 any) *MockStateLedgerRevertToSnapshotCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevertToSnapshot", reflect.TypeOf((*MockStateLedger)(nil).RevertToSnapshot), arg0)
-	return &StateLedgerRevertToSnapshotCall{Call: call}
+	return &MockStateLedgerRevertToSnapshotCall{Call: call}
 }
 
-// StateLedgerRevertToSnapshotCall wrap *gomock.Call
-type StateLedgerRevertToSnapshotCall struct {
+// MockStateLedgerRevertToSnapshotCall wrap *gomock.Call
+type MockStateLedgerRevertToSnapshotCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerRevertToSnapshotCall) Return() *StateLedgerRevertToSnapshotCall {
+func (c *MockStateLedgerRevertToSnapshotCall) Return() *MockStateLedgerRevertToSnapshotCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerRevertToSnapshotCall) Do(f func(int)) *StateLedgerRevertToSnapshotCall {
+func (c *MockStateLedgerRevertToSnapshotCall) Do(f func(int)) *MockStateLedgerRevertToSnapshotCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerRevertToSnapshotCall) DoAndReturn(f func(int)) *StateLedgerRevertToSnapshotCall {
+func (c *MockStateLedgerRevertToSnapshotCall) DoAndReturn(f func(int)) *MockStateLedgerRevertToSnapshotCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2078,31 +2088,105 @@ func (m *MockStateLedger) RollbackState(height uint64, lastStateRoot *types.Hash
 }
 
 // RollbackState indicates an expected call of RollbackState.
-func (mr *MockStateLedgerMockRecorder) RollbackState(height, lastStateRoot any) *StateLedgerRollbackStateCall {
+func (mr *MockStateLedgerMockRecorder) RollbackState(height, lastStateRoot any) *MockStateLedgerRollbackStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RollbackState", reflect.TypeOf((*MockStateLedger)(nil).RollbackState), height, lastStateRoot)
-	return &StateLedgerRollbackStateCall{Call: call}
+	return &MockStateLedgerRollbackStateCall{Call: call}
 }
 
-// StateLedgerRollbackStateCall wrap *gomock.Call
-type StateLedgerRollbackStateCall struct {
+// MockStateLedgerRollbackStateCall wrap *gomock.Call
+type MockStateLedgerRollbackStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerRollbackStateCall) Return(arg0 error) *StateLedgerRollbackStateCall {
+func (c *MockStateLedgerRollbackStateCall) Return(arg0 error) *MockStateLedgerRollbackStateCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerRollbackStateCall) Do(f func(uint64, *types.Hash) error) *StateLedgerRollbackStateCall {
+func (c *MockStateLedgerRollbackStateCall) Do(f func(uint64, *types.Hash) error) *MockStateLedgerRollbackStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerRollbackStateCall) DoAndReturn(f func(uint64, *types.Hash) error) *StateLedgerRollbackStateCall {
+func (c *MockStateLedgerRollbackStateCall) DoAndReturn(f func(uint64, *types.Hash) error) *MockStateLedgerRollbackStateCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SelfDestruct mocks base method.
+func (m *MockStateLedger) SelfDestruct(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelfDestruct", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SelfDestruct indicates an expected call of SelfDestruct.
+func (mr *MockStateLedgerMockRecorder) SelfDestruct(arg0 any) *MockStateLedgerSelfDestructCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockStateLedger)(nil).SelfDestruct), arg0)
+	return &MockStateLedgerSelfDestructCall{Call: call}
+}
+
+// MockStateLedgerSelfDestructCall wrap *gomock.Call
+type MockStateLedgerSelfDestructCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateLedgerSelfDestructCall) Return(arg0 bool) *MockStateLedgerSelfDestructCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateLedgerSelfDestructCall) Do(f func(*types.Address) bool) *MockStateLedgerSelfDestructCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateLedgerSelfDestructCall) DoAndReturn(f func(*types.Address) bool) *MockStateLedgerSelfDestructCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Selfdestruct6780 mocks base method.
+func (m *MockStateLedger) Selfdestruct6780(arg0 *types.Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Selfdestruct6780", arg0)
+}
+
+// Selfdestruct6780 indicates an expected call of Selfdestruct6780.
+func (mr *MockStateLedgerMockRecorder) Selfdestruct6780(arg0 any) *MockStateLedgerSelfdestruct6780Call {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Selfdestruct6780", reflect.TypeOf((*MockStateLedger)(nil).Selfdestruct6780), arg0)
+	return &MockStateLedgerSelfdestruct6780Call{Call: call}
+}
+
+// MockStateLedgerSelfdestruct6780Call wrap *gomock.Call
+type MockStateLedgerSelfdestruct6780Call struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateLedgerSelfdestruct6780Call) Return() *MockStateLedgerSelfdestruct6780Call {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateLedgerSelfdestruct6780Call) Do(f func(*types.Address)) *MockStateLedgerSelfdestruct6780Call {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateLedgerSelfdestruct6780Call) DoAndReturn(f func(*types.Address)) *MockStateLedgerSelfdestruct6780Call {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2114,31 +2198,31 @@ func (m *MockStateLedger) SetBalance(arg0 *types.Address, arg1 *big.Int) {
 }
 
 // SetBalance indicates an expected call of SetBalance.
-func (mr *MockStateLedgerMockRecorder) SetBalance(arg0, arg1 any) *StateLedgerSetBalanceCall {
+func (mr *MockStateLedgerMockRecorder) SetBalance(arg0, arg1 any) *MockStateLedgerSetBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBalance", reflect.TypeOf((*MockStateLedger)(nil).SetBalance), arg0, arg1)
-	return &StateLedgerSetBalanceCall{Call: call}
+	return &MockStateLedgerSetBalanceCall{Call: call}
 }
 
-// StateLedgerSetBalanceCall wrap *gomock.Call
-type StateLedgerSetBalanceCall struct {
+// MockStateLedgerSetBalanceCall wrap *gomock.Call
+type MockStateLedgerSetBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetBalanceCall) Return() *StateLedgerSetBalanceCall {
+func (c *MockStateLedgerSetBalanceCall) Return() *MockStateLedgerSetBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetBalanceCall) Do(f func(*types.Address, *big.Int)) *StateLedgerSetBalanceCall {
+func (c *MockStateLedgerSetBalanceCall) Do(f func(*types.Address, *big.Int)) *MockStateLedgerSetBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateLedgerSetBalanceCall {
+func (c *MockStateLedgerSetBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *MockStateLedgerSetBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2150,31 +2234,31 @@ func (m *MockStateLedger) SetCode(arg0 *types.Address, arg1 []byte) {
 }
 
 // SetCode indicates an expected call of SetCode.
-func (mr *MockStateLedgerMockRecorder) SetCode(arg0, arg1 any) *StateLedgerSetCodeCall {
+func (mr *MockStateLedgerMockRecorder) SetCode(arg0, arg1 any) *MockStateLedgerSetCodeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockStateLedger)(nil).SetCode), arg0, arg1)
-	return &StateLedgerSetCodeCall{Call: call}
+	return &MockStateLedgerSetCodeCall{Call: call}
 }
 
-// StateLedgerSetCodeCall wrap *gomock.Call
-type StateLedgerSetCodeCall struct {
+// MockStateLedgerSetCodeCall wrap *gomock.Call
+type MockStateLedgerSetCodeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetCodeCall) Return() *StateLedgerSetCodeCall {
+func (c *MockStateLedgerSetCodeCall) Return() *MockStateLedgerSetCodeCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetCodeCall) Do(f func(*types.Address, []byte)) *StateLedgerSetCodeCall {
+func (c *MockStateLedgerSetCodeCall) Do(f func(*types.Address, []byte)) *MockStateLedgerSetCodeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetCodeCall) DoAndReturn(f func(*types.Address, []byte)) *StateLedgerSetCodeCall {
+func (c *MockStateLedgerSetCodeCall) DoAndReturn(f func(*types.Address, []byte)) *MockStateLedgerSetCodeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2186,31 +2270,31 @@ func (m *MockStateLedger) SetNonce(arg0 *types.Address, arg1 uint64) {
 }
 
 // SetNonce indicates an expected call of SetNonce.
-func (mr *MockStateLedgerMockRecorder) SetNonce(arg0, arg1 any) *StateLedgerSetNonceCall {
+func (mr *MockStateLedgerMockRecorder) SetNonce(arg0, arg1 any) *MockStateLedgerSetNonceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockStateLedger)(nil).SetNonce), arg0, arg1)
-	return &StateLedgerSetNonceCall{Call: call}
+	return &MockStateLedgerSetNonceCall{Call: call}
 }
 
-// StateLedgerSetNonceCall wrap *gomock.Call
-type StateLedgerSetNonceCall struct {
+// MockStateLedgerSetNonceCall wrap *gomock.Call
+type MockStateLedgerSetNonceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetNonceCall) Return() *StateLedgerSetNonceCall {
+func (c *MockStateLedgerSetNonceCall) Return() *MockStateLedgerSetNonceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetNonceCall) Do(f func(*types.Address, uint64)) *StateLedgerSetNonceCall {
+func (c *MockStateLedgerSetNonceCall) Do(f func(*types.Address, uint64)) *MockStateLedgerSetNonceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetNonceCall) DoAndReturn(f func(*types.Address, uint64)) *StateLedgerSetNonceCall {
+func (c *MockStateLedgerSetNonceCall) DoAndReturn(f func(*types.Address, uint64)) *MockStateLedgerSetNonceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2222,31 +2306,31 @@ func (m *MockStateLedger) SetState(arg0 *types.Address, arg1, arg2 []byte) {
 }
 
 // SetState indicates an expected call of SetState.
-func (mr *MockStateLedgerMockRecorder) SetState(arg0, arg1, arg2 any) *StateLedgerSetStateCall {
+func (mr *MockStateLedgerMockRecorder) SetState(arg0, arg1, arg2 any) *MockStateLedgerSetStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockStateLedger)(nil).SetState), arg0, arg1, arg2)
-	return &StateLedgerSetStateCall{Call: call}
+	return &MockStateLedgerSetStateCall{Call: call}
 }
 
-// StateLedgerSetStateCall wrap *gomock.Call
-type StateLedgerSetStateCall struct {
+// MockStateLedgerSetStateCall wrap *gomock.Call
+type MockStateLedgerSetStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetStateCall) Return() *StateLedgerSetStateCall {
+func (c *MockStateLedgerSetStateCall) Return() *MockStateLedgerSetStateCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetStateCall) Do(f func(*types.Address, []byte, []byte)) *StateLedgerSetStateCall {
+func (c *MockStateLedgerSetStateCall) Do(f func(*types.Address, []byte, []byte)) *MockStateLedgerSetStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetStateCall) DoAndReturn(f func(*types.Address, []byte, []byte)) *StateLedgerSetStateCall {
+func (c *MockStateLedgerSetStateCall) DoAndReturn(f func(*types.Address, []byte, []byte)) *MockStateLedgerSetStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2258,31 +2342,31 @@ func (m *MockStateLedger) SetTxContext(thash *types.Hash, txIndex int) {
 }
 
 // SetTxContext indicates an expected call of SetTxContext.
-func (mr *MockStateLedgerMockRecorder) SetTxContext(thash, txIndex any) *StateLedgerSetTxContextCall {
+func (mr *MockStateLedgerMockRecorder) SetTxContext(thash, txIndex any) *MockStateLedgerSetTxContextCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTxContext", reflect.TypeOf((*MockStateLedger)(nil).SetTxContext), thash, txIndex)
-	return &StateLedgerSetTxContextCall{Call: call}
+	return &MockStateLedgerSetTxContextCall{Call: call}
 }
 
-// StateLedgerSetTxContextCall wrap *gomock.Call
-type StateLedgerSetTxContextCall struct {
+// MockStateLedgerSetTxContextCall wrap *gomock.Call
+type MockStateLedgerSetTxContextCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSetTxContextCall) Return() *StateLedgerSetTxContextCall {
+func (c *MockStateLedgerSetTxContextCall) Return() *MockStateLedgerSetTxContextCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSetTxContextCall) Do(f func(*types.Hash, int)) *StateLedgerSetTxContextCall {
+func (c *MockStateLedgerSetTxContextCall) Do(f func(*types.Hash, int)) *MockStateLedgerSetTxContextCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSetTxContextCall) DoAndReturn(f func(*types.Hash, int)) *StateLedgerSetTxContextCall {
+func (c *MockStateLedgerSetTxContextCall) DoAndReturn(f func(*types.Hash, int)) *MockStateLedgerSetTxContextCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2297,31 +2381,31 @@ func (m *MockStateLedger) SlotInAccessList(arg0 types.Address, arg1 types.Hash) 
 }
 
 // SlotInAccessList indicates an expected call of SlotInAccessList.
-func (mr *MockStateLedgerMockRecorder) SlotInAccessList(arg0, arg1 any) *StateLedgerSlotInAccessListCall {
+func (mr *MockStateLedgerMockRecorder) SlotInAccessList(arg0, arg1 any) *MockStateLedgerSlotInAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SlotInAccessList", reflect.TypeOf((*MockStateLedger)(nil).SlotInAccessList), arg0, arg1)
-	return &StateLedgerSlotInAccessListCall{Call: call}
+	return &MockStateLedgerSlotInAccessListCall{Call: call}
 }
 
-// StateLedgerSlotInAccessListCall wrap *gomock.Call
-type StateLedgerSlotInAccessListCall struct {
+// MockStateLedgerSlotInAccessListCall wrap *gomock.Call
+type MockStateLedgerSlotInAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSlotInAccessListCall) Return(arg0, arg1 bool) *StateLedgerSlotInAccessListCall {
+func (c *MockStateLedgerSlotInAccessListCall) Return(arg0, arg1 bool) *MockStateLedgerSlotInAccessListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSlotInAccessListCall) Do(f func(types.Address, types.Hash) (bool, bool)) *StateLedgerSlotInAccessListCall {
+func (c *MockStateLedgerSlotInAccessListCall) Do(f func(types.Address, types.Hash) (bool, bool)) *MockStateLedgerSlotInAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSlotInAccessListCall) DoAndReturn(f func(types.Address, types.Hash) (bool, bool)) *StateLedgerSlotInAccessListCall {
+func (c *MockStateLedgerSlotInAccessListCall) DoAndReturn(f func(types.Address, types.Hash) (bool, bool)) *MockStateLedgerSlotInAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2335,31 +2419,31 @@ func (m *MockStateLedger) Snapshot() int {
 }
 
 // Snapshot indicates an expected call of Snapshot.
-func (mr *MockStateLedgerMockRecorder) Snapshot() *StateLedgerSnapshotCall {
+func (mr *MockStateLedgerMockRecorder) Snapshot() *MockStateLedgerSnapshotCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockStateLedger)(nil).Snapshot))
-	return &StateLedgerSnapshotCall{Call: call}
+	return &MockStateLedgerSnapshotCall{Call: call}
 }
 
-// StateLedgerSnapshotCall wrap *gomock.Call
-type StateLedgerSnapshotCall struct {
+// MockStateLedgerSnapshotCall wrap *gomock.Call
+type MockStateLedgerSnapshotCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSnapshotCall) Return(arg0 int) *StateLedgerSnapshotCall {
+func (c *MockStateLedgerSnapshotCall) Return(arg0 int) *MockStateLedgerSnapshotCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSnapshotCall) Do(f func() int) *StateLedgerSnapshotCall {
+func (c *MockStateLedgerSnapshotCall) Do(f func() int) *MockStateLedgerSnapshotCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSnapshotCall) DoAndReturn(f func() int) *StateLedgerSnapshotCall {
+func (c *MockStateLedgerSnapshotCall) DoAndReturn(f func() int) *MockStateLedgerSnapshotCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2371,31 +2455,31 @@ func (m *MockStateLedger) SubBalance(arg0 *types.Address, arg1 *big.Int) {
 }
 
 // SubBalance indicates an expected call of SubBalance.
-func (mr *MockStateLedgerMockRecorder) SubBalance(arg0, arg1 any) *StateLedgerSubBalanceCall {
+func (mr *MockStateLedgerMockRecorder) SubBalance(arg0, arg1 any) *MockStateLedgerSubBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubBalance", reflect.TypeOf((*MockStateLedger)(nil).SubBalance), arg0, arg1)
-	return &StateLedgerSubBalanceCall{Call: call}
+	return &MockStateLedgerSubBalanceCall{Call: call}
 }
 
-// StateLedgerSubBalanceCall wrap *gomock.Call
-type StateLedgerSubBalanceCall struct {
+// MockStateLedgerSubBalanceCall wrap *gomock.Call
+type MockStateLedgerSubBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSubBalanceCall) Return() *StateLedgerSubBalanceCall {
+func (c *MockStateLedgerSubBalanceCall) Return() *MockStateLedgerSubBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSubBalanceCall) Do(f func(*types.Address, *big.Int)) *StateLedgerSubBalanceCall {
+func (c *MockStateLedgerSubBalanceCall) Do(f func(*types.Address, *big.Int)) *MockStateLedgerSubBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSubBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateLedgerSubBalanceCall {
+func (c *MockStateLedgerSubBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *MockStateLedgerSubBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2407,69 +2491,31 @@ func (m *MockStateLedger) SubRefund(arg0 uint64) {
 }
 
 // SubRefund indicates an expected call of SubRefund.
-func (mr *MockStateLedgerMockRecorder) SubRefund(arg0 any) *StateLedgerSubRefundCall {
+func (mr *MockStateLedgerMockRecorder) SubRefund(arg0 any) *MockStateLedgerSubRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubRefund", reflect.TypeOf((*MockStateLedger)(nil).SubRefund), arg0)
-	return &StateLedgerSubRefundCall{Call: call}
+	return &MockStateLedgerSubRefundCall{Call: call}
 }
 
-// StateLedgerSubRefundCall wrap *gomock.Call
-type StateLedgerSubRefundCall struct {
+// MockStateLedgerSubRefundCall wrap *gomock.Call
+type MockStateLedgerSubRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerSubRefundCall) Return() *StateLedgerSubRefundCall {
+func (c *MockStateLedgerSubRefundCall) Return() *MockStateLedgerSubRefundCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerSubRefundCall) Do(f func(uint64)) *StateLedgerSubRefundCall {
+func (c *MockStateLedgerSubRefundCall) Do(f func(uint64)) *MockStateLedgerSubRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSubRefundCall) DoAndReturn(f func(uint64)) *StateLedgerSubRefundCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Suicide mocks base method.
-func (m *MockStateLedger) Suicide(arg0 *types.Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Suicide", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Suicide indicates an expected call of Suicide.
-func (mr *MockStateLedgerMockRecorder) Suicide(arg0 any) *StateLedgerSuicideCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicide", reflect.TypeOf((*MockStateLedger)(nil).Suicide), arg0)
-	return &StateLedgerSuicideCall{Call: call}
-}
-
-// StateLedgerSuicideCall wrap *gomock.Call
-type StateLedgerSuicideCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateLedgerSuicideCall) Return(arg0 bool) *StateLedgerSuicideCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateLedgerSuicideCall) Do(f func(*types.Address) bool) *StateLedgerSuicideCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateLedgerSuicideCall {
+func (c *MockStateLedgerSubRefundCall) DoAndReturn(f func(uint64)) *MockStateLedgerSubRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2484,31 +2530,31 @@ func (m *MockStateLedger) VerifyTrie(blockHeader *types.BlockHeader) (bool, erro
 }
 
 // VerifyTrie indicates an expected call of VerifyTrie.
-func (mr *MockStateLedgerMockRecorder) VerifyTrie(blockHeader any) *StateLedgerVerifyTrieCall {
+func (mr *MockStateLedgerMockRecorder) VerifyTrie(blockHeader any) *MockStateLedgerVerifyTrieCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VerifyTrie", reflect.TypeOf((*MockStateLedger)(nil).VerifyTrie), blockHeader)
-	return &StateLedgerVerifyTrieCall{Call: call}
+	return &MockStateLedgerVerifyTrieCall{Call: call}
 }
 
-// StateLedgerVerifyTrieCall wrap *gomock.Call
-type StateLedgerVerifyTrieCall struct {
+// MockStateLedgerVerifyTrieCall wrap *gomock.Call
+type MockStateLedgerVerifyTrieCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerVerifyTrieCall) Return(arg0 bool, arg1 error) *StateLedgerVerifyTrieCall {
+func (c *MockStateLedgerVerifyTrieCall) Return(arg0 bool, arg1 error) *MockStateLedgerVerifyTrieCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerVerifyTrieCall) Do(f func(*types.BlockHeader) (bool, error)) *StateLedgerVerifyTrieCall {
+func (c *MockStateLedgerVerifyTrieCall) Do(f func(*types.BlockHeader) (bool, error)) *MockStateLedgerVerifyTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerVerifyTrieCall) DoAndReturn(f func(*types.BlockHeader) (bool, error)) *StateLedgerVerifyTrieCall {
+func (c *MockStateLedgerVerifyTrieCall) DoAndReturn(f func(*types.BlockHeader) (bool, error)) *MockStateLedgerVerifyTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2522,31 +2568,31 @@ func (m *MockStateLedger) Version() uint64 {
 }
 
 // Version indicates an expected call of Version.
-func (mr *MockStateLedgerMockRecorder) Version() *StateLedgerVersionCall {
+func (mr *MockStateLedgerMockRecorder) Version() *MockStateLedgerVersionCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockStateLedger)(nil).Version))
-	return &StateLedgerVersionCall{Call: call}
+	return &MockStateLedgerVersionCall{Call: call}
 }
 
-// StateLedgerVersionCall wrap *gomock.Call
-type StateLedgerVersionCall struct {
+// MockStateLedgerVersionCall wrap *gomock.Call
+type MockStateLedgerVersionCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateLedgerVersionCall) Return(arg0 uint64) *StateLedgerVersionCall {
+func (c *MockStateLedgerVersionCall) Return(arg0 uint64) *MockStateLedgerVersionCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateLedgerVersionCall) Do(f func() uint64) *StateLedgerVersionCall {
+func (c *MockStateLedgerVersionCall) Do(f func() uint64) *MockStateLedgerVersionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateLedgerVersionCall) DoAndReturn(f func() uint64) *StateLedgerVersionCall {
+func (c *MockStateLedgerVersionCall) DoAndReturn(f func() uint64) *MockStateLedgerVersionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2574,6 +2620,11 @@ func (m *MockStateAccessor) EXPECT() *MockStateAccessorMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockStateAccessor) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // AddAddressToAccessList mocks base method.
 func (m *MockStateAccessor) AddAddressToAccessList(arg0 types.Address) {
 	m.ctrl.T.Helper()
@@ -2581,31 +2632,31 @@ func (m *MockStateAccessor) AddAddressToAccessList(arg0 types.Address) {
 }
 
 // AddAddressToAccessList indicates an expected call of AddAddressToAccessList.
-func (mr *MockStateAccessorMockRecorder) AddAddressToAccessList(arg0 any) *StateAccessorAddAddressToAccessListCall {
+func (mr *MockStateAccessorMockRecorder) AddAddressToAccessList(arg0 any) *MockStateAccessorAddAddressToAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAddressToAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddAddressToAccessList), arg0)
-	return &StateAccessorAddAddressToAccessListCall{Call: call}
+	return &MockStateAccessorAddAddressToAccessListCall{Call: call}
 }
 
-// StateAccessorAddAddressToAccessListCall wrap *gomock.Call
-type StateAccessorAddAddressToAccessListCall struct {
+// MockStateAccessorAddAddressToAccessListCall wrap *gomock.Call
+type MockStateAccessorAddAddressToAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorAddAddressToAccessListCall) Return() *StateAccessorAddAddressToAccessListCall {
+func (c *MockStateAccessorAddAddressToAccessListCall) Return() *MockStateAccessorAddAddressToAccessListCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorAddAddressToAccessListCall) Do(f func(types.Address)) *StateAccessorAddAddressToAccessListCall {
+func (c *MockStateAccessorAddAddressToAccessListCall) Do(f func(types.Address)) *MockStateAccessorAddAddressToAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorAddAddressToAccessListCall) DoAndReturn(f func(types.Address)) *StateAccessorAddAddressToAccessListCall {
+func (c *MockStateAccessorAddAddressToAccessListCall) DoAndReturn(f func(types.Address)) *MockStateAccessorAddAddressToAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2617,31 +2668,31 @@ func (m *MockStateAccessor) AddBalance(arg0 *types.Address, arg1 *big.Int) {
 }
 
 // AddBalance indicates an expected call of AddBalance.
-func (mr *MockStateAccessorMockRecorder) AddBalance(arg0, arg1 any) *StateAccessorAddBalanceCall {
+func (mr *MockStateAccessorMockRecorder) AddBalance(arg0, arg1 any) *MockStateAccessorAddBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBalance", reflect.TypeOf((*MockStateAccessor)(nil).AddBalance), arg0, arg1)
-	return &StateAccessorAddBalanceCall{Call: call}
+	return &MockStateAccessorAddBalanceCall{Call: call}
 }
 
-// StateAccessorAddBalanceCall wrap *gomock.Call
-type StateAccessorAddBalanceCall struct {
+// MockStateAccessorAddBalanceCall wrap *gomock.Call
+type MockStateAccessorAddBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorAddBalanceCall) Return() *StateAccessorAddBalanceCall {
+func (c *MockStateAccessorAddBalanceCall) Return() *MockStateAccessorAddBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorAddBalanceCall) Do(f func(*types.Address, *big.Int)) *StateAccessorAddBalanceCall {
+func (c *MockStateAccessorAddBalanceCall) Do(f func(*types.Address, *big.Int)) *MockStateAccessorAddBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorAddBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateAccessorAddBalanceCall {
+func (c *MockStateAccessorAddBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *MockStateAccessorAddBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2653,31 +2704,31 @@ func (m *MockStateAccessor) AddPreimage(arg0 types.Hash, arg1 []byte) {
 }
 
 // AddPreimage indicates an expected call of AddPreimage.
-func (mr *MockStateAccessorMockRecorder) AddPreimage(arg0, arg1 any) *StateAccessorAddPreimageCall {
+func (mr *MockStateAccessorMockRecorder) AddPreimage(arg0, arg1 any) *MockStateAccessorAddPreimageCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddPreimage", reflect.TypeOf((*MockStateAccessor)(nil).AddPreimage), arg0, arg1)
-	return &StateAccessorAddPreimageCall{Call: call}
+	return &MockStateAccessorAddPreimageCall{Call: call}
 }
 
-// StateAccessorAddPreimageCall wrap *gomock.Call
-type StateAccessorAddPreimageCall struct {
+// MockStateAccessorAddPreimageCall wrap *gomock.Call
+type MockStateAccessorAddPreimageCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorAddPreimageCall) Return() *StateAccessorAddPreimageCall {
+func (c *MockStateAccessorAddPreimageCall) Return() *MockStateAccessorAddPreimageCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorAddPreimageCall) Do(f func(types.Hash, []byte)) *StateAccessorAddPreimageCall {
+func (c *MockStateAccessorAddPreimageCall) Do(f func(types.Hash, []byte)) *MockStateAccessorAddPreimageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorAddPreimageCall) DoAndReturn(f func(types.Hash, []byte)) *StateAccessorAddPreimageCall {
+func (c *MockStateAccessorAddPreimageCall) DoAndReturn(f func(types.Hash, []byte)) *MockStateAccessorAddPreimageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2689,31 +2740,31 @@ func (m *MockStateAccessor) AddRefund(arg0 uint64) {
 }
 
 // AddRefund indicates an expected call of AddRefund.
-func (mr *MockStateAccessorMockRecorder) AddRefund(arg0 any) *StateAccessorAddRefundCall {
+func (mr *MockStateAccessorMockRecorder) AddRefund(arg0 any) *MockStateAccessorAddRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRefund", reflect.TypeOf((*MockStateAccessor)(nil).AddRefund), arg0)
-	return &StateAccessorAddRefundCall{Call: call}
+	return &MockStateAccessorAddRefundCall{Call: call}
 }
 
-// StateAccessorAddRefundCall wrap *gomock.Call
-type StateAccessorAddRefundCall struct {
+// MockStateAccessorAddRefundCall wrap *gomock.Call
+type MockStateAccessorAddRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorAddRefundCall) Return() *StateAccessorAddRefundCall {
+func (c *MockStateAccessorAddRefundCall) Return() *MockStateAccessorAddRefundCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorAddRefundCall) Do(f func(uint64)) *StateAccessorAddRefundCall {
+func (c *MockStateAccessorAddRefundCall) Do(f func(uint64)) *MockStateAccessorAddRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorAddRefundCall) DoAndReturn(f func(uint64)) *StateAccessorAddRefundCall {
+func (c *MockStateAccessorAddRefundCall) DoAndReturn(f func(uint64)) *MockStateAccessorAddRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2725,31 +2776,31 @@ func (m *MockStateAccessor) AddSlotToAccessList(arg0 types.Address, arg1 types.H
 }
 
 // AddSlotToAccessList indicates an expected call of AddSlotToAccessList.
-func (mr *MockStateAccessorMockRecorder) AddSlotToAccessList(arg0, arg1 any) *StateAccessorAddSlotToAccessListCall {
+func (mr *MockStateAccessorMockRecorder) AddSlotToAccessList(arg0, arg1 any) *MockStateAccessorAddSlotToAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSlotToAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddSlotToAccessList), arg0, arg1)
-	return &StateAccessorAddSlotToAccessListCall{Call: call}
+	return &MockStateAccessorAddSlotToAccessListCall{Call: call}
 }
 
-// StateAccessorAddSlotToAccessListCall wrap *gomock.Call
-type StateAccessorAddSlotToAccessListCall struct {
+// MockStateAccessorAddSlotToAccessListCall wrap *gomock.Call
+type MockStateAccessorAddSlotToAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorAddSlotToAccessListCall) Return() *StateAccessorAddSlotToAccessListCall {
+func (c *MockStateAccessorAddSlotToAccessListCall) Return() *MockStateAccessorAddSlotToAccessListCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorAddSlotToAccessListCall) Do(f func(types.Address, types.Hash)) *StateAccessorAddSlotToAccessListCall {
+func (c *MockStateAccessorAddSlotToAccessListCall) Do(f func(types.Address, types.Hash)) *MockStateAccessorAddSlotToAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorAddSlotToAccessListCall) DoAndReturn(f func(types.Address, types.Hash)) *StateAccessorAddSlotToAccessListCall {
+func (c *MockStateAccessorAddSlotToAccessListCall) DoAndReturn(f func(types.Address, types.Hash)) *MockStateAccessorAddSlotToAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2763,31 +2814,31 @@ func (m *MockStateAccessor) AddressInAccessList(arg0 types.Address) bool {
 }
 
 // AddressInAccessList indicates an expected call of AddressInAccessList.
-func (mr *MockStateAccessorMockRecorder) AddressInAccessList(arg0 any) *StateAccessorAddressInAccessListCall {
+func (mr *MockStateAccessorMockRecorder) AddressInAccessList(arg0 any) *MockStateAccessorAddressInAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressInAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddressInAccessList), arg0)
-	return &StateAccessorAddressInAccessListCall{Call: call}
+	return &MockStateAccessorAddressInAccessListCall{Call: call}
 }
 
-// StateAccessorAddressInAccessListCall wrap *gomock.Call
-type StateAccessorAddressInAccessListCall struct {
+// MockStateAccessorAddressInAccessListCall wrap *gomock.Call
+type MockStateAccessorAddressInAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorAddressInAccessListCall) Return(arg0 bool) *StateAccessorAddressInAccessListCall {
+func (c *MockStateAccessorAddressInAccessListCall) Return(arg0 bool) *MockStateAccessorAddressInAccessListCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorAddressInAccessListCall) Do(f func(types.Address) bool) *StateAccessorAddressInAccessListCall {
+func (c *MockStateAccessorAddressInAccessListCall) Do(f func(types.Address) bool) *MockStateAccessorAddressInAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorAddressInAccessListCall) DoAndReturn(f func(types.Address) bool) *StateAccessorAddressInAccessListCall {
+func (c *MockStateAccessorAddressInAccessListCall) DoAndReturn(f func(types.Address) bool) *MockStateAccessorAddressInAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2799,31 +2850,31 @@ func (m *MockStateAccessor) Clear() {
 }
 
 // Clear indicates an expected call of Clear.
-func (mr *MockStateAccessorMockRecorder) Clear() *StateAccessorClearCall {
+func (mr *MockStateAccessorMockRecorder) Clear() *MockStateAccessorClearCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clear", reflect.TypeOf((*MockStateAccessor)(nil).Clear))
-	return &StateAccessorClearCall{Call: call}
+	return &MockStateAccessorClearCall{Call: call}
 }
 
-// StateAccessorClearCall wrap *gomock.Call
-type StateAccessorClearCall struct {
+// MockStateAccessorClearCall wrap *gomock.Call
+type MockStateAccessorClearCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorClearCall) Return() *StateAccessorClearCall {
+func (c *MockStateAccessorClearCall) Return() *MockStateAccessorClearCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorClearCall) Do(f func()) *StateAccessorClearCall {
+func (c *MockStateAccessorClearCall) Do(f func()) *MockStateAccessorClearCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorClearCall) DoAndReturn(f func()) *StateAccessorClearCall {
+func (c *MockStateAccessorClearCall) DoAndReturn(f func()) *MockStateAccessorClearCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2838,31 +2889,31 @@ func (m *MockStateAccessor) Commit() (*types.Hash, error) {
 }
 
 // Commit indicates an expected call of Commit.
-func (mr *MockStateAccessorMockRecorder) Commit() *StateAccessorCommitCall {
+func (mr *MockStateAccessorMockRecorder) Commit() *MockStateAccessorCommitCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockStateAccessor)(nil).Commit))
-	return &StateAccessorCommitCall{Call: call}
+	return &MockStateAccessorCommitCall{Call: call}
 }
 
-// StateAccessorCommitCall wrap *gomock.Call
-type StateAccessorCommitCall struct {
+// MockStateAccessorCommitCall wrap *gomock.Call
+type MockStateAccessorCommitCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorCommitCall) Return(arg0 *types.Hash, arg1 error) *StateAccessorCommitCall {
+func (c *MockStateAccessorCommitCall) Return(arg0 *types.Hash, arg1 error) *MockStateAccessorCommitCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorCommitCall) Do(f func() (*types.Hash, error)) *StateAccessorCommitCall {
+func (c *MockStateAccessorCommitCall) Do(f func() (*types.Hash, error)) *MockStateAccessorCommitCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorCommitCall) DoAndReturn(f func() (*types.Hash, error)) *StateAccessorCommitCall {
+func (c *MockStateAccessorCommitCall) DoAndReturn(f func() (*types.Hash, error)) *MockStateAccessorCommitCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2876,31 +2927,31 @@ func (m *MockStateAccessor) Empty(arg0 *types.Address) bool {
 }
 
 // Empty indicates an expected call of Empty.
-func (mr *MockStateAccessorMockRecorder) Empty(arg0 any) *StateAccessorEmptyCall {
+func (mr *MockStateAccessorMockRecorder) Empty(arg0 any) *MockStateAccessorEmptyCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockStateAccessor)(nil).Empty), arg0)
-	return &StateAccessorEmptyCall{Call: call}
+	return &MockStateAccessorEmptyCall{Call: call}
 }
 
-// StateAccessorEmptyCall wrap *gomock.Call
-type StateAccessorEmptyCall struct {
+// MockStateAccessorEmptyCall wrap *gomock.Call
+type MockStateAccessorEmptyCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorEmptyCall) Return(arg0 bool) *StateAccessorEmptyCall {
+func (c *MockStateAccessorEmptyCall) Return(arg0 bool) *MockStateAccessorEmptyCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorEmptyCall) Do(f func(*types.Address) bool) *StateAccessorEmptyCall {
+func (c *MockStateAccessorEmptyCall) Do(f func(*types.Address) bool) *MockStateAccessorEmptyCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorEmptyCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorEmptyCall {
+func (c *MockStateAccessorEmptyCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorEmptyCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2914,31 +2965,31 @@ func (m *MockStateAccessor) Exist(arg0 *types.Address) bool {
 }
 
 // Exist indicates an expected call of Exist.
-func (mr *MockStateAccessorMockRecorder) Exist(arg0 any) *StateAccessorExistCall {
+func (mr *MockStateAccessorMockRecorder) Exist(arg0 any) *MockStateAccessorExistCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exist", reflect.TypeOf((*MockStateAccessor)(nil).Exist), arg0)
-	return &StateAccessorExistCall{Call: call}
+	return &MockStateAccessorExistCall{Call: call}
 }
 
-// StateAccessorExistCall wrap *gomock.Call
-type StateAccessorExistCall struct {
+// MockStateAccessorExistCall wrap *gomock.Call
+type MockStateAccessorExistCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorExistCall) Return(arg0 bool) *StateAccessorExistCall {
+func (c *MockStateAccessorExistCall) Return(arg0 bool) *MockStateAccessorExistCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorExistCall) Do(f func(*types.Address) bool) *StateAccessorExistCall {
+func (c *MockStateAccessorExistCall) Do(f func(*types.Address) bool) *MockStateAccessorExistCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorExistCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorExistCall {
+func (c *MockStateAccessorExistCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorExistCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2952,31 +3003,31 @@ func (m *MockStateAccessor) GetAccount(arg0 *types.Address) ledger.IAccount {
 }
 
 // GetAccount indicates an expected call of GetAccount.
-func (mr *MockStateAccessorMockRecorder) GetAccount(arg0 any) *StateAccessorGetAccountCall {
+func (mr *MockStateAccessorMockRecorder) GetAccount(arg0 any) *MockStateAccessorGetAccountCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccount", reflect.TypeOf((*MockStateAccessor)(nil).GetAccount), arg0)
-	return &StateAccessorGetAccountCall{Call: call}
+	return &MockStateAccessorGetAccountCall{Call: call}
 }
 
-// StateAccessorGetAccountCall wrap *gomock.Call
-type StateAccessorGetAccountCall struct {
+// MockStateAccessorGetAccountCall wrap *gomock.Call
+type MockStateAccessorGetAccountCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetAccountCall) Return(arg0 ledger.IAccount) *StateAccessorGetAccountCall {
+func (c *MockStateAccessorGetAccountCall) Return(arg0 ledger.IAccount) *MockStateAccessorGetAccountCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetAccountCall) Do(f func(*types.Address) ledger.IAccount) *StateAccessorGetAccountCall {
+func (c *MockStateAccessorGetAccountCall) Do(f func(*types.Address) ledger.IAccount) *MockStateAccessorGetAccountCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *StateAccessorGetAccountCall {
+func (c *MockStateAccessorGetAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *MockStateAccessorGetAccountCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2990,31 +3041,31 @@ func (m *MockStateAccessor) GetBalance(arg0 *types.Address) *big.Int {
 }
 
 // GetBalance indicates an expected call of GetBalance.
-func (mr *MockStateAccessorMockRecorder) GetBalance(arg0 any) *StateAccessorGetBalanceCall {
+func (mr *MockStateAccessorMockRecorder) GetBalance(arg0 any) *MockStateAccessorGetBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockStateAccessor)(nil).GetBalance), arg0)
-	return &StateAccessorGetBalanceCall{Call: call}
+	return &MockStateAccessorGetBalanceCall{Call: call}
 }
 
-// StateAccessorGetBalanceCall wrap *gomock.Call
-type StateAccessorGetBalanceCall struct {
+// MockStateAccessorGetBalanceCall wrap *gomock.Call
+type MockStateAccessorGetBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetBalanceCall) Return(arg0 *big.Int) *StateAccessorGetBalanceCall {
+func (c *MockStateAccessorGetBalanceCall) Return(arg0 *big.Int) *MockStateAccessorGetBalanceCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetBalanceCall) Do(f func(*types.Address) *big.Int) *StateAccessorGetBalanceCall {
+func (c *MockStateAccessorGetBalanceCall) Do(f func(*types.Address) *big.Int) *MockStateAccessorGetBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetBalanceCall) DoAndReturn(f func(*types.Address) *big.Int) *StateAccessorGetBalanceCall {
+func (c *MockStateAccessorGetBalanceCall) DoAndReturn(f func(*types.Address) *big.Int) *MockStateAccessorGetBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3028,31 +3079,31 @@ func (m *MockStateAccessor) GetCode(arg0 *types.Address) []byte {
 }
 
 // GetCode indicates an expected call of GetCode.
-func (mr *MockStateAccessorMockRecorder) GetCode(arg0 any) *StateAccessorGetCodeCall {
+func (mr *MockStateAccessorMockRecorder) GetCode(arg0 any) *MockStateAccessorGetCodeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCode", reflect.TypeOf((*MockStateAccessor)(nil).GetCode), arg0)
-	return &StateAccessorGetCodeCall{Call: call}
+	return &MockStateAccessorGetCodeCall{Call: call}
 }
 
-// StateAccessorGetCodeCall wrap *gomock.Call
-type StateAccessorGetCodeCall struct {
+// MockStateAccessorGetCodeCall wrap *gomock.Call
+type MockStateAccessorGetCodeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetCodeCall) Return(arg0 []byte) *StateAccessorGetCodeCall {
+func (c *MockStateAccessorGetCodeCall) Return(arg0 []byte) *MockStateAccessorGetCodeCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetCodeCall) Do(f func(*types.Address) []byte) *StateAccessorGetCodeCall {
+func (c *MockStateAccessorGetCodeCall) Do(f func(*types.Address) []byte) *MockStateAccessorGetCodeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetCodeCall) DoAndReturn(f func(*types.Address) []byte) *StateAccessorGetCodeCall {
+func (c *MockStateAccessorGetCodeCall) DoAndReturn(f func(*types.Address) []byte) *MockStateAccessorGetCodeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3066,31 +3117,31 @@ func (m *MockStateAccessor) GetCodeHash(arg0 *types.Address) *types.Hash {
 }
 
 // GetCodeHash indicates an expected call of GetCodeHash.
-func (mr *MockStateAccessorMockRecorder) GetCodeHash(arg0 any) *StateAccessorGetCodeHashCall {
+func (mr *MockStateAccessorMockRecorder) GetCodeHash(arg0 any) *MockStateAccessorGetCodeHashCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeHash", reflect.TypeOf((*MockStateAccessor)(nil).GetCodeHash), arg0)
-	return &StateAccessorGetCodeHashCall{Call: call}
+	return &MockStateAccessorGetCodeHashCall{Call: call}
 }
 
-// StateAccessorGetCodeHashCall wrap *gomock.Call
-type StateAccessorGetCodeHashCall struct {
+// MockStateAccessorGetCodeHashCall wrap *gomock.Call
+type MockStateAccessorGetCodeHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetCodeHashCall) Return(arg0 *types.Hash) *StateAccessorGetCodeHashCall {
+func (c *MockStateAccessorGetCodeHashCall) Return(arg0 *types.Hash) *MockStateAccessorGetCodeHashCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetCodeHashCall) Do(f func(*types.Address) *types.Hash) *StateAccessorGetCodeHashCall {
+func (c *MockStateAccessorGetCodeHashCall) Do(f func(*types.Address) *types.Hash) *MockStateAccessorGetCodeHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetCodeHashCall) DoAndReturn(f func(*types.Address) *types.Hash) *StateAccessorGetCodeHashCall {
+func (c *MockStateAccessorGetCodeHashCall) DoAndReturn(f func(*types.Address) *types.Hash) *MockStateAccessorGetCodeHashCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3104,31 +3155,31 @@ func (m *MockStateAccessor) GetCodeSize(arg0 *types.Address) int {
 }
 
 // GetCodeSize indicates an expected call of GetCodeSize.
-func (mr *MockStateAccessorMockRecorder) GetCodeSize(arg0 any) *StateAccessorGetCodeSizeCall {
+func (mr *MockStateAccessorMockRecorder) GetCodeSize(arg0 any) *MockStateAccessorGetCodeSizeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeSize", reflect.TypeOf((*MockStateAccessor)(nil).GetCodeSize), arg0)
-	return &StateAccessorGetCodeSizeCall{Call: call}
+	return &MockStateAccessorGetCodeSizeCall{Call: call}
 }
 
-// StateAccessorGetCodeSizeCall wrap *gomock.Call
-type StateAccessorGetCodeSizeCall struct {
+// MockStateAccessorGetCodeSizeCall wrap *gomock.Call
+type MockStateAccessorGetCodeSizeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetCodeSizeCall) Return(arg0 int) *StateAccessorGetCodeSizeCall {
+func (c *MockStateAccessorGetCodeSizeCall) Return(arg0 int) *MockStateAccessorGetCodeSizeCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetCodeSizeCall) Do(f func(*types.Address) int) *StateAccessorGetCodeSizeCall {
+func (c *MockStateAccessorGetCodeSizeCall) Do(f func(*types.Address) int) *MockStateAccessorGetCodeSizeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetCodeSizeCall) DoAndReturn(f func(*types.Address) int) *StateAccessorGetCodeSizeCall {
+func (c *MockStateAccessorGetCodeSizeCall) DoAndReturn(f func(*types.Address) int) *MockStateAccessorGetCodeSizeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3142,31 +3193,31 @@ func (m *MockStateAccessor) GetCommittedState(arg0 *types.Address, arg1 []byte) 
 }
 
 // GetCommittedState indicates an expected call of GetCommittedState.
-func (mr *MockStateAccessorMockRecorder) GetCommittedState(arg0, arg1 any) *StateAccessorGetCommittedStateCall {
+func (mr *MockStateAccessorMockRecorder) GetCommittedState(arg0, arg1 any) *MockStateAccessorGetCommittedStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedState", reflect.TypeOf((*MockStateAccessor)(nil).GetCommittedState), arg0, arg1)
-	return &StateAccessorGetCommittedStateCall{Call: call}
+	return &MockStateAccessorGetCommittedStateCall{Call: call}
 }
 
-// StateAccessorGetCommittedStateCall wrap *gomock.Call
-type StateAccessorGetCommittedStateCall struct {
+// MockStateAccessorGetCommittedStateCall wrap *gomock.Call
+type MockStateAccessorGetCommittedStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetCommittedStateCall) Return(arg0 []byte) *StateAccessorGetCommittedStateCall {
+func (c *MockStateAccessorGetCommittedStateCall) Return(arg0 []byte) *MockStateAccessorGetCommittedStateCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetCommittedStateCall) Do(f func(*types.Address, []byte) []byte) *StateAccessorGetCommittedStateCall {
+func (c *MockStateAccessorGetCommittedStateCall) Do(f func(*types.Address, []byte) []byte) *MockStateAccessorGetCommittedStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetCommittedStateCall) DoAndReturn(f func(*types.Address, []byte) []byte) *StateAccessorGetCommittedStateCall {
+func (c *MockStateAccessorGetCommittedStateCall) DoAndReturn(f func(*types.Address, []byte) []byte) *MockStateAccessorGetCommittedStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3180,31 +3231,31 @@ func (m *MockStateAccessor) GetNonce(arg0 *types.Address) uint64 {
 }
 
 // GetNonce indicates an expected call of GetNonce.
-func (mr *MockStateAccessorMockRecorder) GetNonce(arg0 any) *StateAccessorGetNonceCall {
+func (mr *MockStateAccessorMockRecorder) GetNonce(arg0 any) *MockStateAccessorGetNonceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNonce", reflect.TypeOf((*MockStateAccessor)(nil).GetNonce), arg0)
-	return &StateAccessorGetNonceCall{Call: call}
+	return &MockStateAccessorGetNonceCall{Call: call}
 }
 
-// StateAccessorGetNonceCall wrap *gomock.Call
-type StateAccessorGetNonceCall struct {
+// MockStateAccessorGetNonceCall wrap *gomock.Call
+type MockStateAccessorGetNonceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetNonceCall) Return(arg0 uint64) *StateAccessorGetNonceCall {
+func (c *MockStateAccessorGetNonceCall) Return(arg0 uint64) *MockStateAccessorGetNonceCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetNonceCall) Do(f func(*types.Address) uint64) *StateAccessorGetNonceCall {
+func (c *MockStateAccessorGetNonceCall) Do(f func(*types.Address) uint64) *MockStateAccessorGetNonceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetNonceCall) DoAndReturn(f func(*types.Address) uint64) *StateAccessorGetNonceCall {
+func (c *MockStateAccessorGetNonceCall) DoAndReturn(f func(*types.Address) uint64) *MockStateAccessorGetNonceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3218,31 +3269,31 @@ func (m *MockStateAccessor) GetOrCreateAccount(arg0 *types.Address) ledger.IAcco
 }
 
 // GetOrCreateAccount indicates an expected call of GetOrCreateAccount.
-func (mr *MockStateAccessorMockRecorder) GetOrCreateAccount(arg0 any) *StateAccessorGetOrCreateAccountCall {
+func (mr *MockStateAccessorMockRecorder) GetOrCreateAccount(arg0 any) *MockStateAccessorGetOrCreateAccountCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrCreateAccount", reflect.TypeOf((*MockStateAccessor)(nil).GetOrCreateAccount), arg0)
-	return &StateAccessorGetOrCreateAccountCall{Call: call}
+	return &MockStateAccessorGetOrCreateAccountCall{Call: call}
 }
 
-// StateAccessorGetOrCreateAccountCall wrap *gomock.Call
-type StateAccessorGetOrCreateAccountCall struct {
+// MockStateAccessorGetOrCreateAccountCall wrap *gomock.Call
+type MockStateAccessorGetOrCreateAccountCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetOrCreateAccountCall) Return(arg0 ledger.IAccount) *StateAccessorGetOrCreateAccountCall {
+func (c *MockStateAccessorGetOrCreateAccountCall) Return(arg0 ledger.IAccount) *MockStateAccessorGetOrCreateAccountCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetOrCreateAccountCall) Do(f func(*types.Address) ledger.IAccount) *StateAccessorGetOrCreateAccountCall {
+func (c *MockStateAccessorGetOrCreateAccountCall) Do(f func(*types.Address) ledger.IAccount) *MockStateAccessorGetOrCreateAccountCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetOrCreateAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *StateAccessorGetOrCreateAccountCall {
+func (c *MockStateAccessorGetOrCreateAccountCall) DoAndReturn(f func(*types.Address) ledger.IAccount) *MockStateAccessorGetOrCreateAccountCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3256,31 +3307,31 @@ func (m *MockStateAccessor) GetRefund() uint64 {
 }
 
 // GetRefund indicates an expected call of GetRefund.
-func (mr *MockStateAccessorMockRecorder) GetRefund() *StateAccessorGetRefundCall {
+func (mr *MockStateAccessorMockRecorder) GetRefund() *MockStateAccessorGetRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRefund", reflect.TypeOf((*MockStateAccessor)(nil).GetRefund))
-	return &StateAccessorGetRefundCall{Call: call}
+	return &MockStateAccessorGetRefundCall{Call: call}
 }
 
-// StateAccessorGetRefundCall wrap *gomock.Call
-type StateAccessorGetRefundCall struct {
+// MockStateAccessorGetRefundCall wrap *gomock.Call
+type MockStateAccessorGetRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetRefundCall) Return(arg0 uint64) *StateAccessorGetRefundCall {
+func (c *MockStateAccessorGetRefundCall) Return(arg0 uint64) *MockStateAccessorGetRefundCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetRefundCall) Do(f func() uint64) *StateAccessorGetRefundCall {
+func (c *MockStateAccessorGetRefundCall) Do(f func() uint64) *MockStateAccessorGetRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetRefundCall) DoAndReturn(f func() uint64) *StateAccessorGetRefundCall {
+func (c *MockStateAccessorGetRefundCall) DoAndReturn(f func() uint64) *MockStateAccessorGetRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3295,69 +3346,69 @@ func (m *MockStateAccessor) GetState(arg0 *types.Address, arg1 []byte) (bool, []
 }
 
 // GetState indicates an expected call of GetState.
-func (mr *MockStateAccessorMockRecorder) GetState(arg0, arg1 any) *StateAccessorGetStateCall {
+func (mr *MockStateAccessorMockRecorder) GetState(arg0, arg1 any) *MockStateAccessorGetStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockStateAccessor)(nil).GetState), arg0, arg1)
-	return &StateAccessorGetStateCall{Call: call}
+	return &MockStateAccessorGetStateCall{Call: call}
 }
 
-// StateAccessorGetStateCall wrap *gomock.Call
-type StateAccessorGetStateCall struct {
+// MockStateAccessorGetStateCall wrap *gomock.Call
+type MockStateAccessorGetStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorGetStateCall) Return(arg0 bool, arg1 []byte) *StateAccessorGetStateCall {
+func (c *MockStateAccessorGetStateCall) Return(arg0 bool, arg1 []byte) *MockStateAccessorGetStateCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorGetStateCall) Do(f func(*types.Address, []byte) (bool, []byte)) *StateAccessorGetStateCall {
+func (c *MockStateAccessorGetStateCall) Do(f func(*types.Address, []byte) (bool, []byte)) *MockStateAccessorGetStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bool, []byte)) *StateAccessorGetStateCall {
+func (c *MockStateAccessorGetStateCall) DoAndReturn(f func(*types.Address, []byte) (bool, []byte)) *MockStateAccessorGetStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
-// HasSuicide mocks base method.
-func (m *MockStateAccessor) HasSuicide(arg0 *types.Address) bool {
+// HasSelfDestructed mocks base method.
+func (m *MockStateAccessor) HasSelfDestructed(arg0 *types.Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasSuicide", arg0)
+	ret := m.ctrl.Call(m, "HasSelfDestructed", arg0)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// HasSuicide indicates an expected call of HasSuicide.
-func (mr *MockStateAccessorMockRecorder) HasSuicide(arg0 any) *StateAccessorHasSuicideCall {
+// HasSelfDestructed indicates an expected call of HasSelfDestructed.
+func (mr *MockStateAccessorMockRecorder) HasSelfDestructed(arg0 any) *MockStateAccessorHasSelfDestructedCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSuicide", reflect.TypeOf((*MockStateAccessor)(nil).HasSuicide), arg0)
-	return &StateAccessorHasSuicideCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSelfDestructed", reflect.TypeOf((*MockStateAccessor)(nil).HasSelfDestructed), arg0)
+	return &MockStateAccessorHasSelfDestructedCall{Call: call}
 }
 
-// StateAccessorHasSuicideCall wrap *gomock.Call
-type StateAccessorHasSuicideCall struct {
+// MockStateAccessorHasSelfDestructedCall wrap *gomock.Call
+type MockStateAccessorHasSelfDestructedCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorHasSuicideCall) Return(arg0 bool) *StateAccessorHasSuicideCall {
+func (c *MockStateAccessorHasSelfDestructedCall) Return(arg0 bool) *MockStateAccessorHasSelfDestructedCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorHasSuicideCall) Do(f func(*types.Address) bool) *StateAccessorHasSuicideCall {
+func (c *MockStateAccessorHasSelfDestructedCall) Do(f func(*types.Address) bool) *MockStateAccessorHasSelfDestructedCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorHasSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorHasSuicideCall {
+func (c *MockStateAccessorHasSelfDestructedCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorHasSelfDestructedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3369,31 +3420,105 @@ func (m *MockStateAccessor) RevertToSnapshot(arg0 int) {
 }
 
 // RevertToSnapshot indicates an expected call of RevertToSnapshot.
-func (mr *MockStateAccessorMockRecorder) RevertToSnapshot(arg0 any) *StateAccessorRevertToSnapshotCall {
+func (mr *MockStateAccessorMockRecorder) RevertToSnapshot(arg0 any) *MockStateAccessorRevertToSnapshotCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevertToSnapshot", reflect.TypeOf((*MockStateAccessor)(nil).RevertToSnapshot), arg0)
-	return &StateAccessorRevertToSnapshotCall{Call: call}
+	return &MockStateAccessorRevertToSnapshotCall{Call: call}
 }
 
-// StateAccessorRevertToSnapshotCall wrap *gomock.Call
-type StateAccessorRevertToSnapshotCall struct {
+// MockStateAccessorRevertToSnapshotCall wrap *gomock.Call
+type MockStateAccessorRevertToSnapshotCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorRevertToSnapshotCall) Return() *StateAccessorRevertToSnapshotCall {
+func (c *MockStateAccessorRevertToSnapshotCall) Return() *MockStateAccessorRevertToSnapshotCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorRevertToSnapshotCall) Do(f func(int)) *StateAccessorRevertToSnapshotCall {
+func (c *MockStateAccessorRevertToSnapshotCall) Do(f func(int)) *MockStateAccessorRevertToSnapshotCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorRevertToSnapshotCall) DoAndReturn(f func(int)) *StateAccessorRevertToSnapshotCall {
+func (c *MockStateAccessorRevertToSnapshotCall) DoAndReturn(f func(int)) *MockStateAccessorRevertToSnapshotCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SelfDestruct mocks base method.
+func (m *MockStateAccessor) SelfDestruct(arg0 *types.Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelfDestruct", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SelfDestruct indicates an expected call of SelfDestruct.
+func (mr *MockStateAccessorMockRecorder) SelfDestruct(arg0 any) *MockStateAccessorSelfDestructCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockStateAccessor)(nil).SelfDestruct), arg0)
+	return &MockStateAccessorSelfDestructCall{Call: call}
+}
+
+// MockStateAccessorSelfDestructCall wrap *gomock.Call
+type MockStateAccessorSelfDestructCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateAccessorSelfDestructCall) Return(arg0 bool) *MockStateAccessorSelfDestructCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateAccessorSelfDestructCall) Do(f func(*types.Address) bool) *MockStateAccessorSelfDestructCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateAccessorSelfDestructCall) DoAndReturn(f func(*types.Address) bool) *MockStateAccessorSelfDestructCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Selfdestruct6780 mocks base method.
+func (m *MockStateAccessor) Selfdestruct6780(arg0 *types.Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Selfdestruct6780", arg0)
+}
+
+// Selfdestruct6780 indicates an expected call of Selfdestruct6780.
+func (mr *MockStateAccessorMockRecorder) Selfdestruct6780(arg0 any) *MockStateAccessorSelfdestruct6780Call {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Selfdestruct6780", reflect.TypeOf((*MockStateAccessor)(nil).Selfdestruct6780), arg0)
+	return &MockStateAccessorSelfdestruct6780Call{Call: call}
+}
+
+// MockStateAccessorSelfdestruct6780Call wrap *gomock.Call
+type MockStateAccessorSelfdestruct6780Call struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateAccessorSelfdestruct6780Call) Return() *MockStateAccessorSelfdestruct6780Call {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateAccessorSelfdestruct6780Call) Do(f func(*types.Address)) *MockStateAccessorSelfdestruct6780Call {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateAccessorSelfdestruct6780Call) DoAndReturn(f func(*types.Address)) *MockStateAccessorSelfdestruct6780Call {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3405,31 +3530,31 @@ func (m *MockStateAccessor) SetBalance(arg0 *types.Address, arg1 *big.Int) {
 }
 
 // SetBalance indicates an expected call of SetBalance.
-func (mr *MockStateAccessorMockRecorder) SetBalance(arg0, arg1 any) *StateAccessorSetBalanceCall {
+func (mr *MockStateAccessorMockRecorder) SetBalance(arg0, arg1 any) *MockStateAccessorSetBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBalance", reflect.TypeOf((*MockStateAccessor)(nil).SetBalance), arg0, arg1)
-	return &StateAccessorSetBalanceCall{Call: call}
+	return &MockStateAccessorSetBalanceCall{Call: call}
 }
 
-// StateAccessorSetBalanceCall wrap *gomock.Call
-type StateAccessorSetBalanceCall struct {
+// MockStateAccessorSetBalanceCall wrap *gomock.Call
+type MockStateAccessorSetBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSetBalanceCall) Return() *StateAccessorSetBalanceCall {
+func (c *MockStateAccessorSetBalanceCall) Return() *MockStateAccessorSetBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSetBalanceCall) Do(f func(*types.Address, *big.Int)) *StateAccessorSetBalanceCall {
+func (c *MockStateAccessorSetBalanceCall) Do(f func(*types.Address, *big.Int)) *MockStateAccessorSetBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSetBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateAccessorSetBalanceCall {
+func (c *MockStateAccessorSetBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *MockStateAccessorSetBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3441,31 +3566,31 @@ func (m *MockStateAccessor) SetCode(arg0 *types.Address, arg1 []byte) {
 }
 
 // SetCode indicates an expected call of SetCode.
-func (mr *MockStateAccessorMockRecorder) SetCode(arg0, arg1 any) *StateAccessorSetCodeCall {
+func (mr *MockStateAccessorMockRecorder) SetCode(arg0, arg1 any) *MockStateAccessorSetCodeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockStateAccessor)(nil).SetCode), arg0, arg1)
-	return &StateAccessorSetCodeCall{Call: call}
+	return &MockStateAccessorSetCodeCall{Call: call}
 }
 
-// StateAccessorSetCodeCall wrap *gomock.Call
-type StateAccessorSetCodeCall struct {
+// MockStateAccessorSetCodeCall wrap *gomock.Call
+type MockStateAccessorSetCodeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSetCodeCall) Return() *StateAccessorSetCodeCall {
+func (c *MockStateAccessorSetCodeCall) Return() *MockStateAccessorSetCodeCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSetCodeCall) Do(f func(*types.Address, []byte)) *StateAccessorSetCodeCall {
+func (c *MockStateAccessorSetCodeCall) Do(f func(*types.Address, []byte)) *MockStateAccessorSetCodeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSetCodeCall) DoAndReturn(f func(*types.Address, []byte)) *StateAccessorSetCodeCall {
+func (c *MockStateAccessorSetCodeCall) DoAndReturn(f func(*types.Address, []byte)) *MockStateAccessorSetCodeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3477,31 +3602,31 @@ func (m *MockStateAccessor) SetNonce(arg0 *types.Address, arg1 uint64) {
 }
 
 // SetNonce indicates an expected call of SetNonce.
-func (mr *MockStateAccessorMockRecorder) SetNonce(arg0, arg1 any) *StateAccessorSetNonceCall {
+func (mr *MockStateAccessorMockRecorder) SetNonce(arg0, arg1 any) *MockStateAccessorSetNonceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockStateAccessor)(nil).SetNonce), arg0, arg1)
-	return &StateAccessorSetNonceCall{Call: call}
+	return &MockStateAccessorSetNonceCall{Call: call}
 }
 
-// StateAccessorSetNonceCall wrap *gomock.Call
-type StateAccessorSetNonceCall struct {
+// MockStateAccessorSetNonceCall wrap *gomock.Call
+type MockStateAccessorSetNonceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSetNonceCall) Return() *StateAccessorSetNonceCall {
+func (c *MockStateAccessorSetNonceCall) Return() *MockStateAccessorSetNonceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSetNonceCall) Do(f func(*types.Address, uint64)) *StateAccessorSetNonceCall {
+func (c *MockStateAccessorSetNonceCall) Do(f func(*types.Address, uint64)) *MockStateAccessorSetNonceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSetNonceCall) DoAndReturn(f func(*types.Address, uint64)) *StateAccessorSetNonceCall {
+func (c *MockStateAccessorSetNonceCall) DoAndReturn(f func(*types.Address, uint64)) *MockStateAccessorSetNonceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3513,31 +3638,31 @@ func (m *MockStateAccessor) SetState(arg0 *types.Address, arg1, arg2 []byte) {
 }
 
 // SetState indicates an expected call of SetState.
-func (mr *MockStateAccessorMockRecorder) SetState(arg0, arg1, arg2 any) *StateAccessorSetStateCall {
+func (mr *MockStateAccessorMockRecorder) SetState(arg0, arg1, arg2 any) *MockStateAccessorSetStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockStateAccessor)(nil).SetState), arg0, arg1, arg2)
-	return &StateAccessorSetStateCall{Call: call}
+	return &MockStateAccessorSetStateCall{Call: call}
 }
 
-// StateAccessorSetStateCall wrap *gomock.Call
-type StateAccessorSetStateCall struct {
+// MockStateAccessorSetStateCall wrap *gomock.Call
+type MockStateAccessorSetStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSetStateCall) Return() *StateAccessorSetStateCall {
+func (c *MockStateAccessorSetStateCall) Return() *MockStateAccessorSetStateCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSetStateCall) Do(f func(*types.Address, []byte, []byte)) *StateAccessorSetStateCall {
+func (c *MockStateAccessorSetStateCall) Do(f func(*types.Address, []byte, []byte)) *MockStateAccessorSetStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSetStateCall) DoAndReturn(f func(*types.Address, []byte, []byte)) *StateAccessorSetStateCall {
+func (c *MockStateAccessorSetStateCall) DoAndReturn(f func(*types.Address, []byte, []byte)) *MockStateAccessorSetStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3549,31 +3674,31 @@ func (m *MockStateAccessor) SetTxContext(thash *types.Hash, txIndex int) {
 }
 
 // SetTxContext indicates an expected call of SetTxContext.
-func (mr *MockStateAccessorMockRecorder) SetTxContext(thash, txIndex any) *StateAccessorSetTxContextCall {
+func (mr *MockStateAccessorMockRecorder) SetTxContext(thash, txIndex any) *MockStateAccessorSetTxContextCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTxContext", reflect.TypeOf((*MockStateAccessor)(nil).SetTxContext), thash, txIndex)
-	return &StateAccessorSetTxContextCall{Call: call}
+	return &MockStateAccessorSetTxContextCall{Call: call}
 }
 
-// StateAccessorSetTxContextCall wrap *gomock.Call
-type StateAccessorSetTxContextCall struct {
+// MockStateAccessorSetTxContextCall wrap *gomock.Call
+type MockStateAccessorSetTxContextCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSetTxContextCall) Return() *StateAccessorSetTxContextCall {
+func (c *MockStateAccessorSetTxContextCall) Return() *MockStateAccessorSetTxContextCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSetTxContextCall) Do(f func(*types.Hash, int)) *StateAccessorSetTxContextCall {
+func (c *MockStateAccessorSetTxContextCall) Do(f func(*types.Hash, int)) *MockStateAccessorSetTxContextCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSetTxContextCall) DoAndReturn(f func(*types.Hash, int)) *StateAccessorSetTxContextCall {
+func (c *MockStateAccessorSetTxContextCall) DoAndReturn(f func(*types.Hash, int)) *MockStateAccessorSetTxContextCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3588,31 +3713,31 @@ func (m *MockStateAccessor) SlotInAccessList(arg0 types.Address, arg1 types.Hash
 }
 
 // SlotInAccessList indicates an expected call of SlotInAccessList.
-func (mr *MockStateAccessorMockRecorder) SlotInAccessList(arg0, arg1 any) *StateAccessorSlotInAccessListCall {
+func (mr *MockStateAccessorMockRecorder) SlotInAccessList(arg0, arg1 any) *MockStateAccessorSlotInAccessListCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SlotInAccessList", reflect.TypeOf((*MockStateAccessor)(nil).SlotInAccessList), arg0, arg1)
-	return &StateAccessorSlotInAccessListCall{Call: call}
+	return &MockStateAccessorSlotInAccessListCall{Call: call}
 }
 
-// StateAccessorSlotInAccessListCall wrap *gomock.Call
-type StateAccessorSlotInAccessListCall struct {
+// MockStateAccessorSlotInAccessListCall wrap *gomock.Call
+type MockStateAccessorSlotInAccessListCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSlotInAccessListCall) Return(arg0, arg1 bool) *StateAccessorSlotInAccessListCall {
+func (c *MockStateAccessorSlotInAccessListCall) Return(arg0, arg1 bool) *MockStateAccessorSlotInAccessListCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSlotInAccessListCall) Do(f func(types.Address, types.Hash) (bool, bool)) *StateAccessorSlotInAccessListCall {
+func (c *MockStateAccessorSlotInAccessListCall) Do(f func(types.Address, types.Hash) (bool, bool)) *MockStateAccessorSlotInAccessListCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSlotInAccessListCall) DoAndReturn(f func(types.Address, types.Hash) (bool, bool)) *StateAccessorSlotInAccessListCall {
+func (c *MockStateAccessorSlotInAccessListCall) DoAndReturn(f func(types.Address, types.Hash) (bool, bool)) *MockStateAccessorSlotInAccessListCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3626,31 +3751,31 @@ func (m *MockStateAccessor) Snapshot() int {
 }
 
 // Snapshot indicates an expected call of Snapshot.
-func (mr *MockStateAccessorMockRecorder) Snapshot() *StateAccessorSnapshotCall {
+func (mr *MockStateAccessorMockRecorder) Snapshot() *MockStateAccessorSnapshotCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockStateAccessor)(nil).Snapshot))
-	return &StateAccessorSnapshotCall{Call: call}
+	return &MockStateAccessorSnapshotCall{Call: call}
 }
 
-// StateAccessorSnapshotCall wrap *gomock.Call
-type StateAccessorSnapshotCall struct {
+// MockStateAccessorSnapshotCall wrap *gomock.Call
+type MockStateAccessorSnapshotCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSnapshotCall) Return(arg0 int) *StateAccessorSnapshotCall {
+func (c *MockStateAccessorSnapshotCall) Return(arg0 int) *MockStateAccessorSnapshotCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSnapshotCall) Do(f func() int) *StateAccessorSnapshotCall {
+func (c *MockStateAccessorSnapshotCall) Do(f func() int) *MockStateAccessorSnapshotCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSnapshotCall) DoAndReturn(f func() int) *StateAccessorSnapshotCall {
+func (c *MockStateAccessorSnapshotCall) DoAndReturn(f func() int) *MockStateAccessorSnapshotCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3662,31 +3787,31 @@ func (m *MockStateAccessor) SubBalance(arg0 *types.Address, arg1 *big.Int) {
 }
 
 // SubBalance indicates an expected call of SubBalance.
-func (mr *MockStateAccessorMockRecorder) SubBalance(arg0, arg1 any) *StateAccessorSubBalanceCall {
+func (mr *MockStateAccessorMockRecorder) SubBalance(arg0, arg1 any) *MockStateAccessorSubBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubBalance", reflect.TypeOf((*MockStateAccessor)(nil).SubBalance), arg0, arg1)
-	return &StateAccessorSubBalanceCall{Call: call}
+	return &MockStateAccessorSubBalanceCall{Call: call}
 }
 
-// StateAccessorSubBalanceCall wrap *gomock.Call
-type StateAccessorSubBalanceCall struct {
+// MockStateAccessorSubBalanceCall wrap *gomock.Call
+type MockStateAccessorSubBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSubBalanceCall) Return() *StateAccessorSubBalanceCall {
+func (c *MockStateAccessorSubBalanceCall) Return() *MockStateAccessorSubBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSubBalanceCall) Do(f func(*types.Address, *big.Int)) *StateAccessorSubBalanceCall {
+func (c *MockStateAccessorSubBalanceCall) Do(f func(*types.Address, *big.Int)) *MockStateAccessorSubBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSubBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *StateAccessorSubBalanceCall {
+func (c *MockStateAccessorSubBalanceCall) DoAndReturn(f func(*types.Address, *big.Int)) *MockStateAccessorSubBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3698,69 +3823,31 @@ func (m *MockStateAccessor) SubRefund(arg0 uint64) {
 }
 
 // SubRefund indicates an expected call of SubRefund.
-func (mr *MockStateAccessorMockRecorder) SubRefund(arg0 any) *StateAccessorSubRefundCall {
+func (mr *MockStateAccessorMockRecorder) SubRefund(arg0 any) *MockStateAccessorSubRefundCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubRefund", reflect.TypeOf((*MockStateAccessor)(nil).SubRefund), arg0)
-	return &StateAccessorSubRefundCall{Call: call}
+	return &MockStateAccessorSubRefundCall{Call: call}
 }
 
-// StateAccessorSubRefundCall wrap *gomock.Call
-type StateAccessorSubRefundCall struct {
+// MockStateAccessorSubRefundCall wrap *gomock.Call
+type MockStateAccessorSubRefundCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *StateAccessorSubRefundCall) Return() *StateAccessorSubRefundCall {
+func (c *MockStateAccessorSubRefundCall) Return() *MockStateAccessorSubRefundCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *StateAccessorSubRefundCall) Do(f func(uint64)) *StateAccessorSubRefundCall {
+func (c *MockStateAccessorSubRefundCall) Do(f func(uint64)) *MockStateAccessorSubRefundCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSubRefundCall) DoAndReturn(f func(uint64)) *StateAccessorSubRefundCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Suicide mocks base method.
-func (m *MockStateAccessor) Suicide(arg0 *types.Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Suicide", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Suicide indicates an expected call of Suicide.
-func (mr *MockStateAccessorMockRecorder) Suicide(arg0 any) *StateAccessorSuicideCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicide", reflect.TypeOf((*MockStateAccessor)(nil).Suicide), arg0)
-	return &StateAccessorSuicideCall{Call: call}
-}
-
-// StateAccessorSuicideCall wrap *gomock.Call
-type StateAccessorSuicideCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *StateAccessorSuicideCall) Return(arg0 bool) *StateAccessorSuicideCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *StateAccessorSuicideCall) Do(f func(*types.Address) bool) *StateAccessorSuicideCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *StateAccessorSuicideCall) DoAndReturn(f func(*types.Address) bool) *StateAccessorSuicideCall {
+func (c *MockStateAccessorSubRefundCall) DoAndReturn(f func(uint64)) *MockStateAccessorSubRefundCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3788,6 +3875,11 @@ func (m *MockIAccount) EXPECT() *MockIAccountMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockIAccount) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // AddBalance mocks base method.
 func (m *MockIAccount) AddBalance(amount *big.Int) {
 	m.ctrl.T.Helper()
@@ -3795,31 +3887,31 @@ func (m *MockIAccount) AddBalance(amount *big.Int) {
 }
 
 // AddBalance indicates an expected call of AddBalance.
-func (mr *MockIAccountMockRecorder) AddBalance(amount any) *IAccountAddBalanceCall {
+func (mr *MockIAccountMockRecorder) AddBalance(amount any) *MockIAccountAddBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBalance", reflect.TypeOf((*MockIAccount)(nil).AddBalance), amount)
-	return &IAccountAddBalanceCall{Call: call}
+	return &MockIAccountAddBalanceCall{Call: call}
 }
 
-// IAccountAddBalanceCall wrap *gomock.Call
-type IAccountAddBalanceCall struct {
+// MockIAccountAddBalanceCall wrap *gomock.Call
+type MockIAccountAddBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountAddBalanceCall) Return() *IAccountAddBalanceCall {
+func (c *MockIAccountAddBalanceCall) Return() *MockIAccountAddBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountAddBalanceCall) Do(f func(*big.Int)) *IAccountAddBalanceCall {
+func (c *MockIAccountAddBalanceCall) Do(f func(*big.Int)) *MockIAccountAddBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountAddBalanceCall) DoAndReturn(f func(*big.Int)) *IAccountAddBalanceCall {
+func (c *MockIAccountAddBalanceCall) DoAndReturn(f func(*big.Int)) *MockIAccountAddBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3833,31 +3925,31 @@ func (m *MockIAccount) Code() []byte {
 }
 
 // Code indicates an expected call of Code.
-func (mr *MockIAccountMockRecorder) Code() *IAccountCodeCall {
+func (mr *MockIAccountMockRecorder) Code() *MockIAccountCodeCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Code", reflect.TypeOf((*MockIAccount)(nil).Code))
-	return &IAccountCodeCall{Call: call}
+	return &MockIAccountCodeCall{Call: call}
 }
 
-// IAccountCodeCall wrap *gomock.Call
-type IAccountCodeCall struct {
+// MockIAccountCodeCall wrap *gomock.Call
+type MockIAccountCodeCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountCodeCall) Return(arg0 []byte) *IAccountCodeCall {
+func (c *MockIAccountCodeCall) Return(arg0 []byte) *MockIAccountCodeCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountCodeCall) Do(f func() []byte) *IAccountCodeCall {
+func (c *MockIAccountCodeCall) Do(f func() []byte) *MockIAccountCodeCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountCodeCall) DoAndReturn(f func() []byte) *IAccountCodeCall {
+func (c *MockIAccountCodeCall) DoAndReturn(f func() []byte) *MockIAccountCodeCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3871,31 +3963,31 @@ func (m *MockIAccount) CodeHash() []byte {
 }
 
 // CodeHash indicates an expected call of CodeHash.
-func (mr *MockIAccountMockRecorder) CodeHash() *IAccountCodeHashCall {
+func (mr *MockIAccountMockRecorder) CodeHash() *MockIAccountCodeHashCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CodeHash", reflect.TypeOf((*MockIAccount)(nil).CodeHash))
-	return &IAccountCodeHashCall{Call: call}
+	return &MockIAccountCodeHashCall{Call: call}
 }
 
-// IAccountCodeHashCall wrap *gomock.Call
-type IAccountCodeHashCall struct {
+// MockIAccountCodeHashCall wrap *gomock.Call
+type MockIAccountCodeHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountCodeHashCall) Return(arg0 []byte) *IAccountCodeHashCall {
+func (c *MockIAccountCodeHashCall) Return(arg0 []byte) *MockIAccountCodeHashCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountCodeHashCall) Do(f func() []byte) *IAccountCodeHashCall {
+func (c *MockIAccountCodeHashCall) Do(f func() []byte) *MockIAccountCodeHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountCodeHashCall) DoAndReturn(f func() []byte) *IAccountCodeHashCall {
+func (c *MockIAccountCodeHashCall) DoAndReturn(f func() []byte) *MockIAccountCodeHashCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3909,31 +4001,31 @@ func (m *MockIAccount) Finalise() [][]byte {
 }
 
 // Finalise indicates an expected call of Finalise.
-func (mr *MockIAccountMockRecorder) Finalise() *IAccountFinaliseCall {
+func (mr *MockIAccountMockRecorder) Finalise() *MockIAccountFinaliseCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockIAccount)(nil).Finalise))
-	return &IAccountFinaliseCall{Call: call}
+	return &MockIAccountFinaliseCall{Call: call}
 }
 
-// IAccountFinaliseCall wrap *gomock.Call
-type IAccountFinaliseCall struct {
+// MockIAccountFinaliseCall wrap *gomock.Call
+type MockIAccountFinaliseCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountFinaliseCall) Return(arg0 [][]byte) *IAccountFinaliseCall {
+func (c *MockIAccountFinaliseCall) Return(arg0 [][]byte) *MockIAccountFinaliseCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountFinaliseCall) Do(f func() [][]byte) *IAccountFinaliseCall {
+func (c *MockIAccountFinaliseCall) Do(f func() [][]byte) *MockIAccountFinaliseCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountFinaliseCall) DoAndReturn(f func() [][]byte) *IAccountFinaliseCall {
+func (c *MockIAccountFinaliseCall) DoAndReturn(f func() [][]byte) *MockIAccountFinaliseCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3947,31 +4039,31 @@ func (m *MockIAccount) GetAddress() *types.Address {
 }
 
 // GetAddress indicates an expected call of GetAddress.
-func (mr *MockIAccountMockRecorder) GetAddress() *IAccountGetAddressCall {
+func (mr *MockIAccountMockRecorder) GetAddress() *MockIAccountGetAddressCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAddress", reflect.TypeOf((*MockIAccount)(nil).GetAddress))
-	return &IAccountGetAddressCall{Call: call}
+	return &MockIAccountGetAddressCall{Call: call}
 }
 
-// IAccountGetAddressCall wrap *gomock.Call
-type IAccountGetAddressCall struct {
+// MockIAccountGetAddressCall wrap *gomock.Call
+type MockIAccountGetAddressCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetAddressCall) Return(arg0 *types.Address) *IAccountGetAddressCall {
+func (c *MockIAccountGetAddressCall) Return(arg0 *types.Address) *MockIAccountGetAddressCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetAddressCall) Do(f func() *types.Address) *IAccountGetAddressCall {
+func (c *MockIAccountGetAddressCall) Do(f func() *types.Address) *MockIAccountGetAddressCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetAddressCall) DoAndReturn(f func() *types.Address) *IAccountGetAddressCall {
+func (c *MockIAccountGetAddressCall) DoAndReturn(f func() *types.Address) *MockIAccountGetAddressCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -3985,31 +4077,31 @@ func (m *MockIAccount) GetBalance() *big.Int {
 }
 
 // GetBalance indicates an expected call of GetBalance.
-func (mr *MockIAccountMockRecorder) GetBalance() *IAccountGetBalanceCall {
+func (mr *MockIAccountMockRecorder) GetBalance() *MockIAccountGetBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockIAccount)(nil).GetBalance))
-	return &IAccountGetBalanceCall{Call: call}
+	return &MockIAccountGetBalanceCall{Call: call}
 }
 
-// IAccountGetBalanceCall wrap *gomock.Call
-type IAccountGetBalanceCall struct {
+// MockIAccountGetBalanceCall wrap *gomock.Call
+type MockIAccountGetBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetBalanceCall) Return(arg0 *big.Int) *IAccountGetBalanceCall {
+func (c *MockIAccountGetBalanceCall) Return(arg0 *big.Int) *MockIAccountGetBalanceCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetBalanceCall) Do(f func() *big.Int) *IAccountGetBalanceCall {
+func (c *MockIAccountGetBalanceCall) Do(f func() *big.Int) *MockIAccountGetBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetBalanceCall) DoAndReturn(f func() *big.Int) *IAccountGetBalanceCall {
+func (c *MockIAccountGetBalanceCall) DoAndReturn(f func() *big.Int) *MockIAccountGetBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4023,31 +4115,31 @@ func (m *MockIAccount) GetCommittedState(key []byte) []byte {
 }
 
 // GetCommittedState indicates an expected call of GetCommittedState.
-func (mr *MockIAccountMockRecorder) GetCommittedState(key any) *IAccountGetCommittedStateCall {
+func (mr *MockIAccountMockRecorder) GetCommittedState(key any) *MockIAccountGetCommittedStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedState", reflect.TypeOf((*MockIAccount)(nil).GetCommittedState), key)
-	return &IAccountGetCommittedStateCall{Call: call}
+	return &MockIAccountGetCommittedStateCall{Call: call}
 }
 
-// IAccountGetCommittedStateCall wrap *gomock.Call
-type IAccountGetCommittedStateCall struct {
+// MockIAccountGetCommittedStateCall wrap *gomock.Call
+type MockIAccountGetCommittedStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetCommittedStateCall) Return(arg0 []byte) *IAccountGetCommittedStateCall {
+func (c *MockIAccountGetCommittedStateCall) Return(arg0 []byte) *MockIAccountGetCommittedStateCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetCommittedStateCall) Do(f func([]byte) []byte) *IAccountGetCommittedStateCall {
+func (c *MockIAccountGetCommittedStateCall) Do(f func([]byte) []byte) *MockIAccountGetCommittedStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetCommittedStateCall) DoAndReturn(f func([]byte) []byte) *IAccountGetCommittedStateCall {
+func (c *MockIAccountGetCommittedStateCall) DoAndReturn(f func([]byte) []byte) *MockIAccountGetCommittedStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4061,31 +4153,31 @@ func (m *MockIAccount) GetNonce() uint64 {
 }
 
 // GetNonce indicates an expected call of GetNonce.
-func (mr *MockIAccountMockRecorder) GetNonce() *IAccountGetNonceCall {
+func (mr *MockIAccountMockRecorder) GetNonce() *MockIAccountGetNonceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNonce", reflect.TypeOf((*MockIAccount)(nil).GetNonce))
-	return &IAccountGetNonceCall{Call: call}
+	return &MockIAccountGetNonceCall{Call: call}
 }
 
-// IAccountGetNonceCall wrap *gomock.Call
-type IAccountGetNonceCall struct {
+// MockIAccountGetNonceCall wrap *gomock.Call
+type MockIAccountGetNonceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetNonceCall) Return(arg0 uint64) *IAccountGetNonceCall {
+func (c *MockIAccountGetNonceCall) Return(arg0 uint64) *MockIAccountGetNonceCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetNonceCall) Do(f func() uint64) *IAccountGetNonceCall {
+func (c *MockIAccountGetNonceCall) Do(f func() uint64) *MockIAccountGetNonceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetNonceCall) DoAndReturn(f func() uint64) *IAccountGetNonceCall {
+func (c *MockIAccountGetNonceCall) DoAndReturn(f func() uint64) *MockIAccountGetNonceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4100,31 +4192,31 @@ func (m *MockIAccount) GetState(key []byte) (bool, []byte) {
 }
 
 // GetState indicates an expected call of GetState.
-func (mr *MockIAccountMockRecorder) GetState(key any) *IAccountGetStateCall {
+func (mr *MockIAccountMockRecorder) GetState(key any) *MockIAccountGetStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetState", reflect.TypeOf((*MockIAccount)(nil).GetState), key)
-	return &IAccountGetStateCall{Call: call}
+	return &MockIAccountGetStateCall{Call: call}
 }
 
-// IAccountGetStateCall wrap *gomock.Call
-type IAccountGetStateCall struct {
+// MockIAccountGetStateCall wrap *gomock.Call
+type MockIAccountGetStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetStateCall) Return(arg0 bool, arg1 []byte) *IAccountGetStateCall {
+func (c *MockIAccountGetStateCall) Return(arg0 bool, arg1 []byte) *MockIAccountGetStateCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetStateCall) Do(f func([]byte) (bool, []byte)) *IAccountGetStateCall {
+func (c *MockIAccountGetStateCall) Do(f func([]byte) (bool, []byte)) *MockIAccountGetStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetStateCall) DoAndReturn(f func([]byte) (bool, []byte)) *IAccountGetStateCall {
+func (c *MockIAccountGetStateCall) DoAndReturn(f func([]byte) (bool, []byte)) *MockIAccountGetStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4138,31 +4230,31 @@ func (m *MockIAccount) GetStorageRoot() common.Hash {
 }
 
 // GetStorageRoot indicates an expected call of GetStorageRoot.
-func (mr *MockIAccountMockRecorder) GetStorageRoot() *IAccountGetStorageRootCall {
+func (mr *MockIAccountMockRecorder) GetStorageRoot() *MockIAccountGetStorageRootCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageRoot", reflect.TypeOf((*MockIAccount)(nil).GetStorageRoot))
-	return &IAccountGetStorageRootCall{Call: call}
+	return &MockIAccountGetStorageRootCall{Call: call}
 }
 
-// IAccountGetStorageRootCall wrap *gomock.Call
-type IAccountGetStorageRootCall struct {
+// MockIAccountGetStorageRootCall wrap *gomock.Call
+type MockIAccountGetStorageRootCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetStorageRootCall) Return(arg0 common.Hash) *IAccountGetStorageRootCall {
+func (c *MockIAccountGetStorageRootCall) Return(arg0 common.Hash) *MockIAccountGetStorageRootCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetStorageRootCall) Do(f func() common.Hash) *IAccountGetStorageRootCall {
+func (c *MockIAccountGetStorageRootCall) Do(f func() common.Hash) *MockIAccountGetStorageRootCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetStorageRootCall) DoAndReturn(f func() common.Hash) *IAccountGetStorageRootCall {
+func (c *MockIAccountGetStorageRootCall) DoAndReturn(f func() common.Hash) *MockIAccountGetStorageRootCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4176,31 +4268,69 @@ func (m *MockIAccount) GetStorageRootHash() common.Hash {
 }
 
 // GetStorageRootHash indicates an expected call of GetStorageRootHash.
-func (mr *MockIAccountMockRecorder) GetStorageRootHash() *IAccountGetStorageRootHashCall {
+func (mr *MockIAccountMockRecorder) GetStorageRootHash() *MockIAccountGetStorageRootHashCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageRootHash", reflect.TypeOf((*MockIAccount)(nil).GetStorageRootHash))
-	return &IAccountGetStorageRootHashCall{Call: call}
+	return &MockIAccountGetStorageRootHashCall{Call: call}
 }
 
-// IAccountGetStorageRootHashCall wrap *gomock.Call
-type IAccountGetStorageRootHashCall struct {
+// MockIAccountGetStorageRootHashCall wrap *gomock.Call
+type MockIAccountGetStorageRootHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountGetStorageRootHashCall) Return(arg0 common.Hash) *IAccountGetStorageRootHashCall {
+func (c *MockIAccountGetStorageRootHashCall) Return(arg0 common.Hash) *MockIAccountGetStorageRootHashCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountGetStorageRootHashCall) Do(f func() common.Hash) *IAccountGetStorageRootHashCall {
+func (c *MockIAccountGetStorageRootHashCall) Do(f func() common.Hash) *MockIAccountGetStorageRootHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountGetStorageRootHashCall) DoAndReturn(f func() common.Hash) *IAccountGetStorageRootHashCall {
+func (c *MockIAccountGetStorageRootHashCall) DoAndReturn(f func() common.Hash) *MockIAccountGetStorageRootHashCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// IsCreated mocks base method.
+func (m *MockIAccount) IsCreated() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsCreated")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsCreated indicates an expected call of IsCreated.
+func (mr *MockIAccountMockRecorder) IsCreated() *MockIAccountIsCreatedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCreated", reflect.TypeOf((*MockIAccount)(nil).IsCreated))
+	return &MockIAccountIsCreatedCall{Call: call}
+}
+
+// MockIAccountIsCreatedCall wrap *gomock.Call
+type MockIAccountIsCreatedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockIAccountIsCreatedCall) Return(arg0 bool) *MockIAccountIsCreatedCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockIAccountIsCreatedCall) Do(f func() bool) *MockIAccountIsCreatedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockIAccountIsCreatedCall) DoAndReturn(f func() bool) *MockIAccountIsCreatedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4214,31 +4344,69 @@ func (m *MockIAccount) IsEmpty() bool {
 }
 
 // IsEmpty indicates an expected call of IsEmpty.
-func (mr *MockIAccountMockRecorder) IsEmpty() *IAccountIsEmptyCall {
+func (mr *MockIAccountMockRecorder) IsEmpty() *MockIAccountIsEmptyCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockIAccount)(nil).IsEmpty))
-	return &IAccountIsEmptyCall{Call: call}
+	return &MockIAccountIsEmptyCall{Call: call}
 }
 
-// IAccountIsEmptyCall wrap *gomock.Call
-type IAccountIsEmptyCall struct {
+// MockIAccountIsEmptyCall wrap *gomock.Call
+type MockIAccountIsEmptyCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountIsEmptyCall) Return(arg0 bool) *IAccountIsEmptyCall {
+func (c *MockIAccountIsEmptyCall) Return(arg0 bool) *MockIAccountIsEmptyCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountIsEmptyCall) Do(f func() bool) *IAccountIsEmptyCall {
+func (c *MockIAccountIsEmptyCall) Do(f func() bool) *MockIAccountIsEmptyCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountIsEmptyCall) DoAndReturn(f func() bool) *IAccountIsEmptyCall {
+func (c *MockIAccountIsEmptyCall) DoAndReturn(f func() bool) *MockIAccountIsEmptyCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SelfDestructed mocks base method.
+func (m *MockIAccount) SelfDestructed() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelfDestructed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SelfDestructed indicates an expected call of SelfDestructed.
+func (mr *MockIAccountMockRecorder) SelfDestructed() *MockIAccountSelfDestructedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestructed", reflect.TypeOf((*MockIAccount)(nil).SelfDestructed))
+	return &MockIAccountSelfDestructedCall{Call: call}
+}
+
+// MockIAccountSelfDestructedCall wrap *gomock.Call
+type MockIAccountSelfDestructedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockIAccountSelfDestructedCall) Return(arg0 bool) *MockIAccountSelfDestructedCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockIAccountSelfDestructedCall) Do(f func() bool) *MockIAccountSelfDestructedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockIAccountSelfDestructedCall) DoAndReturn(f func() bool) *MockIAccountSelfDestructedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4250,31 +4418,31 @@ func (m *MockIAccount) SetBalance(balance *big.Int) {
 }
 
 // SetBalance indicates an expected call of SetBalance.
-func (mr *MockIAccountMockRecorder) SetBalance(balance any) *IAccountSetBalanceCall {
+func (mr *MockIAccountMockRecorder) SetBalance(balance any) *MockIAccountSetBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBalance", reflect.TypeOf((*MockIAccount)(nil).SetBalance), balance)
-	return &IAccountSetBalanceCall{Call: call}
+	return &MockIAccountSetBalanceCall{Call: call}
 }
 
-// IAccountSetBalanceCall wrap *gomock.Call
-type IAccountSetBalanceCall struct {
+// MockIAccountSetBalanceCall wrap *gomock.Call
+type MockIAccountSetBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountSetBalanceCall) Return() *IAccountSetBalanceCall {
+func (c *MockIAccountSetBalanceCall) Return() *MockIAccountSetBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountSetBalanceCall) Do(f func(*big.Int)) *IAccountSetBalanceCall {
+func (c *MockIAccountSetBalanceCall) Do(f func(*big.Int)) *MockIAccountSetBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSetBalanceCall) DoAndReturn(f func(*big.Int)) *IAccountSetBalanceCall {
+func (c *MockIAccountSetBalanceCall) DoAndReturn(f func(*big.Int)) *MockIAccountSetBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4286,31 +4454,67 @@ func (m *MockIAccount) SetCodeAndHash(code []byte) {
 }
 
 // SetCodeAndHash indicates an expected call of SetCodeAndHash.
-func (mr *MockIAccountMockRecorder) SetCodeAndHash(code any) *IAccountSetCodeAndHashCall {
+func (mr *MockIAccountMockRecorder) SetCodeAndHash(code any) *MockIAccountSetCodeAndHashCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCodeAndHash", reflect.TypeOf((*MockIAccount)(nil).SetCodeAndHash), code)
-	return &IAccountSetCodeAndHashCall{Call: call}
+	return &MockIAccountSetCodeAndHashCall{Call: call}
 }
 
-// IAccountSetCodeAndHashCall wrap *gomock.Call
-type IAccountSetCodeAndHashCall struct {
+// MockIAccountSetCodeAndHashCall wrap *gomock.Call
+type MockIAccountSetCodeAndHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountSetCodeAndHashCall) Return() *IAccountSetCodeAndHashCall {
+func (c *MockIAccountSetCodeAndHashCall) Return() *MockIAccountSetCodeAndHashCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountSetCodeAndHashCall) Do(f func([]byte)) *IAccountSetCodeAndHashCall {
+func (c *MockIAccountSetCodeAndHashCall) Do(f func([]byte)) *MockIAccountSetCodeAndHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSetCodeAndHashCall) DoAndReturn(f func([]byte)) *IAccountSetCodeAndHashCall {
+func (c *MockIAccountSetCodeAndHashCall) DoAndReturn(f func([]byte)) *MockIAccountSetCodeAndHashCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SetCreated mocks base method.
+func (m *MockIAccount) SetCreated(arg0 bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetCreated", arg0)
+}
+
+// SetCreated indicates an expected call of SetCreated.
+func (mr *MockIAccountMockRecorder) SetCreated(arg0 any) *MockIAccountSetCreatedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCreated", reflect.TypeOf((*MockIAccount)(nil).SetCreated), arg0)
+	return &MockIAccountSetCreatedCall{Call: call}
+}
+
+// MockIAccountSetCreatedCall wrap *gomock.Call
+type MockIAccountSetCreatedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockIAccountSetCreatedCall) Return() *MockIAccountSetCreatedCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockIAccountSetCreatedCall) Do(f func(bool)) *MockIAccountSetCreatedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockIAccountSetCreatedCall) DoAndReturn(f func(bool)) *MockIAccountSetCreatedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4322,31 +4526,31 @@ func (m *MockIAccount) SetEnableExpensiveMetric(arg0 bool) {
 }
 
 // SetEnableExpensiveMetric indicates an expected call of SetEnableExpensiveMetric.
-func (mr *MockIAccountMockRecorder) SetEnableExpensiveMetric(arg0 any) *IAccountSetEnableExpensiveMetricCall {
+func (mr *MockIAccountMockRecorder) SetEnableExpensiveMetric(arg0 any) *MockIAccountSetEnableExpensiveMetricCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnableExpensiveMetric", reflect.TypeOf((*MockIAccount)(nil).SetEnableExpensiveMetric), arg0)
-	return &IAccountSetEnableExpensiveMetricCall{Call: call}
+	return &MockIAccountSetEnableExpensiveMetricCall{Call: call}
 }
 
-// IAccountSetEnableExpensiveMetricCall wrap *gomock.Call
-type IAccountSetEnableExpensiveMetricCall struct {
+// MockIAccountSetEnableExpensiveMetricCall wrap *gomock.Call
+type MockIAccountSetEnableExpensiveMetricCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountSetEnableExpensiveMetricCall) Return() *IAccountSetEnableExpensiveMetricCall {
+func (c *MockIAccountSetEnableExpensiveMetricCall) Return() *MockIAccountSetEnableExpensiveMetricCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountSetEnableExpensiveMetricCall) Do(f func(bool)) *IAccountSetEnableExpensiveMetricCall {
+func (c *MockIAccountSetEnableExpensiveMetricCall) Do(f func(bool)) *MockIAccountSetEnableExpensiveMetricCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSetEnableExpensiveMetricCall) DoAndReturn(f func(bool)) *IAccountSetEnableExpensiveMetricCall {
+func (c *MockIAccountSetEnableExpensiveMetricCall) DoAndReturn(f func(bool)) *MockIAccountSetEnableExpensiveMetricCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4358,31 +4562,67 @@ func (m *MockIAccount) SetNonce(nonce uint64) {
 }
 
 // SetNonce indicates an expected call of SetNonce.
-func (mr *MockIAccountMockRecorder) SetNonce(nonce any) *IAccountSetNonceCall {
+func (mr *MockIAccountMockRecorder) SetNonce(nonce any) *MockIAccountSetNonceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockIAccount)(nil).SetNonce), nonce)
-	return &IAccountSetNonceCall{Call: call}
+	return &MockIAccountSetNonceCall{Call: call}
 }
 
-// IAccountSetNonceCall wrap *gomock.Call
-type IAccountSetNonceCall struct {
+// MockIAccountSetNonceCall wrap *gomock.Call
+type MockIAccountSetNonceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountSetNonceCall) Return() *IAccountSetNonceCall {
+func (c *MockIAccountSetNonceCall) Return() *MockIAccountSetNonceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountSetNonceCall) Do(f func(uint64)) *IAccountSetNonceCall {
+func (c *MockIAccountSetNonceCall) Do(f func(uint64)) *MockIAccountSetNonceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSetNonceCall) DoAndReturn(f func(uint64)) *IAccountSetNonceCall {
+func (c *MockIAccountSetNonceCall) DoAndReturn(f func(uint64)) *MockIAccountSetNonceCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SetSelfDestructed mocks base method.
+func (m *MockIAccount) SetSelfDestructed(arg0 bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetSelfDestructed", arg0)
+}
+
+// SetSelfDestructed indicates an expected call of SetSelfDestructed.
+func (mr *MockIAccountMockRecorder) SetSelfDestructed(arg0 any) *MockIAccountSetSelfDestructedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSelfDestructed", reflect.TypeOf((*MockIAccount)(nil).SetSelfDestructed), arg0)
+	return &MockIAccountSetSelfDestructedCall{Call: call}
+}
+
+// MockIAccountSetSelfDestructedCall wrap *gomock.Call
+type MockIAccountSetSelfDestructedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockIAccountSetSelfDestructedCall) Return() *MockIAccountSetSelfDestructedCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockIAccountSetSelfDestructedCall) Do(f func(bool)) *MockIAccountSetSelfDestructedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockIAccountSetSelfDestructedCall) DoAndReturn(f func(bool)) *MockIAccountSetSelfDestructedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4394,67 +4634,31 @@ func (m *MockIAccount) SetState(key, value []byte) {
 }
 
 // SetState indicates an expected call of SetState.
-func (mr *MockIAccountMockRecorder) SetState(key, value any) *IAccountSetStateCall {
+func (mr *MockIAccountMockRecorder) SetState(key, value any) *MockIAccountSetStateCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetState", reflect.TypeOf((*MockIAccount)(nil).SetState), key, value)
-	return &IAccountSetStateCall{Call: call}
+	return &MockIAccountSetStateCall{Call: call}
 }
 
-// IAccountSetStateCall wrap *gomock.Call
-type IAccountSetStateCall struct {
+// MockIAccountSetStateCall wrap *gomock.Call
+type MockIAccountSetStateCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountSetStateCall) Return() *IAccountSetStateCall {
+func (c *MockIAccountSetStateCall) Return() *MockIAccountSetStateCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountSetStateCall) Do(f func([]byte, []byte)) *IAccountSetStateCall {
+func (c *MockIAccountSetStateCall) Do(f func([]byte, []byte)) *MockIAccountSetStateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSetStateCall) DoAndReturn(f func([]byte, []byte)) *IAccountSetStateCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SetSuicided mocks base method.
-func (m *MockIAccount) SetSuicided(arg0 bool) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetSuicided", arg0)
-}
-
-// SetSuicided indicates an expected call of SetSuicided.
-func (mr *MockIAccountMockRecorder) SetSuicided(arg0 any) *IAccountSetSuicidedCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSuicided", reflect.TypeOf((*MockIAccount)(nil).SetSuicided), arg0)
-	return &IAccountSetSuicidedCall{Call: call}
-}
-
-// IAccountSetSuicidedCall wrap *gomock.Call
-type IAccountSetSuicidedCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *IAccountSetSuicidedCall) Return() *IAccountSetSuicidedCall {
-	c.Call = c.Call.Return()
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *IAccountSetSuicidedCall) Do(f func(bool)) *IAccountSetSuicidedCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSetSuicidedCall) DoAndReturn(f func(bool)) *IAccountSetSuicidedCall {
+func (c *MockIAccountSetStateCall) DoAndReturn(f func([]byte, []byte)) *MockIAccountSetStateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4468,31 +4672,31 @@ func (m *MockIAccount) String() string {
 }
 
 // String indicates an expected call of String.
-func (mr *MockIAccountMockRecorder) String() *IAccountStringCall {
+func (mr *MockIAccountMockRecorder) String() *MockIAccountStringCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockIAccount)(nil).String))
-	return &IAccountStringCall{Call: call}
+	return &MockIAccountStringCall{Call: call}
 }
 
-// IAccountStringCall wrap *gomock.Call
-type IAccountStringCall struct {
+// MockIAccountStringCall wrap *gomock.Call
+type MockIAccountStringCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountStringCall) Return(arg0 string) *IAccountStringCall {
+func (c *MockIAccountStringCall) Return(arg0 string) *MockIAccountStringCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountStringCall) Do(f func() string) *IAccountStringCall {
+func (c *MockIAccountStringCall) Do(f func() string) *MockIAccountStringCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountStringCall) DoAndReturn(f func() string) *IAccountStringCall {
+func (c *MockIAccountStringCall) DoAndReturn(f func() string) *MockIAccountStringCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -4504,69 +4708,31 @@ func (m *MockIAccount) SubBalance(amount *big.Int) {
 }
 
 // SubBalance indicates an expected call of SubBalance.
-func (mr *MockIAccountMockRecorder) SubBalance(amount any) *IAccountSubBalanceCall {
+func (mr *MockIAccountMockRecorder) SubBalance(amount any) *MockIAccountSubBalanceCall {
 	mr.mock.ctrl.T.Helper()
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubBalance", reflect.TypeOf((*MockIAccount)(nil).SubBalance), amount)
-	return &IAccountSubBalanceCall{Call: call}
+	return &MockIAccountSubBalanceCall{Call: call}
 }
 
-// IAccountSubBalanceCall wrap *gomock.Call
-type IAccountSubBalanceCall struct {
+// MockIAccountSubBalanceCall wrap *gomock.Call
+type MockIAccountSubBalanceCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *IAccountSubBalanceCall) Return() *IAccountSubBalanceCall {
+func (c *MockIAccountSubBalanceCall) Return() *MockIAccountSubBalanceCall {
 	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *IAccountSubBalanceCall) Do(f func(*big.Int)) *IAccountSubBalanceCall {
+func (c *MockIAccountSubBalanceCall) Do(f func(*big.Int)) *MockIAccountSubBalanceCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSubBalanceCall) DoAndReturn(f func(*big.Int)) *IAccountSubBalanceCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// Suicided mocks base method.
-func (m *MockIAccount) Suicided() bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Suicided")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Suicided indicates an expected call of Suicided.
-func (mr *MockIAccountMockRecorder) Suicided() *IAccountSuicidedCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suicided", reflect.TypeOf((*MockIAccount)(nil).Suicided))
-	return &IAccountSuicidedCall{Call: call}
-}
-
-// IAccountSuicidedCall wrap *gomock.Call
-type IAccountSuicidedCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *IAccountSuicidedCall) Return(arg0 bool) *IAccountSuicidedCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *IAccountSuicidedCall) Do(f func() bool) *IAccountSuicidedCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *IAccountSuicidedCall) DoAndReturn(f func() bool) *IAccountSuicidedCall {
+func (c *MockIAccountSubBalanceCall) DoAndReturn(f func(*big.Int)) *MockIAccountSubBalanceCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

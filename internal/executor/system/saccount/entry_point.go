@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-kit/intutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
@@ -879,8 +880,11 @@ func callWithValue(stateLedger ledger.StateLedger, evm *vm.EVM, gas, value *big.
 	if gas == nil || gas.Sign() == 0 {
 		gas = big.NewInt(MaxCallGasLimit)
 	}
-
-	result, gasLeft, err := evm.Call(vm.AccountRef(from.ETHAddress()), *to, callData, gas.Uint64(), value)
+	v, err := intutil.BigIntToUint256(value)
+	if err != nil {
+		return nil, gas.Uint64(), err
+	}
+	result, gasLeft, err := evm.Call(vm.AccountRef(from.ETHAddress()), *to, callData, gas.Uint64(), v)
 	if err == vm.ErrExecutionReverted {
 		err = fmt.Errorf("%s, reason: %x", err.Error(), result)
 	}

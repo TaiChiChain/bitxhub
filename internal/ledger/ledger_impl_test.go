@@ -14,6 +14,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
@@ -241,7 +243,7 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.NotNil(t, stateRoot1)
 			assert.Nil(t, err)
 			sl.GetCommittedState(account, []byte("a"))
-			isSuicide := sl.HasSuicide(account)
+			isSuicide := sl.HasSelfDestructed(account)
 			assert.Equal(t, isSuicide, false)
 			assert.Equal(t, uint64(1), sl.Version())
 
@@ -331,7 +333,7 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.Equal(t, isInSlotAddressList, true)
 			lg.StateLedger.(*StateLedgerImpl).AddPreimage(*hash, []byte("11"))
 			lg.StateLedger.(*StateLedgerImpl).PrepareAccessList(*account, account, []types.Address{}, AccessTupleList{})
-			lg.StateLedger.(*StateLedgerImpl).Suicide(account)
+			lg.StateLedger.(*StateLedgerImpl).SelfDestruct(account)
 			lg.StateLedger.(*StateLedgerImpl).RevertToSnapshot(revid)
 			lg.StateLedger.(*StateLedgerImpl).ClearChangerAndRefund()
 
@@ -379,12 +381,12 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			evmStateDB := &EvmStateDBAdaptor{StateLedger: ledger.StateLedger}
 
 			evmStateDB.CreateAccount(account)
-			evmStateDB.AddBalance(account, big.NewInt(2))
+			evmStateDB.AddBalance(account, uint256.NewInt(2))
 			balance := evmStateDB.GetBalance(account)
-			assert.Equal(t, balance, big.NewInt(2))
-			evmStateDB.SubBalance(account, big.NewInt(1))
+			assert.Equal(t, balance, uint256.NewInt(2))
+			evmStateDB.SubBalance(account, uint256.NewInt(1))
 			balance = evmStateDB.GetBalance(account)
-			assert.Equal(t, balance, big.NewInt(1))
+			assert.Equal(t, balance, uint256.NewInt(1))
 			evmStateDB.SetNonce(account, 10)
 			nonce := evmStateDB.GetNonce(account)
 			assert.Equal(t, nonce, uint64(10))
@@ -404,8 +406,8 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			evmStateDB.SetState(account, hash, hash)
 			value := evmStateDB.GetState(account, hash)
 			assert.Equal(t, value, hash)
-			evmStateDB.Suicide(account)
-			isSuicide := evmStateDB.HasSuicided(account)
+			evmStateDB.SelfDestruct(account)
+			isSuicide := evmStateDB.HasSelfDestructed(account)
 			assert.Equal(t, isSuicide, true)
 			isExist := evmStateDB.Exist(account)
 			assert.Equal(t, isExist, true)
@@ -1060,7 +1062,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -1218,7 +1220,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -1521,7 +1523,7 @@ func TestStateLedger_RollbackToAccountHistoryVersion(t *testing.T) {
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
 	lg.PersistBlockData(genBlockData(1, stateRoot1))
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -2003,7 +2005,7 @@ func TestStateLedger_AccountSuicide(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	assert.Equal(t, sl.HasSuicide(account), false)
+	assert.Equal(t, sl.HasSelfDestructed(account), false)
 	assert.Equal(t, uint64(1), sl.Version())
 
 	code := RightPadBytes([]byte{100}, 100)
@@ -2029,7 +2031,7 @@ func TestStateLedger_AccountSuicide(t *testing.T) {
 
 	// suicide account
 	evmLg := &EvmStateDBAdaptor{StateLedger: lg.StateLedger}
-	evmLg.Suicide(account.ETHAddress())
+	evmLg.SelfDestruct(account.ETHAddress())
 	sl.blockHeight = 3
 	stateRoot3, err := sl.Commit()
 	assert.Nil(t, err)
@@ -2062,7 +2064,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -2337,7 +2339,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -3072,8 +3074,9 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.Nil(t, err)
 		account3Key1RpcProof, err := mockGetProof(account3.ETHAddress(), []string{"0x1"}, lg1)
 		assert.Nil(t, err)
-		assert.True(t, equalProof(account3StorageProof, convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0])))
-		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0]))
+		addrHash := common.BytesToHash(account3Key1RpcProof.Address.Bytes())
+		assert.True(t, equalProof(account3StorageProof, convertStorageProof(addrHash, &account3Key1RpcProof.StorageProof[0])))
+		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(addrHash, &account3Key1RpcProof.StorageProof[0]))
 		assert.Nil(t, err)
 		assert.True(t, verify)
 	})
@@ -3122,8 +3125,8 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.Nil(t, err)
 		account3Key1RpcProof, err := mockGetProof(account3.ETHAddress(), []string{"0x1"}, lg2)
 		assert.Nil(t, err)
-		assert.True(t, equalProof(account3StorageProof, convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0])))
-		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0]))
+		assert.True(t, equalProof(account3StorageProof, convertStorageProof(common.BytesToHash(account3Key1RpcProof.Address.Bytes()), &account3Key1RpcProof.StorageProof[0])))
+		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(common.BytesToHash(account3Key1RpcProof.Address.Bytes()), &account3Key1RpcProof.StorageProof[0]))
 		assert.Nil(t, err)
 		assert.True(t, verify)
 	})

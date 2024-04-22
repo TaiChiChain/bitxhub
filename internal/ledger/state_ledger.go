@@ -178,6 +178,7 @@ func (l *StateLedgerImpl) Finalise() {
 				l.triePreloader.preload(account.GetStorageRootHash(), keys)
 			}
 		}
+		account.SetCreated(false)
 	}
 
 	l.ClearChangerAndRefund()

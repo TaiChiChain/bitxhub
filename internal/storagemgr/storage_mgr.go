@@ -76,7 +76,7 @@ func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableM
 	}
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (storage.Storage, error) {
 		defaultPebbleOptions.Cache = pebbledb.NewCache(int64(defaultKvCacheSize * 1024 * 1024))
-		defaultPebbleOptions.MemTableSize = defaultKvCacheSize * 1024 * 1024 / 4 // The size of single memory table
+		defaultPebbleOptions.MemTableSize = uint64(defaultKvCacheSize * 1024 * 1024 / 4) // The size of single memory table
 		namespace := "axiom_ledger"
 		subsystem := "ledger"
 		var metricOpts []pebble.MetricsOption

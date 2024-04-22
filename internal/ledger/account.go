@@ -58,8 +58,9 @@ type SimpleAccount struct {
 	blockHeight uint64
 	storageTrie *jmt.JMT
 
-	changer  *stateChanger
-	suicided bool
+	changer        *stateChanger
+	selfDestructed bool
+	created        bool // Flag whether the account was created in the current transaction
 
 	snapshot *snapshot.Snapshot
 
@@ -87,7 +88,8 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		storageTrieCache: storagemgr.NewCacheWrapper(32, false),
 		cache:            ac,
 		changer:          NewChanger(),
-		suicided:         false,
+		selfDestructed:   false,
+		created:          false,
 	}
 }
 
@@ -104,7 +106,8 @@ func NewAccount(blockHeight uint64, backend storage.Storage, storageTrieCache *s
 		pruneCache:       pruneCache,
 		cache:            accountCache,
 		changer:          changer,
-		suicided:         false,
+		selfDestructed:   false,
+		created:          false,
 		snapshot:         snapshot,
 	}
 }
@@ -123,7 +126,7 @@ func (o *SimpleAccount) initStorageTrie() {
 	}
 	// new account
 	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
-		rootHash := o.Addr.ETHAddress().Hash()
+		rootHash := common.BytesToHash(o.Addr.ETHAddress().Bytes())
 		rootNodeKey := &types.NodeKey{
 			Version: o.blockHeight,
 			Path:    []byte{},
@@ -446,7 +449,7 @@ func (o *SimpleAccount) getAccountJournal() *types.SnapshotJournalEntry {
 	entry := &types.SnapshotJournalEntry{Address: o.Addr}
 	prevStates := o.getStateJournal()
 
-	if o.originAccount.InnerAccountChanged(o.dirtyAccount) || len(prevStates) != 0 || o.suicided {
+	if o.originAccount.InnerAccountChanged(o.dirtyAccount) || len(prevStates) != 0 || o.selfDestructed {
 		entry.AccountChanged = true
 		entry.PrevAccount = o.originAccount
 		entry.PrevStates = prevStates
@@ -475,21 +478,21 @@ func (o *SimpleAccount) getStateJournal() map[string][]byte {
 	return prevStates
 }
 
-func (o *SimpleAccount) SetSuicided(suicided bool) {
-	o.suicided = suicided
+func (o *SimpleAccount) SetSelfDestructed(selfDestructed bool) {
+	o.selfDestructed = selfDestructed
 }
 
 func (o *SimpleAccount) IsEmpty() bool {
-	return o.GetBalance().Sign() == 0 && o.GetNonce() == 0 && o.Code() == nil && !o.suicided
+	return o.GetBalance().Sign() == 0 && o.GetNonce() == 0 && o.Code() == nil && !o.selfDestructed
 }
 
-func (o *SimpleAccount) Suicided() bool {
-	return o.suicided
+func (o *SimpleAccount) SelfDestructed() bool {
+	return o.selfDestructed
 }
 
 func (o *SimpleAccount) GetStorageRootHash() common.Hash {
 	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
-		return o.Addr.ETHAddress().Hash()
+		return common.BytesToHash(o.Addr.ETHAddress().Bytes())
 	}
 	return o.originAccount.StorageRoot
 }
@@ -499,4 +502,12 @@ func (o *SimpleAccount) GetStorageRoot() common.Hash {
 		return common.Hash{}
 	}
 	return o.originAccount.StorageRoot
+}
+
+func (o *SimpleAccount) IsCreated() bool {
+	return o.created
+}
+
+func (o *SimpleAccount) SetCreated(created bool) {
+	o.created = created
 }

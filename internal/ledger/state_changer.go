@@ -150,7 +150,7 @@ func (ch resetObjectChange) dirtied() *types.Address {
 func (ch suicideChange) revert(l *StateLedgerImpl) {
 	acc := l.GetOrCreateAccount(ch.account)
 	account := acc.(*SimpleAccount)
-	account.suicided = ch.prev
+	account.selfDestructed = ch.prev
 	account.setBalance(ch.prevbalance)
 }
 
