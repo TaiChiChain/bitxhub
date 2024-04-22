@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -40,6 +41,7 @@ var _ interfaces.IPaymaster = (*TokenPaymaster)(nil)
 type TokenPaymaster struct {
 	entryPoint interfaces.IEntryPoint
 	selfAddr   *types.Address
+	logger     logrus.FieldLogger
 
 	account ledger.IAccount
 
@@ -55,6 +57,7 @@ func NewTokenPaymaster(entryPoint interfaces.IEntryPoint) *TokenPaymaster {
 	return &TokenPaymaster{
 		entryPoint: entryPoint,
 		selfAddr:   types.NewAddressByStr(common.TokenPaymasterContractAddr),
+		logger:     loggers.Logger(loggers.SystemContract),
 	}
 }
 
@@ -118,6 +121,11 @@ func (tp *TokenPaymaster) PostOp(mode interfaces.PostOpMode, context []byte, act
 		return common.NewRevertStringError(fmt.Sprintf("token paymaster: decode context failed: %s", err.Error()))
 	}
 
+	if maxCost.Sign() == 0 {
+		// max cost is 0, no need to transfer token
+		return nil
+	}
+
 	// use same conversion rate as used for validation.
 	actualTokenCost := new(big.Int).Div(new(big.Int).Mul(actualGasCost, maxTokenCost), maxCost)
 	// transfer token as gas fee from account to paymaster
@@ -158,11 +166,11 @@ func (tp *TokenPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperatio
 	if err != nil {
 		return nil, validation, common.NewRevertStringError(fmt.Sprintf("token paymaster: encode context failed: %s", err.Error()))
 	}
+	tp.logger.Infof("token paymaster: validate paymaster user op success, sender: %s, token addr: %s, maxTokenCost: %s, maxCost: %s, balance: %s", userOp.Sender.String(), tokenAddr.String(), maxTokenCost.String(), maxCost.String(), balance.String())
 	validation.SigValidation = interfaces.SigValidationSucceeded
 	return context, validation, err
 }
 
-// nolint
 // getTokenValueOfAxc translate the give axc value to token value
 func (tp *TokenPaymaster) getTokenValueOfAxc(token ethcommon.Address, value *big.Int) (*big.Int, error) {
 	key := append([]byte(tokenOracleKey), token.Bytes()...)

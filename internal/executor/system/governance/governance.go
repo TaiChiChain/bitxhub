@@ -60,11 +60,17 @@ const (
 	// NodeRemove is a proposal for removing a node
 	NodeRemove
 
+	// WhiteListProviderAdd is a proposal for adding a new white list provider
 	WhiteListProviderAdd
 
+	// WhiteListProviderRemove is a proposal for removing a white list provider
 	WhiteListProviderRemove
 
+	// GasUpdate is a proposal for updating gas price
 	GasUpdate
+
+	// ChainParamUpgrade is a proposal for upgrading the chain param
+	ChainParamUpgrade
 )
 
 type VoteResult uint8
@@ -135,6 +141,11 @@ func NewGov(cfg *common.SystemContractConfig) *Governance {
 
 	gasManager := NewGasManager(gov)
 	if err := gov.Register(GasUpdate, gasManager); err != nil {
+		panic(err)
+	}
+
+	chainParamManager := NewChainParamManager(gov)
+	if err := gov.Register(ChainParamUpgrade, chainParamManager); err != nil {
 		panic(err)
 	}
 

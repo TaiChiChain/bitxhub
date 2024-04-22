@@ -439,9 +439,6 @@ func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
 	if err := governance.InitNodeMembers(lg, genesis.NodeNames, genesis.EpochInfo); err != nil {
 		return err
 	}
-	if err := governance.InitGasParam(lg, genesis.EpochInfo); err != nil {
-		return err
-	}
 	InitSystemContractCode(lg)
 
 	if err := saccount.Initialize(lg, genesis.SmartAccountAdmin); err != nil {

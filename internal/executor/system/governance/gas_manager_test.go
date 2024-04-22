@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -61,17 +60,6 @@ func TestGasManager_RunForPropose(t *testing.T) {
 	err = base.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
-	err = InitGasParam(stateLedger, &rbft.EpochInfo{
-		FinanceParams: rbft.FinanceParams{
-			StartGasPriceAvailable: true,
-			StartGasPrice:          5000000000000,
-			MaxGasPrice:            10000000000000,
-			MinGasPrice:            1000000000000,
-			GasChangeRateValue:     1250,
-		},
-	})
-	assert.Nil(t, err)
-
 	testcases := []struct {
 		Caller string
 		Data   *GasExtraArgs
@@ -86,70 +74,28 @@ func TestGasManager_RunForPropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       50000000000,
-				GasChangeRateValue: 1250,
-			},
-			Err: ErrGasUpperOrLlower,
-		},
-		{
-			Caller: admin1,
-			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       50000000000,
-				GasChangeRateValue: 0,
-			},
-			Err: ErrGasArgsType,
-		},
-		{
-			Caller: admin1,
-			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       100000000000000,
-				GasChangeRateValue: 1250,
-			},
-			Err: ErrGasUpperOrLlower,
-		},
-		{
-			Caller: admin1,
-			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       5000000000000,
-				GasChangeRateValue: 1250,
+				MinGasPrice: 1000000000000,
 			},
 			Err: ErrRepeatedGasInfo,
 		},
 		{
 			Caller: "0x1000000000000000000000000000000000000000",
 			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       2000000000000,
-				GasChangeRateValue: 1250,
+				MinGasPrice: 1000000000000,
 			},
 			HasErr: true,
 		},
 		{
 			Caller: admin1,
 			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       2000000000000,
-				GasChangeRateValue: 1250,
+				MinGasPrice: 2000000000000,
 			},
-			HasErr: false,
+			Err: nil,
 		},
 		{
 			Caller: admin1,
 			Data: &GasExtraArgs{
-				MaxGasPrice:        10000000000000,
-				MinGasPrice:        1000000000000,
-				InitGasPrice:       6000000000000,
-				GasChangeRateValue: 1250,
+				MinGasPrice: 2000000000000,
 			},
 			Err: ErrExistNotFinishedGasProposal,
 		},
@@ -231,22 +177,8 @@ func TestGasManager_VoteExecute(t *testing.T) {
 	err = base.InitEpochInfo(stateLedger, g)
 	assert.Nil(t, err)
 
-	err = InitGasParam(stateLedger, &rbft.EpochInfo{
-		FinanceParams: rbft.FinanceParams{
-			StartGasPriceAvailable: true,
-			StartGasPrice:          5000000000000,
-			MaxGasPrice:            10000000000000,
-			MinGasPrice:            1000000000000,
-			GasChangeRateValue:     1250,
-		},
-	})
-	assert.Nil(t, err)
-
 	data, err := json.Marshal(GasExtraArgs{
-		MaxGasPrice:        10000000000000,
-		MinGasPrice:        1000000000000,
-		InitGasPrice:       2000000000000,
-		GasChangeRateValue: 1250,
+		MinGasPrice: 2000000000000,
 	})
 	assert.Nil(t, err)
 

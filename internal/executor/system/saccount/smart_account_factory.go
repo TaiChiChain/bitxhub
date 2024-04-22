@@ -67,6 +67,6 @@ func (factory *SmartAccountFactory) CreateAccount(owner ethcommon.Address, salt 
 
 func (factory *SmartAccountFactory) GetAddress(owner ethcommon.Address, salt *big.Int) ethcommon.Address {
 	var saltBytes [32]byte
-	copy(saltBytes[:], salt.Bytes())
+	copy(saltBytes[:], ethcommon.LeftPadBytes(salt.Bytes(), 32))
 	return crypto.CreateAddress2(owner, saltBytes, factory.factoryAddr.Bytes())
 }
