@@ -450,30 +450,11 @@ func (n *NodeManager) InternalProcessNodeLeave() error {
 		if err != nil {
 			return err
 		}
-		// modify its status
-		info.Status = uint8(types.NodeStatusExited)
-		// put it back
-		if err = n.nodeRegistry.Put(id, info); err != nil {
+		if err = n.operatorTransferStatus(types.NodeStatusPendingInactive, types.NodeStatusExited, &info); err != nil {
 			return err
 		}
 	}
-	// get exited nodes set
-	exitedSlot := n.getStatusSet(types.NodeStatusExited)
-	isExist, exitedNodes, err := exitedSlot.Get()
-	if err != nil {
-		return err
-	}
-	if !isExist {
-		exitedNodes = []uint64{}
-	}
-	// append all pending inactive nodes to exited nodes
-	exitedNodes = append(exitedNodes, nodeIDs...)
-	// clean up pending inactive set
-	if err = pendingInactiveSlot.Delete(); err != nil {
-		return err
-	}
-	// put exited nodes set
-	return exitedSlot.Put(exitedNodes)
+	return nil
 }
 
 func (n *NodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
@@ -504,12 +485,9 @@ func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowe
 	candidates := make([]uint64, 0, len(allValidaNodes)-len(ActiveValidatorVotingPowers))
 	for _, votingPower := range ActiveValidatorVotingPowers {
 		nodeId := votingPower.NodeID
-		isExist, nodeInfo, err := n.nodeRegistry.Get(nodeId)
+		nodeInfo, err := n.GetNodeInfo(nodeId)
 		if err != nil {
 			return err
-		}
-		if !isExist {
-			return ErrNodeNotFound
 		}
 		nodeInfo.Status = uint8(types.NodeStatusActive)
 		if err = n.nodeRegistry.Put(nodeId, nodeInfo); err != nil {
@@ -541,7 +519,7 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
-	if err = n.operatorTransferStatus(uint8(types.NodeStatusDataSyncer), uint8(types.NodeStatusCandidate), &nodeInfo); err != nil {
+	if err = n.operatorTransferStatus(types.NodeStatusDataSyncer, types.NodeStatusCandidate, &nodeInfo); err != nil {
 		return err
 	}
 	n.EmitEvent(&node_manager.EventJoinedCandidateSet{
@@ -587,13 +565,13 @@ func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
 			return n.Revert(&node_manager.ErrorPendingInactiveSetIsFull{})
 		}
 		// transfer the status
-		if err = n.operatorTransferStatus(uint8(types.NodeStatusActive), uint8(types.NodeStatusPendingInactive), &nodeInfo); err != nil {
+		if err = n.operatorTransferStatus(types.NodeStatusActive, types.NodeStatusPendingInactive, &nodeInfo); err != nil {
 			return err
 		}
 		n.EmitEvent(&node_manager.EventJoinedPendingInactiveSet{NodeID: nodeID})
 		return nil
 	case types.NodeStatusCandidate:
-		if err = n.operatorTransferStatus(uint8(types.NodeStatusCandidate), uint8(types.NodeStatusExited), &nodeInfo); err != nil {
+		if err = n.operatorTransferStatus(types.NodeStatusCandidate, types.NodeStatusExited, &nodeInfo); err != nil {
 			return err
 		}
 		n.EmitEvent(&node_manager.EventLeavedCandidateSet{NodeID: nodeID})
@@ -807,7 +785,7 @@ func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []node_mana
 	return votingPowers, nil
 }
 
-func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeInfo *node_manager.NodeInfo) error {
+func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo *node_manager.NodeInfo) error {
 	if from == to {
 		return errors.New("from and to status cannot be the same")
 	}
@@ -820,17 +798,17 @@ func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeInfo *nod
 		}
 	}
 	// check status
-	if nodeInfo.Status != from {
-		return n.Revert(&node_manager.ErrorIncorrectStatus{Status: from})
+	if nodeInfo.Status != uint8(from) {
+		return n.Revert(&node_manager.ErrorIncorrectStatus{Status: uint8(from)})
 	}
 	// update status
-	nodeInfo.Status = to
+	nodeInfo.Status = uint8(to)
 	// update nodeInfo
 	if err := n.nodeRegistry.Put(nodeInfo.ID, *nodeInfo); err != nil {
 		return err
 	}
 	// get from status set, e.g. candidate
-	fromSlot := n.getStatusSet(types.NodeStatus(from))
+	fromSlot := n.getStatusSet(from)
 	isExist, fromSets, err := fromSlot.Get()
 	if err != nil {
 		return err
@@ -856,7 +834,7 @@ func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeInfo *nod
 		return err
 	}
 	// get to status set, e.g. pending inactive
-	toSlot := n.getStatusSet(types.NodeStatus(to))
+	toSlot := n.getStatusSet(to)
 	isExist, toSets, err := toSlot.Get()
 	if err != nil {
 		return err
@@ -864,7 +842,16 @@ func (n *NodeManager) operatorTransferStatus(from uint8, to uint8, nodeInfo *nod
 	if !isExist {
 		toSets = []uint64{}
 	}
-	return toSlot.Put(append(toSets, nodeInfo.ID))
+	if err = toSlot.Put(append(toSets, nodeInfo.ID)); err != nil {
+		return err
+	}
+
+	if to == types.NodeStatusExited {
+		// get staking manager
+		stakingManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
+		return stakingManager.InternalDisablePool(nodeInfo.ID)
+	}
+	return nil
 }
 
 func (n *NodeManager) getStatusSet(status types.NodeStatus) *common.VMSlot[[]uint64] {
