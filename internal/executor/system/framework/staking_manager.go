@@ -100,6 +100,7 @@ func (s *StakingManager) InternalTurnIntoNewEpoch() error {
 
 func (s *StakingManager) InternalDisablePool(poolID uint64) error {
 	if !s.GetStakingPool(poolID).Exists() {
+		return errors.New("pool not exists")
 	}
 
 	_, curPools, err := s.AvailableStakingPools.Get()
