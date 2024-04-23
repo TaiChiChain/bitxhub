@@ -202,7 +202,7 @@ func (api *BlockChainAPI) GetBlockByNumber(blockNum rpctypes.BlockNumber, fullTx
 		blockNum = rpctypes.BlockNumber(meta.Height)
 	}
 
-	blockHeader, err := api.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", blockNum))
+	blockHeader, err := api.api.Broker().GetBlockHeaderByNumber(uint64(blockNum))
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil
@@ -225,7 +225,7 @@ func (api *BlockChainAPI) GetBlockByHash(hash common.Hash, fullTx bool) (ret map
 
 	api.logger.Debugf("eth_getBlockByHash, hash: %s, full: %v", hash.String(), fullTx)
 
-	blockHeader, err := api.api.Broker().GetBlockHeader("HASH", hash.String())
+	blockHeader, err := api.api.Broker().GetBlockHeaderByHash(types.NewHash(hash.Bytes()))
 	if err != nil {
 		if errors.Is(err, ledger.ErrNotFound) {
 			return nil, nil

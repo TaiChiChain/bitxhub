@@ -95,7 +95,7 @@ func (api *TracerAPI) TraceTransaction(hash common.Hash, config *TraceConfig) (a
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
-	blockHeader, err := api.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", meta.BlockHeight))
+	blockHeader, err := api.api.Broker().GetBlockHeaderByNumber(meta.BlockHeight)
 	if err != nil {
 		return nil, err
 	}
@@ -177,13 +177,13 @@ func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.Blo
 		blockHeader *types.BlockHeader
 	)
 	if hash, ok := blockNrOrHash.Hash(); ok {
-		blockHeader, err = api.api.Broker().GetBlockHeader("HASH", hash.String())
+		blockHeader, err = api.api.Broker().GetBlockHeaderByHash(types.NewHash(hash.Bytes()))
 	} else if blockNum, ok := blockNrOrHash.Number(); ok {
 		if blockNum == rpctypes.PendingBlockNumber || blockNum == rpctypes.LatestBlockNumber {
 			meta, _ := api.api.Chain().Meta()
 			blockNum = rpctypes.BlockNumber(meta.Height)
 		}
-		blockHeader, err = api.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", blockNum))
+		blockHeader, err = api.api.Broker().GetBlockHeaderByNumber(uint64(blockNum))
 	} else {
 		return nil, errors.New("invalid arguments; neither block nor hash specified")
 	}

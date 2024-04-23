@@ -129,6 +129,9 @@ func DefaultWithNodeIndex(repoRoot string, nodeIndex int, epochEnable bool, auth
 		nodeIndex = 0
 	} else {
 		p2pKey, err = ParseKey([]byte(DefaultNodeKeys[nodeIndex]))
+		if err != nil {
+			return nil, err
+		}
 		_, err = GenerateP2PKeyJson(auth, repoRoot, p2pKey)
 		if err != nil {
 			return nil, err

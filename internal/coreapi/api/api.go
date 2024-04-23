@@ -26,6 +26,7 @@ type BrokerAPI interface {
 	GetTransaction(*types.Hash) (*types.Transaction, error)
 	GetTransactionMeta(*types.Hash) (*types.TransactionMeta, error)
 	GetReceipt(*types.Hash) (*types.Receipt, error)
+	GetReceipts(blockNum uint64) ([]*types.Receipt, error)
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, error)
 	ConsensusReady() error
@@ -33,7 +34,8 @@ type BrokerAPI interface {
 	ChainConfig() *params.ChainConfig
 	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error)
 
-	GetBlockHeader(mode string, key string) (*types.BlockHeader, error)
+	GetBlockHeaderByNumber(height uint64) (*types.BlockHeader, error)
+	GetBlockHeaderByHash(hash *types.Hash) (*types.BlockHeader, error)
 
 	GetBlockExtra(height uint64) (*types.BlockExtra, error)
 

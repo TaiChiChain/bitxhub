@@ -56,6 +56,8 @@ func GasPriceBySize(t *testing.T, size int, parentGasPrice int64, expectErr erro
 
 func generateMockConfig(t *testing.T) *repo.Repo {
 	rep, err := repo.Default(t.TempDir())
+	rep.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice = 10000000000000
+	rep.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = 1000000000000
 	assert.Nil(t, err)
 	return rep
 }
