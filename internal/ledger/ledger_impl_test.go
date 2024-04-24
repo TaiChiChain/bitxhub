@@ -3328,9 +3328,8 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 		rep.RepoRoot = repoRoot
 	}
 
-	err := storagemgr.Initialize(kv, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-	require.Nil(t, err)
-	rep.Config.Monitor.EnableExpensive = true
+	storagemgr.Initialize(rep.Config)
+	rep.Config.Monitor.EnableExpensive = false
 	l, err := NewLedger(rep)
 	require.Nil(t, err)
 	l.WithGetEpochInfoFunc(func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error) {
@@ -3381,7 +3380,8 @@ func BenchmarkStateLedgerWrite(b *testing.B) {
 	for name, tc := range testcase {
 		b.Run(name, func(b *testing.B) {
 			r, _ := repo.Default(b.TempDir())
-			storagemgr.Initialize(tc.kvType, 256, repo.KVStorageSync, false)
+			r.Config.Storage.KvType = tc.kvType
+			storagemgr.Initialize(r.Config)
 			l, _ := NewLedger(r)
 			benchStateLedgerWrite(b, l.StateLedger)
 		})
@@ -3399,7 +3399,8 @@ func BenchmarkStateLedgerRead(b *testing.B) {
 	for name, tc := range testcase {
 		b.Run(name, func(b *testing.B) {
 			r, _ := repo.Default(b.TempDir())
-			storagemgr.Initialize(tc.kvType, 256, repo.KVStorageSync, false)
+			r.Config.Storage.KvType = tc.kvType
+			storagemgr.Initialize(r.Config)
 			l, _ := NewLedger(r)
 			benchStateLedgerRead(b, l.StateLedger)
 		})

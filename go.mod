@@ -13,6 +13,7 @@ require (
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
+	github.com/coocood/freecache v1.2.4
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/gammazero/workerpool v1.1.3
 	github.com/gogo/protobuf v1.3.2

@@ -1,11 +1,11 @@
 package storagemgr
 
 import (
-	"github.com/VictoriaMetrics/fastcache"
+	"github.com/coocood/freecache"
 )
 
 type CacheWrapper struct {
-	cache *fastcache.Cache
+	cache *freecache.Cache
 
 	metrics *CacheMetrics
 
@@ -25,7 +25,7 @@ func NewCacheWrapper(megabytesLimit int, enableMetric bool) *CacheWrapper {
 	}
 
 	return &CacheWrapper{
-		cache:        fastcache.New(megabytesLimit * 1024 * 1024),
+		cache:        freecache.NewCache(megabytesLimit * 1024 * 1024),
 		metrics:      &CacheMetrics{},
 		enableMetric: enableMetric,
 	}
@@ -37,24 +37,24 @@ func (c *CacheWrapper) ResetCounterMetrics() {
 }
 
 func (c *CacheWrapper) ExportMetrics() *CacheMetrics {
-	var s fastcache.Stats
-	c.cache.UpdateStats(&s)
-	c.metrics.CacheSize = s.BytesSize
+	//var s fastcache.Stats
+	//c.cache.UpdateStats(&s)
+	//c.metrics.CacheSize = s.BytesSize
 	return c.metrics
 }
 
 func (c *CacheWrapper) Get(k []byte) ([]byte, bool) {
-	res, ok := c.cache.HasGet(nil, k)
-	if ok {
+	res, err := c.cache.Get(k)
+	if err == freecache.ErrNotFound {
 		c.metrics.CacheHitCounter++
 	} else {
 		c.metrics.CacheMissCounter++
 	}
-	return res, ok
+	return res, err != freecache.ErrNotFound
 }
 
 func (c *CacheWrapper) Set(k []byte, v []byte) {
-	c.cache.Set(k, v)
+	c.cache.Set(k, v, 0)
 }
 
 func (c *CacheWrapper) Del(k []byte) {
@@ -62,6 +62,6 @@ func (c *CacheWrapper) Del(k []byte) {
 }
 
 func (c *CacheWrapper) Reset() {
-	c.cache.Reset()
+	c.cache.Clear()
 	c.metrics = &CacheMetrics{}
 }
