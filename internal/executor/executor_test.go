@@ -181,6 +181,8 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	assert.Nil(t, err)
 	r.GenesisConfig.EpochInfo.StartBlock = 2
 	r.GenesisConfig.EpochInfo.EpochPeriod = 1
+	r.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = 1000000000000
+	r.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice = 10000000000000
 
 	mockLedger, _ := initLedger(t, "", "leveldb")
 	assert.Nil(t, err)
@@ -371,6 +373,8 @@ func mockTx(t *testing.T, nonce ...uint64) *types.Transaction {
 func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 	r, err := repo.Default(t.TempDir())
 	assert.Nil(t, err)
+	r.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = 1000000000000
+	r.GenesisConfig.EpochInfo.FinanceParams.MaxGasPrice = 10000000000000
 
 	testcase := map[string]struct {
 		blockStorage storage.Storage

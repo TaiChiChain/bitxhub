@@ -67,7 +67,7 @@ func (api *TransactionAPI) GetBlockTransactionCountByHash(hash common.Hash) *hex
 
 	api.logger.Debugf("eth_getBlockTransactionCountByHash, hash: %s", hash.String())
 
-	block, err := api.api.Broker().GetBlockHeader("HASH", hash.String())
+	block, err := api.api.Broker().GetBlockHeaderByHash(types.NewHash(hash.Bytes()))
 	if err != nil {
 		api.logger.Debugf("eth api GetBlockTransactionCountByHash err:%s", err)
 		queryFailedCounter.Inc()
@@ -111,7 +111,7 @@ func (api *TransactionAPI) GetTransactionByBlockNumberAndIndex(blockNum rpctypes
 		height = uint64(blockNum.Int64())
 	}
 
-	return getTxByBlockInfoAndIndex(api.api, "HEIGHT", fmt.Sprintf("%d", height), idx)
+	return getTxByBlockInfoAndIndex(api.api, api.api.Broker().GetBlockHeaderByNumber, height, idx)
 }
 
 // GetTransactionByBlockHashAndIndex returns the transaction identified by hash and index.
@@ -126,7 +126,7 @@ func (api *TransactionAPI) GetTransactionByBlockHashAndIndex(hash common.Hash, i
 
 	api.logger.Debugf("eth_getTransactionByHashAndIndex, hash: %s, index: %d", hash.String(), idx)
 
-	return getTxByBlockInfoAndIndex(api.api, "HASH", hash.String(), idx)
+	return getTxByBlockInfoAndIndex(api.api, api.api.Broker().GetBlockHeaderByHash, types.NewHash(hash.Bytes()), idx)
 }
 
 // GetTransactionCount returns the number of transactions at the given address, blockNum is ignored.
@@ -332,8 +332,8 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 	return sendTransaction(api.api, tx)
 }
 
-func getTxByBlockInfoAndIndex(api api.CoreAPI, mode string, key string, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
-	block, err := api.Broker().GetBlockHeader(mode, key)
+func getTxByBlockInfoAndIndex[T uint64 | *types.Hash](api api.CoreAPI, getHeaderFn func(input T) (*types.BlockHeader, error), input T, idx hexutil.Uint) (*rpctypes.RPCTransaction, error) {
+	block, err := getHeaderFn(input)
 	if err != nil {
 		return nil, err
 	}

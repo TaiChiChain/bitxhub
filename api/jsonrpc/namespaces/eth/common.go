@@ -30,25 +30,25 @@ func getStateLedgerAt(api api.CoreAPI, blockNrOrHash *rpctypes.BlockNumberOrHash
 	if blockNrOrHash != nil {
 		if blockNumber, ok := blockNrOrHash.Number(); ok {
 			if blockNumber == rpctypes.PendingBlockNumber || blockNumber == rpctypes.LatestBlockNumber {
-				blockHeader, err = api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", meta.Height))
+				blockHeader, err = api.Broker().GetBlockHeaderByNumber(meta.Height)
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				blockHeader, err = api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", blockNumber))
+				blockHeader, err = api.Broker().GetBlockHeaderByNumber(uint64(blockNumber))
 				if err != nil {
 					return nil, err
 				}
 			}
 		} else if blockHash, ok := blockNrOrHash.Hash(); ok {
-			blockHeader, err = api.Broker().GetBlockHeader("HASH", fmt.Sprintf("%s", blockHash))
+			blockHeader, err = api.Broker().GetBlockHeaderByHash(types.NewHash(blockHash.Bytes()))
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
 		// default case: use the latest committed blockHeader
-		blockHeader, err = api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", meta.Height))
+		blockHeader, err = api.Broker().GetBlockHeaderByNumber(meta.Height)
 		if err != nil {
 			return nil, err
 		}

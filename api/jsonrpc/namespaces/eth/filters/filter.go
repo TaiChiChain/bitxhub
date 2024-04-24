@@ -79,7 +79,7 @@ func newFilter(api api.CoreAPI, addresses []types.Address, topics [][]types.Hash
 func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 	// If we're doing singleton block filtering, execute and return
 	if f.block != nil {
-		blockHeader, err := f.api.Broker().GetBlockHeader("HASH", f.block.String())
+		blockHeader, err := f.api.Broker().GetBlockHeaderByHash(f.block)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +115,7 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.EvmLog, error) {
 	var logs []*types.EvmLog
 	for ; f.begin <= int64(end); f.begin++ {
-		blockHeader, err := f.api.Broker().GetBlockHeader("HEIGHT", fmt.Sprintf("%d", f.begin))
+		blockHeader, err := f.api.Broker().GetBlockHeaderByNumber(uint64(f.begin))
 		if blockHeader == nil || err != nil {
 			return logs, err
 		}

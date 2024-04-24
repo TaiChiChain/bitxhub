@@ -74,7 +74,7 @@ func TestGasManager_RunForPropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: &GasExtraArgs{
-				MinGasPrice: 1000000000000,
+				MinGasPrice: 0,
 			},
 			Err: ErrRepeatedGasInfo,
 		},

@@ -3,7 +3,6 @@ package coreapi
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -50,31 +49,24 @@ func (b *BrokerAPI) GetTransactionMeta(hash *types.Hash) (*types.TransactionMeta
 	return b.axiomLedger.ViewLedger.ChainLedger.GetTransactionMeta(hash)
 }
 
+func (b *BrokerAPI) GetReceipts(blockNum uint64) ([]*types.Receipt, error) {
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockReceipts(blockNum)
+}
+
 func (b *BrokerAPI) GetReceipt(hash *types.Hash) (*types.Receipt, error) {
 	return b.axiomLedger.ViewLedger.ChainLedger.GetReceipt(hash)
 }
 
-func (b *BrokerAPI) GetBlockHeader(mode string, key string) (*types.BlockHeader, error) {
-	switch mode {
-	case "HEIGHT":
-		height, err := strconv.ParseUint(key, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("wrong block number: %s", key)
-		}
-		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(height)
-	case "HASH":
-		hash := types.NewHashByStr(key)
-		if hash == nil {
-			return nil, errors.New("invalid format of block hash for querying block")
-		}
-		number, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockNumberByHash(hash)
-		if err != nil {
-			return nil, err
-		}
-		return b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(number)
-	default:
-		return nil, fmt.Errorf("wrong args about getting block: %s", mode)
+func (b *BrokerAPI) GetBlockHeaderByNumber(height uint64) (*types.BlockHeader, error) {
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(height)
+}
+
+func (b *BrokerAPI) GetBlockHeaderByHash(hash *types.Hash) (*types.BlockHeader, error) {
+	number, err := b.axiomLedger.ViewLedger.ChainLedger.GetBlockNumberByHash(hash)
+	if err != nil {
+		return nil, err
 	}
+	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockHeader(number)
 }
 
 func (b *BrokerAPI) GetBlockExtra(height uint64) (*types.BlockExtra, error) {

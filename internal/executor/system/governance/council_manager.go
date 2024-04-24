@@ -158,14 +158,13 @@ func (cm *CouncilManager) checkFinishedAllProposal() bool {
 }
 
 func CheckInCouncil(account ledger.IAccount, addr string) (bool, *Council) {
-	// check council if is exist
-	council := &Council{}
+	// check if council exists
 	council, isExistCouncil := GetCouncil(account)
 	if !isExistCouncil {
 		return false, nil
 	}
 
-	// check addr if is exist in council
+	// check if addr exists in council
 	isExist := common.IsInSlice[string](addr, lo.Map[CouncilMember, string](council.Members, func(item CouncilMember, index int) string {
 		return item.Address
 	}))
