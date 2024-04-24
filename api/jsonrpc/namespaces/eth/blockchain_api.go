@@ -451,7 +451,11 @@ func (api *BlockChainAPI) EstimateGas(args types.CallArgs, blockNrOrHash *rpctyp
 	executable := func(gas uint64) (bool, *core.ExecutionResult, error) {
 		args.Gas = (*ethhexutil.Uint64)(&gas)
 
-		result, err := DoCall(api.ctx, blockNrOrHash, nil, nil, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
+		t := hexutil.Uint64(time.Now().Unix())
+		blockOveride := tracers.BlockOverrides{
+			Time: &t,
+		}
+		result, err := DoCall(api.ctx, blockNrOrHash, nil, &blockOveride, api.api, args, api.rep.Config.JsonRPC.EVMTimeout.ToDuration(), api.rep.Config.JsonRPC.GasCap, api.logger)
 		if err != nil {
 			if errors.Is(err, core.ErrIntrinsicGas) {
 				return true, nil, nil // Special case, raise gas limit
