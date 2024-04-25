@@ -148,7 +148,7 @@ func (l *ChainLedgerImpl) GetBlock(height uint64) (*types.Block, error) {
 }
 
 func (l *ChainLedgerImpl) GetBlockHeader(height uint64) (*types.BlockHeader, error) {
-	if height > l.chainMeta.Height || l.chainMeta.BlockHash.IsZero() {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -169,7 +169,7 @@ func (l *ChainLedgerImpl) GetBlockHeader(height uint64) (*types.BlockHeader, err
 }
 
 func (l *ChainLedgerImpl) GetBlockExtra(height uint64) (*types.BlockExtra, error) {
-	if height > l.chainMeta.Height || l.chainMeta.BlockHash.IsZero() {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -190,7 +190,7 @@ func (l *ChainLedgerImpl) GetBlockExtra(height uint64) (*types.BlockExtra, error
 }
 
 func (l *ChainLedgerImpl) GetBlockTxHashList(height uint64) ([]*types.Hash, error) {
-	if height > l.chainMeta.Height || l.chainMeta.BlockHash.IsZero() {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -206,7 +206,7 @@ func (l *ChainLedgerImpl) GetBlockTxHashList(height uint64) ([]*types.Hash, erro
 }
 
 func (l *ChainLedgerImpl) GetBlockTxList(height uint64) ([]*types.Transaction, error) {
-	if height > l.chainMeta.Height || l.chainMeta.BlockHash.IsZero() {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -432,11 +432,7 @@ func (l *ChainLedgerImpl) GetChainMeta() *types.ChainMeta {
 func (l *ChainLedgerImpl) LoadChainMeta() (*types.ChainMeta, error) {
 	ok := l.blockchainStore.Has([]byte(utils.ChainMetaKey))
 
-	chain := &types.ChainMeta{
-		Height:    0,
-		GasPrice:  new(big.Int),
-		BlockHash: &types.Hash{},
-	}
+	chain := &types.ChainMeta{}
 	if ok {
 		body := l.blockchainStore.Get([]byte(utils.ChainMetaKey))
 		if err := chain.Unmarshal(body); err != nil {
@@ -546,7 +542,7 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 		return ErrorRollbackToHigherNumber
 	}
 
-	if meta.Height == height {
+	if meta.Height == height || meta.BlockHash == nil {
 		return nil
 	}
 
@@ -589,7 +585,7 @@ func (l *ChainLedgerImpl) checkChainMeta() error {
 	bfNextBlockNumber := l.bf.NextBlockNumber()
 	// no block
 	if bfNextBlockNumber == 0 {
-		if !l.chainMeta.BlockHash.IsZero() {
+		if l.chainMeta.BlockHash != nil {
 			panic("illegal chain meta!")
 		}
 		return nil

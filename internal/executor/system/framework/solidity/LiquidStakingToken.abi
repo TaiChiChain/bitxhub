@@ -78,6 +78,38 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newPrincipal",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newUnlocked",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "newActiveEpoch",
+        "type": "uint64"
+      }
+    ],
+    "name": "UpdateInfo",
+    "type": "event"
+  },
+  {
     "inputs":
     [
       {

@@ -180,6 +180,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 			GasPrice: minGasPrice * 5,
 		},
 	}
+	mockLedger.StateLedger.PrepareBlock(genesisBlock.Header.StateRoot, 0)
 
 	nvm := system.New()
 	err = nvm.GenesisInit(r.GenesisConfig, mockLedger.StateLedger)

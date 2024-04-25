@@ -2,72 +2,18 @@ package governance
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/sirupsen/logrus"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func initGovernance(t *testing.T) (*Governance, ledger.StateLedger) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	})
-	assert.Nil(t, err)
-
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
-	err = base.InitEpochInfo(stateLedger, g)
-	assert.Nil(t, err)
-
-	return gov, stateLedger
-}
-
 func TestChainParam_RunForPropose(t *testing.T) {
-	gov, stateLedger := initGovernance(t)
+	testNVM, gov := initGovernance(t)
 
 	testcases := []struct {
-		Caller string
+		Caller ethcommon.Address
 		Data   *ChainParamExtraArgs
 		Err    error
 		HasErr bool
@@ -188,101 +134,94 @@ func TestChainParam_RunForPropose(t *testing.T) {
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
-		})
-
-		data, err := json.Marshal(test.Data)
-		assert.Nil(t, err)
-
-		if test.Data == nil {
-			data = []byte("")
-		}
-
-		err = gov.Propose(uint8(ChainParamUpgrade), "test", "test desc", 100, data)
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				data, err := json.Marshal(test.Data)
 				assert.Nil(t, err)
-			}
-		}
-	}
 
+				if test.Data == nil {
+					data = []byte("")
+				}
+
+				err = gov.Propose(uint8(ChainParamUpgrade), "test", "test desc", 100, data)
+				if test.Err != nil {
+					assert.Contains(t, err.Error(), test.Err.Error())
+				} else {
+					if test.HasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
+		})
+	}
 }
 
 func TestChainParam_VoteExecute(t *testing.T) {
-	gov, stateLedger := initGovernance(t)
+	testNVM, gov := initGovernance(t)
 
-	data, err := json.Marshal(&ChainParamExtraArgs{
-		EpochPeriod:              1,
-		MaxValidatorNum:          4,
-		BlockMaxTxNum:            10,
-		EnableTimedGenEmptyBlock: true,
-		AbnormalNodeExcludeView:  1,
-		AgainProposeIntervalBlockInValidatorsNumPercentage: 80,
-		ContinuousNullRequestToleranceNumber:               1,
-		RebroadcastToleranceNumber:                         1,
-	})
-	assert.Nil(t, err)
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		data, err := json.Marshal(&ChainParamExtraArgs{
+			EpochPeriod:              1,
+			MaxValidatorNum:          4,
+			BlockMaxTxNum:            10,
+			EnableTimedGenEmptyBlock: true,
+			AbnormalNodeExcludeView:  1,
+			AgainProposeIntervalBlockInValidatorsNumPercentage: 80,
+			ContinuousNullRequestToleranceNumber:               1,
+			RebroadcastToleranceNumber:                         1,
+		})
+		assert.Nil(t, err)
 
-	logs := make([]common.Log, 0)
-	addr := types.NewAddressByStr(admin1).ETHAddress()
-	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+		err = gov.Propose(uint8(ChainParamUpgrade), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+
+		return err
 	})
 
-	err = gov.Propose(uint8(ChainParamUpgrade), "test", "test desc", 100, data)
-	assert.Nil(t, err)
+	var proposalID uint64
+	testNVM.Call(gov, admin1, func() {
+		var err error
+		proposalID, err = gov.GetLatestProposalID()
+		assert.Nil(t, err)
+	})
 
 	testcases := []struct {
-		Caller     string
+		Caller     ethcommon.Address
 		ProposalID uint64
 		Res        VoteResult
 		Err        error
 	}{
 		{
 			Caller:     admin1,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        Pass,
 			Err:        ErrUseHasVoted,
 		},
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        Pass,
 			Err:        nil,
 		},
 		{
 			Caller:     admin3,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        Pass,
 			Err:        nil,
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(test.ProposalID, uint8(test.Res))
+				assert.Equal(t, test.Err, err)
+				return err
+			})
 		})
-
-		err = gov.Vote(test.ProposalID, uint8(test.Res))
-		assert.Equal(t, test.Err, err)
 	}
 }

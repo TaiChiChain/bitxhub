@@ -31,7 +31,7 @@ var (
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Stake\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Unlock\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"stake\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"}],\"name\":\"AddStake\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Unlock\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"addStake\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -180,25 +180,25 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
-// Stake is a paid mutator transaction binding the contract method 0xa328a677.
+// AddStake is a paid mutator transaction binding the contract method 0xad899a39.
 //
-// Solidity: function stake(uint64 poolID, address owner, uint256 amount) payable returns()
-func (_BindingContract *BindingContractTransactor) Stake(opts *bind.TransactOpts, poolID uint64, owner common.Address, amount *big.Int) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "stake", poolID, owner, amount)
+// Solidity: function addStake(uint64 poolID, address owner, uint256 amount) payable returns()
+func (_BindingContract *BindingContractTransactor) AddStake(opts *bind.TransactOpts, poolID uint64, owner common.Address, amount *big.Int) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "addStake", poolID, owner, amount)
 }
 
-// Stake is a paid mutator transaction binding the contract method 0xa328a677.
+// AddStake is a paid mutator transaction binding the contract method 0xad899a39.
 //
-// Solidity: function stake(uint64 poolID, address owner, uint256 amount) payable returns()
-func (_BindingContract *BindingContractSession) Stake(poolID uint64, owner common.Address, amount *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.Stake(&_BindingContract.TransactOpts, poolID, owner, amount)
+// Solidity: function addStake(uint64 poolID, address owner, uint256 amount) payable returns()
+func (_BindingContract *BindingContractSession) AddStake(poolID uint64, owner common.Address, amount *big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.AddStake(&_BindingContract.TransactOpts, poolID, owner, amount)
 }
 
-// Stake is a paid mutator transaction binding the contract method 0xa328a677.
+// AddStake is a paid mutator transaction binding the contract method 0xad899a39.
 //
-// Solidity: function stake(uint64 poolID, address owner, uint256 amount) payable returns()
-func (_BindingContract *BindingContractTransactorSession) Stake(poolID uint64, owner common.Address, amount *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.Stake(&_BindingContract.TransactOpts, poolID, owner, amount)
+// Solidity: function addStake(uint64 poolID, address owner, uint256 amount) payable returns()
+func (_BindingContract *BindingContractTransactorSession) AddStake(poolID uint64, owner common.Address, amount *big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.AddStake(&_BindingContract.TransactOpts, poolID, owner, amount)
 }
 
 // Unlock is a paid mutator transaction binding the contract method 0x7a94f25b.
@@ -243,9 +243,9 @@ func (_BindingContract *BindingContractTransactorSession) Withdraw(poolID uint64
 	return _BindingContract.Contract.Withdraw(&_BindingContract.TransactOpts, poolID, owner, liquidStakingTokenID, amount)
 }
 
-// BindingContractStakeIterator is returned from FilterStake and is used to iterate over the raw logs and unpacked data for Stake events raised by the BindingContract contract.
-type BindingContractStakeIterator struct {
-	Event *BindingContractStake // Event containing the contract specifics and raw log
+// BindingContractAddStakeIterator is returned from FilterAddStake and is used to iterate over the raw logs and unpacked data for AddStake events raised by the BindingContract contract.
+type BindingContractAddStakeIterator struct {
+	Event *BindingContractAddStake // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -259,7 +259,7 @@ type BindingContractStakeIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *BindingContractStakeIterator) Next() bool {
+func (it *BindingContractAddStakeIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -268,7 +268,7 @@ func (it *BindingContractStakeIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(BindingContractStake)
+			it.Event = new(BindingContractAddStake)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -283,7 +283,7 @@ func (it *BindingContractStakeIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(BindingContractStake)
+		it.Event = new(BindingContractAddStake)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -299,29 +299,30 @@ func (it *BindingContractStakeIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *BindingContractStakeIterator) Error() error {
+func (it *BindingContractAddStakeIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *BindingContractStakeIterator) Close() error {
+func (it *BindingContractAddStakeIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// BindingContractStake represents a Stake event raised by the BindingContract contract.
-type BindingContractStake struct {
-	PoolID uint64
-	Owner  common.Address
-	Amount *big.Int
-	Raw    types.Log // Blockchain specific contextual infos
+// BindingContractAddStake represents a AddStake event raised by the BindingContract contract.
+type BindingContractAddStake struct {
+	PoolID               uint64
+	Owner                common.Address
+	Amount               *big.Int
+	LiquidStakingTokenID *big.Int
+	Raw                  types.Log // Blockchain specific contextual infos
 }
 
-// FilterStake is a free log retrieval operation binding the contract event 0xc37a962db40f0f2a72f4a9ee4760e142ff06e5fb57cb4f23f494cbec9718e605.
+// FilterAddStake is a free log retrieval operation binding the contract event 0x3301397a2de959044a175731cb4b6ec2b2759b40fddd83e761657d93c598c073.
 //
-// Solidity: event Stake(uint64 indexed poolID, address indexed owner, uint256 amount)
-func (_BindingContract *BindingContractFilterer) FilterStake(opts *bind.FilterOpts, poolID []uint64, owner []common.Address) (*BindingContractStakeIterator, error) {
+// Solidity: event AddStake(uint64 indexed poolID, address indexed owner, uint256 amount, uint256 liquidStakingTokenID)
+func (_BindingContract *BindingContractFilterer) FilterAddStake(opts *bind.FilterOpts, poolID []uint64, owner []common.Address) (*BindingContractAddStakeIterator, error) {
 
 	var poolIDRule []interface{}
 	for _, poolIDItem := range poolID {
@@ -332,17 +333,17 @@ func (_BindingContract *BindingContractFilterer) FilterStake(opts *bind.FilterOp
 		ownerRule = append(ownerRule, ownerItem)
 	}
 
-	logs, sub, err := _BindingContract.contract.FilterLogs(opts, "Stake", poolIDRule, ownerRule)
+	logs, sub, err := _BindingContract.contract.FilterLogs(opts, "AddStake", poolIDRule, ownerRule)
 	if err != nil {
 		return nil, err
 	}
-	return &BindingContractStakeIterator{contract: _BindingContract.contract, event: "Stake", logs: logs, sub: sub}, nil
+	return &BindingContractAddStakeIterator{contract: _BindingContract.contract, event: "AddStake", logs: logs, sub: sub}, nil
 }
 
-// WatchStake is a free log subscription operation binding the contract event 0xc37a962db40f0f2a72f4a9ee4760e142ff06e5fb57cb4f23f494cbec9718e605.
+// WatchAddStake is a free log subscription operation binding the contract event 0x3301397a2de959044a175731cb4b6ec2b2759b40fddd83e761657d93c598c073.
 //
-// Solidity: event Stake(uint64 indexed poolID, address indexed owner, uint256 amount)
-func (_BindingContract *BindingContractFilterer) WatchStake(opts *bind.WatchOpts, sink chan<- *BindingContractStake, poolID []uint64, owner []common.Address) (event.Subscription, error) {
+// Solidity: event AddStake(uint64 indexed poolID, address indexed owner, uint256 amount, uint256 liquidStakingTokenID)
+func (_BindingContract *BindingContractFilterer) WatchAddStake(opts *bind.WatchOpts, sink chan<- *BindingContractAddStake, poolID []uint64, owner []common.Address) (event.Subscription, error) {
 
 	var poolIDRule []interface{}
 	for _, poolIDItem := range poolID {
@@ -353,7 +354,7 @@ func (_BindingContract *BindingContractFilterer) WatchStake(opts *bind.WatchOpts
 		ownerRule = append(ownerRule, ownerItem)
 	}
 
-	logs, sub, err := _BindingContract.contract.WatchLogs(opts, "Stake", poolIDRule, ownerRule)
+	logs, sub, err := _BindingContract.contract.WatchLogs(opts, "AddStake", poolIDRule, ownerRule)
 	if err != nil {
 		return nil, err
 	}
@@ -363,8 +364,8 @@ func (_BindingContract *BindingContractFilterer) WatchStake(opts *bind.WatchOpts
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(BindingContractStake)
-				if err := _BindingContract.contract.UnpackLog(event, "Stake", log); err != nil {
+				event := new(BindingContractAddStake)
+				if err := _BindingContract.contract.UnpackLog(event, "AddStake", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -385,12 +386,12 @@ func (_BindingContract *BindingContractFilterer) WatchStake(opts *bind.WatchOpts
 	}), nil
 }
 
-// ParseStake is a log parse operation binding the contract event 0xc37a962db40f0f2a72f4a9ee4760e142ff06e5fb57cb4f23f494cbec9718e605.
+// ParseAddStake is a log parse operation binding the contract event 0x3301397a2de959044a175731cb4b6ec2b2759b40fddd83e761657d93c598c073.
 //
-// Solidity: event Stake(uint64 indexed poolID, address indexed owner, uint256 amount)
-func (_BindingContract *BindingContractFilterer) ParseStake(log types.Log) (*BindingContractStake, error) {
-	event := new(BindingContractStake)
-	if err := _BindingContract.contract.UnpackLog(event, "Stake", log); err != nil {
+// Solidity: event AddStake(uint64 indexed poolID, address indexed owner, uint256 amount, uint256 liquidStakingTokenID)
+func (_BindingContract *BindingContractFilterer) ParseAddStake(log types.Log) (*BindingContractAddStake, error) {
+	event := new(BindingContractAddStake)
+	if err := _BindingContract.contract.UnpackLog(event, "AddStake", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

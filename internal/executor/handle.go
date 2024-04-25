@@ -3,6 +3,7 @@ package executor
 import (
 	"bytes"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -291,7 +292,6 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	var err error
 
 	msg := TransactionToMessage(tx)
-	// TODO: support set gas price with legacy tx
 
 	statedb := exec.ledger.StateLedger
 	evmStateDB := &ledger.EvmStateDBAdaptor{StateLedger: statedb}
@@ -304,7 +304,6 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
-
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
 		statedb.RevertToSnapshot(snapshot)

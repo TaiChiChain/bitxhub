@@ -5,10 +5,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/axiomesh/axiom-ledger/pkg/bind"
-	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
+
+	"github.com/axiomesh/axiom-ledger/pkg/bind"
 )
 
 var (
@@ -41,7 +41,7 @@ func init() {
 
 func abigen(c *cli.Context) error {
 	if c.String(pkgFlag.Name) == "" {
-		utils.Fatalf("No destination package specified (--pkg)")
+		return errors.New("No destination package specified (--pkg)")
 	}
 	// If the entire solidity code was specified, build and bind based on that
 	var (
@@ -63,7 +63,7 @@ func abigen(c *cli.Context) error {
 			abi, err = os.ReadFile(input)
 		}
 		if err != nil {
-			utils.Fatalf("Failed to read input ABI: %v", err)
+			return errors.Wrap(err, "Failed to read input ABI")
 		}
 		abis = append(abis, string(abi))
 
@@ -73,7 +73,7 @@ func abigen(c *cli.Context) error {
 	// Generate the contract binding
 	code, err := bind.Bind(types, abis, sigs, c.String(pkgFlag.Name), libs)
 	if err != nil {
-		utils.Fatalf("Failed to generate ABI binding: %v", err)
+		return errors.Wrap(err, "Failed to generate ABI binding")
 	}
 	// Either flush it out to a file or display on the standard output
 	if !c.IsSet(outFlag.Name) {
@@ -81,16 +81,14 @@ func abigen(c *cli.Context) error {
 		return nil
 	}
 	if err := os.WriteFile(c.String(outFlag.Name), []byte(code), 0600); err != nil {
-		utils.Fatalf("Failed to write ABI binding: %v", err)
+		return errors.Wrap(err, "Failed to write ABI binding")
 	}
 	return nil
 }
 
 func main() {
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
-
 	if err := app.Run(os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

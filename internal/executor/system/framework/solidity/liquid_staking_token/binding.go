@@ -146,3 +146,15 @@ type EventTransfer struct {
 func (_event *EventTransfer) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 	return packer.PackEvent(_event, abi.Events["Transfer"])
 }
+
+// EventUpdateInfo represents a UpdateInfo event raised by the LiquidStakingToken contract.
+type EventUpdateInfo struct {
+	TokenId        *big.Int
+	NewPrincipal   *big.Int
+	NewUnlocked    *big.Int
+	NewActiveEpoch uint64
+}
+
+func (_event *EventUpdateInfo) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["UpdateInfo"])
+}

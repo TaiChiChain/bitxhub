@@ -6,11 +6,12 @@ import (
 	"math/big"
 	"sort"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager_client"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -38,6 +39,8 @@ var StakingManagerBuildConfig = &common.SystemContractBuildConfig[*StakingManage
 		}
 	},
 }
+
+var _ staking_manager.StakingManager = (*StakingManager)(nil)
 
 type StakingManager struct {
 	common.SystemContractBase
@@ -185,7 +188,7 @@ func (s *StakingManager) CreateStakingPool(poolID uint64, commissionRate uint64)
 	return nil
 }
 
-func (s *StakingManager) Stake(poolID uint64, owner ethcommon.Address, amount *big.Int) error {
+func (s *StakingManager) AddStake(poolID uint64, owner ethcommon.Address, amount *big.Int) error {
 	return s.GetStakingPool(poolID).AddStake(owner, amount)
 }
 
@@ -201,23 +204,23 @@ func (s *StakingManager) UpdatePoolCommissionRate(poolID uint64, newCommissionRa
 	return s.GetStakingPool(poolID).UpdateCommissionRate(newCommissionRate)
 }
 
-func (s *StakingManager) GetPoolActiveStake(poolID uint64) *big.Int {
+func (s *StakingManager) GetPoolActiveStake(poolID uint64) (*big.Int, error) {
 	return s.GetStakingPool(poolID).GetActiveStake()
 }
 
-func (s *StakingManager) GetPoolNextEpochActiveStake(poolID uint64) *big.Int {
+func (s *StakingManager) GetPoolNextEpochActiveStake(poolID uint64) (*big.Int, error) {
 	return s.GetStakingPool(poolID).GetNextEpochActiveStake()
 }
 
-func (s *StakingManager) GetPoolCommissionRate(poolID uint64) uint64 {
+func (s *StakingManager) GetPoolCommissionRate(poolID uint64) (uint64, error) {
 	return s.GetStakingPool(poolID).GetCommissionRate()
 }
 
-func (s *StakingManager) GetPoolNextEpochCommissionRate(poolID uint64) uint64 {
+func (s *StakingManager) GetPoolNextEpochCommissionRate(poolID uint64) (uint64, error) {
 	return s.GetStakingPool(poolID).GetNextEpochCommissionRate()
 }
 
-func (s *StakingManager) GetPoolCumulativeReward(poolID uint64) *big.Int {
+func (s *StakingManager) GetPoolCumulativeReward(poolID uint64) (*big.Int, error) {
 	return s.GetStakingPool(poolID).GetCumulativeReward()
 }
 

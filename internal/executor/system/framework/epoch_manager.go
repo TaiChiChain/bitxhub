@@ -3,11 +3,11 @@ package framework
 import (
 	"strconv"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager_client"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager_client"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 

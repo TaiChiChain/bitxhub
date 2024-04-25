@@ -3,6 +3,7 @@ package governance
 import (
 	"encoding/json"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -14,7 +15,6 @@ var (
 	ErrMinCouncilMembersCount   = errors.New("council members count can't less than 4")
 	ErrRepeatedAddress          = errors.New("council member address repeated")
 	ErrRepeatedName             = errors.New("council member name repeated")
-	ErrNotFoundCouncilMember    = errors.New("council member is not found")
 	ErrExistNotFinishedProposal = errors.New("exist not finished proposal, must finished all proposal then propose council proposal")
 )
 
@@ -58,6 +58,10 @@ func NewCouncilManager(gov *Governance) *CouncilManager {
 func (cm *CouncilManager) GenesisInit(genesis *repo.GenesisConfig) error {
 	council := &Council{}
 	for _, admin := range genesis.CouncilMembers {
+		if !ethcommon.IsHexAddress(admin.Address) {
+			return errors.Errorf("invalid council member address: %s", admin.Address)
+		}
+
 		council.Members = append(council.Members, CouncilMember{
 			Address: admin.Address,
 			Weight:  admin.Weight,

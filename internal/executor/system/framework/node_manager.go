@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -15,6 +13,8 @@ import (
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager_client"
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -112,6 +112,7 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 	var needCreateStakingPoolIDs []uint64
 
 	minValidatorStake := genesis.EpochInfo.StakeParams.MinValidatorStake.ToBigInt()
+	maxValidatorStake := genesis.EpochInfo.StakeParams.MaxValidatorStake.ToBigInt()
 	// check node info
 	nodeInfoMap := make(map[uint64]*node_manager.NodeInfo, len(genesis.Nodes))
 	nodeCfgMap := make(map[uint64]*repo.GenesisNodeInfo, len(genesis.Nodes))
@@ -134,7 +135,11 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 			if nodeCfg.CommissionRate > CommissionRateDenominator {
 				return errors.Errorf("invalid commission rate %d, need <= %d", nodeCfg.CommissionRate, CommissionRateDenominator)
 			}
+
 			stakeNumber := nodeCfg.StakeNumber.ToBigInt()
+			if stakeNumber.Cmp(maxValidatorStake) > 0 {
+				return errors.Errorf("invalid stake number %s, need <= %s", stakeNumber, maxValidatorStake)
+			}
 			nodeStakeNumberMap[nodeInfo.ID] = stakeNumber
 
 			_, _, p2pID, err := CheckNodeInfo(*nodeInfo)
@@ -153,7 +158,7 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		if nodeCfg.IsDataSyncer {
 			dataSyncers = append(dataSyncers, nodeInfo.ID)
 		} else {
-			if minValidatorStake.Cmp(nodeStakeNumberMap[nodeInfo.ID]) < 0 {
+			if minValidatorStake.Cmp(nodeStakeNumberMap[nodeInfo.ID]) <= 0 {
 				pendingValidators = append(pendingValidators, nodeInfo.ID)
 			} else {
 				candidates = append(candidates, nodeInfo.ID)
@@ -310,6 +315,7 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 
 func (n *NodeManager) InternalRegisterNode(info node_manager.NodeInfo) (id uint64, err error) {
 	info.Status = uint8(types.NodeStatusDataSyncer)
+	// TODO: emit event
 	return n.registerNode(info, false)
 }
 
@@ -388,7 +394,10 @@ func (n *NodeManager) InternalTurnIntoNewEpoch(epochInfo *types.EpochInfo) error
 	sortInfos := make(sortNodeInfos, len(nodeInfos))
 	stakeManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
 	for i, info := range nodeInfos {
-		stakeValue := stakeManager.GetPoolActiveStake(info.ID)
+		stakeValue, err := stakeManager.GetPoolActiveStake(info.ID)
+		if err != nil {
+			return err
+		}
 		sortInfos[i] = sortNodeInfo{
 			stakeValue: stakeValue,
 			NodeInfo:   info,
@@ -472,7 +481,11 @@ func (n *NodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
 	if !isExist {
 		validateIDs = []uint64{}
 	}
-	return append(candidateIDs, validateIDs...), nil
+	nodeIDs := append(candidateIDs, validateIDs...)
+	sort.Slice(nodeIDs, func(i, j int) bool {
+		return nodeIDs[i] < nodeIDs[j]
+	})
+	return nodeIDs, nil
 }
 
 func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
@@ -499,11 +512,21 @@ func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowe
 		validatorMap[nodeId] = struct{}{}
 		validators = append(validators, nodeId)
 	}
-	for _, nodeId := range allValidaNodes {
-		if _, ok := validatorMap[nodeId]; !ok {
-			candidates = append(candidates, nodeId)
+	for _, nodeID := range allValidaNodes {
+		if _, ok := validatorMap[nodeID]; !ok {
+			nodeInfo, err := n.GetNodeInfo(nodeID)
+			if err != nil {
+				return err
+			}
+			nodeInfo.Status = uint8(types.NodeStatusCandidate)
+			if err = n.nodeRegistry.Put(nodeID, nodeInfo); err != nil {
+				return err
+			}
+
+			candidates = append(candidates, nodeID)
 		}
 	}
+
 	if err = n.getStatusSet(types.NodeStatusCandidate).Put(candidates); err != nil {
 		return err
 	}
@@ -529,6 +552,8 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
 }
 
 func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
+	// TODO: emit event
+
 	nodeInfo, err := n.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
@@ -570,8 +595,8 @@ func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
 		}
 		n.EmitEvent(&node_manager.EventJoinedPendingInactiveSet{NodeID: nodeID})
 		return nil
-	case types.NodeStatusCandidate:
-		if err = n.operatorTransferStatus(types.NodeStatusCandidate, types.NodeStatusExited, &nodeInfo); err != nil {
+	case types.NodeStatusCandidate, types.NodeStatusDataSyncer:
+		if err = n.operatorTransferStatus(types.NodeStatus(nodeInfo.Status), types.NodeStatusExited, &nodeInfo); err != nil {
 			return err
 		}
 		n.EmitEvent(&node_manager.EventLeavedCandidateSet{NodeID: nodeID})
@@ -590,6 +615,14 @@ func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMe
 	// check permission
 	if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
 		return ErrPermissionDenied
+	}
+
+	if metaData.Name == "" {
+		return errors.New("name cannot be empty")
+	}
+
+	if n.nodeNameIndex.Has(metaData.Name) {
+		return errors.Errorf("name %s is already in use", metaData.Name)
 	}
 
 	newNodeInfo := NewNodeInfo{
@@ -642,9 +675,6 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) e
 }
 
 func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo node_manager.NodeInfo, newNodeInfo NewNodeInfo) error {
-	if n.Ctx.From.String() != oldNodeInfo.OperatorAddress {
-		return ErrPermissionDenied
-	}
 	oldNodeInfo.OperatorAddress = newNodeInfo.OperatorAddress
 	oldNodeInfo.MetaData = newNodeInfo.MetaData
 	return n.nodeRegistry.Put(nodeID, oldNodeInfo)
@@ -693,6 +723,7 @@ func (n *NodeManager) GetTotalNodeCount() (uint64, error) {
 }
 
 func (n *NodeManager) GetNodeInfos(nodeIDs []uint64) (infos []node_manager.NodeInfo, err error) {
+	infos = []node_manager.NodeInfo{}
 	for _, id := range nodeIDs {
 		info, err := n.GetNodeInfo(id)
 		if err != nil {
@@ -700,31 +731,25 @@ func (n *NodeManager) GetNodeInfos(nodeIDs []uint64) (infos []node_manager.NodeI
 		}
 		infos = append(infos, info)
 	}
-	return
+	return infos, nil
 }
 
 func (n *NodeManager) GetActiveValidatorSet() (infos []node_manager.NodeInfo, votingPowers []node_manager.ConsensusVotingPower, err error) {
-	isExists, nodes, err := n.getStatusSet(types.NodeStatusActive).Get()
-	if err != nil {
-		return nil, nil, err
-	}
-	if !isExists {
-		return nil, nil, nil
-	}
-	infos, err = n.GetNodeInfos(nodes)
-	if err != nil {
-		return nil, nil, err
-	}
 	isExists, innerVotingPowers, err := n.activeValidatorVotingPowers.Get()
 	if err != nil {
 		return nil, nil, err
 	}
-	// if voting powers not exists but active validators exists, it is a bug
-	// if voting powers are not as long as active validators, it is a bug
-	if !isExists && !(len(votingPowers) == len(nodes)) {
-		return nil, nil, errors.New("active validators and voting powers length not match")
+	if !isExists {
+		return []node_manager.NodeInfo{}, []node_manager.ConsensusVotingPower{}, nil
 	}
+
 	for i := 0; i < len(innerVotingPowers); i++ {
+		info, err := n.GetNodeInfo(innerVotingPowers[i].NodeID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		infos = append(infos, info)
 		votingPowers = append(votingPowers, node_manager.ConsensusVotingPower{
 			NodeID:               innerVotingPowers[i].NodeID,
 			ConsensusVotingPower: innerVotingPowers[i].ConsensusVotingPower,
@@ -739,7 +764,7 @@ func (n *NodeManager) GetDataSyncerSet() (infos []node_manager.NodeInfo, err err
 		return nil, err
 	}
 	if !isExists {
-		return nil, nil
+		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetNodeInfos(nodes)
 }
@@ -750,7 +775,7 @@ func (n *NodeManager) GetCandidateSet() (infos []node_manager.NodeInfo, err erro
 		return nil, err
 	}
 	if !isExists {
-		return nil, nil
+		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetNodeInfos(nodes)
 }
@@ -761,7 +786,7 @@ func (n *NodeManager) GetPendingInactiveSet() (infos []node_manager.NodeInfo, er
 		return nil, err
 	}
 	if !isExists {
-		return nil, nil
+		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetNodeInfos(nodes)
 }
@@ -772,7 +797,7 @@ func (n *NodeManager) GetExitedSet() (infos []node_manager.NodeInfo, err error) 
 		return nil, err
 	}
 	if !isExists {
-		return nil, nil
+		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetNodeInfos(nodes)
 }
@@ -858,6 +883,10 @@ func (n *NodeManager) getStatusSet(status types.NodeStatus) *common.VMSlot[[]uin
 	return common.NewVMSlot[[]uint64](n.StateAccount, statusPrefix+strconv.Itoa(int(status)))
 }
 
+func (n *NodeManager) TestPutNodeInfo(nodeInfo *node_manager.NodeInfo) (err error) {
+	return n.nodeRegistry.Put(nodeInfo.ID, *nodeInfo)
+}
+
 func StandardizationNodeInfo(info node_manager.NodeInfo) node_manager.NodeInfo {
 	return node_manager.NodeInfo{
 		ID:              info.ID,
@@ -877,7 +906,7 @@ func StandardizationNodeInfo(info node_manager.NodeInfo) node_manager.NodeInfo {
 
 func CheckNodeInfo(nodeInfo node_manager.NodeInfo) (consensusPubKey *crypto.Bls12381PublicKey, p2pPubKey *crypto.Ed25519PublicKey, p2pID string, err error) {
 	if nodeInfo.MetaData.Name == "" {
-		return nil, nil, "", errors.New("node name cannot be empty")
+		return nil, nil, "", errors.New("name cannot be empty")
 	}
 
 	if !ethcommon.IsHexAddress(nodeInfo.OperatorAddress) {

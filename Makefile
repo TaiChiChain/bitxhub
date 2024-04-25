@@ -79,7 +79,7 @@ fmt:
 
 ## make test: Run go unittest
 test:
-	${GO_BIN} test -timeout 300s ./... -count=1
+	@time ${GO_BIN} test -timeout 300s ./... -count=1
 
 ## make test-coverage: Test project with cover
 test-coverage:

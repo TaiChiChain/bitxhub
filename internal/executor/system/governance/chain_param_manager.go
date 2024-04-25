@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var (
@@ -12,8 +14,6 @@ var (
 	ErrRepeatedChainParam                 = errors.New("repeated chain param")
 	ErrExistNotFinishedChainParamProposal = errors.New("propose chain param proposal failed, exist not finished proposal")
 )
-
-var _ IExecutor = (*ChainParamManager)(nil)
 
 type ChainParamExtraArgs struct {
 	EpochPeriod                                        uint64
@@ -28,16 +28,23 @@ type ChainParamExtraArgs struct {
 
 type ChainParamManager struct {
 	gov *Governance
+	DefaultProposalPermissionManager
 }
 
 func NewChainParamManager(gov *Governance) *ChainParamManager {
 	return &ChainParamManager{
-		gov: gov,
+		gov:                              gov,
+		DefaultProposalPermissionManager: NewDefaultProposalPermissionManager(gov),
 	}
 }
 
-// ProposeCheck implements IExecutor.
-func (c *ChainParamManager) ProposeCheck(proposalType ProposalType, extra []byte) error {
+func (c *ChainParamManager) GenesisInit(genesis *repo.GenesisConfig) error {
+	return nil
+}
+
+func (c *ChainParamManager) SetContext(ctx *common.VMContext) {}
+
+func (c *ChainParamManager) ProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
 	_, err := c.getChainParamExtraArgs(extra)
 	if err != nil {
 		return err
@@ -46,39 +53,36 @@ func (c *ChainParamManager) ProposeCheck(proposalType ProposalType, extra []byte
 	return c.checkNotFinishedProposal()
 }
 
-// Execute implements IExecutor.
-func (c *ChainParamManager) Execute(proposal *Proposal) error {
-	if proposal.Status == Approved {
-		extraArgs, err := c.getChainParamExtraArgs(proposal.Extra)
-		if err != nil {
-			return err
-		}
-
-		epochInfo, err := base.GetNextEpochInfo(c.gov.stateLedger)
-		if err != nil {
-			return err
-		}
-
-		epochInfo.EpochPeriod = extraArgs.EpochPeriod
-		epochInfo.ConsensusParams.MaxValidatorNum = extraArgs.MaxValidatorNum
-		epochInfo.ConsensusParams.BlockMaxTxNum = extraArgs.BlockMaxTxNum
-		epochInfo.ConsensusParams.AbnormalNodeExcludeView = extraArgs.AbnormalNodeExcludeView
-		epochInfo.ConsensusParams.AgainProposeIntervalBlockInValidatorsNumPercentage = extraArgs.AgainProposeIntervalBlockInValidatorsNumPercentage
-		epochInfo.ConsensusParams.ContinuousNullRequestToleranceNumber = extraArgs.ContinuousNullRequestToleranceNumber
-		epochInfo.ConsensusParams.ReBroadcastToleranceNumber = extraArgs.RebroadcastToleranceNumber
-		epochInfo.ConsensusParams.EnableTimedGenEmptyBlock = extraArgs.EnableTimedGenEmptyBlock
-		if err := base.SetNextEpochInfo(c.gov.stateLedger, epochInfo); err != nil {
-			return err
-		}
+func (c *ChainParamManager) VotePassExecute(proposal *Proposal) error {
+	extraArgs, err := c.getChainParamExtraArgs(proposal.Extra)
+	if err != nil {
+		return err
 	}
 
+	epochManagerContract := framework.EpochManagerBuildConfig.Build(c.gov.CrossCallSystemContractContext())
+	nextEpochInfo, err := epochManagerContract.NextEpoch()
+	if err != nil {
+		return err
+	}
+
+	nextEpochInfo.EpochPeriod = extraArgs.EpochPeriod
+	nextEpochInfo.ConsensusParams.MaxValidatorNum = extraArgs.MaxValidatorNum
+	nextEpochInfo.ConsensusParams.BlockMaxTxNum = extraArgs.BlockMaxTxNum
+	nextEpochInfo.ConsensusParams.AbnormalNodeExcludeView = extraArgs.AbnormalNodeExcludeView
+	nextEpochInfo.ConsensusParams.AgainProposeIntervalBlockInValidatorsNumPercentage = extraArgs.AgainProposeIntervalBlockInValidatorsNumPercentage
+	nextEpochInfo.ConsensusParams.ContinuousNullRequestToleranceNumber = extraArgs.ContinuousNullRequestToleranceNumber
+	nextEpochInfo.ConsensusParams.ReBroadcastToleranceNumber = extraArgs.RebroadcastToleranceNumber
+	nextEpochInfo.ConsensusParams.EnableTimedGenEmptyBlock = extraArgs.EnableTimedGenEmptyBlock
+	if err := epochManagerContract.UpdateNextEpoch(nextEpochInfo); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (c *ChainParamManager) getChainParamExtraArgs(extra []byte) (*ChainParamExtraArgs, error) {
 	extraArgs := &ChainParamExtraArgs{}
 	if err := json.Unmarshal(extra, extraArgs); err != nil {
-		c.gov.logger.Errorf("Unmarshal extra args failed: %v", err)
+		c.gov.Logger.Errorf("Unmarshal extra args failed: %v", err)
 		return nil, ErrChainParamInvalid
 	}
 
@@ -90,12 +94,13 @@ func (c *ChainParamManager) getChainParamExtraArgs(extra []byte) (*ChainParamExt
 	}
 
 	// check whether chain param and GetNextEpochInfo are consistent
-	epochInfo, err := base.GetNextEpochInfo(c.gov.stateLedger)
+	epochManagerContract := framework.EpochManagerBuildConfig.Build(c.gov.CrossCallSystemContractContext())
+	nextEpochInfo, err := epochManagerContract.NextEpoch()
 	if err != nil {
 		return nil, err
 	}
-	consensusParams := epochInfo.ConsensusParams
-	if epochInfo.EpochPeriod == extraArgs.EpochPeriod && consensusParams.MaxValidatorNum == extraArgs.MaxValidatorNum &&
+	consensusParams := nextEpochInfo.ConsensusParams
+	if nextEpochInfo.EpochPeriod == extraArgs.EpochPeriod && consensusParams.MaxValidatorNum == extraArgs.MaxValidatorNum &&
 		consensusParams.BlockMaxTxNum == extraArgs.BlockMaxTxNum && consensusParams.AbnormalNodeExcludeView == extraArgs.AbnormalNodeExcludeView &&
 		consensusParams.AgainProposeIntervalBlockInValidatorsNumPercentage == extraArgs.AgainProposeIntervalBlockInValidatorsNumPercentage &&
 		consensusParams.ContinuousNullRequestToleranceNumber == extraArgs.ContinuousNullRequestToleranceNumber &&
@@ -107,7 +112,7 @@ func (c *ChainParamManager) getChainParamExtraArgs(extra []byte) (*ChainParamExt
 }
 
 func (c *ChainParamManager) checkNotFinishedProposal() error {
-	notFinishedProposals, err := c.gov.notFinishedProposalMgr.GetProposals()
+	_, notFinishedProposals, err := c.gov.notFinishedProposals.Get()
 	if err != nil {
 		return err
 	}

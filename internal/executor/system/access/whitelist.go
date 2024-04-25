@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/access/solidity/whitelist_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access/solidity/whitelist"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/access/solidity/whitelist_client"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -33,6 +33,8 @@ var WhitelistBuildConfig = &common.SystemContractBuildConfig[*Whitelist]{
 		}
 	},
 }
+
+var _ whitelist.Whitelist = (*Whitelist)(nil)
 
 const (
 	AuthUserRoleBasic uint8 = iota
@@ -172,40 +174,40 @@ func (w *Whitelist) Remove(addresses []ethcommon.Address) error {
 	return nil
 }
 
-func (w *Whitelist) QueryAuthInfo(addr ethcommon.Address) (*whitelist.AuthInfo, error) {
-	if !w.Ctx.CallFromSystem {
-		exist, fromAuthInfo, err := w.authInfos.Get(addr)
-		if err != nil {
-			return nil, err
-		}
-		if !exist || fromAuthInfo.Role != AuthUserRoleSuper {
-			return nil, errors.New("permission denied, you are not a super user")
-		}
-	}
-
-	info, err := w.authInfos.MustGet(addr)
-	if err != nil {
-		return nil, err
-	}
-	return &info, nil
-}
-
-func (w *Whitelist) QueryProviderInfo(addr ethcommon.Address) (*whitelist.ProviderInfo, error) {
+func (w *Whitelist) QueryAuthInfo(addr ethcommon.Address) (whitelist.AuthInfo, error) {
 	if !w.Ctx.CallFromSystem {
 		exist, fromAuthInfo, err := w.authInfos.Get(w.Ctx.From)
 		if err != nil {
-			return nil, err
+			return whitelist.AuthInfo{}, err
 		}
 		if !exist || fromAuthInfo.Role != AuthUserRoleSuper {
-			return nil, errors.New("permission denied, you are not a super user")
+			return whitelist.AuthInfo{}, errors.New("permission denied, you are not a super user")
 		}
 	}
 
-	info, err := w.providerInfos.MustGet(addr)
+	_, info, err := w.authInfos.Get(addr)
 	if err != nil {
-		return nil, err
+		return whitelist.AuthInfo{}, err
 	}
-	return &info, nil
+	return info, nil
+}
+
+func (w *Whitelist) QueryProviderInfo(addr ethcommon.Address) (whitelist.ProviderInfo, error) {
+	if !w.Ctx.CallFromSystem {
+		exist, fromAuthInfo, err := w.authInfos.Get(w.Ctx.From)
+		if err != nil {
+			return whitelist.ProviderInfo{}, err
+		}
+		if !exist || fromAuthInfo.Role != AuthUserRoleSuper {
+			return whitelist.ProviderInfo{}, errors.New("permission denied, you are not a super user")
+		}
+	}
+
+	_, info, err := w.providerInfos.Get(addr)
+	if err != nil {
+		return whitelist.ProviderInfo{}, err
+	}
+	return info, nil
 }
 
 func (w *Whitelist) ExistProvider(addr ethcommon.Address) bool {
@@ -214,7 +216,7 @@ func (w *Whitelist) ExistProvider(addr ethcommon.Address) bool {
 
 func (w *Whitelist) Verify(user ethcommon.Address) error {
 	exist := w.authInfos.Has(user)
-	if exist {
+	if !exist {
 		return errors.New("permission denied, you are not in whitelist")
 	}
 

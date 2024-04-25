@@ -61,23 +61,21 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 
 	var startEpcNum uint64 = 1
 
-	if latestHeight != 0 {
-		blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
-		if err != nil {
-			return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
-		}
-		blockEpc := blockHeader.Epoch
-		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
-		info, err := epochManagerContract.HistoryEpoch(blockEpc)
-		if err != nil {
-			return nil, nil, fmt.Errorf("get epoch info err: %w", err)
-		}
-		if info.StartBlock+info.EpochPeriod-1 == latestHeight {
-			// if the last blockHeader in this epoch had been persisted, start from the next epoch
-			startEpcNum = info.Epoch + 1
-		} else {
-			startEpcNum = info.Epoch
-		}
+	blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
+	}
+	blockEpc := blockHeader.Epoch
+	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
+	info, err := epochManagerContract.HistoryEpoch(blockEpc)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get epoch info err: %w", err)
+	}
+	if info.StartBlock+info.EpochPeriod-1 == latestHeight {
+		// if the last blockHeader in this epoch had been persisted, start from the next epoch
+		startEpcNum = info.Epoch + 1
+	} else {
+		startEpcNum = info.Epoch
 	}
 
 	// 2. fill snap sync config option

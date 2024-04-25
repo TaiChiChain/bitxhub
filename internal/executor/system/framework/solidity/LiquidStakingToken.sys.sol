@@ -21,6 +21,7 @@ interface LiquidStakingToken {
     event Transfer(address indexed _from, address indexed _to, uint256 indexed _tokenId);
     event Approval(address indexed _owner, address indexed _approved, uint256 indexed _tokenId);
     event ApprovalForAll(address indexed _owner, address indexed _operator, bool _approved);
+    event UpdateInfo(uint256 indexed _tokenId, uint256 newPrincipal, uint256 newUnlocked, uint64 newActiveEpoch);
 
     function balanceOf(address _owner) external view returns (uint256);
 

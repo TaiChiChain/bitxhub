@@ -1,222 +1,393 @@
 package framework
 
 import (
-	"math/big"
+	"fmt"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	"github.com/axiomesh/axiom-ledger/pkg/crypto"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func newMockLedger(t *testing.T) ledger.StateLedger {
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.AXCContractAddr))
-	account.SetBalance(big.NewInt(3000000000000000000))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(0).AnyTimes()
-	stateLedger.EXPECT().Snapshot().AnyTimes()
-	stateLedger.EXPECT().Commit().Return(types.NewHash([]byte("")), nil).AnyTimes()
-	stateLedger.EXPECT().Clear().AnyTimes()
-	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(uint64(0)).AnyTimes()
-	stateLedger.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Finalise().AnyTimes()
-	stateLedger.EXPECT().Snapshot().Return(0).AnyTimes()
-	stateLedger.EXPECT().RevertToSnapshot(0).AnyTimes()
-	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetBalance(gomock.Any()).Return(big.NewInt(3000000000000000000)).AnyTimes()
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetRefund().AnyTimes()
-	stateLedger.EXPECT().GetCode(gomock.Any()).AnyTimes()
-	return stateLedger
-}
-
 func TestNodeManager_LifeCycleOfNode(t *testing.T) {
-	mockLedger := newMockLedger(t)
-	mockNodeManager := NewNodeManager()
-	mockAccount := types.NewAddressByStr("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013").ETHAddress()
-	epochAccount := types.NewAddressByStr(common.EpochManagerContractAddr).ETHAddress()
-	accountCtx := &common.VMContext{
-		StateLedger: mockLedger,
-		BlockNumber: 100,
-		From:        &mockAccount,
-	}
-	epochCtx := &common.VMContext{
-		StateLedger: mockLedger,
-		BlockNumber: 100,
-		From:        &epochAccount,
-	}
-	mockNodeManager.SetContext(accountCtx)
+	testNVM := common.NewTestNVM(t)
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(epochManagerContract, nodeManagerContract, stakingManagerContract)
 
-	nodeId, err := mockNodeManager.InternalRegisterNode(types.NodeInfo{
-		P2PPubKey: "123",
-		MetaData: types.NodeMetaData{
-			Name:       "mockName",
-			Desc:       "mockDesc",
-			ImageURL:   "https://example.com/image.png",
-			WebsiteURL: "https://example.com/",
-		},
-		OperatorAddress: mockAccount.String(),
+	var node1, node2, node3, node4, node5 node_manager.NodeInfo
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		totalNodeCount, err := nodeManagerContract.GetTotalNodeCount()
+		assert.Nil(t, err)
+		assert.EqualValues(t, 4, totalNodeCount)
+
+		node1, err = nodeManagerContract.GetNodeInfo(1)
+		assert.Nil(t, err)
+		node2, err = nodeManagerContract.GetNodeInfo(2)
+		assert.Nil(t, err)
+		node3, err = nodeManagerContract.GetNodeInfo(3)
+		assert.Nil(t, err)
+		node4, err = nodeManagerContract.GetNodeInfo(4)
+		assert.Nil(t, err)
+
+		activeValidatorSet, votingPowers, err := nodeManagerContract.GetActiveValidatorSet()
+		assert.Nil(t, err)
+		assert.Equal(t, 4, len(activeValidatorSet))
+		assert.EqualValues(t, node1, activeValidatorSet[0])
+		assert.EqualValues(t, node_manager.ConsensusVotingPower{
+			NodeID:               1,
+			ConsensusVotingPower: 1000,
+		}, votingPowers[0])
+		assert.EqualValues(t, node2, activeValidatorSet[1])
+		assert.EqualValues(t, node_manager.ConsensusVotingPower{
+			NodeID:               2,
+			ConsensusVotingPower: 1000,
+		}, votingPowers[1])
+		assert.EqualValues(t, node3, activeValidatorSet[2])
+		assert.EqualValues(t, node_manager.ConsensusVotingPower{
+			NodeID:               3,
+			ConsensusVotingPower: 1000,
+		}, votingPowers[2])
+		assert.EqualValues(t, node4, activeValidatorSet[3])
+		assert.EqualValues(t, node_manager.ConsensusVotingPower{
+			NodeID:               4,
+			ConsensusVotingPower: 1000,
+		}, votingPowers[3])
 	})
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(epochCtx)
-	nodeId, err = mockNodeManager.InternalRegisterNode(types.NodeInfo{
-		P2PPubKey: "123",
-		MetaData: types.NodeMetaData{
-			Name:       "mockName",
-			Desc:       "mockDesc",
-			ImageURL:   "https://example.com/image.png",
-			WebsiteURL: "https://example.com/",
-		},
-		OperatorAddress: mockAccount.String(),
+
+	p2pKeystore, err := repo.GenerateP2PKeystore(testNVM.Rep.RepoRoot, "", "")
+	assert.Nil(t, err)
+	consensusKeystore, err := repo.GenerateConsensusKeystore(testNVM.Rep.RepoRoot, "", "")
+	assert.Nil(t, err)
+	operatorAddress := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013")
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		_, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+			ConsensusPubKey: consensusKeystore.PublicKey.String(),
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           node1.P2PID,
+			OperatorAddress: operatorAddress.String(),
+			MetaData: node_manager.NodeMetaData{
+				Name:       "mockName",
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.ErrorContains(t, err, "is already in use")
+		return err
 	})
-	assert.Nil(t, err)
-	assert.Equal(t, uint64(0), nodeId)
 
-	info, err := mockNodeManager.GetNodeInfo(nodeId)
-	assert.Nil(t, err)
-	assert.Equal(t, "123", info.P2PPubKey)
-	assert.Equal(t, types.NodeStatusDataSyncer, info.Status)
-	assert.Equal(t, "mockName", info.MetaData.Name)
-	assert.Equal(t, mockAccount.String(), info.OperatorAddress)
-	dataSyncingSet, err := mockNodeManager.GetDataSyncerSet()
-	assert.Nil(t, err)
-	assert.Equal(t, []types.NodeInfo{info}, dataSyncingSet)
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		_, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+			ConsensusPubKey: node1.ConsensusPubKey,
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           p2pKeystore.P2PID(),
+			OperatorAddress: operatorAddress.String(),
+			MetaData: node_manager.NodeMetaData{
+				Name:       "mockName",
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.ErrorContains(t, err, "is already in use")
+		return err
+	})
 
-	err = mockNodeManager.JoinCandidateSet(nodeId)
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(accountCtx)
-	err = mockNodeManager.JoinCandidateSet(nodeId)
-	assert.Nil(t, err)
-	dataSyncingSet, err = mockNodeManager.GetDataSyncerSet()
-	assert.Nil(t, err)
-	assert.Equal(t, []types.NodeInfo(nil), dataSyncingSet)
-	candidateSet, err := mockNodeManager.GetCandidateSet()
-	assert.Nil(t, err)
-	info.Status = types.NodeStatusCandidate
-	assert.Equal(t, []types.NodeInfo{info}, candidateSet)
-	candidates, err := mockNodeManager.InternalGetConsensusCandidateNodeIDs()
-	assert.Nil(t, err)
-	assert.Equal(t, []uint64{nodeId}, candidates)
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		_, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+			ConsensusPubKey: consensusKeystore.PublicKey.String(),
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           p2pKeystore.P2PID(),
+			OperatorAddress: operatorAddress.String(),
+			MetaData: node_manager.NodeMetaData{
+				Name:       node1.MetaData.Name,
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.ErrorContains(t, err, "is already in use")
+		return err
+	})
 
-	votingPowers := ConsensusVotingPower{
-		NodeID:               nodeId,
-		ConsensusVotingPower: 10,
-	}
-	err = mockNodeManager.InternalUpdateActiveValidatorSet([]ConsensusVotingPower{votingPowers})
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(epochCtx)
-	err = mockNodeManager.InternalUpdateActiveValidatorSet([]ConsensusVotingPower{votingPowers})
-	assert.Nil(t, err)
-	candidateSet, err = mockNodeManager.GetCandidateSet()
-	assert.Nil(t, err)
-	assert.Equal(t, []types.NodeInfo(nil), candidateSet)
-	activeSet, returnVotingPowers, err := mockNodeManager.GetActiveValidatorSet()
-	assert.Nil(t, err)
-	info.Status = types.NodeStatusActive
-	assert.Equal(t, []types.NodeInfo{info}, activeSet)
-	assert.Equal(t, []ConsensusVotingPower{votingPowers}, returnVotingPowers)
+	var node5ID uint64
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		node5ID, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+			ConsensusPubKey: consensusKeystore.PublicKey.String(),
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           p2pKeystore.P2PID(),
+			OperatorAddress: operatorAddress.String(),
+			MetaData: node_manager.NodeMetaData{
+				Name:       "mockName",
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.Nil(t, err)
+		assert.EqualValues(t, 5, node5ID)
+		return err
+	})
 
-	err = mockNodeManager.LeaveValidatorSet(nodeId)
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(accountCtx)
-	err = mockNodeManager.LeaveValidatorSet(nodeId)
-	assert.Nil(t, err)
-	activeSet, _, err = mockNodeManager.GetActiveValidatorSet()
-	assert.Nil(t, err)
-	assert.Equal(t, []types.NodeInfo(nil), activeSet)
-	pendingInactiveSet, err := mockNodeManager.GetPendingInactiveSet()
-	assert.Nil(t, err)
-	info.Status = types.NodeStatusPendingInactive
-	assert.Equal(t, []types.NodeInfo{info}, pendingInactiveSet)
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		node5, err = nodeManagerContract.GetNodeInfo(5)
+		assert.Nil(t, err)
+		assert.Equal(t, node5ID, node5.ID)
+		assert.Equal(t, consensusKeystore.PublicKey.String(), node5.ConsensusPubKey)
+		assert.Equal(t, p2pKeystore.PublicKey.String(), node5.P2PPubKey)
+		assert.Equal(t, p2pKeystore.P2PID(), node5.P2PID)
+		assert.EqualValues(t, types.NodeStatusDataSyncer, node5.Status)
+		assert.Equal(t, "mockName", node5.MetaData.Name)
+		assert.Equal(t, operatorAddress, ethcommon.HexToAddress(node5.OperatorAddress))
 
-	err = mockNodeManager.InternalProcessNodeLeave()
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(epochCtx)
-	err = mockNodeManager.InternalProcessNodeLeave()
-	assert.Nil(t, err)
-	pendingInactiveSet, err = mockNodeManager.GetPendingInactiveSet()
-	assert.Nil(t, err)
-	assert.Equal(t, []types.NodeInfo(nil), pendingInactiveSet)
-	exitedSet, err := mockNodeManager.GetExitedSet()
-	assert.Nil(t, err)
-	info.Status = types.NodeStatusExited
-	assert.Equal(t, []types.NodeInfo{info}, exitedSet)
+		dataSyncerSet, err := nodeManagerContract.GetDataSyncerSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{node5}, dataSyncerSet)
+	})
 
-	totalNodesNum := mockNodeManager.GetTotalNodeCount()
-	assert.Equal(t, 1, totalNodesNum)
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.JoinCandidateSet(node5ID)
+		assert.EqualError(t, err, ErrPermissionDenied.Error())
+		return err
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, operatorAddress, func() error {
+		err = nodeManagerContract.JoinCandidateSet(node5ID)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		dataSyncerSet, err := nodeManagerContract.GetDataSyncerSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{}, dataSyncerSet)
+
+		candidateSet, err := nodeManagerContract.GetCandidateSet()
+		assert.Nil(t, err)
+		node5.Status = uint8(types.NodeStatusCandidate)
+		assert.Equal(t, []node_manager.NodeInfo{node5}, candidateSet)
+
+		candidates, err := nodeManagerContract.InternalGetConsensusCandidateNodeIDs()
+		assert.Nil(t, err)
+		assert.Equal(t, []uint64{1, 2, 3, 4, 5}, candidates)
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.InternalUpdateActiveValidatorSet([]node_manager.ConsensusVotingPower{
+			{
+				NodeID:               1,
+				ConsensusVotingPower: 100,
+			},
+			{
+				NodeID:               2,
+				ConsensusVotingPower: 100,
+			},
+			{
+				NodeID:               3,
+				ConsensusVotingPower: 100,
+			},
+			{
+				NodeID:               5,
+				ConsensusVotingPower: 100,
+			},
+		})
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		node5.Status = uint8(types.NodeStatusActive)
+		node4.Status = uint8(types.NodeStatusCandidate)
+
+		candidateSet, err := nodeManagerContract.GetCandidateSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{node4}, candidateSet)
+
+		activeSet, returnVotingPowers, err := nodeManagerContract.GetActiveValidatorSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{node1, node2, node3, node5}, activeSet)
+		assert.Equal(t, []node_manager.ConsensusVotingPower{
+			{
+				NodeID:               1,
+				ConsensusVotingPower: 100,
+			},
+			{
+				NodeID:               2,
+				ConsensusVotingPower: 100,
+			},
+			{
+				NodeID:               3,
+				ConsensusVotingPower: 100,
+			},
+			{
+				NodeID:               5,
+				ConsensusVotingPower: 100,
+			},
+		}, returnVotingPowers)
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, operatorAddress, func() error {
+		err = nodeManagerContract.LeaveValidatorOrCandidateSet(node5ID)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		node5.Status = uint8(types.NodeStatusPendingInactive)
+		activeSet, _, err := nodeManagerContract.GetActiveValidatorSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{node1, node2, node3, node5}, activeSet)
+
+		pendingInactiveSet, err := nodeManagerContract.GetPendingInactiveSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{node5}, pendingInactiveSet)
+	})
+
+	testNVM.RunSingleTX(stakingManagerContract, ethcommon.Address{}, func() error {
+		err = stakingManagerContract.CreateStakingPool(node5.ID, 0)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.InternalProcessNodeLeave()
+		assert.Nil(t, err)
+		return err
+	}, common.TestNVMRunOptionCallFromSystem())
+
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		pendingInactiveSet, err := nodeManagerContract.GetPendingInactiveSet()
+		assert.Nil(t, err)
+		assert.Equal(t, []node_manager.NodeInfo{}, pendingInactiveSet)
+		exitedSet, err := nodeManagerContract.GetExitedSet()
+		assert.Nil(t, err)
+		node5.Status = uint8(types.NodeStatusExited)
+		assert.EqualValues(t, []node_manager.NodeInfo{node5}, exitedSet)
+
+		totalNodesNum, err := nodeManagerContract.GetTotalNodeCount()
+		assert.Nil(t, err)
+		assert.EqualValues(t, 5, totalNodesNum)
+	})
 }
 
 func TestNodeManager_UpdateInfo(t *testing.T) {
-	mockLedger := newMockLedger(t)
-	mockNodeManager := NewNodeManager()
-	mockAccount := types.NewAddressByStr("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013").ETHAddress()
-	epochAccount := types.NewAddressByStr(common.EpochManagerContractAddr).ETHAddress()
-	newAccount := types.NewAddressByStr(common.ZeroAddress).ETHAddress()
-	accountCtx := &common.VMContext{
-		StateLedger: mockLedger,
-		BlockNumber: 100,
-		From:        &mockAccount,
-	}
-	newAccountCtx := &common.VMContext{
-		StateLedger: mockLedger,
-		BlockNumber: 100,
-		From:        &newAccount,
-	}
-	epochCtx := &common.VMContext{
-		StateLedger: mockLedger,
-		BlockNumber: 100,
-		From:        &epochAccount,
-	}
-	mockNodeManager.SetContext(epochCtx)
+	testNVM := common.NewTestNVM(t)
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerBuildContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(epochManagerContract, nodeManagerContract, stakingManagerBuildContract)
 
-	nodeId, err := mockNodeManager.InternalRegisterNode(types.NodeInfo{
-		P2PPubKey: "123",
-		MetaData: types.NodeMetaData{
-			Name:       "mockName",
-			Desc:       "mockDesc",
-			ImageURL:   "https://example.com/image.png",
-			WebsiteURL: "https://example.com/",
-		},
-		OperatorAddress: mockAccount.String(),
-	})
+	p2pKeystore, err := repo.GenerateP2PKeystore(testNVM.Rep.RepoRoot, "", "")
 	assert.Nil(t, err)
-	err = mockNodeManager.UpdateOperator(nodeId, common.ZeroAddress)
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(accountCtx)
-	err = mockNodeManager.UpdateOperator(nodeId, common.ZeroAddress)
+	consensusKeystore, err := repo.GenerateConsensusKeystore(testNVM.Rep.RepoRoot, "", "")
 	assert.Nil(t, err)
-	info, err := mockNodeManager.GetNodeInfo(nodeId)
-	assert.Nil(t, err)
-	assert.Equal(t, common.ZeroAddress, info.OperatorAddress)
+	operatorAddress := "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"
 
-	err = mockNodeManager.UpdateMetaData(nodeId, types.NodeMetaData{})
-	assert.EqualError(t, err, ErrPermissionDenied.Error())
-	mockNodeManager.SetContext(newAccountCtx)
-	err = mockNodeManager.UpdateMetaData(nodeId, types.NodeMetaData{
-		Name:       "newName",
-		Desc:       "newDesc",
-		ImageURL:   "https://example.com/image.png",
-		WebsiteURL: "https://example.com/",
+	var node5ID uint64
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		node5ID, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+			ConsensusPubKey: consensusKeystore.PublicKey.String(),
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           p2pKeystore.P2PID(),
+			OperatorAddress: operatorAddress,
+			MetaData: node_manager.NodeMetaData{
+				Name:       "mockName",
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.Nil(t, err)
+		assert.EqualValues(t, 5, node5ID)
+		return err
 	})
-	assert.Nil(t, err)
-	info, err = mockNodeManager.GetNodeInfo(nodeId)
-	assert.Nil(t, err)
-	assert.Equal(t, "newName", info.MetaData.Name)
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.UpdateOperator(node5ID, common.ZeroAddress)
+		assert.EqualError(t, err, ErrPermissionDenied.Error())
+		return err
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
+		err = nodeManagerContract.UpdateOperator(node5ID, common.ZeroAddress)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		info, err := nodeManagerContract.GetNodeInfo(node5ID)
+		assert.Nil(t, err)
+		assert.Equal(t, common.ZeroAddress, info.OperatorAddress)
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
+		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{})
+		assert.EqualError(t, err, ErrPermissionDenied.Error())
+		return err
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
+			Name: "",
+		})
+		assert.ErrorContains(t, err, "name cannot be empty")
+		return err
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
+			Name: "node1",
+		})
+		assert.ErrorContains(t, err, "already in use")
+		return err
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
+			Name: "newName",
+		})
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		info, err := nodeManagerContract.GetNodeInfo(node5ID)
+		assert.Nil(t, err)
+		assert.Equal(t, "newName", info.MetaData.Name)
+	})
+}
+
+func TestCheckNodeInfo(t *testing.T) {
+	type args struct {
+		nodeInfo node_manager.NodeInfo
+	}
+	tests := []struct {
+		name                string
+		args                args
+		wantConsensusPubKey *crypto.Bls12381PublicKey
+		wantP2pPubKey       *crypto.Ed25519PublicKey
+		wantP2pID           string
+		wantErr             assert.ErrorAssertionFunc
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotConsensusPubKey, gotP2pPubKey, gotP2pID, err := CheckNodeInfo(tt.args.nodeInfo)
+			if !tt.wantErr(t, err, fmt.Sprintf("CheckNodeInfo(%v)", tt.args.nodeInfo)) {
+				return
+			}
+			assert.Equalf(t, tt.wantConsensusPubKey, gotConsensusPubKey, "CheckNodeInfo(%v)", tt.args.nodeInfo)
+			assert.Equalf(t, tt.wantP2pPubKey, gotP2pPubKey, "CheckNodeInfo(%v)", tt.args.nodeInfo)
+			assert.Equalf(t, tt.wantP2pID, gotP2pID, "CheckNodeInfo(%v)", tt.args.nodeInfo)
+		})
+	}
 }

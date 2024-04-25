@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -25,6 +24,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -37,6 +37,10 @@ var (
 
 const (
 	RunSystemContractGas = 50000
+)
+
+var (
+	errorType = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 var _ common.VirtualMachine = (*NativeVM)(nil)
@@ -125,7 +129,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if contractBuildCfg == nil {
 		return nil, ErrNotExistSystemContract
 	}
-	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From, true))
+	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From))
 	defer func() {
 		if err := recover(); err != nil {
 			nvm.logger.Error(err)
@@ -187,21 +191,17 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 
 	var returnRes []any
 	var returnErr error
-	for _, result := range results {
-		// basic type(such as bool, number, string, can't call isNil)
-		if result.CanInt() || result.CanFloat() || result.CanUint() || result.Kind() == reflect.Bool || result.Kind() == reflect.String {
+	for i, result := range results {
+		if checkIsError(result.Type()) {
+			if i != len(results)-1 {
+				panic(fmt.Sprintf("contract[%s] call method[%s] return error: %s, but not the last return value", contractAddr, methodName, returnErr))
+			}
+			if !result.IsNil() {
+				returnErr = result.Interface().(error)
+			}
+		} else {
 			returnRes = append(returnRes, result.Interface())
-			continue
 		}
-
-		if result.IsNil() {
-			continue
-		}
-		if err, ok := result.Interface().(error); ok {
-			returnErr = err
-			break
-		}
-		returnRes = append(returnRes, result.Interface())
 	}
 
 	nvm.logger.Debugf("Contract addr: %s, method name: %s, return result: %+v, return error: %s", contractAddr, methodName, returnRes, returnErr)
@@ -212,6 +212,8 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		if errors.As(returnErr, &err) {
 			return err.Data, err.Err
 		}
+		revertErr := common.NewRevertStringError(returnErr.Error())
+		return revertErr.Data, revertErr.Err
 	}
 
 	if returnRes != nil {
@@ -334,7 +336,7 @@ func (nvm *NativeVM) GenesisInit(genesis *repo.GenesisConfig, lg ledger.StateLed
 	InitSystemContractCode(lg)
 
 	for _, contractBuildCfg := range nvm.contractBuildConfigMap {
-		if err := contractBuildCfg.Build(common.NewVMContextByExecutor(lg)).GenesisInit(genesis); err != nil {
+		if err := contractBuildCfg.Build(common.NewVMContextByExecutor(lg).DisableRecordLogToLedger()).GenesisInit(genesis); err != nil {
 			return err
 		}
 	}
@@ -379,4 +381,8 @@ func convertInputArgs(method reflect.Value, inputArgs []reflect.Value) []reflect
 		}
 	}
 	return outputArgs
+}
+
+func checkIsError(tpe reflect.Type) bool {
+	return tpe.AssignableTo(errorType)
 }

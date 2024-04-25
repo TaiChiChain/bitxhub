@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance_client"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -27,7 +27,13 @@ var (
 	ErrBlockNumberOutDate = errors.New("block number is out of date")
 
 	ErrRepeatedRegister = errors.New("repeated proposal handler register")
-	ErrNotFoundProposal = errors.New("not found proposal")
+	ErrNotFoundProposal = errors.New("not found")
+)
+
+const (
+	nextProposalIDStorageKey       = "nextProposalID"
+	proposalsStorageKey            = "proposals"
+	notFinishedProposalsStorageKey = "notFinishedProposals"
 )
 
 const (
@@ -36,6 +42,14 @@ const (
 	GetLatestProposalIDMethod = "getLatestProposalID"
 	MaxTitleLength            = 200
 	MaxDescLength             = 10000
+)
+
+type ProposalStatus uint8
+
+const (
+	Voting ProposalStatus = iota
+	Approved
+	Rejected
 )
 
 type ProposalType uint8
@@ -53,11 +67,11 @@ const (
 	// NodeRemove is a proposal for removing a node
 	NodeRemove
 
-	// WhiteListProviderAdd is a proposal for adding a new white list provider
-	WhiteListProviderAdd
+	// WhitelistProviderAdd is a proposal for adding a new white list provider
+	WhitelistProviderAdd
 
-	// WhiteListProviderRemove is a proposal for removing a white list provider
-	WhiteListProviderRemove
+	// WhitelistProviderRemove is a proposal for removing a white list provider
+	WhitelistProviderRemove
 
 	// GasUpdate is a proposal for updating gas price
 	GasUpdate
@@ -65,6 +79,44 @@ const (
 	// ChainParamUpgrade is a proposal for upgrading the chain param
 	ChainParamUpgrade
 )
+
+type Proposal struct {
+	ID          uint64
+	Type        ProposalType
+	Strategy    ProposalStrategy
+	Proposer    string
+	Title       string
+	Desc        string
+	BlockNumber uint64
+
+	// totalVotes is total votes for this proposal
+	// attention: some users may not vote for this proposal
+	TotalVotes uint64
+
+	// passVotes record user address for passed vote
+	PassVotes []string
+
+	RejectVotes []string
+	Status      ProposalStatus
+
+	// Extra information for some special proposal
+	Extra []byte
+
+	// CreatedBlockNumber is block number when the proposal has be created
+	CreatedBlockNumber uint64
+
+	// EffectiveBlockNumber is block number when the proposal has be take effect
+	EffectiveBlockNumber uint64
+
+	ExecuteSuccess   bool
+	ExecuteFailedMsg string
+}
+
+type NotFinishedProposal struct {
+	ID                  uint64
+	DeadlineBlockNumber uint64
+	Type                ProposalType
+}
 
 type VoteResult uint8
 
@@ -169,16 +221,16 @@ func (g *Governance) Init() {
 		panic(err)
 	}
 
-	chainParamManager := NewChainParamManager(gov)
-	if err := gov.Register(ChainParamUpgrade, chainParamManager); err != nil {
+	chainParamManager := NewChainParamManager(g)
+	if err := g.registerHandler(ChainParamUpgrade, chainParamManager); err != nil {
 		panic(err)
 	}
 
 	whiteListProviderManager := NewWhiteListProviderManager(g)
-	if err := g.registerHandler(WhiteListProviderAdd, whiteListProviderManager); err != nil {
+	if err := g.registerHandler(WhitelistProviderAdd, whiteListProviderManager); err != nil {
 		panic(err)
 	}
-	if err := g.registerHandler(WhiteListProviderRemove, whiteListProviderManager); err != nil {
+	if err := g.registerHandler(WhitelistProviderRemove, whiteListProviderManager); err != nil {
 		panic(err)
 	}
 }
@@ -212,9 +264,12 @@ func (g *Governance) checkAndUpdateState(method string) error {
 	for _, notFinishedProposal := range notFinishedProposals {
 		if notFinishedProposal.DeadlineBlockNumber <= g.Ctx.BlockNumber {
 			// update original proposal status
-			proposal, err := g.proposals.MustGet(notFinishedProposal.ID)
+			proposalExist, proposal, err := g.proposals.Get(notFinishedProposal.ID)
 			if err != nil {
 				return err
+			}
+			if !proposalExist {
+				return ErrNotFoundProposal
 			}
 
 			if proposal.Status == Approved || proposal.Status == Rejected {
@@ -230,7 +285,7 @@ func (g *Governance) checkAndUpdateState(method string) error {
 			}
 
 			// remove proposal from not finished proposals
-			if err = RemoveNotFinishedProposal(g.notFinishedProposals, notFinishedProposal.ID); err != nil {
+			if err = g.removeNotFinishedProposal(notFinishedProposal.ID); err != nil {
 				return err
 			}
 
@@ -306,7 +361,7 @@ func (g *Governance) Propose(pType uint8, title, desc string, blockNumber uint64
 		return errors.Wrapf(err, "failed to check propose permission for proposal type %d", pType)
 	}
 	if !hasPermission {
-		return errors.Errorf("no propose proposal permission for proposal type %d", pType)
+		return errors.Errorf("no permission for propose proposal[%d]", pType)
 	}
 
 	totalVotes, err := handler.TotalVotes(proposalType)
@@ -354,7 +409,7 @@ func (g *Governance) createProposal(totalVotes uint64, proposalType ProposalType
 	}
 
 	// propose generate not finished proposal
-	if err = AddNotFinishedProposal(g.notFinishedProposals, &NotFinishedProposal{
+	if err = g.addNotFinishedProposal(&NotFinishedProposal{
 		ID:                  proposal.ID,
 		DeadlineBlockNumber: proposal.BlockNumber,
 		Type:                proposal.Type,
@@ -388,9 +443,12 @@ func (g *Governance) checkBeforeVote(user ethcommon.Address, proposal *Proposal,
 // Vote a proposal, return vote status
 func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 	voteResult := VoteResult(voteRes)
-	proposal, err := g.proposals.MustGet(proposalID)
+	proposalExist, proposal, err := g.proposals.Get(proposalID)
 	if err != nil {
 		return err
+	}
+	if !proposalExist {
+		return ErrNotFoundProposal
 	}
 
 	handler, err := g.getHandler(proposal.Type)
@@ -412,7 +470,7 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 		return errors.Wrapf(err, "failed to check vote permission for proposal type %d", proposal.Type)
 	}
 	if !hasPermission {
-		return errors.Errorf("no vote proposal permission for proposal type %d", proposal.Type)
+		return errors.Errorf("no permission for vote proposal[%d]", proposal.Type)
 	}
 
 	switch voteResult {
@@ -434,7 +492,7 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 		}
 		isProposalSaved = true
 
-		if err := RemoveNotFinishedProposal(g.notFinishedProposals, proposal.ID); err != nil {
+		if err := g.removeNotFinishedProposal(proposal.ID); err != nil {
 			return err
 		}
 	}
@@ -475,9 +533,12 @@ func (g *Governance) GetLatestProposalID() (uint64, error) {
 }
 
 func (g *Governance) Proposal(proposalID uint64) (*Proposal, error) {
-	proposal, err := g.proposals.MustGet(proposalID)
+	proposalExist, proposal, err := g.proposals.Get(proposalID)
 	if err != nil {
 		return nil, err
+	}
+	if !proposalExist {
+		return nil, ErrNotFoundProposal
 	}
 	return &proposal, nil
 }
@@ -529,4 +590,46 @@ func (g *Governance) EmitVoteEvent(proposal *Proposal) {
 		Proposer:     ethcommon.HexToAddress(proposal.Proposer),
 		Proposal:     data,
 	})
+}
+
+func (g *Governance) addNotFinishedProposal(proposal *NotFinishedProposal) error {
+	exist, proposals, err := g.notFinishedProposals.Get()
+	if err != nil {
+		return err
+	}
+	if !exist {
+		proposals = make([]NotFinishedProposal, 0)
+	}
+
+	proposals = lo.UniqBy(append(proposals, *proposal), func(item NotFinishedProposal) uint64 {
+		return item.ID
+	})
+
+	if err := g.notFinishedProposals.Put(proposals); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *Governance) removeNotFinishedProposal(id uint64) error {
+	exist, proposals, err := g.notFinishedProposals.Get()
+	if err != nil {
+		return err
+	}
+	if !exist {
+		return ErrNotFoundProposal
+	}
+
+	newProposals := lo.Filter[NotFinishedProposal](proposals, func(item NotFinishedProposal, index int) bool {
+		return item.ID != id
+	})
+
+	if len(newProposals) == len(proposals) {
+		return ErrNotFoundProposal
+	}
+
+	if err := g.notFinishedProposals.Put(proposals); err != nil {
+		return err
+	}
+	return nil
 }

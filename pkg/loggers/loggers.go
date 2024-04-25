@@ -48,7 +48,7 @@ type LoggerWrapper struct {
 }
 
 func InitializeEthLog(logger *logrus.Entry) {
-	//ethlog.Root().SetHandler(&ethHandler{logger: logger})
+	// ethlog.Root().SetHandler(&ethHandler{logger: logger})
 }
 
 func Initialize(ctx context.Context, rep *repo.Repo, persist bool) error {

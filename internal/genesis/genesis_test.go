@@ -15,38 +15,12 @@ import (
 )
 
 func TestInitialize(t *testing.T) {
-	mockCtl := gomock.NewController(t)
-	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	mockLedger := &ledger.Ledger{
-		ChainLedger: chainLedger,
-		StateLedger: stateLedger,
-	}
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.ZeroAddress))
-	tokenAccount := ledger.NewMockAccount(1, types.NewAddressByStr(common.AXCContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.AXCContractAddr {
-			return tokenAccount
-		}
-		return account
-	}).AnyTimes()
-	axcAccount := ledger.NewMockAccount(1, types.NewAddressByStr(common.AXCContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		if address.String() == common.AXCContractAddr {
-			return axcAccount
-		}
-		return account
-	}).AnyTimes()
-	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Finalise().AnyTimes()
-	stateLedger.EXPECT().Commit().AnyTimes()
-	chainLedger.EXPECT().PersistExecutionResult(gomock.Any(), gomock.Any()).AnyTimes()
+	rep := repo.MockRepo(t)
+	lg, err := ledger.NewMemory(rep)
+	assert.Nil(t, err)
 
 	genesisConfig := repo.DefaultGenesisConfig()
-	err := Initialize(genesisConfig, mockLedger)
+	err = Initialize(genesisConfig, lg)
 	assert.Nil(t, err)
 }
 

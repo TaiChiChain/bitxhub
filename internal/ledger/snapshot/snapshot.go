@@ -165,7 +165,7 @@ func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, dest
 
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, height), data)
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(height))
-	if height == 1 {
+	if height == 0 {
 		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalHeight(height))
 	}
 	batch.Commit()
@@ -185,16 +185,11 @@ func (snap *Snapshot) Rollback(height uint64) error {
 	minHeight, maxHeight := snap.GetJournalRange()
 	snap.logger.Infof("[Snapshot-Rollback] minHeight=%v,maxHeight=%v,height=%v", minHeight, maxHeight, height)
 
-	// empty snapshot, no-op
-	if minHeight == 0 && maxHeight == 0 {
-		return nil
-	}
-
 	if maxHeight < height {
 		return ErrorRollbackToHigherNumber
 	}
 
-	if minHeight > height && !(minHeight == 1 && height == 0) {
+	if minHeight > height {
 		return ErrorRollbackTooMuch
 	}
 

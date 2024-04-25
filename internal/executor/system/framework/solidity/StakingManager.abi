@@ -20,9 +20,15 @@
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "liquidStakingTokenID",
+        "type": "uint256"
       }
     ],
-    "name": "Stake",
+    "name": "AddStake",
     "type": "event"
   },
   {
@@ -108,7 +114,7 @@
         "type": "uint256"
       }
     ],
-    "name": "stake",
+    "name": "addStake",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"

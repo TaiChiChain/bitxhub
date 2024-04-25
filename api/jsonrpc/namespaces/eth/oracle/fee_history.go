@@ -6,13 +6,14 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/hexutil"
-	types2 "github.com/axiomesh/axiom-kit/types"
-	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
+
+	"github.com/axiomesh/axiom-kit/hexutil"
+	types2 "github.com/axiomesh/axiom-kit/types"
+	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 )
 
 var (
@@ -29,13 +30,16 @@ const (
 // blockFees represents a single block for processing
 type blockFees struct {
 	// set by the caller
-	blockNumber  uint64
+	blockNumber uint64
+
 	header       *types2.BlockHeader
 	transactions []*types2.Transaction // only set if reward percentiles are requested
 	receipts     []*types2.Receipt
+
 	// filled by processBlock
 	results processedFees
-	err     error
+
+	err error
 }
 
 type cacheKey struct {
