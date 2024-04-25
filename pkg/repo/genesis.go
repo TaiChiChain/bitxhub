@@ -81,6 +81,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 			ProposerElectionType:          types.ProposerElectionTypeWRF,
 			CheckpointPeriod:              1,
 			HighWatermarkCheckpointPeriod: 10,
+			MinValidatorNum:               4,
 			MaxValidatorNum:               4,
 			BlockMaxTxNum:                 500,
 			EnableTimedGenEmptyBlock:      false,

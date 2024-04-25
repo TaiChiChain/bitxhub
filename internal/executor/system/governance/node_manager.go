@@ -3,7 +3,6 @@ package governance
 import (
 	"encoding/json"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -12,19 +11,8 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-)
-
-var (
-	ErrNotFoundNodeID      = errors.New("node id is not found")
-	ErrNotFoundNodeAddress = errors.New("address is not found")
-	ErrRepeatedNodeID      = errors.New("repeated node id")
-	ErrRepeatedNodeName    = errors.New("repeated node name")
-	ErrRepeatedNodeAddress = errors.New("repeated address")
-	ErrRegisterExtraArgs   = errors.New("unmarshal node register extra arguments error")
-	ErrRemoveExtraArgs     = errors.New("unmarshal node remove extra arguments error")
-	ErrUpgradeExtraArgs    = errors.New("unmarshal node upgrade extra arguments error")
-	ErrRepeatedDownloadUrl = errors.New("repeated download url")
 )
 
 var _ ProposalHandler = (*NodeManager)(nil)
@@ -113,7 +101,7 @@ func (nm *NodeManager) VotePassExecute(proposal *Proposal) error {
 func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
 	nodeExtraArgs := &NodeRegisterExtraArgs{}
 	if err := json.Unmarshal(extra, nodeExtraArgs); err != nil {
-		return ErrRegisterExtraArgs
+		return errors.Wrap(err, "unmarshal node register extra arguments error")
 	}
 
 	consensusPubKey, p2pPubKey, p2pID, err := framework.CheckNodeInfo(node_manager.NodeInfo{
@@ -145,13 +133,13 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 
 	// check  unique index
 	if nodeManagerContract.ExistNodeByConsensusPubKey(nodeExtraArgs.ConsensusPubKey) {
-		return errors.Errorf("consensus public key %s already registered", nodeExtraArgs.ConsensusPubKey)
+		return errors.Errorf("consensus public key already registered: %s", nodeExtraArgs.ConsensusPubKey)
 	}
 	if nodeManagerContract.ExistNodeByP2PID(p2pID) {
-		return errors.Errorf("p2p public key %s already registered", nodeExtraArgs.P2PPubKey)
+		return errors.Errorf("p2p public key already registered: %s", nodeExtraArgs.P2PPubKey)
 	}
 	if nodeManagerContract.ExistNodeByName(nodeExtraArgs.MetaData.Name) {
-		return errors.Errorf("name %s already registered", nodeExtraArgs.ConsensusPubKey)
+		return errors.Errorf("name already registered: %s", nodeExtraArgs.ConsensusPubKey)
 	}
 
 	return nil
@@ -160,7 +148,7 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
 	nodeExtraArgs := &NodeRemoveExtraArgs{}
 	if err := json.Unmarshal(extra, nodeExtraArgs); err != nil {
-		return ErrRemoveExtraArgs
+		return errors.Wrap(err, "unmarshal node remove extra arguments error")
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
@@ -170,7 +158,7 @@ func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, 
 		return errors.Wrapf(err, "failed to get node info %d", nodeExtraArgs.NodeID)
 	}
 	if nodeInfo.Status == uint8(types.NodeStatusExited) {
-		return errors.Errorf("node %d [%s] already exited", nodeExtraArgs.NodeID, nodeInfo.MetaData.Name)
+		return errors.Errorf("node already exited: %d[%s]", nodeExtraArgs.NodeID, nodeInfo.MetaData.Name)
 	}
 
 	return nil
@@ -179,12 +167,12 @@ func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, 
 func (nm *NodeManager) upgradeProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
 	upgradeExtraArgs := &NodeUpgradeExtraArgs{}
 	if err := json.Unmarshal(extra, upgradeExtraArgs); err != nil {
-		return ErrUpgradeExtraArgs
+		return errors.Wrap(err, "unmarshal node upgrade extra arguments error")
 	}
 
 	// check proposal has repeated download url
 	if len(lo.Uniq[string](upgradeExtraArgs.DownloadUrls)) != len(upgradeExtraArgs.DownloadUrls) {
-		return ErrRepeatedDownloadUrl
+		return errors.New("repeated download url")
 	}
 
 	return nil
@@ -193,7 +181,7 @@ func (nm *NodeManager) upgradeProposeArgsCheck(proposalType ProposalType, title,
 func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 	nodeExtraArgs := &NodeRegisterExtraArgs{}
 	if err := json.Unmarshal(proposal.Extra, nodeExtraArgs); err != nil {
-		return ErrRegisterExtraArgs
+		return errors.Wrap(err, "unmarshal node register extra arguments error")
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
@@ -208,15 +196,13 @@ func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 		return err
 	}
 
-	// TODO: emit event
-
 	return nil
 }
 
 func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 	nodeExtraArgs := &NodeRemoveExtraArgs{}
 	if err := json.Unmarshal(proposal.Extra, nodeExtraArgs); err != nil {
-		return ErrRemoveExtraArgs
+		return errors.Wrap(err, "unmarshal node remove extra arguments error")
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
@@ -224,7 +210,6 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 		return err
 	}
 
-	// TODO: emit event
 	return nil
 }
 

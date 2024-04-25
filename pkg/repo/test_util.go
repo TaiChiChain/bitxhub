@@ -10,13 +10,20 @@ import (
 )
 
 var (
-	consensusKeys = []string{
+	MockOperatorKeys = []string{
+		"b6477143e17f889263044f6cf463dc37177ac4526c4c39a7a344198457024a2f",
+		"05c3708d30c2c72c4b36314a41f30073ab18ea226cf8c6b9f566720bfe2e8631",
+		"85a94dd51403590d4f149f9230b6f5de3a08e58899dcaf0f77768efb1825e854",
+		"72efcf4bb0e8a300d3e47e6a10f630bcd540de933f01ed5380897fc5e10dc95d",
+	}
+
+	MockConsensusKeys = []string{
 		"0x099383c2b41a282936fe9e656467b2ad6ecafd38753eefa080b5a699e3276372",
 		"0x5d21b741bd16e05c3a883b09613d36ad152f1586393121d247bdcfef908cce8f",
 		"0x42cc8e862b51a1c21a240bb2ae6f2dbad59668d86fe3c45b2e4710eebd2a63fd",
 		"0x6e327c2d5a284b89f9c312a02b2714a90b38e721256f9a157f03ec15c1a386a6",
 	}
-	p2pKeys = []string{
+	MockP2PKeys = []string{
 		"0xce374993d8867572a043e443355400ff4628662486d0d6ef9d76bc3c8b2aa8a8",
 		"0x43dd946ade57013fd4e7d0f11d84b94e2fda4336829f154ae345be94b0b63616",
 		"0x875e5ef34c34e49d35ff5a0f8a53003d8848fc6edd423582c00edc609a1e3239",
@@ -30,9 +37,9 @@ func MockRepo(t testing.TB) *Repo {
 
 func MockRepoWithNodeID(t testing.TB, nodeID uint64) *Repo {
 	repoRoot := t.TempDir()
-	consensusKeystore, err := GenerateConsensusKeystore(repoRoot, consensusKeys[nodeID-1], DefaultKeystorePassword)
+	consensusKeystore, err := GenerateConsensusKeystore(repoRoot, MockConsensusKeys[nodeID-1], DefaultKeystorePassword)
 	require.Nil(t, err)
-	p2pKeystore, err := GenerateP2PKeystore(repoRoot, p2pKeys[nodeID-1], DefaultKeystorePassword)
+	p2pKeystore, err := GenerateP2PKeystore(repoRoot, MockP2PKeys[nodeID-1], DefaultKeystorePassword)
 	require.Nil(t, err)
 	rep := &Repo{
 		RepoRoot:          repoRoot,
@@ -43,6 +50,8 @@ func MockRepoWithNodeID(t testing.TB, nodeID uint64) *Repo {
 		P2PKeystore:       p2pKeystore,
 		StartArgs:         &StartArgs{},
 	}
+	rep.Config.Ledger.EnablePrune = false
+	rep.GenesisConfig.EpochInfo.StakeParams.MinValidatorStake = types.CoinNumberByAxc(1)
 	rep.GenesisConfig.Nodes = []GenesisNodeInfo{
 		{
 			ConsensusPubKey: "0xac9bb2675ab6b60b1c6d3ed60e95bdabb16517525458d8d50fa1065014184823556b0bd97922fab8c688788006e8b1030cd506d19101522e203769348ea10d21780e5c26a5c03c0cfcb8de23c7cf16d4d384140613bb953d446a26488fbaf6e0",
@@ -100,5 +109,8 @@ func MockRepoWithNodeID(t testing.TB, nodeID uint64) *Repo {
 			Balance: types.CoinNumberByAxc(10000000),
 		}
 	})
+
+	rep.GenesisConfig.SmartAccountAdmin = rep.GenesisConfig.Nodes[0].OperatorAddress
+
 	return rep
 }

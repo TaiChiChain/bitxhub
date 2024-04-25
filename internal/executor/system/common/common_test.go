@@ -6,10 +6,12 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 )
 
 func TestRevertError(t *testing.T) {
@@ -22,11 +24,17 @@ func TestRevertError(t *testing.T) {
 		},
 	}, []any{sender})
 
-	t.Logf("%s", revertErr.(*RevertError).Data())
-	t.Logf("%s", hexutil.Bytes(revertErr.(*RevertError).Data()))
+	t.Logf("%v", revertErr.(*packer.RevertError).Data)
+	t.Logf("%v", hexutil.Bytes(revertErr.(*packer.RevertError).Data))
 
-	reason, errUnpack := abi.UnpackRevert(revertErr.(*RevertError).Data())
-	t.Logf("reason: %s, Data: %s, Err: %s", reason, hexutil.Encode(revertErr.(*RevertError).Data()), errUnpack)
+	reason, errUnpack := abi.UnpackRevert(revertErr.(*packer.RevertError).Data)
+	t.Logf("reason: %s, Data: %s, Err: %s", reason, hexutil.Encode(revertErr.(*packer.RevertError).Data), errUnpack)
+}
+
+type MockStakeEvent struct {
+	PoolID uint64
+	Owner  ethcommon.Address
+	Amount *big.Int
 }
 
 func TestEmitEvent(t *testing.T) {
@@ -57,10 +65,16 @@ func TestEmitEvent(t *testing.T) {
 		}]`
 	parseAbi, err := abi.JSON(strings.NewReader(mockAbi))
 	assert.Nil(t, err)
-	log := packEvent(types.NewAddressByStr(ZeroAddress), parseAbi, "Stake",
-		big.NewInt(10).Bytes(), types.NewAddressByStr(ZeroAddress).Bytes(), big.NewInt(10).Bytes())
+
+	log, err := packer.PackEvent(&MockStakeEvent{
+		PoolID: 10,
+		Owner:  ethcommon.Address{},
+		Amount: big.NewInt(10),
+	}, parseAbi.Events["Stake"])
+	assert.Nil(t, err)
+
 	assert.NotNil(t, log)
-	assert.Equal(t, log.Address.String(), ZeroAddress)
+	assert.Equal(t, log.Address.String(), "")
 	assert.Equal(t, len(log.Topics), 3)
 	assert.Equal(t, log.Topics[0].String(), parseAbi.Events["Stake"].ID.String())
 	assert.Equal(t, []byte{log.Data[len(log.Data)-1]}, big.NewInt(10).Bytes())

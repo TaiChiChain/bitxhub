@@ -1,13 +1,13 @@
 package executor
 
 import (
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 )
 
 func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {

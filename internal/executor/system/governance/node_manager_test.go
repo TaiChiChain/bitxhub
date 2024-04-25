@@ -2,815 +2,585 @@ package governance
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
+	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func PrepareNodeManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger, *types.EpochInfo) {
-	gov := NewGov()
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	})
+func generateNodeRegisterExtraArgs(t *testing.T, p2pPrivateKey string, consensusPrivateKey string, metaData node_manager.NodeMetaData) *NodeRegisterExtraArgs {
+	p2pKeystore, err := repo.GenerateP2PKeystore("", p2pPrivateKey, "test")
+	assert.Nil(t, err)
+	consensusKeystore, err := repo.GenerateConsensusKeystore("", consensusPrivateKey, "test")
 	assert.Nil(t, err)
 
-	g := repo.GenesisEpochInfo(true)
-	g.EpochPeriod = 100
-	g.StartBlock = 1
-	err = framework.InitEpochInfo(stateLedger, g)
+	nodeRegisterExtraArgsSignStruct := &NodeRegisterExtraArgsSignStruct{
+		ConsensusPubKey: consensusKeystore.PublicKey.String(),
+		P2PPubKey:       p2pKeystore.PublicKey.String(),
+		MetaData:        metaData,
+	}
+	nodeRegisterExtraArgsSignStructBytes, err := json.Marshal(nodeRegisterExtraArgsSignStruct)
 	assert.Nil(t, err)
-
-	err = InitNodeMembers(stateLedger, []*repo.NodeName{
-		{
-			ID:   1,
-			Name: "111",
-		},
-	}, &types.EpochInfo{
-		ValidatorSet: []types.NodeInfo{
-			{
-				ID:             1,
-				AccountAddress: admin1,
-				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-	})
-
-	return gov, stateLedger, g
+	consensusPrivateKeySignature, err := consensusKeystore.PrivateKey.Sign(nodeRegisterExtraArgsSignStructBytes)
+	assert.Nil(t, err)
+	p2pPrivateKeySignature, err := p2pKeystore.PrivateKey.Sign(nodeRegisterExtraArgsSignStructBytes)
+	assert.Nil(t, err)
+	return &NodeRegisterExtraArgs{
+		ConsensusPubKey:              nodeRegisterExtraArgsSignStruct.ConsensusPubKey,
+		P2PPubKey:                    nodeRegisterExtraArgsSignStruct.P2PPubKey,
+		MetaData:                     nodeRegisterExtraArgsSignStruct.MetaData,
+		ConsensusPrivateKeySignature: hexutil.Encode(consensusPrivateKeySignature),
+		P2PPrivateKeySignature:       hexutil.Encode(p2pPrivateKeySignature),
+	}
 }
 
-func TestNodeManager_RunForPropose(t *testing.T) {
-	gov, stateLedger, _ := PrepareNodeManager(t)
+func TestNodeManager_RunForNodeRegisterPropose(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
 
+	type NodeRegisterData struct {
+		P2PPrivateKey       string
+		ConsensusPrivateKey string
+		MetaData            node_manager.NodeMetaData
+
+		NodeRegisterExtraArgs *NodeRegisterExtraArgs
+	}
+
+	operator := ethcommon.HexToAddress("0x1200000000000000000000000000000000000000")
 	testcases := []struct {
-		Caller string
-		Type   ProposalType
-		Data   *NodeExtraArgs
-		Err    error
-		HasErr bool
+		Caller                      ethcommon.Address
+		Data                        NodeRegisterData
+		NodeRegisterExtraArgsSetter func(args *NodeRegisterExtraArgs)
+		ErrHandler                  assert.ErrorAssertionFunc
 	}{
 		{
-			Caller: admin1,
-			Type:   NodeRegister,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin2,
-						Name:    "222",
-					},
+			Caller: operator,
+			Data: NodeRegisterData{
+				MetaData: node_manager.NodeMetaData{
+					Name: "node5",
 				},
 			},
-			HasErr: false,
+			ErrHandler: assert.NoError,
 		},
 		{
-			Caller: "0x1000000000000000000000000000000000000000",
-			Type:   NodeRegister,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
+			Caller: operator,
+			Data: NodeRegisterData{
+				MetaData: node_manager.NodeMetaData{
+					Name: "node6",
 				},
 			},
-			Err: ErrNotFoundCouncilMember,
+			NodeRegisterExtraArgsSetter: func(args *NodeRegisterExtraArgs) {
+				args.P2PPrivateKeySignature = "err signature"
+			},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "failed to verify p2p private key signature")
+			},
 		},
 		{
-			Caller: admin1,
-			Type:   NodeRegister,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
+			Caller: operator,
+			Data: NodeRegisterData{
+				MetaData: node_manager.NodeMetaData{
+					Name: "node6",
 				},
 			},
-			Err: ErrRepeatedNodeID,
+			NodeRegisterExtraArgsSetter: func(args *NodeRegisterExtraArgs) {
+				args.ConsensusPrivateKeySignature = "err signature"
+			},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "failed to verify consensus private key signature")
+			},
 		},
 		{
-			Caller: admin1,
-			Type:   NodeRegister,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin1,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin1,
-						Name:    "111",
-					},
+			Caller: operator,
+			Data: NodeRegisterData{
+				MetaData: node_manager.NodeMetaData{
+					Name: "node1",
 				},
 			},
-			Err: ErrRepeatedNodeAddress,
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "name already registered")
+			},
 		},
 		{
-			Caller: admin1,
-			Type:   NodeRegister,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin2,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin2,
-						Name:    "111",
-					},
+			Caller: operator,
+			Data: NodeRegisterData{
+				ConsensusPrivateKey: repo.MockConsensusKeys[0],
+				MetaData: node_manager.NodeMetaData{
+					Name: "node6",
 				},
 			},
-			Err: ErrRepeatedNodeName,
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "consensus public key already registered")
+			},
 		},
 		{
-			Caller: admin1,
-			Type:   NodeRemove,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
+			Caller: operator,
+			Data: NodeRegisterData{
+				P2PPrivateKey: repo.MockP2PKeys[0],
+				MetaData: node_manager.NodeMetaData{
+					Name: "node6",
 				},
 			},
-			Err: nil,
-		},
-		{
-			Caller: "0x1000000000000000000000000000000000000000",
-			Type:   NodeRemove,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "p2p public key already registered")
 			},
-			Err: ErrNotFoundCouncilMember,
-		},
-		{
-			Caller: admin1,
-			Type:   NodeRemove,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
-			},
-			Err: ErrRepeatedNodeID,
-		},
-		{
-			Caller: admin1,
-			Type:   NodeRemove,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin1,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
-			},
-			Err: ErrNotFoundNodeID,
-		},
-		{
-			Caller: admin1,
-			Type:   NodeRemove,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin2,
-						Name:    "111",
-					},
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin2,
-						Name:    "111",
-					},
-				},
-			},
-			Err: ErrNotFoundNodeAddress,
-		},
-		{
-			Caller: admin1,
-			Type:   NodeRemove,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "222",
-					},
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "222",
-					},
-				},
-			},
-			Err: ErrNotFoundNodeName,
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			From:        &addr,
-			BlockNumber: 1,
-			CurrentLogs: &logs,
-			StateLedger: stateLedger,
-		})
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				if test.Data.NodeRegisterExtraArgs == nil {
+					test.Data.NodeRegisterExtraArgs = generateNodeRegisterExtraArgs(t, test.Data.P2PPrivateKey, test.Data.ConsensusPrivateKey, test.Data.MetaData)
+				}
 
-		data, err := json.Marshal(test.Data)
-		assert.Nil(t, err)
+				if test.NodeRegisterExtraArgsSetter != nil {
+					test.NodeRegisterExtraArgsSetter(test.Data.NodeRegisterExtraArgs)
+				}
 
-		if test.Data == nil {
-			data = []byte("")
-		}
-
-		err = gov.Propose(uint8(test.Type), "test", "test desc", 100, data)
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
+				data, err := json.Marshal(test.Data.NodeRegisterExtraArgs)
 				assert.Nil(t, err)
-			}
-		}
+
+				err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
+				test.ErrHandler(t, err)
+				return err
+			})
+		})
+	}
+}
+
+func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
+
+	testcases := []struct {
+		Caller         ethcommon.Address
+		Data           NodeRemoveExtraArgs
+		PreProposeHook func(t *testing.T, ctx *common.VMContext)
+		ErrHandler     assert.ErrorAssertionFunc
+	}{
+		{
+			Caller: admin1,
+			Data: NodeRemoveExtraArgs{
+				NodeID: 1,
+			},
+			ErrHandler: assert.NoError,
+		},
+		{
+			Caller: ethcommon.HexToAddress("0x1200000000000000000000000000000000000000"),
+			Data: NodeRemoveExtraArgs{
+				NodeID: 1,
+			},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrNotFoundCouncilMember.Error())
+			},
+		},
+		{
+			Caller: admin1,
+			Data: NodeRemoveExtraArgs{
+				NodeID: 2,
+			},
+			PreProposeHook: func(t *testing.T, ctx *common.VMContext) {
+				nodeManagerContract := framework.NodeManagerBuildConfig.Build(ctx)
+				nodeInfo, err := nodeManagerContract.GetNodeInfo(2)
+				assert.Nil(t, err)
+				nodeInfo.Status = uint8(types.NodeStatusExited)
+				err = nodeManagerContract.TestPutNodeInfo(&nodeInfo)
+				assert.Nil(t, err)
+			},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "node already exited")
+			},
+		},
+	}
+
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				if test.PreProposeHook != nil {
+					test.PreProposeHook(t, gov.CrossCallSystemContractContext())
+				}
+				data, err := json.Marshal(test.Data)
+				assert.Nil(t, err)
+
+				err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, data)
+				test.ErrHandler(t, err)
+				return err
+			})
+		})
 	}
 }
 
 func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
-	gov, stateLedger, _ := PrepareNodeManager(t)
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
 
 	testcases := []struct {
-		Caller string
-		Data   *NodeExtraArgs
-		Err    error
-		HasErr bool
+		Caller     ethcommon.Address
+		Data       *NodeUpgradeExtraArgs
+		ErrHandler assert.ErrorAssertionFunc
 	}{
 		{
 			Caller: admin1,
-			Data: &NodeExtraArgs{
-				Nodes: []*NodeMember{
-					{
-						NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-						Address: admin1,
-						Name:    "111",
-					},
-				},
+			Data: &NodeUpgradeExtraArgs{
+				DownloadUrls: []string{"1", "2"},
+				CheckHash:    "1",
 			},
-			HasErr: false,
+			ErrHandler: assert.NoError,
+		},
+		{
+			Caller: admin1,
+			Data: &NodeUpgradeExtraArgs{
+				DownloadUrls: []string{"1", "1"},
+				CheckHash:    "1",
+			},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "repeated download url")
+			},
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			From:        &addr,
-			BlockNumber: 1,
-			CurrentLogs: &logs,
-			StateLedger: stateLedger,
-		})
-
-		data, err := json.Marshal(test.Data)
-		assert.Nil(t, err)
-
-		if test.Data == nil {
-			data = []byte("")
-		}
-
-		err = gov.Propose(uint8(NodeUpgrade), "test", "test desc", 100, data)
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				data, err := json.Marshal(test.Data)
 				assert.Nil(t, err)
-			}
-		}
+
+				err = gov.Propose(uint8(NodeUpgrade), "test", "test desc", 100, data)
+				test.ErrHandler(t, err)
+				return err
+			})
+		})
 	}
 }
 
-func TestNodeManager_GetNodeMembers(t *testing.T) {
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	})
-	assert.Nil(t, err)
-	err = InitNodeMembers(stateLedger, []*repo.NodeName{
-		{
-			ID:   1,
-			Name: "111",
-		},
-	}, &types.EpochInfo{
-		ValidatorSet: []types.NodeInfo{
-			{
-				ID:             1,
-				AccountAddress: admin1,
-				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-	})
-
-	members, err := GetNodeMembers(stateLedger)
-	assert.Nil(t, err)
-	t.Log("GetNodeMembers-members:", members)
-}
-
-func TestNodeManager_RunForAddVote(t *testing.T) {
-	gov, stateLedger, g := PrepareNodeManager(t)
+func TestNodeManager_RunForRegisterVote(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
 
 	// propose
-	addr := types.NewAddressByStr(admin1)
-	ethaddr := addr.ETHAddress()
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args := generateNodeRegisterExtraArgs(t, "", "", node_manager.NodeMetaData{Name: "node5"})
 
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
+		data, err := json.Marshal(args)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
 	})
 
-	arg := NodeExtraArgs{
-		Nodes: []*NodeMember{
-			{
-				Name:    "222",
-				NodeId:  "16Uiu2HAmTMVkvoGdwjHkqSEhdSM5P7L8ronFfnDePhmQSN6CvR8m",
-				Address: admin2,
-			},
-		},
-	}
-	data, err := json.Marshal(arg)
-	assert.Nil(t, err)
-
-	err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
-	assert.Nil(t, err)
-
-	g.DataSyncerSet = append(g.DataSyncerSet, types.NodeInfo{
-		ID:                   9,
-		AccountAddress:       "0x88E9A1cE92b4D6e4d860CFBB5bB7aC44d9b548f8",
-		P2PNodeID:            "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
-		ConsensusVotingPower: 100,
-	})
-	err = framework.InitEpochInfo(stateLedger, g)
+	proposalID, err := gov.GetLatestProposalID()
 	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller     string
-		ProposalID uint64
+		Caller     ethcommon.Address
 		Res        VoteResult
-		Err        error
-		HasErr     bool
+		ErrHandler assert.ErrorAssertionFunc
 	}{
 		{
-			Caller:     admin1,
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        Pass,
-			Err:        ErrUseHasVoted,
+			Caller: admin1,
+			Res:    Pass,
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrUseHasVoted.Error())
+			},
 		},
 		{
 			Caller:     admin2,
-			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        Pass,
-			HasErr:     false,
+			ErrHandler: assert.NoError,
 		},
 		{
-			Caller:     admin2,
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        Pass,
-			Err:        ErrUseHasVoted,
+			Caller: admin2,
+			Res:    Pass,
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrUseHasVoted.Error())
+			},
 		},
 		{
-			Caller:     "0x1000000000000000000000000000000000000000",
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        Pass,
-			Err:        ErrNotFoundCouncilMember,
-		},
-	}
-
-	for _, test := range testcases {
-		logs = make([]common.Log, 0)
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 1,
-			CurrentLogs: &logs,
-			From:        &addr,
-		})
-
-		err := gov.Vote(test.ProposalID, uint8(test.Res))
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
-	}
-}
-
-func TestNodeManager_RunForAddVote_Approved(t *testing.T) {
-	gov, stateLedger, _ := PrepareNodeManager(t)
-
-	// propose
-	addr := types.NewAddressByStr(admin1)
-	ethaddr := addr.ETHAddress()
-
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
-	})
-
-	arg := NodeExtraArgs{
-		Nodes: []*NodeMember{
-			{
-				Name:    "222",
-				NodeId:  "16Uiu2HAmTMVkvoGdwjHkqSEhdSM5P7L8ronFfnDePhmQSN6CvR8m",
-				Address: admin2,
+			Caller: ethcommon.HexToAddress("0x1000000000000000000000000000000000000000"),
+			Res:    Pass,
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrNotFoundCouncilMember.Error())
 			},
 		},
 	}
-	data, err := json.Marshal(arg)
-	assert.Nil(t, err)
 
-	err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(proposalID, uint8(test.Res))
+				test.ErrHandler(t, err)
+				return err
+			})
+		})
+	}
+}
+
+func TestNodeManager_RunForRegisterVote_Approved(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
+
+	// propose
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args := generateNodeRegisterExtraArgs(t, "", "", node_manager.NodeMetaData{
+			Name:       "node5",
+			Desc:       "Desc",
+			ImageURL:   "ImageURL",
+			WebsiteURL: "WebsiteURL",
+		})
+
+		data, err := json.Marshal(args)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	proposalID, err := gov.GetLatestProposalID()
 	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller     string
-		ProposalID uint64
-		Res        VoteResult
+		Caller ethcommon.Address
+		Res    VoteResult
 	}{
 		{
-			Caller:     admin2,
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        Pass,
+			Caller: admin2,
+			Res:    Pass,
 		},
 		{
-			Caller:     admin3,
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        Pass,
+			Caller: admin3,
+			Res:    Pass,
 		},
 	}
 
-	for _, test := range testcases {
-		logs = make([]common.Log, 0)
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 1,
-			CurrentLogs: &logs,
-			From:        &addr,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(proposalID, uint8(test.Res))
+				assert.Nil(t, err)
+				return err
+			})
 		})
-
-		err := gov.Vote(test.ProposalID, uint8(test.Res))
-		assert.Nil(t, err)
 	}
 
-	nodes, err := GetNodeMembers(stateLedger)
+	nodeInfo, err := nodeManager.GetNodeInfo(5)
 	assert.Nil(t, err)
-	assert.Equal(t, 2, len(nodes))
-}
-
-func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
-	gov, stateLedger, g := PrepareNodeManager(t)
-
-	dataSyncSet := types.NodeInfo{
-		ID:                   9,
-		AccountAddress:       admin4,
-		P2PNodeID:            "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
-		ConsensusVotingPower: 100,
-	}
-	g.DataSyncerSet = append(g.DataSyncerSet, dataSyncSet)
-	err := framework.InitEpochInfo(stateLedger, g)
-	assert.Nil(t, err)
-
-	err = InitNodeMembers(stateLedger, []*repo.NodeName{
-		{
-			ID:   1,
-			Name: "111",
-		},
-		{
-			ID:   9,
-			Name: "444",
-		},
-	}, &types.EpochInfo{
-		ValidatorSet: []types.NodeInfo{
-			{
-				ID:             1,
-				AccountAddress: admin1,
-				P2PNodeID:      "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-			},
-		},
-		DataSyncerSet: []types.NodeInfo{dataSyncSet},
-	})
-	// propose
-	addr := types.NewAddressByStr(admin1)
-	ethaddr := addr.ETHAddress()
-
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
-	})
-
-	err = gov.Propose(uint8(NodeRemove), "test title", "test desc", 100, generateNodeRemoveProposeData(t, NodeExtraArgs{
-		Nodes: []*NodeMember{
-			{
-				ID:      9,
-				NodeId:  "16Uiu2HAkwmNbfH8ZBdnYhygUHyG5mSWrWTEra3gwHWt9dGTUSRVV",
-				Address: admin4,
-				Name:    "444",
-			},
-		},
-	}))
-	assert.Nil(t, err)
-
-	ethaddr = types.NewAddressByStr(admin2).ETHAddress()
-	logs = make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
-	})
-	err = gov.Vote(gov.nextProposalID.GetID()-1, uint8(Pass))
-	assert.Nil(t, err)
-
-	ethaddr = types.NewAddressByStr(admin3).ETHAddress()
-	logs = make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
-	})
-	err = gov.Vote(gov.nextProposalID.GetID()-1, uint8(Pass))
-	assert.Nil(t, err)
-
-	nodes, err := GetNodeMembers(stateLedger)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(nodes))
+	assert.EqualValues(t, 5, nodeInfo.ID)
+	assert.EqualValues(t, "node5", nodeInfo.MetaData.Name)
+	assert.EqualValues(t, "Desc", nodeInfo.MetaData.Desc)
+	assert.EqualValues(t, "ImageURL", nodeInfo.MetaData.ImageURL)
+	assert.EqualValues(t, "WebsiteURL", nodeInfo.MetaData.WebsiteURL)
 }
 
 func TestNodeManager_RunForRemoveVote(t *testing.T) {
-	gov, stateLedger, _ := PrepareNodeManager(t)
+	testNVM, gov := initGovernance(t, func(rep *repo.Repo) {
+		node5 := generateNodeRegisterExtraArgs(t, "", "", node_manager.NodeMetaData{Name: "node5"})
+		rep.GenesisConfig.Nodes = append(rep.GenesisConfig.Nodes, repo.GenesisNodeInfo{
+			ConsensusPubKey: node5.ConsensusPubKey,
+			P2PPubKey:       node5.P2PPubKey,
+			OperatorAddress: admin1.String(),
+			MetaData: repo.GenesisNodeMetaData{
+				Name:       node5.MetaData.Name,
+				Desc:       node5.MetaData.Desc,
+				ImageURL:   node5.MetaData.ImageURL,
+				WebsiteURL: node5.MetaData.WebsiteURL,
+			},
+			IsDataSyncer:   true,
+			StakeNumber:    types.CoinNumberByAxc(0),
+			CommissionRate: 0,
+		})
+	})
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
 
 	// propose
-	addr := types.NewAddressByStr(admin1)
-	ethaddr := addr.ETHAddress()
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		data, err := json.Marshal(NodeRemoveExtraArgs{
+			NodeID: 5,
+		})
+		assert.Nil(t, err)
 
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
+		err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
 	})
 
-	err := gov.Propose(uint8(NodeRemove), "test title", "test desc", 100, generateNodeRemoveProposeData(t, NodeExtraArgs{
-		Nodes: []*NodeMember{
-			{
-				NodeId:  "16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF",
-				Address: admin1,
-				Name:    "111",
-			},
-		},
-	}))
+	proposalID, err := gov.GetLatestProposalID()
 	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller     string
-		ProposalID uint64
+		Caller     ethcommon.Address
 		Res        uint8
-		Err        error
-		HasErr     bool
+		ErrHandler assert.ErrorAssertionFunc
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
-			HasErr:     false,
+			ErrHandler: assert.NoError,
 		},
 		{
-			Caller:     admin1,
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        uint8(Pass),
-			Err:        ErrUseHasVoted,
+			Caller: admin1,
+			Res:    uint8(Pass),
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrUseHasVoted.Error())
+			},
 		},
 		{
-			Caller:     "0x1000000000000000000000000000000000000000",
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        uint8(Pass),
-			Err:        ErrNotFoundCouncilMember,
+			Caller: ethcommon.HexToAddress("0x1000000000000000000000000000000000000000"),
+			Res:    uint8(Pass),
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrNotFoundCouncilMember.Error())
+			},
 		},
 	}
 
-	for _, test := range testcases {
-		ethaddr = types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 1,
-			From:        &ethaddr,
-			CurrentLogs: &logs,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(proposalID, test.Res)
+				test.ErrHandler(t, err)
+				return err
+			})
 		})
-
-		err := gov.Vote(test.ProposalID, uint8(test.Res))
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
 	}
+}
+
+func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
+	testNVM, gov := initGovernance(t, func(rep *repo.Repo) {
+		node5 := generateNodeRegisterExtraArgs(t, "", "", node_manager.NodeMetaData{Name: "node5"})
+		rep.GenesisConfig.Nodes = append(rep.GenesisConfig.Nodes, repo.GenesisNodeInfo{
+			ConsensusPubKey: node5.ConsensusPubKey,
+			P2PPubKey:       node5.P2PPubKey,
+			OperatorAddress: admin1.String(),
+			MetaData: repo.GenesisNodeMetaData{
+				Name:       node5.MetaData.Name,
+				Desc:       node5.MetaData.Desc,
+				ImageURL:   node5.MetaData.ImageURL,
+				WebsiteURL: node5.MetaData.WebsiteURL,
+			},
+			IsDataSyncer:   true,
+			StakeNumber:    types.CoinNumberByAxc(0),
+			CommissionRate: 0,
+		})
+	})
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
+
+	// propose
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		data, err := json.Marshal(NodeRemoveExtraArgs{
+			NodeID: 5,
+		})
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	proposalID, err := gov.GetLatestProposalID()
+	assert.Nil(t, err)
+
+	testcases := []struct {
+		Caller ethcommon.Address
+		Res    VoteResult
+	}{
+		{
+			Caller: admin2,
+			Res:    Pass,
+		},
+		{
+			Caller: admin3,
+			Res:    Pass,
+		},
+	}
+
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(proposalID, uint8(test.Res))
+				assert.Nil(t, err)
+				return err
+			})
+		})
+	}
+
+	nodeInfo, err := nodeManager.GetNodeInfo(5)
+	assert.Nil(t, err)
+	assert.EqualValues(t, types.NodeStatusExited, nodeInfo.Status)
 }
 
 func TestNodeManager_RunForUpgradeVote(t *testing.T) {
-	gov, stateLedger, _ := PrepareNodeManager(t)
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(nodeManager)
 
 	// propose
-	addr := types.NewAddressByStr(admin1)
-	ethaddr := addr.ETHAddress()
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		data, err := json.Marshal(NodeUpgradeExtraArgs{
+			DownloadUrls: []string{"http://127.0.0.1:9000"},
+			CheckHash:    "hash",
+		})
+		assert.Nil(t, err)
 
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		StateLedger: stateLedger,
-		BlockNumber: 1,
-		From:        &ethaddr,
-		CurrentLogs: &logs,
+		err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
 	})
-	err := gov.Propose(uint8(NodeUpgrade), "test title", "test desc", 100, generateNodeUpgradeProposeData(t, NodeUpgradeExtraArgs{
-		DownloadUrls: []string{"http://127.0.0.1:9000"},
-		CheckHash:    "hash",
-	}))
+
+	proposalID, err := gov.GetLatestProposalID()
 	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller     string
-		ProposalID uint64
+		Caller     ethcommon.Address
 		Res        uint8
+		ErrHandler assert.ErrorAssertionFunc
 		Err        error
 		HasErr     bool
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.nextProposalID.GetID() - 1,
 			Res:        uint8(Pass),
-			HasErr:     false,
+			ErrHandler: assert.NoError,
 		},
 		{
-			Caller:     admin1,
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        uint8(Pass),
-			Err:        ErrUseHasVoted,
+			Caller: admin1,
+			Res:    uint8(Pass),
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrUseHasVoted.Error())
+			},
 		},
 		{
-			Caller:     "0x1000000000000000000000000000000000000000",
-			ProposalID: gov.nextProposalID.GetID() - 1,
-			Res:        uint8(Pass),
-			Err:        ErrNotFoundCouncilMember,
+			Caller: ethcommon.HexToAddress("0x1000000000000000000000000000000000000000"),
+			Res:    uint8(Pass),
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, ErrNotFoundCouncilMember.Error())
+			},
 		},
 	}
 
-	for _, test := range testcases {
-		ethaddr = types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 1,
-			From:        &ethaddr,
-			CurrentLogs: &logs,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(proposalID, test.Res)
+				test.ErrHandler(t, err)
+				return err
+			})
 		})
-
-		err := gov.Vote(test.ProposalID, uint8(test.Res))
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
 	}
-}
-
-func generateNodeRemoveProposeData(t *testing.T, extraArgs NodeExtraArgs) []byte {
-	data, err := json.Marshal(extraArgs)
-	assert.Nil(t, err)
-	return data
-}
-
-func generateNodeUpgradeProposeData(t *testing.T, extraArgs NodeUpgradeExtraArgs) []byte {
-	data, err := json.Marshal(extraArgs)
-	assert.Nil(t, err)
-	return data
 }

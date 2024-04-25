@@ -2,7 +2,6 @@ package solo
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -164,7 +163,6 @@ func TestNode_ReportState(t *testing.T) {
 	node.epcCnf.epochPeriod = 10
 	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
 	node.GetLowWatermark()
-	fmt.Println("GetPendingTxByHash", txList[9].RbftGetTxHash())
 	ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")
 	ast.Equal(0, len(node.batchDigestM))
 	ast.True(node.epcCnf.enableGenEmptyBlock)

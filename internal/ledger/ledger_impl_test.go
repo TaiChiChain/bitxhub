@@ -19,6 +19,7 @@ import (
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	crypto1 "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -198,8 +199,7 @@ func TestChainLedger_PersistBlockData(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -222,66 +222,65 @@ func TestChainLedger_Commit(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
-			lg, repoRoot := initLedger(t, "", tc.kvType)
+			lg, _ := initLedger(t, "", tc.kvType)
 			sl := lg.StateLedger.(*StateLedgerImpl)
 
 			// create an account
 			account := types.NewAddress(LeftPadBytes([]byte{100}, 20))
 
-			sl.blockHeight = 1
+			sl.blockHeight = 0
 			sl.SetState(account, []byte("a"), []byte("b"))
 			sl.Finalise()
 			stateRoot1, err := sl.Commit()
 			assert.NotNil(t, stateRoot1)
 			assert.Nil(t, err)
 			sl.GetCommittedState(account, []byte("a"))
-			isSuicide := sl.HasSuicide(account)
+			isSuicide := sl.HasSelfDestructed(account)
 			assert.Equal(t, isSuicide, false)
-			assert.Equal(t, uint64(1), sl.Version())
+			assert.Equal(t, uint64(0), sl.Version())
 
-			sl.blockHeight = 2
+			sl.blockHeight = 1
 			sl.Finalise()
 			stateRoot2, err := sl.Commit()
 			assert.Nil(t, err)
-			assert.Equal(t, uint64(2), sl.Version())
+			assert.Equal(t, uint64(1), sl.Version())
 			assert.Equal(t, stateRoot1, stateRoot2)
 
 			sl.SetState(account, []byte("a"), []byte("3"))
 			sl.SetState(account, []byte("a"), []byte("2"))
-			sl.blockHeight = 3
+			sl.blockHeight = 2
 			sl.Finalise()
 			stateRoot3, err := sl.Commit()
 			assert.Nil(t, err)
-			assert.Equal(t, uint64(3), lg.StateLedger.Version())
+			assert.Equal(t, uint64(2), lg.StateLedger.Version())
 			assert.NotEqual(t, stateRoot1, stateRoot3)
 
 			lg.StateLedger.SetBalance(account, new(big.Int).SetInt64(100))
-			sl.blockHeight = 4
+			sl.blockHeight = 3
 			stateRoot4, err := sl.Commit()
 			assert.Nil(t, err)
-			assert.Equal(t, uint64(4), lg.StateLedger.Version())
+			assert.Equal(t, uint64(3), lg.StateLedger.Version())
 			assert.NotEqual(t, stateRoot3, stateRoot4)
 
 			code := RightPadBytes([]byte{100}, 100)
 			lg.StateLedger.SetCode(account, code)
 			lg.StateLedger.SetState(account, []byte("b"), []byte("3"))
 			lg.StateLedger.SetState(account, []byte("c"), []byte("2"))
-			sl.blockHeight = 5
+			sl.blockHeight = 4
 			sl.Finalise()
 			stateRoot5, err := sl.Commit()
 			assert.Nil(t, err)
-			assert.Equal(t, uint64(5), lg.StateLedger.Version())
+			assert.Equal(t, uint64(4), lg.StateLedger.Version())
 			assert.NotEqual(t, stateRoot4, stateRoot5)
 
 			minHeight, maxHeight := sl.snapshot.GetJournalRange()
 			journal5 := sl.snapshot.GetBlockJournal(maxHeight)
-			assert.Equal(t, uint64(1), minHeight)
-			assert.Equal(t, uint64(5), maxHeight)
+			assert.Equal(t, uint64(0), minHeight)
+			assert.Equal(t, uint64(4), maxHeight)
 			assert.Equal(t, 1, len(journal5.Journals))
 			entry := journal5.Journals[0]
 			assert.Equal(t, account.String(), entry.Address.String())
@@ -330,31 +329,11 @@ func TestChainLedger_Commit(t *testing.T) {
 			assert.Equal(t, isInSlotAddressList, true)
 			lg.StateLedger.(*StateLedgerImpl).AddPreimage(*hash, []byte("11"))
 			lg.StateLedger.(*StateLedgerImpl).PrepareAccessList(*account, account, []types.Address{}, AccessTupleList{})
-			lg.StateLedger.(*StateLedgerImpl).Suicide(account)
+			lg.StateLedger.(*StateLedgerImpl).SelfDestruct(account)
 			lg.StateLedger.(*StateLedgerImpl).RevertToSnapshot(revid)
 			lg.StateLedger.(*StateLedgerImpl).ClearChangerAndRefund()
 
 			lg.ChainLedger.(*ChainLedgerImpl).CloseBlockfile()
-
-			// load ChainLedgerImpl from db, rollback to height 0 since no chain meta stored
-			ldg, _ := initLedger(t, repoRoot, tc.kvType)
-
-			ok, _ := ldg.StateLedger.GetState(account, []byte("a"))
-			assert.False(t, ok)
-
-			ok, _ = ldg.StateLedger.GetState(account, []byte("b"))
-			assert.False(t, ok)
-
-			ok, _ = ldg.StateLedger.GetState(account, []byte("c"))
-			assert.False(t, ok)
-
-			assert.Equal(t, uint64(0), ldg.StateLedger.GetBalance(account).Uint64())
-			assert.Equal(t, []byte(nil), ldg.StateLedger.GetCode(account))
-
-			ver := ldg.StateLedger.Version()
-			assert.Equal(t, uint64(0), ver)
-			err = lg.StateLedger.(*StateLedgerImpl).snapshot.RemoveJournalsBeforeBlock(4)
-			assert.NotNil(t, err)
 		})
 	}
 }
@@ -363,8 +342,7 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -378,12 +356,12 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			evmStateDB := &EvmStateDBAdaptor{StateLedger: ledger.StateLedger}
 
 			evmStateDB.CreateAccount(account)
-			evmStateDB.AddBalance(account, big.NewInt(2))
+			evmStateDB.AddBalance(account, uint256.NewInt(2))
 			balance := evmStateDB.GetBalance(account)
-			assert.Equal(t, balance, big.NewInt(2))
-			evmStateDB.SubBalance(account, big.NewInt(1))
+			assert.Equal(t, balance, uint256.NewInt(2))
+			evmStateDB.SubBalance(account, uint256.NewInt(1))
 			balance = evmStateDB.GetBalance(account)
-			assert.Equal(t, balance, big.NewInt(1))
+			assert.Equal(t, balance, uint256.NewInt(1))
 			evmStateDB.SetNonce(account, 10)
 			nonce := evmStateDB.GetNonce(account)
 			assert.Equal(t, nonce, uint64(10))
@@ -403,8 +381,8 @@ func TestChainLedger_EVMAccessor(t *testing.T) {
 			evmStateDB.SetState(account, hash, hash)
 			value := evmStateDB.GetState(account, hash)
 			assert.Equal(t, value, hash)
-			evmStateDB.Suicide(account)
-			isSuicide := evmStateDB.HasSuicided(account)
+			evmStateDB.SelfDestruct(account)
+			isSuicide := evmStateDB.HasSelfDestructed(account)
 			assert.Equal(t, isSuicide, true)
 			isExist := evmStateDB.Exist(account)
 			assert.Equal(t, isExist, true)
@@ -438,8 +416,7 @@ func TestChainLedger_Rollback(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -588,8 +565,7 @@ func TestChainLedger_GetAccount(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -664,8 +640,7 @@ func TestChainLedger_GetCode(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -713,8 +688,7 @@ func TestChainLedger_AddState(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -765,8 +739,7 @@ func TestGetBlockHeaderAndExtra(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -824,8 +797,7 @@ func TestGetBlockTxHashListByNumber(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -856,8 +828,7 @@ func TestGetBlockTxListByNumber(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -876,8 +847,7 @@ func TestGetTransaction(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -899,8 +869,7 @@ func TestGetTransaction1(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -927,8 +896,7 @@ func TestGetTransactionMeta(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -950,8 +918,7 @@ func TestGetReceipt(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -977,8 +944,7 @@ func TestGetReceipt1(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -1005,8 +971,7 @@ func TestPrepare(t *testing.T) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
@@ -1063,7 +1028,7 @@ func TestStateLedger_EOAHistory(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -1221,7 +1186,7 @@ func TestStateLedger_ContractStateHistory(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -1524,7 +1489,7 @@ func TestStateLedger_RollbackToAccountHistoryVersion(t *testing.T) {
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
 	lg.PersistBlockData(genBlockData(0, stateRoot1))
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(0), sl.Version())
 
@@ -2006,7 +1971,7 @@ func TestStateLedger_AccountSuicide(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	assert.Equal(t, sl.HasSuicide(account), false)
+	assert.Equal(t, sl.HasSelfDestructed(account), false)
 	assert.Equal(t, uint64(1), sl.Version())
 
 	code := RightPadBytes([]byte{100}, 100)
@@ -2032,7 +1997,7 @@ func TestStateLedger_AccountSuicide(t *testing.T) {
 
 	// suicide account
 	evmLg := &EvmStateDBAdaptor{StateLedger: lg.StateLedger}
-	evmLg.Suicide(account.ETHAddress())
+	evmLg.SelfDestruct(account.ETHAddress())
 	sl.blockHeight = 3
 	stateRoot3, err := sl.Commit()
 	assert.Nil(t, err)
@@ -2065,7 +2030,7 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -2340,7 +2305,7 @@ func TestStateLedger_IterateStorageTrie(t *testing.T) {
 	stateRoot1, err := sl.Commit()
 	assert.NotNil(t, stateRoot1)
 	assert.Nil(t, err)
-	isSuicide := sl.HasSuicide(account1)
+	isSuicide := sl.HasSelfDestructed(account1)
 	assert.Equal(t, isSuicide, false)
 	assert.Equal(t, uint64(1), sl.Version())
 
@@ -3057,8 +3022,9 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.Nil(t, err)
 		account3Key1RpcProof, err := mockGetProof(account3.ETHAddress(), []string{"0x1"}, lg1)
 		assert.Nil(t, err)
-		assert.True(t, equalProof(account3StorageProof, convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0])))
-		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0]))
+		addrHash := common.BytesToHash(account3Key1RpcProof.Address.Bytes())
+		assert.True(t, equalProof(account3StorageProof, convertStorageProof(addrHash, &account3Key1RpcProof.StorageProof[0])))
+		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(addrHash, &account3Key1RpcProof.StorageProof[0]))
 		assert.Nil(t, err)
 		assert.True(t, verify)
 	})
@@ -3107,8 +3073,8 @@ func TestStateLedger_RPCGetProof(t *testing.T) {
 		assert.Nil(t, err)
 		account3Key1RpcProof, err := mockGetProof(account3.ETHAddress(), []string{"0x1"}, lg2)
 		assert.Nil(t, err)
-		assert.True(t, equalProof(account3StorageProof, convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0])))
-		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(account3Key1RpcProof.Address.Hash(), &account3Key1RpcProof.StorageProof[0]))
+		assert.True(t, equalProof(account3StorageProof, convertStorageProof(common.BytesToHash(account3Key1RpcProof.Address.Bytes()), &account3Key1RpcProof.StorageProof[0])))
+		verify, err = jmt.VerifyProof(acc3.GetStorageRoot(), convertStorageProof(common.BytesToHash(account3Key1RpcProof.Address.Bytes()), &account3Key1RpcProof.StorageProof[0]))
 		assert.Nil(t, err)
 		assert.True(t, verify)
 	})
@@ -3312,6 +3278,7 @@ func initLedger(t *testing.T, repoRoot string, kv string) (*Ledger, string) {
 	}
 
 	rep.Config.Monitor.EnableExpensive = true
+	rep.Config.Ledger.EnablePrune = true
 	l, err := NewLedger(rep)
 	require.Nil(t, err)
 
@@ -3345,8 +3312,7 @@ func BenchmarkStateLedgerWrite(b *testing.B) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {
@@ -3363,8 +3329,7 @@ func BenchmarkStateLedgerRead(b *testing.B) {
 	testcase := map[string]struct {
 		kvType string
 	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
+		"pebble": {kvType: "pebble"},
 	}
 
 	for name, tc := range testcase {

@@ -23,10 +23,10 @@ var (
 
 type StakingManager interface {
 
-	// Stake is a paid mutator transaction binding the contract method 0xa328a677.
+	// AddStake is a paid mutator transaction binding the contract method 0xad899a39.
 	//
-	// Solidity: function stake(uint64 poolID, address owner, uint256 amount) payable returns()
-	Stake(poolID uint64, owner common.Address, amount *big.Int) error
+	// Solidity: function addStake(uint64 poolID, address owner, uint256 amount) payable returns()
+	AddStake(poolID uint64, owner common.Address, amount *big.Int) error
 
 	// Unlock is a paid mutator transaction binding the contract method 0x7a94f25b.
 	//
@@ -39,15 +39,16 @@ type StakingManager interface {
 	Withdraw(poolID uint64, owner common.Address, liquidStakingTokenID *big.Int, amount *big.Int) error
 }
 
-// EventStake represents a Stake event raised by the StakingManager contract.
-type EventStake struct {
-	PoolID uint64
-	Owner  common.Address
-	Amount *big.Int
+// EventAddStake represents a AddStake event raised by the StakingManager contract.
+type EventAddStake struct {
+	PoolID               uint64
+	Owner                common.Address
+	Amount               *big.Int
+	LiquidStakingTokenID *big.Int
 }
 
-func (_event *EventStake) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Stake"])
+func (_event *EventAddStake) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["AddStake"])
 }
 
 // EventUnlock represents a Unlock event raised by the StakingManager contract.

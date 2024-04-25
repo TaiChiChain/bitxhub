@@ -189,7 +189,6 @@ var ledgerCMD = &cli.Command{
 					Required:    false,
 					Destination: &ledgerImportAccountsArgs.BatchSize,
 				},
-				passwordFlag(),
 			},
 		},
 	},

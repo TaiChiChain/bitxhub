@@ -4,12 +4,12 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -81,7 +81,7 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 		ChainMeta: &types.ChainMeta{
 			Height:    0,
 			GasPrice:  new(big.Int),
-			BlockHash: &types.Hash{},
+			BlockHash: nil,
 		},
 		ValidatorSet: lo.Map(genesisConfig.Nodes, func(_ repo.GenesisNodeInfo, index int) ValidatorInfo {
 			return ValidatorInfo{ID: uint64(index + 1), ConsensusVotingPower: 1000}

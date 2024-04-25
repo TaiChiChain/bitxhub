@@ -17,9 +17,6 @@ var _ ProposalHandler = (*GasManager)(nil)
 var (
 	ErrExistNotFinishedGasProposal     = errors.New("exist not gas finished proposal")
 	ErrExistNotFinishedCouncilProposal = errors.New("exist not finished council proposal")
-	ErrGasExtraArgs                    = errors.New("unmarshal gas extra arguments error")
-	ErrGasArgsType                     = errors.New("gas arguments type error")
-	ErrGasUpperOrLlower                = errors.New("gas upper or lower limit error")
 	ErrRepeatedGasInfo                 = errors.New("repeated gas info")
 )
 
@@ -46,13 +43,9 @@ func (gm *GasManager) GenesisInit(genesis *repo.GenesisConfig) error {
 }
 
 func (gm *GasManager) ProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error {
-	args, err := gm.getGasProposalExtraArgs(extra)
+	_, err := gm.getGasProposalExtraArgs(extra)
 	if err != nil {
 		return err
-	}
-
-	if args.MaxGasPrice == 0 {
-		return errors.New("max_gas_price cannot be 0")
 	}
 
 	// Check for outstanding council proposals and gas proposals
@@ -102,7 +95,7 @@ func (gm *GasManager) checkNotFinishedProposal() (bool, error) {
 func (gm *GasManager) getGasProposalExtraArgs(extra []byte) (*GasExtraArgs, error) {
 	extraArgs := &GasExtraArgs{}
 	if err := json.Unmarshal(extra, extraArgs); err != nil {
-		return nil, ErrGasExtraArgs
+		return nil, errors.Wrap(err, "unmarshal gas extra arguments error")
 	}
 
 	// Check whether the gas proposal and GetNextEpochInfo are consistent

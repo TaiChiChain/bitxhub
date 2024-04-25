@@ -168,16 +168,11 @@ func (tc *PruneCache) Rollback(height uint64) error {
 
 	tc.logger.Infof("[PruneCache-Rollback] minHeight=%v, maxHeight=%v, targetHeight=%v", minHeight, maxHeight, height)
 
-	// empty cache, no-op
-	if minHeight == 0 && maxHeight == 0 {
-		return nil
-	}
-
 	if maxHeight < height {
 		return ErrorRollbackToHigherNumber
 	}
 
-	if minHeight > height && !(minHeight == 1 && height == 0) {
+	if minHeight > height {
 		return ErrorRollbackTooMuch
 	}
 

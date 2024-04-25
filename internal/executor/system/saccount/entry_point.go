@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
-	"github.com/axiomesh/axiom-kit/intutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ientry_point_client"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -432,9 +431,12 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.CallGasLimit)
 		isInnerMethod, callGas, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
 		if err != nil {
-			ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
-			mode = interfaces.OpReverted
-			ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
+			ep.EmitEvent(&ientry_point.EventUserOperationRevertReason{
+				UserOpHash:   opInfo.UserOpHash,
+				Sender:       mUserOp.Sender,
+				Nonce:        mUserOp.Nonce,
+				RevertReason: []byte(err.Error()),
+			})
 			mode = interfaces.OpReverted
 		}
 
@@ -460,7 +462,7 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		}
 	}
 
-	ep.Logger.Infof("handle op, opIndex: %s, mode: %s, usedGas: %s, preOpGas: %s", opIndex.Text(10), mode, usedGas.Text(10), opInfo.PreOpGas.Text(10))
+	ep.Logger.Infof("handle op, opIndex: %s, mode: %v, usedGas: %s, preOpGas: %s", opIndex.Text(10), mode, usedGas.Text(10), opInfo.PreOpGas.Text(10))
 	actualGas := new(big.Int).Add(usedGas, opInfo.PreOpGas)
 	return ep.handlePostOp(opIndex, mode, opInfo, context, actualGas, totalValue)
 }
@@ -504,7 +506,10 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 
 	sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.VerificationGasLimit)
 	if err := sa.postUserOp(opInfo.UseSessionKey, actualGasCost, totalValue); err != nil {
-		return nil, interfaces.FailedOp(opIndex, fmt.Sprintf("post user op reverted: %s", err.Error()))
+		return nil, sa.Revert(&ientry_point.ErrorFailedOp{
+			OpIndex: opIndex,
+			Reason:  fmt.Sprintf("post user op reverted: %s", err.Error()),
+		})
 	}
 
 	if opInfo.Prefund.Cmp(actualGasCost) == -1 {
@@ -669,7 +674,10 @@ func (ep *EntryPoint) HandleAccountRecovery(ops []interfaces.UserOperation, bene
 		op := ops[i]
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), op.Sender).SetRemainingGas(op.CallGasLimit)
 		if len(op.CallData) < 20 {
-			return interfaces.FailedOp(big.NewInt(int64(i)), "callData is less than 20 bytes, should be contain address")
+			return ep.Revert(&ientry_point.ErrorFailedOp{
+				OpIndex: big.NewInt(int64(i)),
+				Reason:  "callData is less than 20 bytes, should be contain address",
+			})
 		}
 
 		// 20 bytes for owner address

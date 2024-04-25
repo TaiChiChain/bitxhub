@@ -93,16 +93,15 @@ func (l *Ledger) PersistBlockData(blockData *BlockData) {
 
 // Rollback rollback ledger to history version
 func (l *Ledger) Rollback(height uint64) error {
-	var stateRoot *types.Hash
-	if height != 0 {
-		blockHeader, err := l.ChainLedger.GetBlockHeader(height)
-		if err != nil {
-			return fmt.Errorf("rollback state to height %d failed: %w", height, err)
-		}
-		stateRoot = blockHeader.StateRoot
+	if l.ChainLedger.GetChainMeta().BlockHash == nil {
+		return nil
+	}
+	blockHeader, err := l.ChainLedger.GetBlockHeader(height)
+	if err != nil {
+		return fmt.Errorf("rollback state to height %d failed: %w", height, err)
 	}
 
-	if err := l.StateLedger.RollbackState(height, stateRoot); err != nil {
+	if err := l.StateLedger.RollbackState(height, blockHeader.StateRoot); err != nil {
 		return fmt.Errorf("rollback state to height %d failed: %w", height, err)
 	}
 

@@ -433,6 +433,7 @@ func TestName(t *testing.T) {
 
 func createMockRepo(t *testing.T) *repo.Repo {
 	r := repo.MockRepo(t)
+	r.Config.Ledger.EnablePrune = true
 	r.Config.Ledger.StateLedgerReservedHistoryBlockNum = 10
 	// speed up unit test
 	{

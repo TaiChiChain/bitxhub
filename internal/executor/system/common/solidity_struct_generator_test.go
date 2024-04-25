@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
 type Address struct {
@@ -30,17 +32,7 @@ func TestGenerateSolidityStruct(t *testing.T) {
 	assert.Nil(t, err)
 	t.Log(solidityCode)
 
-	solidityCode, err = GenerateSolidityStruct(&types.EpochInfo{
-		P2PBootstrapNodeAddresses: []string{"1", "2"},
-		ValidatorSet: []types.NodeInfo{
-			{
-				ID:                   1,
-				AccountAddress:       "1",
-				P2PNodeID:            "1",
-				ConsensusVotingPower: 1,
-			},
-		},
-	})
+	solidityCode, err = GenerateSolidityStruct(&types.EpochInfo{})
 	assert.Nil(t, err)
 	t.Log(solidityCode)
 }

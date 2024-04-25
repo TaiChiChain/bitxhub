@@ -2,58 +2,54 @@ package governance
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func TestGovernance_Propose(t *testing.T) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
+func initGovernance(t *testing.T, repoSetters ...func(rep *repo.Repo)) (*common.TestNVM, *Governance) {
+	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByAxc(0)
+	testNVM.Rep.GenesisConfig.CouncilMembers = []*repo.CouncilMember{
 		{
-			Address: admin1,
+			Address: admin1.String(),
 			Weight:  1,
 			Name:    "111",
 		},
 		{
-			Address: admin2,
+			Address: admin2.String(),
 			Weight:  1,
 			Name:    "222",
 		},
 		{
-			Address: admin3,
+			Address: admin3.String(),
 			Weight:  1,
 			Name:    "333",
 		},
 		{
-			Address: admin4,
+			Address: admin4.String(),
 			Weight:  1,
 			Name:    "444",
 		},
-	})
-	assert.Nil(t, err)
+	}
+	for _, setter := range repoSetters {
+		setter(testNVM.Rep)
+	}
+	gov := BuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	epochManager := framework.EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(epochManager, gov)
+	return testNVM, gov
+}
+
+func TestGovernance_Propose(t *testing.T) {
+	testNVM, gov := initGovernance(t)
 
 	testcases := []struct {
 		input struct {
@@ -74,7 +70,7 @@ func TestGovernance_Propose(t *testing.T) {
 				desc         string
 				BlockNumber  uint64
 			}{
-				user:         admin1,
+				user:         admin1.String(),
 				proposalType: NodeUpgrade,
 				title:        "test title",
 				desc:         "test desc",
@@ -164,18 +160,153 @@ func TestGovernance_Propose(t *testing.T) {
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.input.user)
-		ethaddr := addr.ETHAddress()
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, ethcommon.HexToAddress(test.input.user), func() error {
+				arg := NodeUpgradeExtraArgs{
+					DownloadUrls: []string{"http://127.0.0.1:10000"},
+					CheckHash:    "",
+				}
+				data, err := json.Marshal(arg)
+				assert.Nil(t, err)
 
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 1,
-			From:        &ethaddr,
-			CurrentLogs: &logs,
+				err = gov.Propose(uint8(test.input.proposalType), test.input.title, test.input.desc, test.input.BlockNumber, data)
+				if test.err != nil {
+					assert.Contains(t, err.Error(), test.err.Error())
+				} else {
+					if test.hasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
 		})
+	}
+}
 
+func TestGovernance_Vote(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+
+	addr := types.NewAddressByStr("0x10010000000").ETHAddress()
+
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		arg := NodeUpgradeExtraArgs{
+			DownloadUrls: []string{"http://127.0.0.1:10000"},
+			CheckHash:    "",
+		}
+		data, err := json.Marshal(arg)
+		assert.Nil(t, err)
+		err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testcases := []struct {
+		from   ethcommon.Address
+		id     uint64
+		result uint8
+		err    error
+		hasErr bool
+	}{
+		{
+			from:   admin2,
+			id:     100,
+			result: uint8(Reject),
+			err:    ErrNotFoundProposal,
+		},
+		{
+			from:   admin2,
+			id:     1,
+			result: uint8(100),
+			err:    ErrVoteResult,
+		},
+		{
+			from:   admin1,
+			id:     1,
+			result: uint8(Pass),
+			err:    ErrUseHasVoted,
+		},
+		{
+			from:   addr,
+			id:     1,
+			result: uint8(Pass),
+			err:    ErrNotFoundCouncilMember,
+		},
+		{
+			// vote success
+			from:   admin2,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
+		},
+		{
+			from:   admin3,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
+		},
+		{
+			// has finish the proposal
+			from:   admin4,
+			id:     1,
+			result: uint8(Pass),
+			err:    ErrProposalFinished,
+		},
+	}
+
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.from, func() error {
+				err := gov.Vote(test.id, test.result)
+				if test.err != nil {
+					assert.Contains(t, err.Error(), test.err.Error())
+				} else {
+					if test.hasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
+		})
+	}
+}
+
+func TestGovernance_GetLatestProposalID(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+
+	testNVM.Call(gov, admin1, func() {
+		proposalID, err := gov.GetLatestProposalID()
+		assert.Nil(t, err)
+		assert.EqualValues(t, 0, proposalID)
+	})
+
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		arg := NodeUpgradeExtraArgs{
+			DownloadUrls: []string{"http://127.0.0.1:10000"},
+			CheckHash:    "",
+		}
+		data, err := json.Marshal(arg)
+		assert.Nil(t, err)
+		err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testNVM.Call(gov, admin1, func() {
+		proposalID, err := gov.GetLatestProposalID()
+		assert.Nil(t, err)
+		assert.EqualValues(t, 1, proposalID)
+	})
+}
+
+func TestGovernance_Proposal(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+
+	testNVM.RunSingleTX(gov, admin1, func() error {
 		arg := NodeUpgradeExtraArgs{
 			DownloadUrls: []string{"http://127.0.0.1:10000"},
 			CheckHash:    "",
@@ -183,290 +314,20 @@ func TestGovernance_Propose(t *testing.T) {
 		data, err := json.Marshal(arg)
 		assert.Nil(t, err)
 
-		err = gov.Propose(uint8(test.input.proposalType), test.input.title, test.input.desc, test.input.BlockNumber, data)
-		if test.err != nil {
-			assert.Equal(t, test.err, err)
-		} else {
-			if test.hasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
-	}
-}
-
-func TestGovernance_Vote(t *testing.T) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
+		err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+		assert.Nil(t, err)
+		return err
 	})
 
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
+	testNVM.Call(gov, admin1, func() {
+		proposal, err := gov.Proposal(1)
+		assert.Nil(t, err)
+		assert.EqualValues(t, Voting, proposal.Status)
+		assert.EqualValues(t, 1, proposal.CreatedBlockNumber)
 	})
-	assert.Nil(t, err)
-
-	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
-	admin2Addr := types.NewAddressByStr(admin2).ETHAddress()
-	admin3Addr := types.NewAddressByStr(admin3).ETHAddress()
-	admin4Addr := types.NewAddressByStr(admin4).ETHAddress()
-	addr := types.NewAddressByStr("0x10010000000").ETHAddress()
-
-	arg := NodeUpgradeExtraArgs{
-		DownloadUrls: []string{"http://127.0.0.1:10000"},
-		CheckHash:    "",
-	}
-	data, err := json.Marshal(arg)
-	assert.Nil(t, err)
-
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		From:        &admin1Addr,
-		BlockNumber: 1,
-		StateLedger: stateLedger,
-		CurrentLogs: &logs,
-	})
-	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
-	assert.Nil(t, err)
 
 	testcases := []struct {
-		from   *ethcommon.Address
-		id     uint64
-		result uint8
-		err    error
-		hasErr bool
-	}{
-		{
-			from:   &admin2Addr,
-			id:     100,
-			result: uint8(Reject),
-			err:    ErrNotFoundProposal,
-		},
-		{
-			from:   &admin2Addr,
-			id:     1,
-			result: uint8(100),
-			err:    ErrVoteResult,
-		},
-		{
-			from:   &admin1Addr,
-			id:     1,
-			result: uint8(Pass),
-			err:    ErrUseHasVoted,
-		},
-		{
-			from:   &addr,
-			id:     1,
-			result: uint8(Pass),
-			err:    ErrNotFoundCouncilMember,
-		},
-		{
-			// vote success
-			from:   &admin2Addr,
-			id:     1,
-			result: uint8(Pass),
-			hasErr: false,
-		},
-		{
-			from:   &admin3Addr,
-			id:     1,
-			result: uint8(Pass),
-			hasErr: false,
-		},
-		{
-			// has finish the proposal
-			from:   &admin4Addr,
-			id:     1,
-			result: uint8(Pass),
-			err:    ErrProposalFinished,
-		},
-	}
-
-	for _, test := range testcases {
-		logs = make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 1,
-			CurrentLogs: &logs,
-			From:        test.from,
-		})
-
-		err := gov.Vote(test.id, test.result)
-		if test.err != nil {
-			assert.Equal(t, test.err, err)
-		} else {
-			if test.hasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
-	}
-}
-
-func TestGovernance_GetLatestProposalID(t *testing.T) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	})
-	assert.Nil(t, err)
-
-	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
-
-	arg := NodeUpgradeExtraArgs{
-		DownloadUrls: []string{"http://127.0.0.1:10000"},
-		CheckHash:    "",
-	}
-	data, err := json.Marshal(arg)
-	assert.Nil(t, err)
-
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		From:        &admin1Addr,
-		BlockNumber: 1,
-		StateLedger: stateLedger,
-		CurrentLogs: &logs,
-	})
-
-	proposalID := gov.GetLatestProposalID()
-	assert.EqualValues(t, 0, proposalID)
-
-	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
-	assert.Nil(t, err)
-
-	proposalID = gov.GetLatestProposalID()
-	assert.EqualValues(t, 1, proposalID)
-}
-
-func TestGovernance_Proposal(t *testing.T) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.CouncilMember{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	})
-	assert.Nil(t, err)
-
-	admin1Addr := types.NewAddressByStr(admin1).ETHAddress()
-	admin2Addr := types.NewAddressByStr(admin2).ETHAddress()
-	admin3Addr := types.NewAddressByStr(admin3).ETHAddress()
-
-	arg := NodeUpgradeExtraArgs{
-		DownloadUrls: []string{"http://127.0.0.1:10000"},
-		CheckHash:    "",
-	}
-	data, err := json.Marshal(arg)
-	assert.Nil(t, err)
-
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		From:        &admin1Addr,
-		BlockNumber: 1,
-		StateLedger: stateLedger,
-		CurrentLogs: &logs,
-	})
-	err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
-	assert.Nil(t, err)
-
-	proposal, err := gov.Proposal(1)
-	assert.Nil(t, err)
-	assert.EqualValues(t, Voting, proposal.Status)
-	assert.EqualValues(t, 1, proposal.CreatedBlockNumber)
-	assert.Equal(t, 1, len(logs))
-
-	testcases := []struct {
-		from   *ethcommon.Address
+		from   ethcommon.Address
 		id     uint64
 		result uint8
 		err    error
@@ -474,44 +335,43 @@ func TestGovernance_Proposal(t *testing.T) {
 	}{
 		{
 			// vote success
-			from:   &admin2Addr,
+			from:   admin2,
 			id:     1,
 			result: uint8(Pass),
 			hasErr: false,
 		},
 		{
-			from:   &admin3Addr,
+			from:   admin3,
 			id:     1,
 			result: uint8(Pass),
 			hasErr: false,
 		},
 	}
 
-	for _, test := range testcases {
-		logs = make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			StateLedger: stateLedger,
-			BlockNumber: 2,
-			CurrentLogs: &logs,
-			From:        test.from,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.from, func() error {
+				gov.Ctx.BlockNumber = 2
+				err := gov.Vote(test.id, test.result)
+				if test.err != nil {
+					assert.Contains(t, err.Error(), test.err.Error())
+				} else {
+					if test.hasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
 		})
-
-		err := gov.Vote(test.id, test.result)
-		if test.err != nil {
-			assert.Equal(t, test.err, err)
-		} else {
-			if test.hasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
 	}
 
-	proposal, err = gov.Proposal(1)
-	assert.Nil(t, err)
-	assert.EqualValues(t, Approved, proposal.Status)
-	assert.EqualValues(t, 1, proposal.CreatedBlockNumber)
-	assert.EqualValues(t, 2, proposal.EffectiveBlockNumber)
-	assert.Equal(t, 1, len(logs))
+	testNVM.Call(gov, admin1, func() {
+		proposal, err := gov.Proposal(1)
+		assert.Nil(t, err)
+		assert.EqualValues(t, Approved, proposal.Status)
+		assert.EqualValues(t, 1, proposal.CreatedBlockNumber)
+		assert.EqualValues(t, 2, proposal.EffectiveBlockNumber)
+	})
 }

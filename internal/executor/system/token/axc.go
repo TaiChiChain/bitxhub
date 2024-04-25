@@ -3,11 +3,11 @@ package token
 import (
 	"math/big"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/solidity/axc_client"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/solidity/axc_client"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 

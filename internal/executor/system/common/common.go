@@ -6,16 +6,18 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/axiomesh/axiom-kit/intutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -82,19 +84,33 @@ type VirtualMachine interface {
 	vm.PrecompiledContract
 }
 
+type LogsCollectorStateLedger struct {
+	ledger.StateLedger
+
+	logs                     []*types.EvmLog
+	disableRecordLogToLedger bool
+}
+
+func (l *LogsCollectorStateLedger) AddLog(log *types.EvmLog) {
+	l.logs = append(l.logs, log)
+	if !l.disableRecordLogToLedger {
+		l.StateLedger.AddLog(log)
+	}
+}
+
 type VMContext struct {
-	StateLedger    ledger.StateLedger
-	RecordLog      bool
+	StateLedger    *LogsCollectorStateLedger
 	BlockNumber    uint64
 	From           ethcommon.Address
 	CallFromSystem bool
 	CurrentEVM     *vm.EVM
+
+	disableRecordLogToLedger bool
 }
 
-func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address, recordLog bool) *VMContext {
+func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address) *VMContext {
 	return &VMContext{
-		StateLedger: stateLedger,
-		RecordLog:   recordLog,
+		StateLedger: &LogsCollectorStateLedger{StateLedger: stateLedger},
 		BlockNumber: evm.Context.BlockNumber.Uint64(),
 		From:        from,
 		CurrentEVM:  evm,
@@ -103,8 +119,7 @@ func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Ad
 
 func NewVMContextByExecutor(stateLedger ledger.StateLedger) *VMContext {
 	return &VMContext{
-		StateLedger:    stateLedger,
-		RecordLog:      false,
+		StateLedger:    &LogsCollectorStateLedger{StateLedger: stateLedger},
 		BlockNumber:    stateLedger.CurrentBlockHeight(),
 		From:           ethcommon.Address{},
 		CallFromSystem: true,
@@ -113,16 +128,34 @@ func NewVMContextByExecutor(stateLedger ledger.StateLedger) *VMContext {
 
 func NewViewVMContext(stateLedger ledger.StateLedger) *VMContext {
 	return &VMContext{
-		StateLedger: stateLedger,
-		RecordLog:   false,
+		StateLedger: &LogsCollectorStateLedger{StateLedger: stateLedger},
 		BlockNumber: stateLedger.CurrentBlockHeight(),
 		From:        ethcommon.Address{},
 		CurrentEVM:  nil,
 	}
 }
 
+func NewTestVMContext(stateLedger ledger.StateLedger, from ethcommon.Address) *VMContext {
+	return &VMContext{
+		StateLedger: &LogsCollectorStateLedger{StateLedger: stateLedger},
+		BlockNumber: stateLedger.CurrentBlockHeight(),
+		From:        from,
+		CurrentEVM:  nil,
+	}
+}
+
 func (s *VMContext) SetFrom(from ethcommon.Address) *VMContext {
 	s.From = from
+	return s
+}
+
+func (s *VMContext) GetLogs() []*types.EvmLog {
+	return s.StateLedger.logs
+}
+
+func (s *VMContext) DisableRecordLogToLedger() *VMContext {
+	s.disableRecordLogToLedger = true
+	s.StateLedger.disableRecordLogToLedger = true
 	return s
 }
 
@@ -264,11 +297,12 @@ func (s *SystemContractBase) SetContext(ctx *VMContext) {
 func (s *SystemContractBase) CrossCallSystemContractContext() *VMContext {
 	return &VMContext{
 		StateLedger:    s.Ctx.StateLedger,
-		RecordLog:      s.Ctx.RecordLog,
 		BlockNumber:    s.Ctx.BlockNumber,
 		From:           s.EthAddress,
 		CallFromSystem: true,
-		CurrentEVM:     s.Ctx.CurrentEVM,
+		// TODO: set caller
+		CurrentEVM:               s.Ctx.CurrentEVM,
+		disableRecordLogToLedger: s.Ctx.disableRecordLogToLedger,
 	}
 }
 
@@ -277,9 +311,7 @@ func (s *SystemContractBase) EmitEvent(packer packer.Event) {
 	if err != nil {
 		panic(errors.Wrap(err, "emit event error"))
 	}
-	if s.Ctx.RecordLog {
-		s.Ctx.StateLedger.AddLog(log)
-	}
+	s.Ctx.StateLedger.AddLog(log)
 }
 
 func (s *SystemContractBase) Revert(err packer.Error) error {
@@ -298,7 +330,12 @@ func (s *SystemContractBase) CrossCallEVMContractWithValue(gas, value *big.Int, 
 		gas = big.NewInt(MaxCallGasLimit)
 	}
 
-	result, gasLeft, err := s.Ctx.CurrentEVM.Call(vm.AccountRef(s.EthAddress), to, callData, gas.Uint64(), value)
+	val, err := intutil.BigIntToUint256(value)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	result, gasLeft, err := s.Ctx.CurrentEVM.Call(vm.AccountRef(s.EthAddress), to, callData, gas.Uint64(), val)
 	if errors.Is(err, vm.ErrExecutionReverted) {
 		err = errors.Errorf("%s, reason: %x", err.Error(), result)
 	}
@@ -308,7 +345,7 @@ func (s *SystemContractBase) CrossCallEVMContractWithValue(gas, value *big.Int, 
 func IsZeroAddress(addr ethcommon.Address) bool {
 	for _, b := range addr {
 		if b != 0 {
-			return true
+			return false
 		}
 	}
 
@@ -332,4 +369,18 @@ func newRevertError(abiErr abi.Error, args []any) error {
 func NewRevertError(name string, inputs abi.Arguments, args []any) error {
 	abiErr := abi.NewError(name, inputs)
 	return newRevertError(abiErr, args)
+}
+
+var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
+
+func NewRevertStringError(data string) *packer.RevertError {
+	packed, err := (abi.Arguments{{Type: StringType}}).Pack(data)
+	if err != nil {
+		panic(err)
+	}
+	return &packer.RevertError{
+		Err:  vm.ErrExecutionReverted,
+		Data: append(revertSelector, packed...),
+		Str:  data,
+	}
 }

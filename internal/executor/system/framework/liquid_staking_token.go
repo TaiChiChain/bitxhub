@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token_client"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token_client"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -33,6 +34,8 @@ var LiquidStakingTokenBuildConfig = &common.SystemContractBuildConfig[*LiquidSta
 		}
 	},
 }
+
+var _ liquid_staking_token.LiquidStakingToken = (*LiquidStakingToken)(nil)
 
 type OperatorApprovalKey struct {
 	Owner    ethcommon.Address
@@ -162,15 +165,26 @@ func (lst *LiquidStakingToken) InternalUpdateInfo(tokenID *big.Int, info *Liquid
 	return nil
 }
 
-func (lst *LiquidStakingToken) Info(tokenID *big.Int) (info *LiquidStakingTokenInfo, err error) {
+func (lst *LiquidStakingToken) Info(tokenID *big.Int) (info liquid_staking_token.LiquidStakingTokenInfo, err error) {
 	exist, getInfo, err := lst.infoMap.Get(tokenID)
 	if err != nil {
-		return nil, err
+		return liquid_staking_token.LiquidStakingTokenInfo{}, err
 	}
 	if !exist {
-		return &LiquidStakingTokenInfo{}, nil
+		return liquid_staking_token.LiquidStakingTokenInfo{}, nil
 	}
-	return &getInfo, nil
+	return liquid_staking_token.LiquidStakingTokenInfo{
+		PoolID:      getInfo.PoolID,
+		Principal:   getInfo.Principal,
+		Unlocked:    getInfo.Unlocked,
+		ActiveEpoch: getInfo.ActiveEpoch,
+		UnlockingRecords: lo.Map(getInfo.UnlockingRecords, func(item UnlockingRecord, index int) liquid_staking_token.UnlockingRecord {
+			return liquid_staking_token.UnlockingRecord{
+				Amount:          item.Amount,
+				UnlockTimestamp: item.UnlockTimestamp,
+			}
+		}),
+	}, nil
 }
 
 func (lst *LiquidStakingToken) getLockedReward(tokenID *big.Int, info LiquidStakingTokenInfo) (*big.Int, error) {
@@ -317,7 +331,11 @@ func (lst *LiquidStakingToken) OwnerOf(tokenID *big.Int) (ethcommon.Address, err
 	return owner, nil
 }
 
-func (lst *LiquidStakingToken) SafeTransferFrom(from ethcommon.Address, to ethcommon.Address, tokenID *big.Int, data []byte) error {
+func (lst *LiquidStakingToken) SafeTransferFrom(from ethcommon.Address, to ethcommon.Address, tokenID *big.Int) error {
+	return lst.SafeTransferFrom0(from, to, tokenID, nil)
+}
+
+func (lst *LiquidStakingToken) SafeTransferFrom0(from ethcommon.Address, to ethcommon.Address, tokenID *big.Int, data []byte) error {
 	if err := lst.TransferFrom(from, to, tokenID); err != nil {
 		return err
 	}
@@ -326,10 +344,6 @@ func (lst *LiquidStakingToken) SafeTransferFrom(from ethcommon.Address, to ethco
 	}
 
 	return nil
-}
-
-func (lst *LiquidStakingToken) SafeTransferFrom2(from ethcommon.Address, to ethcommon.Address, tokenID *big.Int) error {
-	return lst.SafeTransferFrom(from, to, tokenID, nil)
 }
 
 func (lst *LiquidStakingToken) TransferFrom(from ethcommon.Address, to ethcommon.Address, tokenID *big.Int) error {
@@ -412,9 +426,13 @@ func (lst *LiquidStakingToken) EmitApprovalForAllEvent(owner, operator ethcommon
 	})
 }
 
-// todo: add event in solidity
 func (lst *LiquidStakingToken) EmitUpdateInfoEvent(tokenID *big.Int, newPrincipal *big.Int, newUnlocked *big.Int, newActiveEpoch uint64) {
-	//lst.EmitEvent("UpdateInfo", tokenID, newPrincipal, newUnlocked, newActiveEpoch)
+	lst.EmitEvent(&liquid_staking_token.EventUpdateInfo{
+		TokenId:        tokenID,
+		NewPrincipal:   newPrincipal,
+		NewUnlocked:    newUnlocked,
+		NewActiveEpoch: newActiveEpoch,
+	})
 }
 
 func (lst *LiquidStakingToken) isAuthorized(owner ethcommon.Address, spender ethcommon.Address, tokenID *big.Int) (bool, error) {
@@ -546,4 +564,15 @@ func (lst *LiquidStakingToken) updateOwnership(to ethcommon.Address, tokenID *bi
 	lst.EmitTransferEvent(from, to, tokenID)
 
 	return from, nil
+}
+
+func (lst *LiquidStakingToken) mustGetInfo(tokenID *big.Int) (*liquid_staking_token.LiquidStakingTokenInfo, error) {
+	info, err := lst.Info(tokenID)
+	if err != nil {
+		return nil, err
+	}
+	if info.PoolID == 0 {
+		return nil, errors.Errorf("token not exist: %s", tokenID.String())
+	}
+	return &info, nil
 }

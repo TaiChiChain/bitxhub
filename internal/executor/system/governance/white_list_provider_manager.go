@@ -78,13 +78,13 @@ func (m *WhitelistProviderManager) ProposeArgsCheck(proposalType ProposalType, t
 	whitelistContract := access.WhitelistBuildConfig.Build(m.gov.CrossCallSystemContractContext())
 
 	switch proposalType {
-	case WhiteListProviderAdd:
+	case WhitelistProviderAdd:
 		for _, provider := range providersAddrs {
 			if whitelistContract.ExistProvider(provider) {
 				return errors.Errorf("provider already exists, %v", provider)
 			}
 		}
-	case WhiteListProviderRemove:
+	case WhitelistProviderRemove:
 		for _, provider := range providersAddrs {
 			if !whitelistContract.ExistProvider(provider) {
 				return fmt.Errorf("provider does not exist, %v", provider)
@@ -102,7 +102,7 @@ func (m *WhitelistProviderManager) VotePassExecute(proposal *Proposal) error {
 		return err
 	}
 	whitelistContract := access.WhitelistBuildConfig.Build(m.gov.CrossCallSystemContractContext())
-	return whitelistContract.UpdateProviders(proposal.Type == WhiteListProviderAdd, lo.Map(extraArgs.Providers, func(item WhitelistProviderInfo, index int) whitelist.ProviderInfo {
+	return whitelistContract.UpdateProviders(proposal.Type == WhitelistProviderAdd, lo.Map(extraArgs.Providers, func(item WhitelistProviderInfo, index int) whitelist.ProviderInfo {
 		return whitelist.ProviderInfo{
 			Addr: ethcommon.HexToAddress(item.Addr),
 		}
@@ -124,7 +124,7 @@ func (m *WhitelistProviderManager) checkFinishedProposal() error {
 	}
 
 	for _, notFinishedProposal := range notFinishedProposals {
-		if notFinishedProposal.Type == CouncilElect || notFinishedProposal.Type == WhiteListProviderAdd || notFinishedProposal.Type == WhiteListProviderRemove {
+		if notFinishedProposal.Type == CouncilElect || notFinishedProposal.Type == WhitelistProviderAdd || notFinishedProposal.Type == WhitelistProviderRemove {
 			return ErrExistVotingProposal
 		}
 	}

@@ -246,7 +246,7 @@ func (n *Node) listenEvent() {
 						digestList[index] = n.batchDigestM[height]
 						delete(n.batchDigestM, height)
 					})
-					fmt.Println("RemoveBatches", len(digestList), digestList)
+					n.logger.Debug("RemoveBatches", len(digestList), digestList)
 					n.txpool.RemoveBatches(digestList)
 				}
 
@@ -407,13 +407,12 @@ func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *
 
 	// genesis block
 	nextBlock := n.lastExec + 1
-	if n.config.ChainState.ChainMeta.BlockHash.IsZero() {
+	if n.config.ChainState.ChainMeta.BlockHash == nil {
 		nextBlock = 0
 	}
 
 	block := &types.Block{
 		Header: &types.BlockHeader{
-			Epoch:     1,
 			Number:    nextBlock,
 			Timestamp: batch.Timestamp / int64(time.Second),
 		},

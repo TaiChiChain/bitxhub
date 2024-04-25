@@ -4,90 +4,55 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func TestInitAxmTokenManager(t *testing.T) {
-	t.Parallel()
-	t.Run("test init successfully", func(t *testing.T) {
-		mockLg := newMockMinLedger(t)
-		genesisConf := repo.DefaultGenesisConfig()
-		conf, err := GenerateConfig(genesisConf)
-		require.Nil(t, err)
-		err = Init(mockLg, conf)
-		require.Nil(t, err)
-	})
-}
+	rep := repo.MockRepo(t)
+	lg, err := ledger.NewMemory(rep)
+	assert.Nil(t, err)
 
-func TestGetMeta(t *testing.T) {
-	logger := log.NewWithModule("token")
-	am := New(&common.SystemContractConfig{Logger: logger})
-	am.account = newMockAccount(types.NewAddressByStr(common.AXCContractAddr))
-	require.Equal(t, "0", am.TotalSupply().String())
+	axcContract := AXCBuildConfig.Build(common.NewTestVMContext(lg.StateLedger, ethcommon.Address{}))
+	err = axcContract.GenesisInit(rep.GenesisConfig)
+	assert.Nil(t, err)
 
-	am = mockAxmManager(t)
-	require.Equal(t, repo.DefaultAXCBalance, am.TotalSupply().String())
-}
+	oldTotalSupply, err := axcContract.TotalSupply()
+	assert.Nil(t, err)
 
-func TestAxmManager_Mint(t *testing.T) {
-	am := mockAxmManager(t)
-	contractAddr := types.NewAddressByStr(common.AXCContractAddr)
-	require.Equal(t, big.NewInt(0).String(), am.stateLedger.GetBalance(contractAddr).String())
-	require.Equal(t, repo.DefaultAXCBalance, am.TotalSupply().String())
+	oldBalance := axcContract.StateAccount.GetBalance()
+	assert.Equal(t, "0", oldBalance.String())
 
-	// mint success
-	addAmount := big.NewInt(1)
-	require.Nil(t, am.Mint(addAmount))
-	require.Equal(t, addAmount.String(), am.stateLedger.GetBalance(contractAddr).String())
-	oldTotalSupply, _ := new(big.Int).SetString(repo.DefaultAXCBalance, 10)
-	newTotalSupply := new(big.Int).Add(oldTotalSupply, addAmount)
-	require.Equal(t, newTotalSupply.String(), am.TotalSupply().String())
+	err = axcContract.Mint(big.NewInt(-1))
+	assert.ErrorContains(t, err, "amount below zero")
 
-	// wrong mint value
-	err := am.Mint(big.NewInt(-1))
-	require.NotNil(t, err, "mint value should be positive")
-	require.Contains(t, err.Error(), ErrValue.Error())
-	require.Equal(t, newTotalSupply.String(), am.TotalSupply().String())
+	err = axcContract.Mint(big.NewInt(1))
+	assert.Nil(t, err)
 
-	// wrong contract account
-	am.account = newMockAccount(types.NewAddressByStr(admin1))
-	err = am.Mint(big.NewInt(1))
-	require.NotNil(t, err, "only token contract account can mint")
-	require.Contains(t, err.Error(), ErrContractAccount.Error())
-}
+	totalSupply1, err := axcContract.TotalSupply()
+	assert.Nil(t, err)
+	assert.Equal(t, "1", totalSupply1.Sub(totalSupply1, oldTotalSupply).String())
 
-func TestAxmManager_Burn(t *testing.T) {
-	am := mockAxmManager(t)
-	contractAddr := types.NewAddressByStr(common.AXCContractAddr)
-	require.Equal(t, big.NewInt(0).String(), am.stateLedger.GetBalance(contractAddr).String())
-	totalSupply, _ := new(big.Int).SetString(repo.DefaultAXCBalance, 10)
-	require.Equal(t, totalSupply.String(), am.TotalSupply().String())
+	balance1 := axcContract.StateAccount.GetBalance()
+	assert.Equal(t, "1", balance1.String())
 
-	err := am.Burn(big.NewInt(-1))
-	require.NotNil(t, err, "burn value should be positive")
-	require.Contains(t, err.Error(), ErrValue.Error())
-	require.Equal(t, totalSupply.String(), am.TotalSupply().String())
-	require.Equal(t, big.NewInt(0).String(), am.stateLedger.GetBalance(contractAddr).String())
+	err = axcContract.Burn(big.NewInt(-1))
+	assert.ErrorContains(t, err, "amount below zero")
 
-	err = am.Burn(big.NewInt(1))
-	require.NotNil(t, err, "burn value should be less than balance")
-	require.Contains(t, err.Error(), ErrInsufficientBalance.Error())
-	require.Equal(t, big.NewInt(0).String(), am.stateLedger.GetBalance(contractAddr).String())
+	err = axcContract.Burn(big.NewInt(2))
+	assert.ErrorContains(t, err, "Value exceeds balance")
 
-	addAmount := big.NewInt(1)
-	require.Nil(t, am.Mint(addAmount))
-	require.Equal(t, addAmount.String(), am.stateLedger.GetBalance(contractAddr).String())
-	oldTotalSupply, _ := new(big.Int).SetString(repo.DefaultAXCBalance, 10)
-	newTotalSupply := new(big.Int).Add(oldTotalSupply, addAmount)
-	require.Equal(t, newTotalSupply.String(), am.TotalSupply().String())
+	err = axcContract.Burn(big.NewInt(1))
+	assert.Nil(t, err)
 
-	err = am.Burn(addAmount)
-	require.Nil(t, err)
-	require.Equal(t, big.NewInt(0).String(), am.stateLedger.GetBalance(contractAddr).String())
-	require.Equal(t, oldTotalSupply.String(), am.TotalSupply().String())
+	totalSupply2, err := axcContract.TotalSupply()
+	assert.Nil(t, err)
+	assert.Equal(t, "0", totalSupply2.Sub(totalSupply2, oldTotalSupply).String())
+
+	balance2 := axcContract.StateAccount.GetBalance()
+	assert.Equal(t, "0", balance2.String())
 }
