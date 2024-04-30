@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	ethereumTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -247,7 +248,7 @@ func (api *FilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, error) {
 		for {
 			select {
 			case h := <-headers:
-				ethHeader := formatEthHeader(h)
+				ethHeader := formatEthHeader(api.rep.GenesisConfig, h)
 				err := notifier.Notify(rpcSub.ID, ethHeader)
 				if err != nil {
 					api.logger.Warn("notifier notify error", err)
@@ -265,7 +266,7 @@ func (api *FilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, error) {
 	return rpcSub, nil
 }
 
-func formatEthHeader(h *types.BlockHeader) *ethereumTypes.Header {
+func formatEthHeader(genesisConfig *repo.GenesisConfig, h *types.BlockHeader) *ethereumTypes.Header {
 	bloom := ethereumTypes.Bloom{}
 	bloom.Add(h.Bloom.Bytes())
 	return &ethereumTypes.Header{
@@ -276,7 +277,22 @@ func formatEthHeader(h *types.BlockHeader) *ethereumTypes.Header {
 		Bloom:       bloom,
 		Number:      big.NewInt(0).SetUint64(h.Number),
 		Time:        uint64(h.Timestamp),
+
+		Coinbase:         common.Address{},
+		Difficulty:       big.NewInt(0),
+		GasLimit:         uint64(ethhexutil.Uint64(genesisConfig.EpochInfo.FinanceParams.GasLimit)),
+		GasUsed:          h.GasUsed,
+		UncleHash:        ethereumTypes.EmptyUncleHash,
+		Extra:            ethhexutil.Bytes(h.Extra),
+		MixDigest:        common.Hash{},
+		Nonce:            ethereumTypes.EncodeNonce(0),
+		BaseFee:          big.NewInt(0),
+		WithdrawalsHash:  new(common.Hash),
+		BlobGasUsed:      new(uint64),
+		ExcessBlobGas:    new(uint64),
+		ParentBeaconRoot: new(common.Hash),
 	}
+
 }
 
 // Logs creates a subscription that fires for all new log that match the given filter criteria.
