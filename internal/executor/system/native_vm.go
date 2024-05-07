@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -21,7 +22,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/packer"
@@ -65,12 +65,12 @@ func New() *NativeVM {
 
 	// deploy all system contract
 	nvm.Deploy(governance.BuildConfig.StaticConfig())
+	nvm.Deploy(token.AXCBuildConfig.StaticConfig())
 	nvm.Deploy(framework.EpochManagerBuildConfig.StaticConfig())
 	nvm.Deploy(framework.NodeManagerBuildConfig.StaticConfig())
 	nvm.Deploy(framework.LiquidStakingTokenBuildConfig.StaticConfig())
 	nvm.Deploy(framework.StakingManagerBuildConfig.StaticConfig())
 	nvm.Deploy(access.WhitelistBuildConfig.StaticConfig())
-	nvm.Deploy(token.AXCBuildConfig.StaticConfig())
 
 	nvm.Deploy(saccount.EntryPointBuildConfig.StaticConfig())
 	nvm.Deploy(saccount.VerifyingPaymasterBuildConfig.StaticConfig())

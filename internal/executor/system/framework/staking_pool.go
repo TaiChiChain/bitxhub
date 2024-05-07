@@ -3,7 +3,6 @@ package framework
 import (
 	"fmt"
 	"math/big"
-	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -56,7 +55,7 @@ func (sp *StakingPool) Load(poolID uint64) *StakingPool {
 	sp.poolID = poolID
 	sp.info = common.NewVMSlot[StakingPoolInfo](sp.StateAccount, fmt.Sprintf("%s_%d_%s", StakingPoolNamespace, poolID, StakingPoolInfoKeySuffix))
 	sp.HistoryLiquidStakingTokenRateMap = common.NewVMMap[uint64, LiquidStakingTokenRate](sp.StateAccount, fmt.Sprintf("%s_%d_%s", StakingPoolNamespace, poolID, StakingPoolLiquidStakingTokenRateHistoryKeyPrefix), func(key uint64) string {
-		return strconv.FormatUint(key, 10)
+		return fmt.Sprintf("%d", key)
 	})
 	return sp
 }

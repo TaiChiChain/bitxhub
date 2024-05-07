@@ -42,14 +42,13 @@ func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 
 func (exec *BlockExecutor) updateMiningInfo(block *types.Block) {
 	// calculate mining rewards and transfer the mining reward
-	receiver := types.NewAddressByStr(syscommon.StakingManagerContractAddr).ETHAddress()
-	if err := exec.incentive.SetMiningRewards(receiver, exec.ledger.StateLedger,
-		exec.currentHeight); err != nil {
+	if err := exec.incentive.SetMiningRewards(block.Header.ProposerNodeID, exec.ledger.StateLedger,
+		block.Header.GasFeeReward); err != nil {
 		exec.logger.WithFields(logrus.Fields{
 			"height": block.Height(),
 			"err":    err.Error(),
 		}).Errorf("set mining rewards error")
-		// not panic the error, since there is a chance that the balance is not enough
-		// panic(err)
+		// should panic the error, since there is no chance to get an error only if the logic is wrong
+		panic(err)
 	}
 }
