@@ -36,6 +36,7 @@ interface NodeManager {
     error incorrectStatus(uint8 status);
     error pendingInactiveSetIsFull();
 
+    event Registered(uint64 indexed nodeID);
     event JoinedCandidateSet(uint64 indexed nodeID);
     event LeavedCandidateSet(uint64 indexed nodeID);
     event JoinedPendingInactiveSet(uint64 indexed nodeID);

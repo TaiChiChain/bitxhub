@@ -3,6 +3,8 @@ package finance
 import (
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 
@@ -36,9 +38,13 @@ func NewIncentive(config *repo.GenesisConfig) (*Incentive, error) {
 	}, nil
 }
 
-func (in *Incentive) SetMiningRewards(receiver ethcommon.Address, ledger ledger.StateLedger, blockHeight uint64) error {
-	// axc := token.AXCBuildConfig.Build(common.NewVMContextByExecutor(ledger))
-	// TODO implement it
+func (in *Incentive) SetMiningRewards(nodeId uint64, ledger ledger.StateLedger, gasFee *big.Int) error {
+	stakingManager := framework.StakingManagerBuildConfig.Build(common.NewVMContextByExecutor(ledger))
+	reward, err := stakingManager.InternalRecordReward(nodeId, gasFee)
+	if err != nil {
+		return err
+	}
+	in.logger.Infof("SetMiningRewards to node %d, reward: %d", nodeId, reward.Uint64())
 	return nil
 }
 

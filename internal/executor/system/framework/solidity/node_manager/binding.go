@@ -136,6 +136,15 @@ func (_event *EventLeavedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err
 	return packer.PackEvent(_event, abi.Events["LeavedCandidateSet"])
 }
 
+// EventRegistered represents a Registered event raised by the NodeManager contract.
+type EventRegistered struct {
+	NodeID uint64
+}
+
+func (_event *EventRegistered) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["Registered"])
+}
+
 // EventUpdateMetaData represents a UpdateMetaData event raised by the NodeManager contract.
 type EventUpdateMetaData struct {
 	NodeID   uint64

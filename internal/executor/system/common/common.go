@@ -1,6 +1,7 @@
 package common
 
 import (
+	"flag"
 	"fmt"
 	"math/big"
 	"strings"
@@ -106,6 +107,7 @@ type VMContext struct {
 	CurrentEVM     *vm.EVM
 
 	disableRecordLogToLedger bool
+	TestLogs                 []any
 }
 
 func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address) *VMContext {
@@ -312,6 +314,16 @@ func (s *SystemContractBase) EmitEvent(packer packer.Event) {
 		panic(errors.Wrap(err, "emit event error"))
 	}
 	s.Ctx.StateLedger.AddLog(log)
+	if s.isTest() {
+		s.Ctx.TestLogs = append(s.Ctx.TestLogs, packer)
+	}
+}
+
+func (s *SystemContractBase) isTest() bool {
+	if flag.Lookup("test.v") == nil {
+		return false
+	}
+	return true
 }
 
 func (s *SystemContractBase) Revert(err packer.Error) error {

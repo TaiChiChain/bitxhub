@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 
@@ -45,7 +46,8 @@ func generateNodeRegisterExtraArgs(t *testing.T, p2pPrivateKey string, consensus
 func TestNodeManager_RunForNodeRegisterPropose(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	type NodeRegisterData struct {
 		P2PPrivateKey       string
@@ -161,7 +163,8 @@ func TestNodeManager_RunForNodeRegisterPropose(t *testing.T) {
 func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	testcases := []struct {
 		Caller         ethcommon.Address
@@ -224,7 +227,8 @@ func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	testcases := []struct {
 		Caller     ethcommon.Address
@@ -268,7 +272,8 @@ func TestNodeManager_RunForNodeUpgradePropose(t *testing.T) {
 func TestNodeManager_RunForRegisterVote(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
@@ -332,7 +337,8 @@ func TestNodeManager_RunForRegisterVote(t *testing.T) {
 func TestNodeManager_RunForRegisterVote_Approved(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
@@ -406,7 +412,8 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 		})
 	})
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
@@ -479,7 +486,8 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 		})
 	})
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
@@ -528,7 +536,8 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 func TestNodeManager_RunForUpgradeVote(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
-	testNVM.GenesisInit(nodeManager)
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
 
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {

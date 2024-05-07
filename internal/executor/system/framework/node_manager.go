@@ -267,6 +267,21 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		}); err != nil {
 			return errors.Wrapf(err, "failed to create staking pool for node %d", nodeID)
 		}
+		exists, totalStake, err := stakingManagerContract.TotalStake.Get()
+		if err != nil {
+			return err
+		}
+		if !exists {
+			totalStake = big.NewInt(0)
+		}
+		totalStake = totalStake.Add(totalStake, stakeNumber)
+		if err = stakingManagerContract.TotalStake.Put(totalStake); err != nil {
+			return err
+		}
+	}
+	// calculate stake reward
+	if err := stakingManagerContract.InternalCalculateStakeReward(); err != nil {
+		return err
 	}
 
 	if err := stakingManagerContract.InternalInitAvailableStakingPools(needCreateStakingPoolIDs); err != nil {
@@ -314,9 +329,16 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 }
 
 func (n *NodeManager) InternalRegisterNode(info node_manager.NodeInfo) (id uint64, err error) {
+	if !n.Ctx.CallFromSystem {
+		return 0, ErrPermissionDenied
+	}
 	info.Status = uint8(types.NodeStatusDataSyncer)
-	// TODO: emit event
-	return n.registerNode(info, false)
+	id, err = n.registerNode(info, false)
+	if err != nil {
+		return
+	}
+	n.EmitEvent(&node_manager.EventRegistered{NodeID: id})
+	return
 }
 
 func (n *NodeManager) registerNode(info node_manager.NodeInfo, isGenesisInit bool) (id uint64, err error) {
@@ -489,6 +511,9 @@ func (n *NodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
 }
 
 func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
+	if !n.Ctx.CallFromSystem {
+		return ErrPermissionDenied
+	}
 	allValidaNodes, err := n.InternalGetConsensusCandidateNodeIDs()
 	if err != nil {
 		return err
@@ -552,8 +577,6 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
 }
 
 func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
-	// TODO: emit event
-
 	nodeInfo, err := n.GetNodeInfo(nodeID)
 	if err != nil {
 		return err
@@ -583,7 +606,7 @@ func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
 		}
 		// calculate the max pending inactive number
 		maxPendingInactiveNumber := new(big.Int).Div(
-			new(big.Int).Mul(big.NewInt(10000), big.NewInt(int64(len(activeSet)))),
+			new(big.Int).Mul(big.NewInt(CommissionRateDenominator), big.NewInt(int64(len(activeSet)))),
 			new(big.Int).SetUint64(epochInfo.StakeParams.MaxPendingInactiveValidatorRatio))
 		// check if the pending inactive set still has sparse space to leave
 		if uint64(len(pendingInactiveSet))+1 >= maxPendingInactiveNumber.Uint64() {
