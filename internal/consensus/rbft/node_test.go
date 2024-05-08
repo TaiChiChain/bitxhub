@@ -3,7 +3,6 @@ package rbft
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -27,6 +26,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
@@ -153,7 +154,6 @@ func TestInit(t *testing.T) {
 }
 
 func TestNewNode(t *testing.T) {
-	ctrl := gomock.NewController(t)
 	repoConfig := &repo.Config{Storage: repo.Storage{
 		KvType:      repo.KVStorageTypeLeveldb,
 		Sync:        false,

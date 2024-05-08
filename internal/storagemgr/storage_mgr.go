@@ -93,9 +93,9 @@ func Initialize(repoConfig *repo.Config) error {
 	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string, _ string) (kv.Storage, error) {
 		return leveldb.New(p, nil)
 	}
-	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (storage.Storage, error) {
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (kv.Storage, error) {
 		defaultPebbleOptions.Cache = pebbledb.NewCache(storageConfig.KVCacheSize * 1024 * 1024)
-		defaultPebbleOptions.MemTableSize = storageConfig.Pebble.MemTableSize * 1024 * 1024 // The size of single memory table
+		defaultPebbleOptions.MemTableSize = uint64(storageConfig.Pebble.MemTableSize * 1024 * 1024) // The size of single memory table
 		defaultPebbleOptions.MemTableStopWritesThreshold = storageConfig.Pebble.MemTableStopWritesThreshold
 		defaultPebbleOptions.MaxOpenFiles = storageConfig.Pebble.MaxOpenFiles
 		defaultPebbleOptions.L0CompactionFileThreshold = storageConfig.Pebble.L0CompactionFileThreshold

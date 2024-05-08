@@ -148,6 +148,7 @@ var batchEventToStr = map[int]string{
 	common_pool.GenBatchSizeEvent:        "GenBatchSizeEvent",
 	common_pool.ReConstructBatchEvent:    "ReConstructBatchEvent",
 	common_pool.GetTxsForGenBatchEvent:   "GetTxsForGenBatchEvent",
+	common_pool.ReplyBatchSignalEvent:    "ReplyBatchSignalEvent",
 }
 
 type batchEvent struct {

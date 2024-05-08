@@ -587,7 +587,6 @@ func (p *txPoolImpl[T, Constraint]) dispatchBatchEvent(event *batchEvent) []txPo
 
 		// if receive GenBatchFirstEvent, it means the new primary is elected, and it could generate batch,
 		// so we need reset the notify flag in case of the new primary's txpool exist many txs
-		p.notifyGenerateBatch = false
 
 		removeEvent, err := p.handleGenBatchRequest(event)
 		if err != nil {
