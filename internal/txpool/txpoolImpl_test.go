@@ -2114,17 +2114,10 @@ func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
 
 		pool.AddRemoteTxs(txs)
 		ast.NotNil(pool.GetPendingTxByHash(txHashList[0]))
-		if !pool.enablePricePriority {
-			removeTx := pool.txStore.getPoolTxByTxnPointer(from, 0)
-			pool.txStore.priorityByTime.removeKey(removeTx)
-			err = pool.RestoreOneBatch(batchDigest)
-			ast.NotNil(err)
-			ast.Contains(err.Error(), "can't find tx from priorityByTime")
-			pool.txStore.priorityByTime.insertKey(removeTx)
-			err = pool.RestoreOneBatch(batchDigest)
-			ast.NotNil(err)
-			ast.Contains(err.Error(), "can't find tx from batchedTxs")
-		}
+
+		err = pool.RestoreOneBatch(batchDigest)
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "can't find tx from batchedTxs")
 
 		ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
 		batch, err := pool.GenerateRequestBatch(commonpool.GenBatchTimeoutEvent)
@@ -2132,9 +2125,21 @@ func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
 		ast.NotNil(batch)
 		ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 
-		err = pool.RestoreOneBatch(batch.BatchHash)
-		ast.Nil(err)
-		ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
+		if !pool.enablePricePriority {
+			removeTx := pool.txStore.getPoolTxByTxnPointer(from, 0)
+			pool.txStore.priorityByTime.removeKey(removeTx)
+			err = pool.RestoreOneBatch(batchDigest)
+			ast.NotNil(err)
+			ast.Contains(err.Error(), "can't find tx from priorityByTime")
+			pool.txStore.priorityByTime.insertKey(removeTx)
+		} else {
+			err = pool.RestoreOneBatch(batch.BatchHash)
+			ast.Nil(err)
+			ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
+			ast.Equal(pool.txStore.priorityByPrice.accountsM[from].lastNonce, uint64(3))
+			ast.Equal(pool.txStore.priorityByPrice.size(), uint64(4))
+		}
+
 	}
 }
 
@@ -2346,6 +2351,28 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 		ast.Equal(0, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 		ast.Equal(uint64(4), pool.txStore.nonceCache.commitNonces[from])
+
+		// lack nonce
+		s2, err := types.GenerateSigner()
+		ast.Nil(err)
+		from2 := s2.Addr.String()
+		txs2 := constructTxs(s2, 4)
+		// lack nonce 0
+		lackTxs := txs2[1:]
+		pool.AddRemoteTxs(lackTxs)
+		ast.Equal(uint64(0), pool.GetPendingTxCountByAccount(from2))
+		txPointerList = make([]*commonpool.WrapperTxPointer, len(txs2))
+		lo.ForEach(txs2, func(tx *types.Transaction, index int) {
+			txPointerList[index] = &commonpool.WrapperTxPointer{
+				TxHash:  tx.RbftGetTxHash(),
+				Account: tx.RbftGetFrom(),
+				Nonce:   tx.RbftGetNonce(),
+			}
+		})
+		pool.RemoveStateUpdatingTxs(txPointerList)
+		ast.Equal(uint64(4), pool.GetPendingTxCountByAccount(from2))
+		ast.Equal(0, len(pool.txStore.txHashMap))
+		ast.Equal(uint64(4), pool.txStore.nonceCache.commitNonces[from2])
 	}
 }
 
