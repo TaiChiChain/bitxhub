@@ -66,8 +66,8 @@ github.com/axiomesh/axiom-bft v0.0.3-0.20240515080344-6803db935ae4 h1:7Esrsw90as
 github.com/axiomesh/axiom-bft v0.0.3-0.20240515080344-6803db935ae4/go.mod h1:84vhX5U2ksr4/DqFoLlEg74RxnfZx2VlzjJUw63842w=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240514061514-4806bfc8e3a0 h1:3B7sAh/12k+J/FEF83GAwCOasOQVaPtHNvWRl0LgqQI=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240514061514-4806bfc8e3a0/go.mod h1:Zy4k2Xf2otwKHe0Sk1ArWXXGvsELlxv7QA7xbYZrmog=
-github.com/axiomesh/axiom-p2p v0.0.3-0.20240422040321-23fa5d2b5cbf h1:ci9fJPxqTfQb+UdOI0a2yQ4MgFLjAIz+PmO+tjTfz6Y=
-github.com/axiomesh/axiom-p2p v0.0.3-0.20240422040321-23fa5d2b5cbf/go.mod h1:51V14XVL9rMae7qD8UVuswbx9Fq46/4uz9FgeMs2pCo=
+github.com/axiomesh/axiom-p2p v0.0.3-0.20240515093143-2f5123b4e38e h1:Asrk6HcSAQa7qXBSVR5wsxKkTLCUPHiLBozbrBAS19o=
+github.com/axiomesh/axiom-p2p v0.0.3-0.20240515093143-2f5123b4e38e/go.mod h1:51V14XVL9rMae7qD8UVuswbx9Fq46/4uz9FgeMs2pCo=
 github.com/axiomesh/go-ethereum v1.13.14-1 h1:j1ecKlnyAsKGaaYB1cbfKLK3y9ZcFHyaXg7f/QhPFdQ=
 github.com/axiomesh/go-ethereum v1.13.14-1/go.mod h1:TN8ZiHrdJwSe8Cb6x+p0hs5CxhJZPbqB7hHkaUXcmIU=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
