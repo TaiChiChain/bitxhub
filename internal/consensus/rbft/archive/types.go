@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/types"
@@ -67,12 +66,10 @@ type archiveEvent struct {
 }
 
 type chainConfig struct {
-	epochInfo          *rbft.EpochInfo
-	GenesisBlockDigest string
-	nodeIdM            map[uint64]rbft.NodeInfo
-	view               uint64
-	H                  uint64       // Low watermark block number.
-	lock               sync.RWMutex // mutex to set value
+	epochInfo *types.EpochInfo
+	view      uint64
+	H         uint64       // Low watermark block number.
+	lock      sync.RWMutex // mutex to set value
 }
 
 type readyExecute[T any, Constraint types.TXConstraint[T]] struct {

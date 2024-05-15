@@ -100,3 +100,14 @@ type EventSmartAccountInitialized struct {
 func (_event *EventSmartAccountInitialized) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 	return packer.PackEvent(_event, abi.Events["SmartAccountInitialized"])
 }
+
+// EventUserLocked represents a UserLocked event raised by the SmartAccount contract.
+type EventUserLocked struct {
+	Sender     common.Address
+	NewOwner   common.Address
+	LockedTime *big.Int
+}
+
+func (_event *EventUserLocked) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["UserLocked"])
+}

@@ -55,12 +55,16 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 		P2PPubKey:       p2pPubKey,
 		ConsensusPubKey: consensusPubKey,
 	}
+	isDataSyncer := true
 	selfNodeID, err := getNodeIDByP2PIDFn(p2pID)
 	if err == nil {
 		nodeInfo, err := getNodeInfoFn(selfNodeID)
 		if err == nil {
 			selfNodeInfo.NodeInfo = *nodeInfo
 			selfRegistered = true
+			if selfNodeInfo.NodeInfo.Status != uint8(types.NodeStatusDataSyncer) {
+				isDataSyncer = false
+			}
 		}
 	}
 
@@ -76,6 +80,8 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 		epochInfoCache:        make(map[uint64]*types.EpochInfo),
 		selfRegistered:        selfRegistered,
 		SelfNodeInfo:          selfNodeInfo,
+		IsDataSyncer:          isDataSyncer,
+		IsValidator:           !isDataSyncer,
 	}
 }
 
@@ -85,13 +91,18 @@ func (c *ChainState) UpdateChainMeta(chainMeta *types.ChainMeta) {
 
 func (c *ChainState) UpdateByEpochInfo(epochInfo *types.EpochInfo, validatorSet map[uint64]int64) error {
 	c.EpochInfo = epochInfo
+
+	isValidator := false
 	c.ValidatorSet = lo.MapToSlice(validatorSet, func(item uint64, key int64) ValidatorInfo {
+		if item == c.SelfNodeInfo.ID {
+			isValidator = true
+		}
 		return ValidatorInfo{
 			ID:                   item,
 			ConsensusVotingPower: key,
 		}
 	})
-	_, c.IsValidator = validatorSet[c.SelfNodeInfo.ID]
+	c.IsValidator = isValidator
 	return nil
 }
 
@@ -105,6 +116,9 @@ func (c *ChainState) TryUpdateSelfNodeInfo() {
 		if err == nil {
 			c.SelfNodeInfo.NodeInfo = *nodeInfo
 			c.selfRegistered = true
+			if c.SelfNodeInfo.NodeInfo.Status != uint8(types.NodeStatusDataSyncer) {
+				c.IsDataSyncer = false
+			}
 		}
 	}
 }

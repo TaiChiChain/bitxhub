@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	ethhexutil "github.com/ethereum/go-ethereum/common/hexutil"
 	ethereumTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -280,10 +279,10 @@ func formatEthHeader(genesisConfig *repo.GenesisConfig, h *types.BlockHeader) *e
 
 		Coinbase:         common.Address{},
 		Difficulty:       big.NewInt(0),
-		GasLimit:         uint64(ethhexutil.Uint64(genesisConfig.EpochInfo.FinanceParams.GasLimit)),
+		GasLimit:         genesisConfig.EpochInfo.FinanceParams.GasLimit,
 		GasUsed:          h.GasUsed,
 		UncleHash:        ethereumTypes.EmptyUncleHash,
-		Extra:            ethhexutil.Bytes(h.Extra),
+		Extra:            []byte{},
 		MixDigest:        common.Hash{},
 		Nonce:            ethereumTypes.EncodeNonce(0),
 		BaseFee:          big.NewInt(0),
@@ -292,7 +291,6 @@ func formatEthHeader(genesisConfig *repo.GenesisConfig, h *types.BlockHeader) *e
 		ExcessBlobGas:    new(uint64),
 		ParentBeaconRoot: new(common.Hash),
 	}
-
 }
 
 // Logs creates a subscription that fires for all new log that match the given filter criteria.

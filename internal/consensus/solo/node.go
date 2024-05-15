@@ -81,7 +81,7 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 	batchTimerMgr := &batchTimerManager{Timer: timer.NewTimerManager(config.Logger)}
 
-	err = batchTimerMgr.CreateTimer(common.Batch, config.Repo.ConsensusConfig.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	err := batchTimerMgr.CreateTimer(common.Batch, config.Repo.ConsensusConfig.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func (n *Node) listenEvent() {
 					n.epcCnf.checkpoint = currentEpoch.ConsensusParams.CheckpointPeriod
 
 					if n.epcCnf.enableGenEmptyBlock && !n.batchMgr.IsTimerActive(common.NoTxBatch) {
-						err = n.batchMgr.StartTimer(common.NoTxBatch)
+						err := n.batchMgr.StartTimer(common.NoTxBatch)
 						if err != nil {
 							n.logger.WithFields(logrus.Fields{
 								"error":  err.Error(),

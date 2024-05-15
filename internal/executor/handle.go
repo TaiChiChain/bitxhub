@@ -114,6 +114,15 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.ledger.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, block.Height())
 	receipts := exec.applyTransactions(block.Transactions, block.Height())
 
+	totalGasFee := new(big.Int)
+	for i, receipt := range receipts {
+		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(big.NewInt(0))
+		txGasFee := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
+		totalGasFee = totalGasFee.Add(totalGasFee, txGasFee)
+	}
+	block.Header.TotalGasFee = totalGasFee
+	block.Header.GasFeeReward = totalGasFee
+	block.Header.GasPrice = 0
 	for _, hook := range exec.afterBlockHooks {
 		if err := hook.Func(block); err != nil {
 			exec.logger.WithFields(logrus.Fields{
@@ -123,13 +132,6 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 			}).Panic("Execute afterBlock hook failed")
 			return
 		}
-	}
-
-	totalGasFee := new(big.Int)
-	for i, receipt := range receipts {
-		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(big.NewInt(0))
-		txGasFee := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
-		totalGasFee = totalGasFee.Add(totalGasFee, txGasFee)
 	}
 
 	exec.ledger.StateLedger.Finalise()
@@ -156,9 +158,6 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.Header.TxRoot = txRoot
 	block.Header.ReceiptRoot = receiptRoot
 	block.Header.ParentHash = exec.currentBlockHash
-	block.Header.TotalGasFee = totalGasFee
-	block.Header.GasFeeReward = totalGasFee
-	block.Header.GasPrice = 0
 
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {

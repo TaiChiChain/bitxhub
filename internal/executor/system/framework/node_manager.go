@@ -238,7 +238,7 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 	activeValidatorVotingPowers := lo.Map(activeValidators, func(item uint64, index int) node_manager.ConsensusVotingPower {
 		stakeNumber := nodeStakeNumberMap[item]
 		// convert unit `mol` to `axc`
-		standardizedStakeNumber := stakeNumber.Div(stakeNumber, axcUnit)
+		standardizedStakeNumber := new(big.Int).Div(stakeNumber, axcUnit)
 		return node_manager.ConsensusVotingPower{
 			NodeID:               item,
 			ConsensusVotingPower: standardizedStakeNumber.Int64(),

@@ -49,8 +49,8 @@ var NodeCMDNodeInfosArgs = struct {
 }{}
 
 var NodeCMD = &cli.Command{
-	Name:  "validator",
-	Usage: "The validator commands",
+	Name:  "node",
+	Usage: "The node commands",
 	Flags: []cli.Flag{
 		rpcFlag,
 	},

@@ -31,7 +31,7 @@ var sender = "b6477143e17f889263044f6cf463dc37177ac4526c4c39a7a344198457024a2f"
 var senderFlag = &cli.StringFlag{
 	Name:        "sender",
 	Aliases:     []string{"s"},
-	Destination: &rpc,
+	Destination: &sender,
 	Usage:       "sender private key",
 	Required:    false,
 	DefaultText: "b6477143e17f889263044f6cf463dc37177ac4526c4c39a7a344198457024a2f",

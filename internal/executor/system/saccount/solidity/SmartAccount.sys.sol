@@ -19,6 +19,7 @@ contract SmartAccount is BaseAccount {
     IEntryPoint private immutable _entryPoint;
 
     event SmartAccountInitialized(IEntryPoint indexed entryPoint, address indexed owner);
+    event UserLocked(address indexed sender, address indexed newOwner, uint256 lockedTime);
 
     modifier onlyOwner() {
         _onlyOwner();

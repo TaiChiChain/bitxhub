@@ -30,7 +30,6 @@ type Config struct {
 	GetBlockHeaderFunc func(height uint64) (*types.BlockHeader, error)
 	GetAccountBalance  func(address string) *big.Int
 	GetAccountNonce    func(address *types.Address) uint64
-	GetArchiveModeFunc func() bool
 	EpochStore         kv.Storage
 }
 
@@ -126,12 +125,6 @@ func checkConfig(config *Config) error {
 	}
 
 	return nil
-}
-
-func WithGetArchiveModeFunc(f func() bool) Option {
-	return func(config *Config) {
-		config.GetArchiveModeFunc = f
-	}
 }
 
 func GenerateConfig(opts ...Option) (*Config, error) {

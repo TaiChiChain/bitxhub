@@ -136,17 +136,6 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			}),
 			common.WithBlockSync(axm.Sync),
 			common.WithEpochStore(axm.epochStore),
-			// todo: get archive mode from stake api
-			common.WithGetArchiveModeFunc(func() bool {
-				ep, err := base.GetCurrentEpochInfo(axm.ViewLedger.NewView().StateLedger)
-				if err != nil {
-					return false
-				}
-				_, archiveMode := lo.Find(ep.DataSyncerSet, func(item rbft.NodeInfo) bool {
-					return item.P2PNodeID == axm.Network.PeerID()
-				})
-				return archiveMode
-			}),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("initialize consensus failed: %w", err)

@@ -6,9 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Rican7/retry"
-	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/archive"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -24,6 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/archive"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -41,7 +39,6 @@ func init() {
 }
 
 type Node struct {
-	archiveMode             func() bool
 	config                  *common.Config
 	txpool                  txpool.TxPool[types.Transaction, *types.Transaction]
 	n                       rbft.InboundNode
@@ -77,8 +74,8 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	var n rbft.InboundNode
-	if config.GetArchiveModeFunc() {
-		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.GetChainMetaFunc, config.TxPool, config.GenesisDigest, config.Logger)
+	if config.ChainState.IsDataSyncer {
+		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.ChainState, config.TxPool, config.GenesisDigest, config.Logger)
 	} else {
 		n, err = rbft.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.TxPool)
 	}
@@ -93,7 +90,6 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	return &Node{
-		archiveMode:       config.GetArchiveModeFunc,
 		config:            config,
 		n:                 n,
 		logger:            config.Logger,
@@ -121,7 +117,7 @@ func (n *Node) initConsensusMsgPipes() error {
 
 	n.stack.SetMsgPipes(n.consensusMsgPipes)
 
-	if n.archiveMode() {
+	if n.config.ChainState.IsDataSyncer {
 		archivePipeIds := lo.FlatMap(common.ArchivePipeName, func(name string, _ int) []int32 {
 			return []int32{consensus.Type_value[name]}
 		})
@@ -197,7 +193,7 @@ func (n *Node) Start() error {
 	}
 
 	n.started.Store(true)
-	n.logger.Infof("=====Consensus started, Archive Mode: %v===========", n.archiveMode())
+	n.logger.Infof("=====Consensus started, Archive Mode: %v===========", n.config.ChainState.IsDataSyncer)
 	return nil
 }
 
@@ -518,8 +514,8 @@ func (n *Node) SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscr
 
 // not implemented yet
 func (n *Node) switchInBoundNode() error {
-	if n.n.ArchiveMode() != n.archiveMode() {
-		return fmt.Errorf("archive mode changed from %t to %t", n.n.ArchiveMode(), n.archiveMode())
+	if n.n.ArchiveMode() != n.config.ChainState.IsDataSyncer {
+		return fmt.Errorf("archive mode changed from %t to %t", n.n.ArchiveMode(), n.config.ChainState.IsDataSyncer)
 	}
 	return nil
 }
