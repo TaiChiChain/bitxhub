@@ -397,6 +397,8 @@ func (sa *SmartAccount) ResetAndLockOwner(owner ethcommon.Address) error {
 	lockTimestamp := timestamp + uint64(LockedTime.Seconds())
 	sa.account.SetState([]byte(statusKey), []byte(fmt.Sprintf("%d", lockTimestamp)))
 
+	sa.emitUserLocked(sa.selfAddr.ETHAddress(), owner, new(big.Int).SetUint64(lockTimestamp))
+
 	return nil
 }
 
@@ -501,6 +503,27 @@ func (sa *SmartAccount) postUserOp(UseSessionKey bool, actualGasCost, totalValue
 	session.SpentAmount = spentAmout
 
 	return sa.setSession(session)
+}
+
+func (sa *SmartAccount) emitUserLocked(sender, newOwner ethcommon.Address, lockedTime *big.Int) {
+	userLockedEvent := abi.NewEvent("UserLocked", "UserLocked", false, abi.Arguments{
+		{Name: "sender", Type: common.AddressType, Indexed: true},
+		{Name: "newOwner", Type: common.AddressType, Indexed: true},
+		{Name: "lockedTime", Type: common.BigIntType},
+	})
+
+	currentLog := common.Log{
+		Address: sa.selfAddress(),
+	}
+
+	currentLog.Topics = append(currentLog.Topics, types.NewHash(userLockedEvent.ID.Bytes()))
+	currentLog.Topics = append(currentLog.Topics, types.NewHash(sender.Bytes()))
+	currentLog.Topics = append(currentLog.Topics, types.NewHash(newOwner.Bytes()))
+
+	currentLog.Data = append(currentLog.Data, ethcommon.LeftPadBytes(lockedTime.Bytes(), 32)...)
+	currentLog.Removed = false
+
+	*sa.currentLogs = append(*sa.currentLogs, currentLog)
 }
 
 func recoveryAddrFromSignature(hash, signature []byte) (ethcommon.Address, error) {
