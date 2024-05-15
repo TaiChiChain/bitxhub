@@ -24,13 +24,8 @@ func (e *EpochInfo) Convert() *types.EpochInfo {
 			ReBroadcastToleranceNumber:                         e.ConsensusParams.ReBroadcastToleranceNumber,
 		},
 		FinanceParams: types.FinanceParams{
-			GasLimit:               e.FinanceParams.GasLimit,
-			StartGasPriceAvailable: e.FinanceParams.StartGasPriceAvailable,
-			StartGasPrice:          types.CoinNumberByBigInt(e.FinanceParams.StartGasPrice),
-			MaxGasPrice:            types.CoinNumberByBigInt(e.FinanceParams.MaxGasPrice),
-			MinGasPrice:            types.CoinNumberByBigInt(e.FinanceParams.MinGasPrice),
-			GasChangeRateValue:     e.FinanceParams.GasChangeRateValue,
-			GasChangeRateDecimals:  e.FinanceParams.GasChangeRateDecimals,
+			GasLimit:    e.FinanceParams.GasLimit,
+			MinGasPrice: types.CoinNumberByBigInt(e.FinanceParams.MinGasPrice),
 		},
 		StakeParams: types.StakeParams{
 			StakeEnable:                      e.StakeParams.StakeEnable,

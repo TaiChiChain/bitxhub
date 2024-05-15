@@ -2,31 +2,16 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/term"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
-
-var keystorePasswordFlagVar string
-
-func keystorePasswordFlag() *cli.StringFlag {
-	return &cli.StringFlag{
-		Name:        "password",
-		Usage:       "Keystore password",
-		EnvVars:     []string{"AXIOM_LEDGER_KEYSTORE_PASSWORD"},
-		Destination: &keystorePasswordFlagVar,
-		Aliases:     []string{"pwd"},
-		Required:    false,
-	}
-}
 
 var p2pKeystorePrivateKeyFlagVar string
 
@@ -64,7 +49,7 @@ var keystoreCMD = &cli.Command{
 			Usage:  "Generate all keystore(p2p and consensus)",
 			Action: generateKeystore,
 			Flags: []cli.Flag{
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 				p2pKeystorePrivateKeyFlag(),
 				consensusKeystorePrivateKeyFlag(),
 			},
@@ -95,7 +80,7 @@ var keystoreCMD = &cli.Command{
 			Usage:  "Show p2p keystore private key",
 			Action: showP2PKeystorePrivateKey,
 			Flags: []cli.Flag{
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 			},
 		},
 		{
@@ -113,7 +98,7 @@ var keystoreCMD = &cli.Command{
 			Usage:  "Show consensus keystore private key",
 			Action: showConsensusKeystorePrivateKey,
 			Flags: []cli.Flag{
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 			},
 		},
 		{
@@ -125,7 +110,7 @@ var keystoreCMD = &cli.Command{
 }
 
 func generateKeystore(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -134,9 +119,9 @@ func generateKeystore(ctx *cli.Context) error {
 		return nil
 	}
 
-	password := keystorePasswordFlagVar
-	if !ctx.IsSet(keystorePasswordFlag().Name) {
-		password, err = enterPassword(true)
+	password := common.KeystorePasswordFlagVar
+	if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
+		password, err = common.EnterPassword(true)
 		if err != nil {
 			return err
 		}
@@ -180,7 +165,7 @@ func generateKeystore(ctx *cli.Context) error {
 }
 
 func updateKeystorePassword(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -211,7 +196,7 @@ func updateKeystorePassword(ctx *cli.Context) error {
 	fmt.Println("input old password:")
 	oldPassword := keystoreOldPasswordFlagVar
 	if !ctx.IsSet("old-password") {
-		oldPassword, err = enterPassword(false)
+		oldPassword, err = common.EnterPassword(false)
 		if err != nil {
 			return err
 		}
@@ -219,7 +204,7 @@ func updateKeystorePassword(ctx *cli.Context) error {
 	fmt.Println("input new password:")
 	newPassword := keystoreNewPasswordFlagVar
 	if !ctx.IsSet("new-password") {
-		newPassword, err = enterPassword(false)
+		newPassword, err = common.EnterPassword(false)
 		if err != nil {
 			return err
 		}
@@ -243,7 +228,7 @@ func updateKeystorePassword(ctx *cli.Context) error {
 }
 
 func showP2PKeystorePrivateKey(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -255,9 +240,9 @@ func showP2PKeystorePrivateKey(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	password := keystorePasswordFlagVar
-	if !ctx.IsSet(keystorePasswordFlag().Name) {
-		password, err = enterPassword(false)
+	password := common.KeystorePasswordFlagVar
+	if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
+		password, err = common.EnterPassword(false)
 		if err != nil {
 			return err
 		}
@@ -275,7 +260,7 @@ func showP2PKeystorePrivateKey(ctx *cli.Context) error {
 }
 
 func showP2PKeystorePublicKey(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -292,7 +277,7 @@ func showP2PKeystorePublicKey(ctx *cli.Context) error {
 }
 
 func showP2PID(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -309,7 +294,7 @@ func showP2PID(ctx *cli.Context) error {
 }
 
 func showConsensusKeystorePrivateKey(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -321,9 +306,9 @@ func showConsensusKeystorePrivateKey(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	password := keystorePasswordFlagVar
-	if !ctx.IsSet(keystorePasswordFlag().Name) {
-		password, err = enterPassword(false)
+	password := common.KeystorePasswordFlagVar
+	if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
+		password, err = common.EnterPassword(false)
 		if err != nil {
 			return err
 		}
@@ -341,7 +326,7 @@ func showConsensusKeystorePrivateKey(ctx *cli.Context) error {
 }
 
 func showConsensusKeystorePublicKey(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -355,28 +340,4 @@ func showConsensusKeystorePublicKey(ctx *cli.Context) error {
 	}
 	fmt.Println(consensusKeystore.PublicKey.String())
 	return nil
-}
-
-func enterPassword(needConfirm bool) (string, error) {
-	var password string
-	fmt.Println("enter a password for keystore:")
-	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return "", errors.Wrap(err, "can not read password")
-	}
-	text := string(passwordBytes)
-	password = strings.ReplaceAll(text, "\n", "")
-	if needConfirm {
-		fmt.Println("please re-enter password for keystore:")
-		passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-		if err != nil {
-			return "", errors.Wrap(err, "can not read password")
-		}
-		confirmedPassword := strings.ReplaceAll(string(passwordBytes), "\n", "")
-		if password != confirmedPassword {
-			fmt.Println("passwords did not match, please try again")
-			return enterPassword(true)
-		}
-	}
-	return password, nil
 }

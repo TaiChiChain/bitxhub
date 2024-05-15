@@ -353,7 +353,7 @@ func (n *NodeManager) TurnIntoNewEpoch(_ *types.EpochInfo, newEpoch *types.Epoch
 	if err != nil {
 		return err
 	}
-	nodeInfos, err := n.GetNodeInfos(nodesIDs)
+	nodeInfos, err := n.GetInfos(nodesIDs)
 	if err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func (n *NodeManager) processNodeLeave() error {
 	}
 	for _, id := range nodeIDs {
 		// get the node
-		info, err := n.GetNodeInfo(id)
+		info, err := n.GetInfo(id)
 		if err != nil {
 			return err
 		}
@@ -464,7 +464,7 @@ func (n *NodeManager) updateActiveValidatorSet(ActiveValidatorVotingPowers []nod
 	candidates := make([]uint64, 0, len(allValidaNodes)-len(ActiveValidatorVotingPowers))
 	for _, votingPower := range ActiveValidatorVotingPowers {
 		nodeId := votingPower.NodeID
-		nodeInfo, err := n.GetNodeInfo(nodeId)
+		nodeInfo, err := n.GetInfo(nodeId)
 		if err != nil {
 			return err
 		}
@@ -480,7 +480,7 @@ func (n *NodeManager) updateActiveValidatorSet(ActiveValidatorVotingPowers []nod
 	}
 	for _, nodeID := range allValidaNodes {
 		if _, ok := validatorMap[nodeID]; !ok {
-			nodeInfo, err := n.GetNodeInfo(nodeID)
+			nodeInfo, err := n.GetInfo(nodeID)
 			if err != nil {
 				return err
 			}
@@ -504,7 +504,7 @@ func (n *NodeManager) updateActiveValidatorSet(ActiveValidatorVotingPowers []nod
 }
 
 func (n *NodeManager) checkPermission(nodeID uint64) (*node_manager.NodeInfo, error) {
-	nodeInfo, err := n.GetNodeInfo(nodeID)
+	nodeInfo, err := n.GetInfo(nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -626,6 +626,9 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperator ethcommon.Addres
 	if err != nil {
 		return err
 	}
+	if common.IsZeroAddress(newOperator) {
+		return errors.New("new operator cannot be zero address")
+	}
 	nodeInfo.Operator = newOperator
 	if err = n.nodeRegistry.Put(nodeID, *nodeInfo); err != nil {
 		return err
@@ -634,7 +637,7 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperator ethcommon.Addres
 	return nil
 }
 
-func (n *NodeManager) GetNodeInfo(nodeID uint64) (info node_manager.NodeInfo, err error) {
+func (n *NodeManager) GetInfo(nodeID uint64) (info node_manager.NodeInfo, err error) {
 	isExist, nodeInfo, err := n.nodeRegistry.Get(nodeID)
 	if err != nil {
 		return node_manager.NodeInfo{}, err
@@ -668,7 +671,7 @@ func (n *NodeManager) ExistNodeByName(nodeName string) bool {
 	return n.nodeNameIndex.Has(nodeName)
 }
 
-func (n *NodeManager) GetTotalNodeCount() (uint64, error) {
+func (n *NodeManager) GetTotalCount() (uint64, error) {
 	_, id, err := n.nextNodeID.Get()
 	if err != nil {
 		return 0, err
@@ -676,10 +679,10 @@ func (n *NodeManager) GetTotalNodeCount() (uint64, error) {
 	return id - 1, nil
 }
 
-func (n *NodeManager) GetNodeInfos(nodeIDs []uint64) (infos []node_manager.NodeInfo, err error) {
+func (n *NodeManager) GetInfos(nodeIDs []uint64) (infos []node_manager.NodeInfo, err error) {
 	infos = []node_manager.NodeInfo{}
 	for _, id := range nodeIDs {
-		info, err := n.GetNodeInfo(id)
+		info, err := n.GetInfo(id)
 		if err != nil {
 			return nil, err
 		}
@@ -698,7 +701,7 @@ func (n *NodeManager) GetActiveValidatorSet() (infos []node_manager.NodeInfo, vo
 	}
 
 	for i := 0; i < len(innerVotingPowers); i++ {
-		info, err := n.GetNodeInfo(innerVotingPowers[i].NodeID)
+		info, err := n.GetInfo(innerVotingPowers[i].NodeID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -720,7 +723,7 @@ func (n *NodeManager) GetDataSyncerSet() (infos []node_manager.NodeInfo, err err
 	if !isExists {
 		return []node_manager.NodeInfo{}, nil
 	}
-	return n.GetNodeInfos(nodes)
+	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetCandidateSet() (infos []node_manager.NodeInfo, err error) {
@@ -731,7 +734,7 @@ func (n *NodeManager) GetCandidateSet() (infos []node_manager.NodeInfo, err erro
 	if !isExists {
 		return []node_manager.NodeInfo{}, nil
 	}
-	return n.GetNodeInfos(nodes)
+	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetPendingInactiveSet() (infos []node_manager.NodeInfo, err error) {
@@ -742,7 +745,7 @@ func (n *NodeManager) GetPendingInactiveSet() (infos []node_manager.NodeInfo, er
 	if !isExists {
 		return []node_manager.NodeInfo{}, nil
 	}
-	return n.GetNodeInfos(nodes)
+	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetExitedSet() (infos []node_manager.NodeInfo, err error) {
@@ -753,7 +756,7 @@ func (n *NodeManager) GetExitedSet() (infos []node_manager.NodeInfo, err error) 
 	if !isExists {
 		return []node_manager.NodeInfo{}, nil
 	}
-	return n.GetNodeInfos(nodes)
+	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []node_manager.ConsensusVotingPower, err error) {

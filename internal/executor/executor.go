@@ -14,7 +14,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/finance"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
@@ -37,7 +36,6 @@ type BlockExecutor struct {
 	ledger             *ledger.Ledger
 	logger             logrus.FieldLogger
 	blockC             chan *common.CommitEvent
-	gas                *finance.Gas
 	cumulativeGasUsed  uint64
 	currentHeight      uint64
 	currentBlockHash   *types.Hash
@@ -68,7 +66,6 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 		chainState:        chainState,
 		cancel:            cancel,
 		blockC:            make(chan *common.CommitEvent, blockChanNumber),
-		gas:               finance.NewGas(chainState),
 		cumulativeGasUsed: 0,
 		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
 		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,

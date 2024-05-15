@@ -1,7 +1,6 @@
 package chainstate
 
 import (
-	"math/big"
 	"sync"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -81,7 +80,6 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 		EpochInfo:      genesisConfig.EpochInfo,
 		ChainMeta: &types.ChainMeta{
 			Height:    0,
-			GasPrice:  new(big.Int),
 			BlockHash: nil,
 		},
 		ValidatorSet: lo.Map(genesisConfig.Nodes, func(_ repo.GenesisNodeInfo, index int) ValidatorInfo {

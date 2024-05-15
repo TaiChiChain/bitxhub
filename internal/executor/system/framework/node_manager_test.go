@@ -24,12 +24,12 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 
 	nodes := make([]node_manager.NodeInfo, 5)
 	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		totalNodeCount, err := nodeManagerContract.GetTotalNodeCount()
+		totalNodeCount, err := nodeManagerContract.GetTotalCount()
 		assert.Nil(t, err)
 		assert.EqualValues(t, 4, totalNodeCount)
 
 		for i := uint64(0); i < 4; i++ {
-			nodes[i], err = nodeManagerContract.GetNodeInfo(i + 1)
+			nodes[i], err = nodeManagerContract.GetInfo(i + 1)
 			assert.Nil(t, err)
 			assert.EqualValues(t, i+1, nodes[i].ID)
 			assert.EqualValues(t, fmt.Sprintf("node%d", i+1), nodes[i].MetaData.Name)
@@ -95,7 +95,7 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	}, common.TestNVMRunOptionCallFromSystem())
 
 	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		nodes[4], err = nodeManagerContract.GetNodeInfo(5)
+		nodes[4], err = nodeManagerContract.GetInfo(5)
 		assert.Nil(t, err)
 		assert.Equal(t, node5ID, nodes[4].ID)
 		assert.Equal(t, consensusKeystore.PublicKey.String(), nodes[4].ConsensusPubKey)
@@ -223,7 +223,7 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		nodes[4].Status = uint8(types.NodeStatusExited)
 		assert.EqualValues(t, []node_manager.NodeInfo{nodes[4]}, exitedSet)
 
-		totalNodesNum, err := nodeManagerContract.GetTotalNodeCount()
+		totalNodesNum, err := nodeManagerContract.GetTotalCount()
 		assert.Nil(t, err)
 		assert.EqualValues(t, 5, totalNodesNum)
 	})
@@ -263,22 +263,26 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 	}, common.TestNVMRunOptionCallFromSystem())
 
 	zeroAddr := ethcommon.Address{}
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
 		err = nodeManagerContract.UpdateOperator(node5ID, zeroAddr)
 		assert.ErrorContains(t, err, "no permission")
-		return err
+
+		nodeManagerContract.Ctx.From = ethcommon.HexToAddress(operatorAddress)
+		err = nodeManagerContract.UpdateOperator(node5ID, zeroAddr)
+		assert.ErrorContains(t, err, "new operator cannot be zero address")
 	})
 
+	newOperator := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D012")
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
-		err = nodeManagerContract.UpdateOperator(node5ID, zeroAddr)
+		err = nodeManagerContract.UpdateOperator(node5ID, newOperator)
 		assert.Nil(t, err)
 		return err
 	})
 
 	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		info, err := nodeManagerContract.GetNodeInfo(node5ID)
+		info, err := nodeManagerContract.GetInfo(node5ID)
 		assert.Nil(t, err)
-		assert.Equal(t, zeroAddr, info.Operator)
+		assert.Equal(t, newOperator, info.Operator)
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
@@ -287,7 +291,7 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 		return err
 	})
 
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+	testNVM.RunSingleTX(nodeManagerContract, newOperator, func() error {
 		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
 			Name: "",
 		})
@@ -295,7 +299,7 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 		return err
 	})
 
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+	testNVM.RunSingleTX(nodeManagerContract, newOperator, func() error {
 		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
 			Name: "node1",
 		})
@@ -303,7 +307,7 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 		return err
 	})
 
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+	testNVM.RunSingleTX(nodeManagerContract, newOperator, func() error {
 		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
 			Name: "newName",
 		})
@@ -312,7 +316,7 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 	})
 
 	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		info, err := nodeManagerContract.GetNodeInfo(node5ID)
+		info, err := nodeManagerContract.GetInfo(node5ID)
 		assert.Nil(t, err)
 		assert.Equal(t, "newName", info.MetaData.Name)
 	})
@@ -368,10 +372,10 @@ func TestCheckNodeInfo(t *testing.T) {
 		exist = nodeManagerContract.ExistNodeByName("mockName")
 		assert.True(t, exist)
 
-		nodes, err := nodeManagerContract.GetNodeInfos([]uint64{7})
+		nodes, err := nodeManagerContract.GetInfos([]uint64{7})
 		assert.ErrorContains(t, err, ErrNodeNotFound.Error())
 
-		nodes, err = nodeManagerContract.GetNodeInfos([]uint64{1, 2, 3, 4, 5})
+		nodes, err = nodeManagerContract.GetInfos([]uint64{1, 2, 3, 4, 5})
 		assert.Nil(t, err)
 		for i := 0; i < 5; i++ {
 			assert.EqualValues(t, i+1, nodes[i].ID)

@@ -40,8 +40,8 @@ type LiquidStakingToken interface {
 
 	// Approve is a paid mutator transaction binding the contract method 0x095ea7b3.
 	//
-	// Solidity: function approve(address _approved, uint256 _tokenId) payable returns()
-	Approve(_approved common.Address, _tokenId *big.Int) error
+	// Solidity: function approve(address _to, uint256 _tokenId) payable returns()
+	Approve(_to common.Address, _tokenId *big.Int) error
 
 	// SafeTransferFrom is a paid mutator transaction binding the contract method 0x42842e0e.
 	//

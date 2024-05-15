@@ -238,7 +238,7 @@ func (s *StakingManager) CreatePoolWithStake(poolID uint64, commissionRate uint6
 	if err != nil {
 		return err
 	}
-	nodeInfo, err := nodeManagerContract.GetNodeInfo(poolID)
+	nodeInfo, err := nodeManagerContract.GetInfo(poolID)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func (s *StakingManager) checkLiquidStakingTokenPermission(liquidStakingTokenID 
 
 func (s *StakingManager) checkPoolPermission(poolID uint64) error {
 	nodeManagerContract := NodeManagerBuildConfig.Build(s.CrossCallSystemContractContext())
-	nodeInfo, err := nodeManagerContract.GetNodeInfo(poolID)
+	nodeInfo, err := nodeManagerContract.GetInfo(poolID)
 	if err != nil {
 		return err
 	}

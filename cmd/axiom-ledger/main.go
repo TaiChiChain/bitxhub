@@ -8,6 +8,8 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/urfave/cli/v2"
 
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
+	sys_contract "github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/sys-contract"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -34,10 +36,15 @@ func main() {
 	app.Commands = []*cli.Command{
 		configCMD,
 		ledgerCMD,
-		epochCMD,
 		txpoolCMD,
 		keystoreCMD,
 		clusterCMD,
+		sys_contract.EpochCMD,
+		sys_contract.GovernanceCMD,
+		sys_contract.GovernanceNodeCMD,
+		sys_contract.NodeCMD,
+		sys_contract.StakingCMD,
+		sys_contract.StakingLSTCMD,
 		{
 			Name:   "start",
 			Usage:  "Start a long-running daemon process",
@@ -57,7 +64,7 @@ func main() {
 					Destination: &startArgs.Snapshot,
 					Required:    false,
 				},
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 			},
 		},
 		{

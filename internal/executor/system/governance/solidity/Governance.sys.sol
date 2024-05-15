@@ -41,6 +41,8 @@ pragma solidity ^0.8.0;
         bytes Extra;
         uint64 CreatedBlockNumber;
         uint64 EffectiveBlockNumber;
+        bool ExecuteSuccess;
+        string ExecuteFailedMsg;
     }
 
 // Governance contract is a system contract that needn't be deployed

@@ -125,28 +125,9 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		}
 	}
 
-	parentChainMeta := exec.ledger.ChainLedger.GetChainMeta()
-	var nextGasPrice uint64
-	epochInfo := exec.chainState.EpochInfo
-	// epoch changed
-	if block.Header.Number == epochInfo.StartBlock-1 && epochInfo.FinanceParams.StartGasPriceAvailable {
-		if epochInfo.FinanceParams.StartGasPriceAvailable {
-			// epoch changed gas price
-			nextGasPrice = epochInfo.FinanceParams.StartGasPrice.ToBigInt().Uint64()
-			exec.logger.WithFields(logrus.Fields{
-				"price": nextGasPrice,
-			}).Info("Next epoch start block gas price changed")
-		}
-	} else {
-		nextGasPrice, err = exec.gas.CalNextGasPrice(parentChainMeta.GasPrice.Uint64(), len(block.Transactions))
-		if err != nil {
-			panic(fmt.Errorf("calculate next block gas price failed: %w", err))
-		}
-	}
-
 	totalGasFee := new(big.Int)
 	for i, receipt := range receipts {
-		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(parentChainMeta.GasPrice)
+		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(big.NewInt(0))
 		txGasFee := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
 		totalGasFee = totalGasFee.Add(totalGasFee, txGasFee)
 	}
@@ -177,7 +158,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.Header.ParentHash = exec.currentBlockHash
 	block.Header.TotalGasFee = totalGasFee
 	block.Header.GasFeeReward = totalGasFee
-	block.Header.GasPrice = nextGasPrice
+	block.Header.GasPrice = 0
 
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -22,6 +21,7 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/internal/app"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
@@ -59,7 +59,6 @@ var ledgerImportAccountsArgs = struct {
 	BatchSize      uint
 }{}
 
-// TODO: add query genesis config from genesis block tool
 var ledgerCMD = &cli.Command{
 	Name:  "ledger",
 	Usage: "The ledger manage commands",
@@ -195,7 +194,7 @@ var ledgerCMD = &cli.Command{
 }
 
 func importAccounts(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -253,7 +252,9 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 	if err != nil {
 		return fmt.Errorf("failed to open account list file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	scanner := bufio.NewScanner(file)
 	currentLine := 0
 	for batch := 0; batch < totalBatches; batch++ {
@@ -333,7 +334,9 @@ func countLinesBuffered(filePath string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	reader := bufio.NewReader(file)
 	lineCount := 0
@@ -370,7 +373,7 @@ func countLinesWC(filePath string) (int, error) {
 }
 
 func getBlock(ctx *cli.Context) error {
-	r, err := prepareRepo(ctx)
+	r, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
 	}
@@ -439,11 +442,11 @@ func getBlock(ctx *cli.Context) error {
 		blockInfo["tx_count"] = len(txs)
 	}
 
-	return pretty(blockInfo)
+	return common.Pretty(blockInfo)
 }
 
 func getTx(ctx *cli.Context) error {
-	rep, err := prepareRepo(ctx)
+	rep, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
 	}
@@ -481,11 +484,11 @@ func getTx(ctx *cli.Context) error {
 		"r":         (*hexutil.Big)(r),
 		"s":         (*hexutil.Big)(s),
 	}
-	return pretty(txInfo)
+	return common.Pretty(txInfo)
 }
 
 func getLatestChainMeta(ctx *cli.Context) error {
-	r, err := prepareRepo(ctx)
+	r, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
 	}
@@ -496,11 +499,11 @@ func getLatestChainMeta(ctx *cli.Context) error {
 	}
 
 	meta := chainLedger.GetChainMeta()
-	return pretty(meta)
+	return common.Pretty(meta)
 }
 
 func rollback(ctx *cli.Context) error {
-	r, err := prepareRepo(ctx)
+	r, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
 	}
@@ -557,7 +560,7 @@ func rollback(ctx *cli.Context) error {
 		} else {
 			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash())
 		}
-		if err := waitUserConfirm(); err != nil {
+		if err := common.WaitUserConfirm(); err != nil {
 			return err
 		}
 	}
@@ -677,7 +680,7 @@ func generateTrie(ctx *cli.Context) error {
 		return fmt.Errorf("decode peers failed: %w", err)
 	}
 
-	r, err := prepareRepo(ctx)
+	r, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
 	}
@@ -719,55 +722,6 @@ func generateTrie(ctx *cli.Context) error {
 	logger.Infof("success generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
 
 	return err
-}
-
-func prepareRepo(ctx *cli.Context) (*repo.Repo, error) {
-	p, err := getRootPath(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !fileutil.Exist(filepath.Join(p, repo.CfgFileName)) {
-		return nil, errors.New("axiom-ledger repo not exist")
-	}
-
-	r, err := repo.Load(p)
-	if err != nil {
-		return nil, err
-	}
-
-	// close monitor in offline mode
-	r.Config.Monitor.Enable = false
-
-	fmt.Printf("%s-repo: %s\n", repo.AppName, r.RepoRoot)
-
-	if err := loggers.Initialize(ctx.Context, r, false); err != nil {
-		return nil, err
-	}
-
-	if err := app.PrepareAxiomLedger(r); err != nil {
-		return nil, fmt.Errorf("prepare axiom-ledger failed: %w", err)
-	}
-	return r, nil
-}
-
-func waitUserConfirm() error {
-	var choice string
-	if _, err := fmt.Scanln(&choice); err != nil {
-		return err
-	}
-	if choice != "y" {
-		return errors.New("interrupt by user")
-	}
-	return nil
-}
-
-func pretty(d any) error {
-	res, err := json.MarshalIndent(d, "", "\t")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(res))
-	return nil
 }
 
 func copyDir(src, dest string) error {

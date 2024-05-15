@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,9 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
+	"github.com/axiomesh/axiom-ledger/internal/genesis"
+	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -41,6 +45,11 @@ var configCMD = &cli.Command{
 			Action: showGenesis,
 		},
 		{
+			Name:   "show-genesis-from-ledger",
+			Usage:  "Show the complete genesis config from ledger",
+			Action: showGenesisFromLedger,
+		},
+		{
 			Name:   "check",
 			Usage:  "Check if the config file is valid",
 			Action: check,
@@ -49,7 +58,7 @@ var configCMD = &cli.Command{
 }
 
 func generate(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -77,7 +86,7 @@ func generate(ctx *cli.Context) error {
 }
 
 func nodeInfo(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -101,7 +110,7 @@ func nodeInfo(ctx *cli.Context) error {
 }
 
 func show(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -123,7 +132,7 @@ func show(ctx *cli.Context) error {
 }
 
 func showConsensus(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -145,7 +154,7 @@ func showConsensus(ctx *cli.Context) error {
 }
 
 func showGenesis(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -166,8 +175,31 @@ func showGenesis(ctx *cli.Context) error {
 	return nil
 }
 
+func showGenesisFromLedger(ctx *cli.Context) error {
+	r, err := common.PrepareRepo(ctx)
+	if err != nil {
+		return err
+	}
+
+	stateLedger, err := ledger.NewStateLedger(r, "")
+	if err != nil {
+		return fmt.Errorf("init state ledger failed: %w", err)
+	}
+
+	genesisConfig, err := genesis.GetGenesisConfig(stateLedger)
+	if err != nil {
+		return err
+	}
+	if genesisConfig == nil {
+		return errors.New("genesis config not exist")
+	}
+
+	fmt.Println(genesisConfig)
+	return nil
+}
+
 func check(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -184,17 +216,4 @@ func check(ctx *cli.Context) error {
 	}
 
 	return nil
-}
-
-func getRootPath(ctx *cli.Context) (string, error) {
-	p := ctx.String("repo")
-
-	var err error
-	if p == "" {
-		p, err = repo.LoadRepoRootFromEnv(p)
-		if err != nil {
-			return "", err
-		}
-	}
-	return p, nil
 }

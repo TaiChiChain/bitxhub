@@ -38,4 +38,3 @@ go.work.sum
 *.key
 *.toml
 *-keystore.json
-axiom-ledger

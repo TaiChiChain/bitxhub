@@ -35,10 +35,6 @@ func (api *CoreAPI) Feed() api.FeedAPI {
 	return (*FeedAPI)(api)
 }
 
-func (api *CoreAPI) Gas() api.GasAPI {
-	return (*GasAPI)(api)
-}
-
 func (api *CoreAPI) TxPool() api.TxPoolAPI {
 	return (*TxPoolAPI)(api)
 }

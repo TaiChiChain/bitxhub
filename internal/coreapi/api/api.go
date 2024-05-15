@@ -1,9 +1,6 @@
 package api
 
 import (
-	"context"
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
@@ -21,7 +18,6 @@ type CoreAPI interface {
 	Broker() BrokerAPI
 	Chain() ChainAPI
 	Feed() FeedAPI
-	Gas() GasAPI
 	TxPool() TxPoolAPI
 	ChainState() *chainstate.ChainState
 }
@@ -65,13 +61,6 @@ type FeedAPI interface {
 	SubscribeNewTxEvent(chan<- []*types.Transaction) event.Subscription
 	SubscribeNewBlockEvent(chan<- events.ExecutedEvent) event.Subscription
 	BloomStatus() (uint64, uint64)
-}
-
-type GasAPI interface {
-	GetGasPrice() (uint64, error)
-	GetCurrentGasPrice(blockHeight uint64) (uint64, error)
-	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
-	FeeHistory(ctx context.Context, blockCount uint64, lastBlock uint64, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error)
 }
 
 type TxPoolAPI interface {

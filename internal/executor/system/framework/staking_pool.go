@@ -138,7 +138,7 @@ func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error 
 	// TODO: check received value is equal to amount, implement it after geth upgrade
 
 	nodeManagerContract := NodeManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
-	nodeInfo, err := nodeManagerContract.GetNodeInfo(info.ID)
+	nodeInfo, err := nodeManagerContract.GetInfo(info.ID)
 	if err != nil {
 		return err
 	}

@@ -246,7 +246,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	chainState := chainstate.NewChainState(rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*node_manager.NodeInfo, error) {
 		lg := vl.NewView()
 		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
-		nodeInfo, err := nodeManagerContract.GetNodeInfo(nodeID)
+		nodeInfo, err := nodeManagerContract.GetInfo(nodeID)
 		if err != nil {
 			return nil, err
 		}
@@ -353,7 +353,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	axm.BlockExecutor = txExec
 
 	if rwLdg.ChainLedger.GetChainMeta().Height != 0 {
-		genesisCfg, err := genesis.GetGenesisConfig(rwLdg.NewViewWithoutCache())
+		genesisCfg, err := genesis.GetGenesisConfig(rwLdg.NewViewWithoutCache().StateLedger)
 		if err != nil {
 			return nil, err
 		}

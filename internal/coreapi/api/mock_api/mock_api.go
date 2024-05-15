@@ -10,8 +10,6 @@
 package mock_api
 
 import (
-	context "context"
-	big "math/big"
 	reflect "reflect"
 
 	types "github.com/axiomesh/axiom-kit/types"
@@ -202,44 +200,6 @@ func (c *MockCoreAPIFeedCall) DoAndReturn(f func() api.FeedAPI) *MockCoreAPIFeed
 	return c
 }
 
-// Gas mocks base method.
-func (m *MockCoreAPI) Gas() api.GasAPI {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Gas")
-	ret0, _ := ret[0].(api.GasAPI)
-	return ret0
-}
-
-// Gas indicates an expected call of Gas.
-func (mr *MockCoreAPIMockRecorder) Gas() *MockCoreAPIGasCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Gas", reflect.TypeOf((*MockCoreAPI)(nil).Gas))
-	return &MockCoreAPIGasCall{Call: call}
-}
-
-// MockCoreAPIGasCall wrap *gomock.Call
-type MockCoreAPIGasCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockCoreAPIGasCall) Return(arg0 api.GasAPI) *MockCoreAPIGasCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockCoreAPIGasCall) Do(f func() api.GasAPI) *MockCoreAPIGasCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockCoreAPIGasCall) DoAndReturn(f func() api.GasAPI) *MockCoreAPIGasCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // TxPool mocks base method.
 func (m *MockCoreAPI) TxPool() api.TxPoolAPI {
 	m.ctrl.T.Helper()
@@ -416,41 +376,80 @@ func (c *MockBrokerAPIGetBlockExtraCall) DoAndReturn(f func(uint64) (*types.Bloc
 	return c
 }
 
-// GetBlockHeader mocks base method.
-func (m *MockBrokerAPI) GetBlockHeader(mode, key string) (*types.BlockHeader, error) {
+// GetBlockHeaderByHash mocks base method.
+func (m *MockBrokerAPI) GetBlockHeaderByHash(hash *types.Hash) (*types.BlockHeader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockHeader", mode, key)
+	ret := m.ctrl.Call(m, "GetBlockHeaderByHash", hash)
 	ret0, _ := ret[0].(*types.BlockHeader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetBlockHeader indicates an expected call of GetBlockHeader.
-func (mr *MockBrokerAPIMockRecorder) GetBlockHeader(mode, key any) *MockBrokerAPIGetBlockHeaderCall {
+// GetBlockHeaderByHash indicates an expected call of GetBlockHeaderByHash.
+func (mr *MockBrokerAPIMockRecorder) GetBlockHeaderByHash(hash any) *MockBrokerAPIGetBlockHeaderByHashCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeader", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockHeader), mode, key)
-	return &MockBrokerAPIGetBlockHeaderCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeaderByHash", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockHeaderByHash), hash)
+	return &MockBrokerAPIGetBlockHeaderByHashCall{Call: call}
 }
 
-// MockBrokerAPIGetBlockHeaderCall wrap *gomock.Call
-type MockBrokerAPIGetBlockHeaderCall struct {
+// MockBrokerAPIGetBlockHeaderByHashCall wrap *gomock.Call
+type MockBrokerAPIGetBlockHeaderByHashCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockBrokerAPIGetBlockHeaderCall) Return(arg0 *types.BlockHeader, arg1 error) *MockBrokerAPIGetBlockHeaderCall {
+func (c *MockBrokerAPIGetBlockHeaderByHashCall) Return(arg0 *types.BlockHeader, arg1 error) *MockBrokerAPIGetBlockHeaderByHashCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockBrokerAPIGetBlockHeaderCall) Do(f func(string, string) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderCall {
+func (c *MockBrokerAPIGetBlockHeaderByHashCall) Do(f func(*types.Hash) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderByHashCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBrokerAPIGetBlockHeaderCall) DoAndReturn(f func(string, string) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderCall {
+func (c *MockBrokerAPIGetBlockHeaderByHashCall) DoAndReturn(f func(*types.Hash) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderByHashCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetBlockHeaderByNumber mocks base method.
+func (m *MockBrokerAPI) GetBlockHeaderByNumber(height uint64) (*types.BlockHeader, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBlockHeaderByNumber", height)
+	ret0, _ := ret[0].(*types.BlockHeader)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBlockHeaderByNumber indicates an expected call of GetBlockHeaderByNumber.
+func (mr *MockBrokerAPIMockRecorder) GetBlockHeaderByNumber(height any) *MockBrokerAPIGetBlockHeaderByNumberCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHeaderByNumber", reflect.TypeOf((*MockBrokerAPI)(nil).GetBlockHeaderByNumber), height)
+	return &MockBrokerAPIGetBlockHeaderByNumberCall{Call: call}
+}
+
+// MockBrokerAPIGetBlockHeaderByNumberCall wrap *gomock.Call
+type MockBrokerAPIGetBlockHeaderByNumberCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockBrokerAPIGetBlockHeaderByNumberCall) Return(arg0 *types.BlockHeader, arg1 error) *MockBrokerAPIGetBlockHeaderByNumberCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockBrokerAPIGetBlockHeaderByNumberCall) Do(f func(uint64) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderByNumberCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockBrokerAPIGetBlockHeaderByNumberCall) DoAndReturn(f func(uint64) (*types.BlockHeader, error)) *MockBrokerAPIGetBlockHeaderByNumberCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -607,6 +606,45 @@ func (c *MockBrokerAPIGetReceiptCall) Do(f func(*types.Hash) (*types.Receipt, er
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockBrokerAPIGetReceiptCall) DoAndReturn(f func(*types.Hash) (*types.Receipt, error)) *MockBrokerAPIGetReceiptCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetReceipts mocks base method.
+func (m *MockBrokerAPI) GetReceipts(blockNum uint64) ([]*types.Receipt, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReceipts", blockNum)
+	ret0, _ := ret[0].([]*types.Receipt)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReceipts indicates an expected call of GetReceipts.
+func (mr *MockBrokerAPIMockRecorder) GetReceipts(blockNum any) *MockBrokerAPIGetReceiptsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReceipts", reflect.TypeOf((*MockBrokerAPI)(nil).GetReceipts), blockNum)
+	return &MockBrokerAPIGetReceiptsCall{Call: call}
+}
+
+// MockBrokerAPIGetReceiptsCall wrap *gomock.Call
+type MockBrokerAPIGetReceiptsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockBrokerAPIGetReceiptsCall) Return(arg0 []*types.Receipt, arg1 error) *MockBrokerAPIGetReceiptsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockBrokerAPIGetReceiptsCall) Do(f func(uint64) ([]*types.Receipt, error)) *MockBrokerAPIGetReceiptsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockBrokerAPIGetReceiptsCall) DoAndReturn(f func(uint64) ([]*types.Receipt, error)) *MockBrokerAPIGetReceiptsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1217,188 +1255,6 @@ func (c *MockFeedAPISubscribeNewTxEventCall) Do(f func(chan<- []*types.Transacti
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockFeedAPISubscribeNewTxEventCall) DoAndReturn(f func(chan<- []*types.Transaction) event.Subscription) *MockFeedAPISubscribeNewTxEventCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// MockGasAPI is a mock of GasAPI interface.
-type MockGasAPI struct {
-	ctrl     *gomock.Controller
-	recorder *MockGasAPIMockRecorder
-}
-
-// MockGasAPIMockRecorder is the mock recorder for MockGasAPI.
-type MockGasAPIMockRecorder struct {
-	mock *MockGasAPI
-}
-
-// NewMockGasAPI creates a new mock instance.
-func NewMockGasAPI(ctrl *gomock.Controller) *MockGasAPI {
-	mock := &MockGasAPI{ctrl: ctrl}
-	mock.recorder = &MockGasAPIMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockGasAPI) EXPECT() *MockGasAPIMockRecorder {
-	return m.recorder
-}
-
-// FeeHistory mocks base method.
-func (m *MockGasAPI) FeeHistory(ctx context.Context, blockCount, lastBlock uint64, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FeeHistory", ctx, blockCount, lastBlock, rewardPercentiles)
-	ret0, _ := ret[0].(*big.Int)
-	ret1, _ := ret[1].([][]*big.Int)
-	ret2, _ := ret[2].([]*big.Int)
-	ret3, _ := ret[3].([]float64)
-	ret4, _ := ret[4].(error)
-	return ret0, ret1, ret2, ret3, ret4
-}
-
-// FeeHistory indicates an expected call of FeeHistory.
-func (mr *MockGasAPIMockRecorder) FeeHistory(ctx, blockCount, lastBlock, rewardPercentiles any) *MockGasAPIFeeHistoryCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FeeHistory", reflect.TypeOf((*MockGasAPI)(nil).FeeHistory), ctx, blockCount, lastBlock, rewardPercentiles)
-	return &MockGasAPIFeeHistoryCall{Call: call}
-}
-
-// MockGasAPIFeeHistoryCall wrap *gomock.Call
-type MockGasAPIFeeHistoryCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockGasAPIFeeHistoryCall) Return(arg0 *big.Int, arg1 [][]*big.Int, arg2 []*big.Int, arg3 []float64, arg4 error) *MockGasAPIFeeHistoryCall {
-	c.Call = c.Call.Return(arg0, arg1, arg2, arg3, arg4)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockGasAPIFeeHistoryCall) Do(f func(context.Context, uint64, uint64, []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error)) *MockGasAPIFeeHistoryCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockGasAPIFeeHistoryCall) DoAndReturn(f func(context.Context, uint64, uint64, []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error)) *MockGasAPIFeeHistoryCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetCurrentGasPrice mocks base method.
-func (m *MockGasAPI) GetCurrentGasPrice(blockHeight uint64) (uint64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCurrentGasPrice", blockHeight)
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetCurrentGasPrice indicates an expected call of GetCurrentGasPrice.
-func (mr *MockGasAPIMockRecorder) GetCurrentGasPrice(blockHeight any) *MockGasAPIGetCurrentGasPriceCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentGasPrice", reflect.TypeOf((*MockGasAPI)(nil).GetCurrentGasPrice), blockHeight)
-	return &MockGasAPIGetCurrentGasPriceCall{Call: call}
-}
-
-// MockGasAPIGetCurrentGasPriceCall wrap *gomock.Call
-type MockGasAPIGetCurrentGasPriceCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockGasAPIGetCurrentGasPriceCall) Return(arg0 uint64, arg1 error) *MockGasAPIGetCurrentGasPriceCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockGasAPIGetCurrentGasPriceCall) Do(f func(uint64) (uint64, error)) *MockGasAPIGetCurrentGasPriceCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockGasAPIGetCurrentGasPriceCall) DoAndReturn(f func(uint64) (uint64, error)) *MockGasAPIGetCurrentGasPriceCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// GetGasPrice mocks base method.
-func (m *MockGasAPI) GetGasPrice() (uint64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetGasPrice")
-	ret0, _ := ret[0].(uint64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetGasPrice indicates an expected call of GetGasPrice.
-func (mr *MockGasAPIMockRecorder) GetGasPrice() *MockGasAPIGetGasPriceCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGasPrice", reflect.TypeOf((*MockGasAPI)(nil).GetGasPrice))
-	return &MockGasAPIGetGasPriceCall{Call: call}
-}
-
-// MockGasAPIGetGasPriceCall wrap *gomock.Call
-type MockGasAPIGetGasPriceCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockGasAPIGetGasPriceCall) Return(arg0 uint64, arg1 error) *MockGasAPIGetGasPriceCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockGasAPIGetGasPriceCall) Do(f func() (uint64, error)) *MockGasAPIGetGasPriceCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockGasAPIGetGasPriceCall) DoAndReturn(f func() (uint64, error)) *MockGasAPIGetGasPriceCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// SuggestGasTipCap mocks base method.
-func (m *MockGasAPI) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SuggestGasTipCap", ctx)
-	ret0, _ := ret[0].(*big.Int)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// SuggestGasTipCap indicates an expected call of SuggestGasTipCap.
-func (mr *MockGasAPIMockRecorder) SuggestGasTipCap(ctx any) *MockGasAPISuggestGasTipCapCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SuggestGasTipCap", reflect.TypeOf((*MockGasAPI)(nil).SuggestGasTipCap), ctx)
-	return &MockGasAPISuggestGasTipCapCall{Call: call}
-}
-
-// MockGasAPISuggestGasTipCapCall wrap *gomock.Call
-type MockGasAPISuggestGasTipCapCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockGasAPISuggestGasTipCapCall) Return(arg0 *big.Int, arg1 error) *MockGasAPISuggestGasTipCapCall {
-	c.Call = c.Call.Return(arg0, arg1)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockGasAPISuggestGasTipCapCall) Do(f func(context.Context) (*big.Int, error)) *MockGasAPISuggestGasTipCapCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockGasAPISuggestGasTipCapCall) DoAndReturn(f func(context.Context) (*big.Int, error)) *MockGasAPISuggestGasTipCapCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

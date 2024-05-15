@@ -194,7 +194,6 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
 	chainState.ChainMeta = &types.ChainMeta{
 		Height:    0,
-		GasPrice:  new(big.Int),
 		BlockHash: genesisBlock.Hash(),
 	}
 	exec, err := New(r, mockLedger, chainState)
@@ -393,7 +392,6 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 	// mock data for ledger
 	chainMeta := &types.ChainMeta{
 		Height:    0,
-		GasPrice:  big.NewInt(minGasPrice),
 		BlockHash: types.NewHash([]byte(from)),
 	}
 	ldg.ChainLedger.UpdateChainMeta(chainMeta)

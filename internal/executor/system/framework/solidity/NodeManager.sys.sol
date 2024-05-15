@@ -51,11 +51,11 @@ interface NodeManager {
 
     function updateOperator(uint64 nodeID, address newOperator) external;
 
-    function getNodeInfo(uint64 nodeID) external view returns (NodeInfo memory info);
+    function getInfo(uint64 nodeID) external view returns (NodeInfo memory info);
 
-    function getTotalNodeCount() external view returns (uint64);
+    function getTotalCount() external view returns (uint64);
 
-    function getNodeInfos(uint64[] memory nodeIDs) external view returns (NodeInfo[] memory info);
+    function getInfos(uint64[] memory nodeIDs) external view returns (NodeInfo[] memory info);
 
     function getActiveValidatorSet() external view returns (NodeInfo[] memory info, ConsensusVotingPower[] memory votingPowers);
 

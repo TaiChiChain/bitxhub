@@ -1,4 +1,4 @@
-package main
+package sys_contract
 
 import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -7,26 +7,16 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager_client"
 )
 
-var rpc = "http://127.0.0.1:8881"
-
-var rpcFlag = &cli.StringFlag{
-	Name:        "rpc",
-	Aliases:     []string{"r"},
-	Destination: &rpc,
-	Usage:       "rpc server addr",
-	Required:    false,
-	DefaultText: "http://127.0.0.1:8881",
-}
-
-var historyEpochArgs = struct {
+var EpochCMDHistoryEpochArgs = struct {
 	Epoch uint64
 }{}
 
-var epochCMD = &cli.Command{
+var EpochCMD = &cli.Command{
 	Name:  "epoch",
 	Usage: "The epoch manage commands",
 	Flags: []cli.Flag{
@@ -36,12 +26,12 @@ var epochCMD = &cli.Command{
 		{
 			Name:   "current",
 			Usage:  "Get current epoch info",
-			Action: getCurrentEpoch,
+			Action: EpochActions{}.getCurrentEpoch,
 		},
 		{
 			Name:   "next",
 			Usage:  "Get next epoch info",
-			Action: getNextEpoch,
+			Action: EpochActions{}.getNextEpoch,
 		},
 		{
 			Name:  "history",
@@ -50,18 +40,20 @@ var epochCMD = &cli.Command{
 				&cli.Uint64Flag{
 					Name:        "epoch",
 					Aliases:     []string{"e"},
-					Destination: &historyEpochArgs.Epoch,
+					Destination: &EpochCMDHistoryEpochArgs.Epoch,
 					Usage:       "history epoch number",
 					DefaultText: "1",
 					Required:    true,
 				},
 			},
-			Action: getHistoryEpoch,
+			Action: EpochActions{}.getHistoryEpoch,
 		},
 	},
 }
 
-func bindEpochManagerContract(ctx *cli.Context) (*epoch_manager_client.BindingContract, error) {
+type EpochActions struct{}
+
+func (a EpochActions) bindContract(ctx *cli.Context) (*epoch_manager_client.BindingContract, error) {
 	if rpc == "" {
 		rpc = "http://127.0.0.1:8881"
 	}
@@ -70,15 +62,15 @@ func bindEpochManagerContract(ctx *cli.Context) (*epoch_manager_client.BindingCo
 		return nil, errors.Wrap(err, "dial rpc failed")
 	}
 
-	epochManager, err := epoch_manager_client.NewBindingContract(ethcommon.HexToAddress(common.EpochManagerContractAddr), client)
+	contract, err := epoch_manager_client.NewBindingContract(ethcommon.HexToAddress(syscommon.EpochManagerContractAddr), client)
 	if err != nil {
 		return nil, errors.Wrap(err, "bind epoch manager contract failed")
 	}
-	return epochManager, nil
+	return contract, nil
 }
 
-func getCurrentEpoch(ctx *cli.Context) error {
-	epochManager, err := bindEpochManagerContract(ctx)
+func (a EpochActions) getCurrentEpoch(ctx *cli.Context) error {
+	epochManager, err := a.bindContract(ctx)
 	if err != nil {
 		return err
 	}
@@ -86,11 +78,11 @@ func getCurrentEpoch(ctx *cli.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "get current epoch failed")
 	}
-	return pretty(epochInfo)
+	return common.Pretty(epochInfo)
 }
 
-func getNextEpoch(ctx *cli.Context) error {
-	epochManager, err := bindEpochManagerContract(ctx)
+func (a EpochActions) getNextEpoch(ctx *cli.Context) error {
+	epochManager, err := a.bindContract(ctx)
 	if err != nil {
 		return err
 	}
@@ -98,21 +90,21 @@ func getNextEpoch(ctx *cli.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "get next epoch failed")
 	}
-	return pretty(epochInfo)
+	return common.Pretty(epochInfo)
 }
 
-func getHistoryEpoch(ctx *cli.Context) error {
+func (a EpochActions) getHistoryEpoch(ctx *cli.Context) error {
 	if !ctx.IsSet("epoch") {
-		historyEpochArgs.Epoch = 1
+		EpochCMDHistoryEpochArgs.Epoch = 1
 	}
 
-	epochManager, err := bindEpochManagerContract(ctx)
+	epochManager, err := a.bindContract(ctx)
 	if err != nil {
 		return err
 	}
-	epochInfo, err := epochManager.HistoryEpoch(&bind.CallOpts{Context: ctx.Context}, historyEpochArgs.Epoch)
+	epochInfo, err := epochManager.HistoryEpoch(&bind.CallOpts{Context: ctx.Context}, EpochCMDHistoryEpochArgs.Epoch)
 	if err != nil {
 		return errors.Wrap(err, "get history epoch failed")
 	}
-	return pretty(epochInfo)
+	return common.Pretty(epochInfo)
 }

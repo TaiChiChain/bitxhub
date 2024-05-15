@@ -15,6 +15,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/internal/app"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
@@ -28,7 +29,7 @@ var startArgs = struct {
 }{}
 
 func start(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -38,9 +39,9 @@ func start(ctx *cli.Context) error {
 		return nil
 	}
 
-	password := keystorePasswordFlagVar
-	if !ctx.IsSet(keystorePasswordFlag().Name) {
-		password, err = enterPassword(false)
+	password := common.KeystorePasswordFlagVar
+	if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
+		password, err = common.EnterPassword(false)
 		if err != nil {
 			return err
 		}

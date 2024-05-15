@@ -161,6 +161,16 @@
             "internalType": "uint64",
             "name": "EffectiveBlockNumber",
             "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "ExecuteSuccess",
+            "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "ExecuteFailedMsg",
+            "type": "string"
           }
         ],
         "internalType": "struct Proposal",

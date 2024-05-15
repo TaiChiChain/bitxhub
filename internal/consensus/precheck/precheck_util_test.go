@@ -41,6 +41,7 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 	ctrl := gomock.NewController(t)
 	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, ctrl)
 	r := repo.MockRepo(t)
+	r.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByMol(0)
 	cnf := &common2.Config{
 		Logger: logger,
 		GenesisEpochInfo: &types.EpochInfo{

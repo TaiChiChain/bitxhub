@@ -37,6 +37,8 @@ type Proposal struct {
 	Extra                []byte
 	CreatedBlockNumber   uint64
 	EffectiveBlockNumber uint64
+	ExecuteSuccess       bool
+	ExecuteFailedMsg     string
 }
 
 type Governance interface {
@@ -58,7 +60,7 @@ type Governance interface {
 
 	// Proposal is a free data retrieval call binding the contract method 0x7afa0aa3.
 	//
-	// Solidity: function proposal(uint64 proposalID) view returns((uint64,uint8,uint8,string,string,string,uint64,uint64,string[],string[],uint8,bytes,uint64,uint64) proposal)
+	// Solidity: function proposal(uint64 proposalID) view returns((uint64,uint8,uint8,string,string,string,uint64,uint64,string[],string[],uint8,bytes,uint64,uint64,bool,string) proposal)
 	Proposal(proposalID uint64) (Proposal, error)
 }
 

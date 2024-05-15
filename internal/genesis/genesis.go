@@ -48,7 +48,7 @@ func Initialize(genesis *repo.GenesisConfig, lg *ledger.Ledger) error {
 			Epoch:          genesis.EpochInfo.Epoch,
 			Bloom:          new(types.Bloom),
 			ProposerNodeID: 0,
-			GasPrice:       genesis.EpochInfo.FinanceParams.StartGasPrice.ToBigInt().Uint64(),
+			GasPrice:       0,
 			GasUsed:        0,
 			TotalGasFee:    big.NewInt(0),
 			GasFeeReward:   big.NewInt(0),
@@ -85,8 +85,8 @@ func initializeGenesisConfig(genesis *repo.GenesisConfig, lg ledger.StateLedger)
 }
 
 // GetGenesisConfig retrieves the genesis configuration from the given ledger.
-func GetGenesisConfig(lg *ledger.Ledger) (*repo.GenesisConfig, error) {
-	account := lg.StateLedger.GetAccount(types.NewAddressByStr(common.ZeroAddress))
+func GetGenesisConfig(lg ledger.StateLedger) (*repo.GenesisConfig, error) {
+	account := lg.GetAccount(types.NewAddressByStr(common.ZeroAddress))
 	if account == nil {
 		return nil, nil
 	}

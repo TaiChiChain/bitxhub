@@ -484,7 +484,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		tp.PostUncheckedTxEvent(event)
 		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
-		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error(),
+		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFundsForTransfer.Error(),
 			"when gasFeeCap is not nil, preCheck gasFeeCap*gasLimit+value firstly")
 	})
 }

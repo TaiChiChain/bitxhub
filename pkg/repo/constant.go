@@ -72,7 +72,5 @@ var (
 	DefaultAXCBalance     = types.CoinNumberByAxc(1000000000) // 1 billion AXC
 	DefaultAccountBalance = types.CoinNumberByAxc(10000000)   // 10 million AXC
 
-	DefaultStartGasPrice = types.CoinNumberByGmol(5000)
-	DefaultMaxGasPrice   = types.CoinNumberByGmol(10000)
-	DefaultMinGasPrice   = types.CoinNumberByGmol(1000)
+	DefaultMinGasPrice = types.CoinNumberByGmol(1000)
 )

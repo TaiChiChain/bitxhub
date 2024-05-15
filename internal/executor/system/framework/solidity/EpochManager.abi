@@ -102,31 +102,6 @@
                 "internalType": "uint256",
                 "name": "MinGasPrice",
                 "type": "uint256"
-              },
-              {
-                "internalType": "bool",
-                "name": "StartGasPriceAvailable",
-                "type": "bool"
-              },
-              {
-                "internalType": "uint256",
-                "name": "StartGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "MaxGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint64",
-                "name": "GasChangeRateValue",
-                "type": "uint64"
-              },
-              {
-                "internalType": "uint64",
-                "name": "GasChangeRateDecimals",
-                "type": "uint64"
               }
             ],
             "internalType": "struct FinanceParams",
@@ -313,31 +288,6 @@
                 "internalType": "uint256",
                 "name": "MinGasPrice",
                 "type": "uint256"
-              },
-              {
-                "internalType": "bool",
-                "name": "StartGasPriceAvailable",
-                "type": "bool"
-              },
-              {
-                "internalType": "uint256",
-                "name": "StartGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "MaxGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint64",
-                "name": "GasChangeRateValue",
-                "type": "uint64"
-              },
-              {
-                "internalType": "uint64",
-                "name": "GasChangeRateDecimals",
-                "type": "uint64"
               }
             ],
             "internalType": "struct FinanceParams",
@@ -517,31 +467,6 @@
                 "internalType": "uint256",
                 "name": "MinGasPrice",
                 "type": "uint256"
-              },
-              {
-                "internalType": "bool",
-                "name": "StartGasPriceAvailable",
-                "type": "bool"
-              },
-              {
-                "internalType": "uint256",
-                "name": "StartGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "MaxGasPrice",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint64",
-                "name": "GasChangeRateValue",
-                "type": "uint64"
-              },
-              {
-                "internalType": "uint64",
-                "name": "GasChangeRateDecimals",
-                "type": "uint64"
               }
             ],
             "internalType": "struct FinanceParams",

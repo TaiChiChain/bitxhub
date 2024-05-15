@@ -535,10 +535,6 @@ func formatBlock(api api.CoreAPI, epochInfo *types.EpochInfo, blockHeader *types
 			transactions[i] = txHash.ETHHash()
 		}
 	}
-	gasPrice, err := api.Gas().GetCurrentGasPrice(blockHeader.Number)
-	if err != nil {
-		return nil, err
-	}
 
 	blockExtra, err := api.Broker().GetBlockExtra(blockHeader.Number)
 	if err != nil {
@@ -547,7 +543,7 @@ func formatBlock(api api.CoreAPI, epochInfo *types.EpochInfo, blockHeader *types
 	return map[string]any{
 		"number":           (*ethhexutil.Big)(big.NewInt(int64(blockHeader.Number))),
 		"hash":             blockHeader.Hash().ETHHash(),
-		"baseFeePerGas":    ethhexutil.Uint64(gasPrice),
+		"baseFeePerGas":    ethhexutil.Uint64(0),
 		"parentHash":       blockHeader.ParentHash.ETHHash(),
 		"nonce":            ethtypes.BlockNonce{}, // PoW specific
 		"logsBloom":        blockHeader.Bloom.ETHBloom(),

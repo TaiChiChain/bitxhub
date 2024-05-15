@@ -11,6 +11,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/internal/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -40,7 +41,7 @@ var txpoolCMD = &cli.Command{
 }
 
 func getAllTxRecords(ctx *cli.Context) error {
-	r, err := prepareRepo(ctx)
+	r, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
 	}

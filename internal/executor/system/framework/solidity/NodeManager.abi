@@ -543,7 +543,7 @@
         "type": "uint64"
       }
     ],
-    "name": "getNodeInfo",
+    "name": "getInfo",
     "outputs":
     [
       {
@@ -625,7 +625,7 @@
         "type": "uint64[]"
       }
     ],
-    "name": "getNodeInfos",
+    "name": "getInfos",
     "outputs":
     [
       {
@@ -775,7 +775,7 @@
   },
   {
     "inputs": [],
-    "name": "getTotalNodeCount",
+    "name": "getTotalCount",
     "outputs":
     [
       {

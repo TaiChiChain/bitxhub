@@ -1149,7 +1149,7 @@ func (p *txPoolImpl[T, Constraint]) validateTxData(tx *T) error {
 		}
 	}
 
-	return components.VerifyInsufficientBalance[T, Constraint](tx, minGasPrice, p.getAccountBalance)
+	return components.VerifyInsufficientBalance[T, Constraint](tx, p.getAccountBalance)
 }
 
 func (p *txPoolImpl[T, Constraint]) popExecutableTxs(size uint64, batch *commonpool.RequestHashBatch[T, Constraint]) map[string]*internalTransaction[T, Constraint] {

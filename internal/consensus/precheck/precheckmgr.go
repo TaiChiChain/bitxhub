@@ -251,7 +251,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					localCheckRespCh = txWithResp.CheckCh
 					localPoolRespCh = txWithResp.PoolCh
 					// check balance
-					if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](txWithResp.Tx, tp.chainState.ChainMeta.GasPrice, tp.getBalanceFn); err != nil {
+					if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](txWithResp.Tx, tp.getBalanceFn); err != nil {
 						respLocalTx(responseType_precheck, txWithResp.CheckCh, wrapError(err))
 						return
 					}
@@ -265,7 +265,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 						return
 					}
 					for _, tx := range txSet {
-						if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.chainState.ChainMeta.GasPrice, tp.getBalanceFn); err != nil {
+						if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.getBalanceFn); err != nil {
 							tp.logger.Warningf("verify remote tx balance failed: %v", err)
 							continue
 						}
@@ -312,13 +312,14 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 		return ErrOversizedData
 	}
 
-	gasPrice := tp.chainState.ChainMeta.GasPrice
-	// ignore gas price if it's 0 or nil
-	if tx.GetGasPrice() != nil {
-		if tx.GetGasPrice().Uint64() != 0 && tx.GetGasPrice().Cmp(gasPrice) < 0 {
-			return fmt.Errorf("%w:[hash:%s, nonce:%d] expect min gasPrice: %v, get price %v",
-				errGasPriceTooLow, tx.GetHash().String(), tx.GetNonce(), gasPrice, tx.GetGasPrice())
-		}
+	minGasPrice := tp.chainState.EpochInfo.FinanceParams.MinGasPrice.ToBigInt()
+
+	if tx.GetGasPrice() == nil {
+		return errors.New("tx has no gas price")
+	}
+	if tx.GetGasPrice().Cmp(minGasPrice) < 0 {
+		return fmt.Errorf("%w:[hash:%s, nonce:%d] expect min gasPrice: %v, get price %v",
+			errGasPriceTooLow, tx.GetHash().String(), tx.GetNonce(), minGasPrice, tx.GetGasPrice())
 	}
 
 	// 2. check the gas parameters's format are valid

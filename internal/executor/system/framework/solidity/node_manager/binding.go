@@ -88,25 +88,25 @@ type NodeManager interface {
 	// Solidity: function getExitedSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetExitedSet() ([]NodeInfo, error)
 
-	// GetNodeInfo is a free data retrieval call binding the contract method 0xdcea08de.
+	// GetInfo is a free data retrieval call binding the contract method 0x1ba603d6.
 	//
-	// Solidity: function getNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
-	GetNodeInfo(nodeID uint64) (NodeInfo, error)
+	// Solidity: function getInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
+	GetInfo(nodeID uint64) (NodeInfo, error)
 
-	// GetNodeInfos is a free data retrieval call binding the contract method 0xbc39e0c4.
+	// GetInfos is a free data retrieval call binding the contract method 0x84e7ee6e.
 	//
-	// Solidity: function getNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
-	GetNodeInfos(nodeIDs []uint64) ([]NodeInfo, error)
+	// Solidity: function getInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
+	GetInfos(nodeIDs []uint64) ([]NodeInfo, error)
 
 	// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
 	//
 	// Solidity: function getPendingInactiveSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetPendingInactiveSet() ([]NodeInfo, error)
 
-	// GetTotalNodeCount is a free data retrieval call binding the contract method 0x4110fe25.
+	// GetTotalCount is a free data retrieval call binding the contract method 0x56d42bb3.
 	//
-	// Solidity: function getTotalNodeCount() view returns(uint64)
-	GetTotalNodeCount() (uint64, error)
+	// Solidity: function getTotalCount() view returns(uint64)
+	GetTotalCount() (uint64, error)
 }
 
 // EventJoinedCandidateSet represents a JoinedCandidateSet event raised by the NodeManager contract.

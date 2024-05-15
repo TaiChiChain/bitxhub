@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"path"
 	"strconv"
 	"time"
@@ -382,13 +381,11 @@ func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Bloc
 
 	meta := &types.ChainMeta{
 		Height:    lastBlock.Header.Number,
-		GasPrice:  new(big.Int).SetUint64(lastBlock.Header.GasPrice),
 		BlockHash: lastBlock.Hash(),
 	}
 
 	l.logger.WithFields(logrus.Fields{
 		"Height":    meta.Height,
-		"GasPrice":  meta.GasPrice,
 		"BlockHash": meta.BlockHash,
 	}).Debug("prepare chain meta")
 
@@ -415,7 +412,6 @@ func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Bloc
 // UpdateChainMeta update the chain meta data
 func (l *ChainLedgerImpl) UpdateChainMeta(meta *types.ChainMeta) {
 	l.chainMeta.Height = meta.Height
-	l.chainMeta.GasPrice = meta.GasPrice
 	l.chainMeta.BlockHash = meta.BlockHash
 }
 
@@ -423,7 +419,6 @@ func (l *ChainLedgerImpl) UpdateChainMeta(meta *types.ChainMeta) {
 func (l *ChainLedgerImpl) GetChainMeta() *types.ChainMeta {
 	return &types.ChainMeta{
 		Height:    l.chainMeta.Height,
-		GasPrice:  l.chainMeta.GasPrice,
 		BlockHash: l.chainMeta.BlockHash,
 	}
 }
@@ -566,7 +561,6 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 	}
 	meta = &types.ChainMeta{
 		Height:    block.Header.Number,
-		GasPrice:  new(big.Int).SetUint64(block.Header.GasPrice),
 		BlockHash: block.Hash(),
 	}
 
@@ -608,7 +602,6 @@ func (l *ChainLedgerImpl) checkChainMeta() error {
 			return err
 		}
 
-		l.chainMeta.GasPrice = new(big.Int).SetUint64(currentBlock.Header.GasPrice)
 		l.chainMeta.BlockHash = currentBlock.Hash()
 		if err := l.persistChainMeta(batcher, l.chainMeta); err != nil {
 			return fmt.Errorf("update chain meta: %w", err)

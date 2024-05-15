@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -195,7 +195,7 @@ func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 			},
 			PreProposeHook: func(t *testing.T, ctx *common.VMContext) {
 				nodeManagerContract := framework.NodeManagerBuildConfig.Build(ctx)
-				nodeInfo, err := nodeManagerContract.GetNodeInfo(2)
+				nodeInfo, err := nodeManagerContract.GetInfo(2)
 				assert.Nil(t, err)
 				nodeInfo.Status = uint8(types.NodeStatusExited)
 				err = nodeManagerContract.TestPutNodeInfo(&nodeInfo)
@@ -384,7 +384,7 @@ func TestNodeManager_RunForRegisterVote_Approved(t *testing.T) {
 		})
 	}
 
-	nodeInfo, err := nodeManager.GetNodeInfo(5)
+	nodeInfo, err := nodeManager.GetInfo(5)
 	assert.Nil(t, err)
 	assert.EqualValues(t, 5, nodeInfo.ID)
 	assert.EqualValues(t, "node5", nodeInfo.MetaData.Name)
@@ -528,7 +528,7 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 		})
 	}
 
-	nodeInfo, err := nodeManager.GetNodeInfo(5)
+	nodeInfo, err := nodeManager.GetInfo(5)
 	assert.Nil(t, err)
 	assert.EqualValues(t, types.NodeStatusExited, nodeInfo.Status)
 }

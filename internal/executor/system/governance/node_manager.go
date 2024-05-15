@@ -153,7 +153,7 @@ func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, 
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
 
-	nodeInfo, err := nodeManagerContract.GetNodeInfo(nodeExtraArgs.NodeID)
+	nodeInfo, err := nodeManagerContract.GetInfo(nodeExtraArgs.NodeID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node info %d", nodeExtraArgs.NodeID)
 	}

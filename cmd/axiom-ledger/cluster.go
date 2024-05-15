@@ -12,6 +12,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -110,7 +111,7 @@ var clusterCMD = &cli.Command{
 			Flags: []cli.Flag{
 				clusterGenerateTargetDirFlag(),
 				clusterGenerateForceFlag(),
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 			},
 		},
 		{
@@ -120,7 +121,7 @@ var clusterCMD = &cli.Command{
 			Flags: []cli.Flag{
 				clusterGenerateTargetDirFlag(),
 				clusterGenerateForceFlag(),
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 				&cli.Uint64Flag{
 					Name:        "node-number",
 					Usage:       "Generate nodes number",
@@ -142,7 +143,7 @@ var clusterCMD = &cli.Command{
 				},
 				clusterGenerateTargetDirFlag(),
 				clusterGenerateForceFlag(),
-				keystorePasswordFlag(),
+				common.KeystorePasswordFlag(),
 			},
 		},
 		{
@@ -223,7 +224,7 @@ func generateDefault(ctx *cli.Context) error {
 				Port:                ClusterNodePort{},
 			},
 		},
-	}, keystorePasswordFlagVar, clusterGenerateTargetDir, clusterGenerateForce, defaultCouncilMemberKeyMap)
+	}, common.KeystorePasswordFlagVar, clusterGenerateTargetDir, clusterGenerateForce, defaultCouncilMemberKeyMap)
 
 	return helper.Generate()
 }
@@ -243,7 +244,7 @@ func quickGenerate(ctx *cli.Context) error {
 		Nodes: lo.RepeatBy(int(clusterGenerateNodeNumber), func(index int) *ClusterNode {
 			return &ClusterNode{}
 		}),
-	}, keystorePasswordFlagVar, clusterGenerateTargetDir, clusterGenerateForce, nil)
+	}, common.KeystorePasswordFlagVar, clusterGenerateTargetDir, clusterGenerateForce, nil)
 
 	return helper.Generate()
 }
@@ -265,7 +266,7 @@ func generateByConfig(ctx *cli.Context) error {
 		return errors.Wrapf(err, "failed to unmarshal config from %s", clusterGenerateConfigPath)
 	}
 
-	helper := NewClusterGeneratorHelper(&cfg, keystorePasswordFlagVar, clusterGenerateTargetDir, clusterGenerateForce, nil)
+	helper := NewClusterGeneratorHelper(&cfg, common.KeystorePasswordFlagVar, clusterGenerateTargetDir, clusterGenerateForce, nil)
 	return helper.Generate()
 }
 

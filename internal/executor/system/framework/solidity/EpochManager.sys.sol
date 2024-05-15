@@ -20,11 +20,6 @@ struct ConsensusParams {
 struct FinanceParams {
     uint64 GasLimit;
     uint256 MinGasPrice;
-    bool StartGasPriceAvailable;
-    uint256 StartGasPrice;
-    uint256 MaxGasPrice;
-    uint64 GasChangeRateValue;
-    uint64 GasChangeRateDecimals;
 }
 
 struct StakeParams {

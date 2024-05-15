@@ -90,19 +90,19 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "newPrincipal",
+        "name": "_newPrincipal",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "newUnlocked",
+        "name": "_newUnlocked",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint64",
-        "name": "newActiveEpoch",
+        "name": "_newActiveEpoch",
         "type": "uint64"
       }
     ],
@@ -114,7 +114,7 @@
     [
       {
         "internalType": "address",
-        "name": "_approved",
+        "name": "_to",
         "type": "address"
       },
       {

@@ -67,7 +67,6 @@ func (gm *GasManager) VotePassExecute(proposal *Proposal) error {
 		return err
 	}
 	nextEpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByMol(extraArgs.MinGasPrice)
-	nextEpochInfo.FinanceParams.StartGasPriceAvailable = true
 
 	if err := epochManagerContract.UpdateNextEpoch(nextEpochInfo); err != nil {
 		return err

@@ -20,7 +20,7 @@ interface LiquidStakingToken {
     event Transfer(address indexed _from, address indexed _to, uint256 indexed _tokenId);
     event Approval(address indexed _owner, address indexed _approved, uint256 indexed _tokenId);
     event ApprovalForAll(address indexed _owner, address indexed _operator, bool _approved);
-    event UpdateInfo(uint256 indexed _tokenId, uint256 newPrincipal, uint256 newUnlocked, uint64 newActiveEpoch);
+    event UpdateInfo(uint256 indexed _tokenId, uint256 _newPrincipal, uint256 _newUnlocked, uint64 _newActiveEpoch);
 
     function balanceOf(address _owner) external view returns (uint256);
 
@@ -32,7 +32,7 @@ interface LiquidStakingToken {
 
     function transferFrom(address _from, address _to, uint256 _tokenId) external payable;
 
-    function approve(address _approved, uint256 _tokenId) external payable;
+    function approve(address _to, uint256 _tokenId) external payable;
 
     function setApprovalForAll(address _operator, bool _approved) external;
 
