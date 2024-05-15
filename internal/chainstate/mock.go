@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"sync"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -39,7 +40,7 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 				ConsensusPubKey: nodeInfo.ConsensusPubKey,
 				P2PPubKey:       nodeInfo.P2PPubKey,
 				P2PID:           p2pID,
-				OperatorAddress: nodeInfo.OperatorAddress,
+				Operator:        ethcommon.HexToAddress(nodeInfo.OperatorAddress),
 				MetaData: node_manager.NodeMetaData{
 					Name:       nodeInfo.MetaData.Name,
 					Desc:       nodeInfo.MetaData.Desc,

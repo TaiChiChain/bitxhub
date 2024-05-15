@@ -3,6 +3,7 @@ package repo
 import (
 	"os"
 	"path"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -101,10 +102,11 @@ func GenesisEpochInfo() *types.EpochInfo {
 			GasChangeRateDecimals:  4,
 		},
 		StakeParams: types.StakeParams{
-			StakeEnable:                      true,
-			MaxAddStakeRatio:                 1000,
-			MaxUnlockStakeRatio:              1000,
-			UnlockPeriodEpochNumber:          10,
+			StakeEnable:         true,
+			MaxAddStakeRatio:    1000,
+			MaxUnlockStakeRatio: 1000,
+			// 3 days
+			UnlockPeriod:                     uint64(3*24*time.Hour) / uint64(time.Second),
 			MaxPendingInactiveValidatorRatio: 10,
 			MinDelegateStake:                 types.CoinNumberByAxc(100),
 			MinValidatorStake:                types.CoinNumberByAxc(10000000),

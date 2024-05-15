@@ -41,7 +41,7 @@ type NodeInfo struct {
 	ConsensusPubKey string
 	P2PPubKey       string
 	P2PID           string
-	OperatorAddress string
+	Operator        common.Address
 	MetaData        NodeMetaData
 	Status          uint8
 }
@@ -56,7 +56,7 @@ type NodeMetaData struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"incorrectStatus\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"pendingInactiveSetIsFull\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"JoinedCandidateSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"JoinedPendingInactiveSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"LeavedCandidateSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"Registered\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"indexed\":false,\"internalType\":\"structNodeMetaData\",\"name\":\"metaData\",\"type\":\"tuple\"}],\"name\":\"UpdateMetaData\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"newOperatorAddress\",\"type\":\"string\"}],\"name\":\"UpdateOperator\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"GetActiveValidatorSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"NodeID\",\"type\":\"uint64\"},{\"internalType\":\"int64\",\"name\":\"ConsensusVotingPower\",\"type\":\"int64\"}],\"internalType\":\"structConsensusVotingPower[]\",\"name\":\"votingPowers\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetCandidateSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetDataSyncerSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetExitedSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"GetNodeInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"nodeIDs\",\"type\":\"uint64[]\"}],\"name\":\"GetNodeInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetPendingInactiveSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"OperatorAddress\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"GetTotalNodeCount\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"joinCandidateSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"leaveValidatorOrCandidateSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"metaData\",\"type\":\"tuple\"}],\"name\":\"updateMetaData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"newOperatorAddress\",\"type\":\"string\"}],\"name\":\"updateOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"IncorrectStatus\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"PendingInactiveSetIsFull\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"JoinedCandidateSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"JoinedPendingInactiveSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"LeavedCandidateSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"indexed\":false,\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"name\":\"Register\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"indexed\":false,\"internalType\":\"structNodeMetaData\",\"name\":\"metaData\",\"type\":\"tuple\"}],\"name\":\"UpdateMetaData\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"newOperator\",\"type\":\"address\"}],\"name\":\"UpdateOperator\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"exit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getActiveValidatorSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"NodeID\",\"type\":\"uint64\"},{\"internalType\":\"int64\",\"name\":\"ConsensusVotingPower\",\"type\":\"int64\"}],\"internalType\":\"structConsensusVotingPower[]\",\"name\":\"votingPowers\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCandidateSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getDataSyncerSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getExitedSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"getNodeInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"nodeIDs\",\"type\":\"uint64[]\"}],\"name\":\"getNodeInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getPendingInactiveSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getTotalNodeCount\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"commissionRate\",\"type\":\"uint64\"}],\"name\":\"joinCandidateSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"metaData\",\"type\":\"tuple\"}],\"name\":\"updateMetaData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"newOperator\",\"type\":\"address\"}],\"name\":\"updateOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -205,15 +205,15 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
-// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x59acaac4.
+// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x24408a68.
 //
-// Solidity: function GetActiveValidatorSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
+// Solidity: function getActiveValidatorSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
 func (_BindingContract *BindingContractCaller) GetActiveValidatorSet(opts *bind.CallOpts) (struct {
 	Info         []NodeInfo
 	VotingPowers []ConsensusVotingPower
 }, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetActiveValidatorSet")
+	err := _BindingContract.contract.Call(opts, &out, "getActiveValidatorSet")
 
 	outstruct := new(struct {
 		Info         []NodeInfo
@@ -230,9 +230,9 @@ func (_BindingContract *BindingContractCaller) GetActiveValidatorSet(opts *bind.
 
 }
 
-// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x59acaac4.
+// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x24408a68.
 //
-// Solidity: function GetActiveValidatorSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
+// Solidity: function getActiveValidatorSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
 func (_BindingContract *BindingContractSession) GetActiveValidatorSet() (struct {
 	Info         []NodeInfo
 	VotingPowers []ConsensusVotingPower
@@ -240,9 +240,9 @@ func (_BindingContract *BindingContractSession) GetActiveValidatorSet() (struct 
 	return _BindingContract.Contract.GetActiveValidatorSet(&_BindingContract.CallOpts)
 }
 
-// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x59acaac4.
+// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x24408a68.
 //
-// Solidity: function GetActiveValidatorSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
+// Solidity: function getActiveValidatorSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
 func (_BindingContract *BindingContractCallerSession) GetActiveValidatorSet() (struct {
 	Info         []NodeInfo
 	VotingPowers []ConsensusVotingPower
@@ -250,12 +250,12 @@ func (_BindingContract *BindingContractCallerSession) GetActiveValidatorSet() (s
 	return _BindingContract.Contract.GetActiveValidatorSet(&_BindingContract.CallOpts)
 }
 
-// GetCandidateSet is a free data retrieval call binding the contract method 0x84c3e579.
+// GetCandidateSet is a free data retrieval call binding the contract method 0x9c137646.
 //
-// Solidity: function GetCandidateSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getCandidateSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCaller) GetCandidateSet(opts *bind.CallOpts) ([]NodeInfo, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetCandidateSet")
+	err := _BindingContract.contract.Call(opts, &out, "getCandidateSet")
 
 	if err != nil {
 		return *new([]NodeInfo), err
@@ -267,26 +267,26 @@ func (_BindingContract *BindingContractCaller) GetCandidateSet(opts *bind.CallOp
 
 }
 
-// GetCandidateSet is a free data retrieval call binding the contract method 0x84c3e579.
+// GetCandidateSet is a free data retrieval call binding the contract method 0x9c137646.
 //
-// Solidity: function GetCandidateSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getCandidateSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractSession) GetCandidateSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetCandidateSet(&_BindingContract.CallOpts)
 }
 
-// GetCandidateSet is a free data retrieval call binding the contract method 0x84c3e579.
+// GetCandidateSet is a free data retrieval call binding the contract method 0x9c137646.
 //
-// Solidity: function GetCandidateSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getCandidateSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCallerSession) GetCandidateSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetCandidateSet(&_BindingContract.CallOpts)
 }
 
-// GetDataSyncerSet is a free data retrieval call binding the contract method 0x834b2b3b.
+// GetDataSyncerSet is a free data retrieval call binding the contract method 0x39937e75.
 //
-// Solidity: function GetDataSyncerSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCaller) GetDataSyncerSet(opts *bind.CallOpts) ([]NodeInfo, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetDataSyncerSet")
+	err := _BindingContract.contract.Call(opts, &out, "getDataSyncerSet")
 
 	if err != nil {
 		return *new([]NodeInfo), err
@@ -298,26 +298,26 @@ func (_BindingContract *BindingContractCaller) GetDataSyncerSet(opts *bind.CallO
 
 }
 
-// GetDataSyncerSet is a free data retrieval call binding the contract method 0x834b2b3b.
+// GetDataSyncerSet is a free data retrieval call binding the contract method 0x39937e75.
 //
-// Solidity: function GetDataSyncerSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractSession) GetDataSyncerSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetDataSyncerSet(&_BindingContract.CallOpts)
 }
 
-// GetDataSyncerSet is a free data retrieval call binding the contract method 0x834b2b3b.
+// GetDataSyncerSet is a free data retrieval call binding the contract method 0x39937e75.
 //
-// Solidity: function GetDataSyncerSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCallerSession) GetDataSyncerSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetDataSyncerSet(&_BindingContract.CallOpts)
 }
 
-// GetExitedSet is a free data retrieval call binding the contract method 0x709de02e.
+// GetExitedSet is a free data retrieval call binding the contract method 0x4c434612.
 //
-// Solidity: function GetExitedSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getExitedSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCaller) GetExitedSet(opts *bind.CallOpts) ([]NodeInfo, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetExitedSet")
+	err := _BindingContract.contract.Call(opts, &out, "getExitedSet")
 
 	if err != nil {
 		return *new([]NodeInfo), err
@@ -329,26 +329,26 @@ func (_BindingContract *BindingContractCaller) GetExitedSet(opts *bind.CallOpts)
 
 }
 
-// GetExitedSet is a free data retrieval call binding the contract method 0x709de02e.
+// GetExitedSet is a free data retrieval call binding the contract method 0x4c434612.
 //
-// Solidity: function GetExitedSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getExitedSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractSession) GetExitedSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetExitedSet(&_BindingContract.CallOpts)
 }
 
-// GetExitedSet is a free data retrieval call binding the contract method 0x709de02e.
+// GetExitedSet is a free data retrieval call binding the contract method 0x4c434612.
 //
-// Solidity: function GetExitedSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getExitedSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCallerSession) GetExitedSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetExitedSet(&_BindingContract.CallOpts)
 }
 
-// GetNodeInfo is a free data retrieval call binding the contract method 0x7e6f8582.
+// GetNodeInfo is a free data retrieval call binding the contract method 0xdcea08de.
 //
-// Solidity: function GetNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,string,(string,string,string,string),uint8) info)
+// Solidity: function getNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
 func (_BindingContract *BindingContractCaller) GetNodeInfo(opts *bind.CallOpts, nodeID uint64) (NodeInfo, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetNodeInfo", nodeID)
+	err := _BindingContract.contract.Call(opts, &out, "getNodeInfo", nodeID)
 
 	if err != nil {
 		return *new(NodeInfo), err
@@ -360,26 +360,26 @@ func (_BindingContract *BindingContractCaller) GetNodeInfo(opts *bind.CallOpts, 
 
 }
 
-// GetNodeInfo is a free data retrieval call binding the contract method 0x7e6f8582.
+// GetNodeInfo is a free data retrieval call binding the contract method 0xdcea08de.
 //
-// Solidity: function GetNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,string,(string,string,string,string),uint8) info)
+// Solidity: function getNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
 func (_BindingContract *BindingContractSession) GetNodeInfo(nodeID uint64) (NodeInfo, error) {
 	return _BindingContract.Contract.GetNodeInfo(&_BindingContract.CallOpts, nodeID)
 }
 
-// GetNodeInfo is a free data retrieval call binding the contract method 0x7e6f8582.
+// GetNodeInfo is a free data retrieval call binding the contract method 0xdcea08de.
 //
-// Solidity: function GetNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,string,(string,string,string,string),uint8) info)
+// Solidity: function getNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
 func (_BindingContract *BindingContractCallerSession) GetNodeInfo(nodeID uint64) (NodeInfo, error) {
 	return _BindingContract.Contract.GetNodeInfo(&_BindingContract.CallOpts, nodeID)
 }
 
-// GetNodeInfos is a free data retrieval call binding the contract method 0xc8c22194.
+// GetNodeInfos is a free data retrieval call binding the contract method 0xbc39e0c4.
 //
-// Solidity: function GetNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info)
+// Solidity: function getNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
 func (_BindingContract *BindingContractCaller) GetNodeInfos(opts *bind.CallOpts, nodeIDs []uint64) ([]NodeInfo, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetNodeInfos", nodeIDs)
+	err := _BindingContract.contract.Call(opts, &out, "getNodeInfos", nodeIDs)
 
 	if err != nil {
 		return *new([]NodeInfo), err
@@ -391,26 +391,26 @@ func (_BindingContract *BindingContractCaller) GetNodeInfos(opts *bind.CallOpts,
 
 }
 
-// GetNodeInfos is a free data retrieval call binding the contract method 0xc8c22194.
+// GetNodeInfos is a free data retrieval call binding the contract method 0xbc39e0c4.
 //
-// Solidity: function GetNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info)
+// Solidity: function getNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
 func (_BindingContract *BindingContractSession) GetNodeInfos(nodeIDs []uint64) ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetNodeInfos(&_BindingContract.CallOpts, nodeIDs)
 }
 
-// GetNodeInfos is a free data retrieval call binding the contract method 0xc8c22194.
+// GetNodeInfos is a free data retrieval call binding the contract method 0xbc39e0c4.
 //
-// Solidity: function GetNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info)
+// Solidity: function getNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
 func (_BindingContract *BindingContractCallerSession) GetNodeInfos(nodeIDs []uint64) ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetNodeInfos(&_BindingContract.CallOpts, nodeIDs)
 }
 
-// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xa3295256.
+// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
 //
-// Solidity: function GetPendingInactiveSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getPendingInactiveSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCaller) GetPendingInactiveSet(opts *bind.CallOpts) ([]NodeInfo, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetPendingInactiveSet")
+	err := _BindingContract.contract.Call(opts, &out, "getPendingInactiveSet")
 
 	if err != nil {
 		return *new([]NodeInfo), err
@@ -422,26 +422,26 @@ func (_BindingContract *BindingContractCaller) GetPendingInactiveSet(opts *bind.
 
 }
 
-// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xa3295256.
+// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
 //
-// Solidity: function GetPendingInactiveSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getPendingInactiveSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractSession) GetPendingInactiveSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetPendingInactiveSet(&_BindingContract.CallOpts)
 }
 
-// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xa3295256.
+// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
 //
-// Solidity: function GetPendingInactiveSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+// Solidity: function getPendingInactiveSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCallerSession) GetPendingInactiveSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetPendingInactiveSet(&_BindingContract.CallOpts)
 }
 
-// GetTotalNodeCount is a free data retrieval call binding the contract method 0x1a9efb39.
+// GetTotalNodeCount is a free data retrieval call binding the contract method 0x4110fe25.
 //
-// Solidity: function GetTotalNodeCount() view returns(uint64)
+// Solidity: function getTotalNodeCount() view returns(uint64)
 func (_BindingContract *BindingContractCaller) GetTotalNodeCount(opts *bind.CallOpts) (uint64, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetTotalNodeCount")
+	err := _BindingContract.contract.Call(opts, &out, "getTotalNodeCount")
 
 	if err != nil {
 		return *new(uint64), err
@@ -453,60 +453,60 @@ func (_BindingContract *BindingContractCaller) GetTotalNodeCount(opts *bind.Call
 
 }
 
-// GetTotalNodeCount is a free data retrieval call binding the contract method 0x1a9efb39.
+// GetTotalNodeCount is a free data retrieval call binding the contract method 0x4110fe25.
 //
-// Solidity: function GetTotalNodeCount() view returns(uint64)
+// Solidity: function getTotalNodeCount() view returns(uint64)
 func (_BindingContract *BindingContractSession) GetTotalNodeCount() (uint64, error) {
 	return _BindingContract.Contract.GetTotalNodeCount(&_BindingContract.CallOpts)
 }
 
-// GetTotalNodeCount is a free data retrieval call binding the contract method 0x1a9efb39.
+// GetTotalNodeCount is a free data retrieval call binding the contract method 0x4110fe25.
 //
-// Solidity: function GetTotalNodeCount() view returns(uint64)
+// Solidity: function getTotalNodeCount() view returns(uint64)
 func (_BindingContract *BindingContractCallerSession) GetTotalNodeCount() (uint64, error) {
 	return _BindingContract.Contract.GetTotalNodeCount(&_BindingContract.CallOpts)
 }
 
-// JoinCandidateSet is a paid mutator transaction binding the contract method 0x2b27ec44.
+// Exit is a paid mutator transaction binding the contract method 0x0f143c6a.
 //
-// Solidity: function joinCandidateSet(uint64 nodeID) returns()
-func (_BindingContract *BindingContractTransactor) JoinCandidateSet(opts *bind.TransactOpts, nodeID uint64) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "joinCandidateSet", nodeID)
+// Solidity: function exit(uint64 nodeID) returns()
+func (_BindingContract *BindingContractTransactor) Exit(opts *bind.TransactOpts, nodeID uint64) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "exit", nodeID)
 }
 
-// JoinCandidateSet is a paid mutator transaction binding the contract method 0x2b27ec44.
+// Exit is a paid mutator transaction binding the contract method 0x0f143c6a.
 //
-// Solidity: function joinCandidateSet(uint64 nodeID) returns()
-func (_BindingContract *BindingContractSession) JoinCandidateSet(nodeID uint64) (*types.Transaction, error) {
-	return _BindingContract.Contract.JoinCandidateSet(&_BindingContract.TransactOpts, nodeID)
+// Solidity: function exit(uint64 nodeID) returns()
+func (_BindingContract *BindingContractSession) Exit(nodeID uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.Exit(&_BindingContract.TransactOpts, nodeID)
 }
 
-// JoinCandidateSet is a paid mutator transaction binding the contract method 0x2b27ec44.
+// Exit is a paid mutator transaction binding the contract method 0x0f143c6a.
 //
-// Solidity: function joinCandidateSet(uint64 nodeID) returns()
-func (_BindingContract *BindingContractTransactorSession) JoinCandidateSet(nodeID uint64) (*types.Transaction, error) {
-	return _BindingContract.Contract.JoinCandidateSet(&_BindingContract.TransactOpts, nodeID)
+// Solidity: function exit(uint64 nodeID) returns()
+func (_BindingContract *BindingContractTransactorSession) Exit(nodeID uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.Exit(&_BindingContract.TransactOpts, nodeID)
 }
 
-// LeaveValidatorOrCandidateSet is a paid mutator transaction binding the contract method 0xe2aa7a23.
+// JoinCandidateSet is a paid mutator transaction binding the contract method 0xece07dd6.
 //
-// Solidity: function leaveValidatorOrCandidateSet(uint64 nodeID) returns()
-func (_BindingContract *BindingContractTransactor) LeaveValidatorOrCandidateSet(opts *bind.TransactOpts, nodeID uint64) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "leaveValidatorOrCandidateSet", nodeID)
+// Solidity: function joinCandidateSet(uint64 nodeID, uint64 commissionRate) returns()
+func (_BindingContract *BindingContractTransactor) JoinCandidateSet(opts *bind.TransactOpts, nodeID uint64, commissionRate uint64) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "joinCandidateSet", nodeID, commissionRate)
 }
 
-// LeaveValidatorOrCandidateSet is a paid mutator transaction binding the contract method 0xe2aa7a23.
+// JoinCandidateSet is a paid mutator transaction binding the contract method 0xece07dd6.
 //
-// Solidity: function leaveValidatorOrCandidateSet(uint64 nodeID) returns()
-func (_BindingContract *BindingContractSession) LeaveValidatorOrCandidateSet(nodeID uint64) (*types.Transaction, error) {
-	return _BindingContract.Contract.LeaveValidatorOrCandidateSet(&_BindingContract.TransactOpts, nodeID)
+// Solidity: function joinCandidateSet(uint64 nodeID, uint64 commissionRate) returns()
+func (_BindingContract *BindingContractSession) JoinCandidateSet(nodeID uint64, commissionRate uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.JoinCandidateSet(&_BindingContract.TransactOpts, nodeID, commissionRate)
 }
 
-// LeaveValidatorOrCandidateSet is a paid mutator transaction binding the contract method 0xe2aa7a23.
+// JoinCandidateSet is a paid mutator transaction binding the contract method 0xece07dd6.
 //
-// Solidity: function leaveValidatorOrCandidateSet(uint64 nodeID) returns()
-func (_BindingContract *BindingContractTransactorSession) LeaveValidatorOrCandidateSet(nodeID uint64) (*types.Transaction, error) {
-	return _BindingContract.Contract.LeaveValidatorOrCandidateSet(&_BindingContract.TransactOpts, nodeID)
+// Solidity: function joinCandidateSet(uint64 nodeID, uint64 commissionRate) returns()
+func (_BindingContract *BindingContractTransactorSession) JoinCandidateSet(nodeID uint64, commissionRate uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.JoinCandidateSet(&_BindingContract.TransactOpts, nodeID, commissionRate)
 }
 
 // UpdateMetaData is a paid mutator transaction binding the contract method 0xee99437a.
@@ -530,25 +530,25 @@ func (_BindingContract *BindingContractTransactorSession) UpdateMetaData(nodeID 
 	return _BindingContract.Contract.UpdateMetaData(&_BindingContract.TransactOpts, nodeID, metaData)
 }
 
-// UpdateOperator is a paid mutator transaction binding the contract method 0xcee4d6f5.
+// UpdateOperator is a paid mutator transaction binding the contract method 0xb016e7d6.
 //
-// Solidity: function updateOperator(uint64 nodeID, string newOperatorAddress) returns()
-func (_BindingContract *BindingContractTransactor) UpdateOperator(opts *bind.TransactOpts, nodeID uint64, newOperatorAddress string) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "updateOperator", nodeID, newOperatorAddress)
+// Solidity: function updateOperator(uint64 nodeID, address newOperator) returns()
+func (_BindingContract *BindingContractTransactor) UpdateOperator(opts *bind.TransactOpts, nodeID uint64, newOperator common.Address) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "updateOperator", nodeID, newOperator)
 }
 
-// UpdateOperator is a paid mutator transaction binding the contract method 0xcee4d6f5.
+// UpdateOperator is a paid mutator transaction binding the contract method 0xb016e7d6.
 //
-// Solidity: function updateOperator(uint64 nodeID, string newOperatorAddress) returns()
-func (_BindingContract *BindingContractSession) UpdateOperator(nodeID uint64, newOperatorAddress string) (*types.Transaction, error) {
-	return _BindingContract.Contract.UpdateOperator(&_BindingContract.TransactOpts, nodeID, newOperatorAddress)
+// Solidity: function updateOperator(uint64 nodeID, address newOperator) returns()
+func (_BindingContract *BindingContractSession) UpdateOperator(nodeID uint64, newOperator common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.UpdateOperator(&_BindingContract.TransactOpts, nodeID, newOperator)
 }
 
-// UpdateOperator is a paid mutator transaction binding the contract method 0xcee4d6f5.
+// UpdateOperator is a paid mutator transaction binding the contract method 0xb016e7d6.
 //
-// Solidity: function updateOperator(uint64 nodeID, string newOperatorAddress) returns()
-func (_BindingContract *BindingContractTransactorSession) UpdateOperator(nodeID uint64, newOperatorAddress string) (*types.Transaction, error) {
-	return _BindingContract.Contract.UpdateOperator(&_BindingContract.TransactOpts, nodeID, newOperatorAddress)
+// Solidity: function updateOperator(uint64 nodeID, address newOperator) returns()
+func (_BindingContract *BindingContractTransactorSession) UpdateOperator(nodeID uint64, newOperator common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.UpdateOperator(&_BindingContract.TransactOpts, nodeID, newOperator)
 }
 
 // BindingContractJoinedCandidateSetIterator is returned from FilterJoinedCandidateSet and is used to iterate over the raw logs and unpacked data for JoinedCandidateSet events raised by the BindingContract contract.
@@ -983,9 +983,9 @@ func (_BindingContract *BindingContractFilterer) ParseLeavedCandidateSet(log typ
 	return event, nil
 }
 
-// BindingContractRegisteredIterator is returned from FilterRegistered and is used to iterate over the raw logs and unpacked data for Registered events raised by the BindingContract contract.
-type BindingContractRegisteredIterator struct {
-	Event *BindingContractRegistered // Event containing the contract specifics and raw log
+// BindingContractRegisterIterator is returned from FilterRegister and is used to iterate over the raw logs and unpacked data for Register events raised by the BindingContract contract.
+type BindingContractRegisterIterator struct {
+	Event *BindingContractRegister // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -999,7 +999,7 @@ type BindingContractRegisteredIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *BindingContractRegisteredIterator) Next() bool {
+func (it *BindingContractRegisterIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -1008,7 +1008,7 @@ func (it *BindingContractRegisteredIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(BindingContractRegistered)
+			it.Event = new(BindingContractRegister)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -1023,7 +1023,7 @@ func (it *BindingContractRegisteredIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(BindingContractRegistered)
+		it.Event = new(BindingContractRegister)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -1039,51 +1039,52 @@ func (it *BindingContractRegisteredIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *BindingContractRegisteredIterator) Error() error {
+func (it *BindingContractRegisterIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *BindingContractRegisteredIterator) Close() error {
+func (it *BindingContractRegisterIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// BindingContractRegistered represents a Registered event raised by the BindingContract contract.
-type BindingContractRegistered struct {
+// BindingContractRegister represents a Register event raised by the BindingContract contract.
+type BindingContractRegister struct {
 	NodeID uint64
+	Info   NodeInfo
 	Raw    types.Log // Blockchain specific contextual infos
 }
 
-// FilterRegistered is a free log retrieval operation binding the contract event 0xd13e027f8072af75628a0ccb98abc6ad980639af9497f2ee7b8ad1d0ab6385e1.
+// FilterRegister is a free log retrieval operation binding the contract event 0x39d7e313eafd5ac66e5491ea78903da2cce5ef4cfee38cd00335bfe099317094.
 //
-// Solidity: event Registered(uint64 indexed nodeID)
-func (_BindingContract *BindingContractFilterer) FilterRegistered(opts *bind.FilterOpts, nodeID []uint64) (*BindingContractRegisteredIterator, error) {
+// Solidity: event Register(uint64 indexed nodeID, (uint64,string,string,string,address,(string,string,string,string),uint8) info)
+func (_BindingContract *BindingContractFilterer) FilterRegister(opts *bind.FilterOpts, nodeID []uint64) (*BindingContractRegisterIterator, error) {
 
 	var nodeIDRule []interface{}
 	for _, nodeIDItem := range nodeID {
 		nodeIDRule = append(nodeIDRule, nodeIDItem)
 	}
 
-	logs, sub, err := _BindingContract.contract.FilterLogs(opts, "Registered", nodeIDRule)
+	logs, sub, err := _BindingContract.contract.FilterLogs(opts, "Register", nodeIDRule)
 	if err != nil {
 		return nil, err
 	}
-	return &BindingContractRegisteredIterator{contract: _BindingContract.contract, event: "Registered", logs: logs, sub: sub}, nil
+	return &BindingContractRegisterIterator{contract: _BindingContract.contract, event: "Register", logs: logs, sub: sub}, nil
 }
 
-// WatchRegistered is a free log subscription operation binding the contract event 0xd13e027f8072af75628a0ccb98abc6ad980639af9497f2ee7b8ad1d0ab6385e1.
+// WatchRegister is a free log subscription operation binding the contract event 0x39d7e313eafd5ac66e5491ea78903da2cce5ef4cfee38cd00335bfe099317094.
 //
-// Solidity: event Registered(uint64 indexed nodeID)
-func (_BindingContract *BindingContractFilterer) WatchRegistered(opts *bind.WatchOpts, sink chan<- *BindingContractRegistered, nodeID []uint64) (event.Subscription, error) {
+// Solidity: event Register(uint64 indexed nodeID, (uint64,string,string,string,address,(string,string,string,string),uint8) info)
+func (_BindingContract *BindingContractFilterer) WatchRegister(opts *bind.WatchOpts, sink chan<- *BindingContractRegister, nodeID []uint64) (event.Subscription, error) {
 
 	var nodeIDRule []interface{}
 	for _, nodeIDItem := range nodeID {
 		nodeIDRule = append(nodeIDRule, nodeIDItem)
 	}
 
-	logs, sub, err := _BindingContract.contract.WatchLogs(opts, "Registered", nodeIDRule)
+	logs, sub, err := _BindingContract.contract.WatchLogs(opts, "Register", nodeIDRule)
 	if err != nil {
 		return nil, err
 	}
@@ -1093,8 +1094,8 @@ func (_BindingContract *BindingContractFilterer) WatchRegistered(opts *bind.Watc
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(BindingContractRegistered)
-				if err := _BindingContract.contract.UnpackLog(event, "Registered", log); err != nil {
+				event := new(BindingContractRegister)
+				if err := _BindingContract.contract.UnpackLog(event, "Register", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -1115,12 +1116,12 @@ func (_BindingContract *BindingContractFilterer) WatchRegistered(opts *bind.Watc
 	}), nil
 }
 
-// ParseRegistered is a log parse operation binding the contract event 0xd13e027f8072af75628a0ccb98abc6ad980639af9497f2ee7b8ad1d0ab6385e1.
+// ParseRegister is a log parse operation binding the contract event 0x39d7e313eafd5ac66e5491ea78903da2cce5ef4cfee38cd00335bfe099317094.
 //
-// Solidity: event Registered(uint64 indexed nodeID)
-func (_BindingContract *BindingContractFilterer) ParseRegistered(log types.Log) (*BindingContractRegistered, error) {
-	event := new(BindingContractRegistered)
-	if err := _BindingContract.contract.UnpackLog(event, "Registered", log); err != nil {
+// Solidity: event Register(uint64 indexed nodeID, (uint64,string,string,string,address,(string,string,string,string),uint8) info)
+func (_BindingContract *BindingContractFilterer) ParseRegister(log types.Log) (*BindingContractRegister, error) {
+	event := new(BindingContractRegister)
+	if err := _BindingContract.contract.UnpackLog(event, "Register", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -1341,14 +1342,14 @@ func (it *BindingContractUpdateOperatorIterator) Close() error {
 
 // BindingContractUpdateOperator represents a UpdateOperator event raised by the BindingContract contract.
 type BindingContractUpdateOperator struct {
-	NodeID             uint64
-	NewOperatorAddress string
-	Raw                types.Log // Blockchain specific contextual infos
+	NodeID      uint64
+	NewOperator common.Address
+	Raw         types.Log // Blockchain specific contextual infos
 }
 
-// FilterUpdateOperator is a free log retrieval operation binding the contract event 0x5d84f8a70af0f297030b553a76963d8084018a96aec001413bfbcff1d2be51b0.
+// FilterUpdateOperator is a free log retrieval operation binding the contract event 0xf44e07f847b3e109d399de191e51da03076eb693a80f1e8af6c80aa3aa5caa74.
 //
-// Solidity: event UpdateOperator(uint64 indexed nodeID, string newOperatorAddress)
+// Solidity: event UpdateOperator(uint64 indexed nodeID, address newOperator)
 func (_BindingContract *BindingContractFilterer) FilterUpdateOperator(opts *bind.FilterOpts, nodeID []uint64) (*BindingContractUpdateOperatorIterator, error) {
 
 	var nodeIDRule []interface{}
@@ -1363,9 +1364,9 @@ func (_BindingContract *BindingContractFilterer) FilterUpdateOperator(opts *bind
 	return &BindingContractUpdateOperatorIterator{contract: _BindingContract.contract, event: "UpdateOperator", logs: logs, sub: sub}, nil
 }
 
-// WatchUpdateOperator is a free log subscription operation binding the contract event 0x5d84f8a70af0f297030b553a76963d8084018a96aec001413bfbcff1d2be51b0.
+// WatchUpdateOperator is a free log subscription operation binding the contract event 0xf44e07f847b3e109d399de191e51da03076eb693a80f1e8af6c80aa3aa5caa74.
 //
-// Solidity: event UpdateOperator(uint64 indexed nodeID, string newOperatorAddress)
+// Solidity: event UpdateOperator(uint64 indexed nodeID, address newOperator)
 func (_BindingContract *BindingContractFilterer) WatchUpdateOperator(opts *bind.WatchOpts, sink chan<- *BindingContractUpdateOperator, nodeID []uint64) (event.Subscription, error) {
 
 	var nodeIDRule []interface{}
@@ -1405,9 +1406,9 @@ func (_BindingContract *BindingContractFilterer) WatchUpdateOperator(opts *bind.
 	}), nil
 }
 
-// ParseUpdateOperator is a log parse operation binding the contract event 0x5d84f8a70af0f297030b553a76963d8084018a96aec001413bfbcff1d2be51b0.
+// ParseUpdateOperator is a log parse operation binding the contract event 0xf44e07f847b3e109d399de191e51da03076eb693a80f1e8af6c80aa3aa5caa74.
 //
-// Solidity: event UpdateOperator(uint64 indexed nodeID, string newOperatorAddress)
+// Solidity: event UpdateOperator(uint64 indexed nodeID, address newOperator)
 func (_BindingContract *BindingContractFilterer) ParseUpdateOperator(log types.Log) (*BindingContractUpdateOperator, error) {
 	event := new(BindingContractUpdateOperator)
 	if err := _BindingContract.contract.UnpackLog(event, "UpdateOperator", log); err != nil {

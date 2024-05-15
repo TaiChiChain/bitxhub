@@ -63,36 +63,6 @@ type LiquidStakingToken interface {
 	// Solidity: function transferFrom(address _from, address _to, uint256 _tokenId) payable returns()
 	TransferFrom(_from common.Address, _to common.Address, _tokenId *big.Int) error
 
-	// GetLockedCoin is a free data retrieval call binding the contract method 0x4d4b209c.
-	//
-	// Solidity: function GetLockedCoin(uint256 _tokenId) view returns(uint256)
-	GetLockedCoin(_tokenId *big.Int) (*big.Int, error)
-
-	// GetLockedReward is a free data retrieval call binding the contract method 0xadfd0c07.
-	//
-	// Solidity: function GetLockedReward(uint256 _tokenId) view returns(uint256)
-	GetLockedReward(_tokenId *big.Int) (*big.Int, error)
-
-	// GetTotalCoin is a free data retrieval call binding the contract method 0xc5f50eb9.
-	//
-	// Solidity: function GetTotalCoin(uint256 _tokenId) view returns(uint256)
-	GetTotalCoin(_tokenId *big.Int) (*big.Int, error)
-
-	// GetUnlockedCoin is a free data retrieval call binding the contract method 0x262cd446.
-	//
-	// Solidity: function GetUnlockedCoin(uint256 _tokenId) view returns(uint256)
-	GetUnlockedCoin(_tokenId *big.Int) (*big.Int, error)
-
-	// GetUnlockingCoin is a free data retrieval call binding the contract method 0x273d9adb.
-	//
-	// Solidity: function GetUnlockingCoin(uint256 _tokenId) view returns(uint256)
-	GetUnlockingCoin(_tokenId *big.Int) (*big.Int, error)
-
-	// Info is a free data retrieval call binding the contract method 0xe6f250dc.
-	//
-	// Solidity: function Info(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
-	Info(_tokenId *big.Int) (LiquidStakingTokenInfo, error)
-
 	// BalanceOf is a free data retrieval call binding the contract method 0x70a08231.
 	//
 	// Solidity: function balanceOf(address _owner) view returns(uint256)
@@ -102,6 +72,36 @@ type LiquidStakingToken interface {
 	//
 	// Solidity: function getApproved(uint256 _tokenId) view returns(address)
 	GetApproved(_tokenId *big.Int) (common.Address, error)
+
+	// GetInfo is a free data retrieval call binding the contract method 0x1a3cd59a.
+	//
+	// Solidity: function getInfo(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
+	GetInfo(_tokenId *big.Int) (LiquidStakingTokenInfo, error)
+
+	// GetLockedCoin is a free data retrieval call binding the contract method 0xd5691067.
+	//
+	// Solidity: function getLockedCoin(uint256 _tokenId) view returns(uint256)
+	GetLockedCoin(_tokenId *big.Int) (*big.Int, error)
+
+	// GetLockedReward is a free data retrieval call binding the contract method 0x803ea356.
+	//
+	// Solidity: function getLockedReward(uint256 _tokenId) view returns(uint256)
+	GetLockedReward(_tokenId *big.Int) (*big.Int, error)
+
+	// GetTotalCoin is a free data retrieval call binding the contract method 0xf5a0aace.
+	//
+	// Solidity: function getTotalCoin(uint256 _tokenId) view returns(uint256)
+	GetTotalCoin(_tokenId *big.Int) (*big.Int, error)
+
+	// GetUnlockedCoin is a free data retrieval call binding the contract method 0xf064dd20.
+	//
+	// Solidity: function getUnlockedCoin(uint256 _tokenId) view returns(uint256)
+	GetUnlockedCoin(_tokenId *big.Int) (*big.Int, error)
+
+	// GetUnlockingCoin is a free data retrieval call binding the contract method 0xa906c0ae.
+	//
+	// Solidity: function getUnlockingCoin(uint256 _tokenId) view returns(uint256)
+	GetUnlockingCoin(_tokenId *big.Int) (*big.Int, error)
 
 	// IsApprovedForAll is a free data retrieval call binding the contract method 0xe985e9c5.
 	//

@@ -564,7 +564,6 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
 				balance := testNVM.StateLedger.GetBalance(entrypoint.Address)
-				fmt.Println("balance", balance)
 				assert.Greater(t, balance.Uint64(), uint64(100000))
 			},
 		},

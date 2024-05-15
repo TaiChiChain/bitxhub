@@ -166,7 +166,7 @@
               },
               {
                 "internalType": "uint64",
-                "name": "UnlockPeriodEpochNumber",
+                "name": "UnlockPeriod",
                 "type": "uint64"
               },
               {
@@ -377,7 +377,7 @@
               },
               {
                 "internalType": "uint64",
-                "name": "UnlockPeriodEpochNumber",
+                "name": "UnlockPeriod",
                 "type": "uint64"
               },
               {
@@ -581,7 +581,7 @@
               },
               {
                 "internalType": "uint64",
-                "name": "UnlockPeriodEpochNumber",
+                "name": "UnlockPeriod",
                 "type": "uint64"
               },
               {

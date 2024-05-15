@@ -38,7 +38,15 @@ func (axc *AXC) GenesisInit(genesis *repo.GenesisConfig) error {
 		balance := account.Balance.ToBigInt()
 		supplyAccount := axc.Ctx.StateLedger.GetOrCreateAccount(types.NewAddressByStr(account.Address))
 		supplyAccount.AddBalance(balance)
+
+		totalSupply = totalSupply.Add(totalSupply, balance)
 	}
+	for _, nodeCfg := range genesis.Nodes {
+		if !nodeCfg.IsDataSyncer {
+			totalSupply = totalSupply.Add(totalSupply, nodeCfg.StakeNumber.ToBigInt())
+		}
+	}
+
 	if err := axc.totalSupply.Put(totalSupply); err != nil {
 		return err
 	}

@@ -31,7 +31,7 @@ struct StakeParams {
     bool StakeEnable;
     uint64 MaxAddStakeRatio;
     uint64 MaxUnlockStakeRatio;
-    uint64 UnlockPeriodEpochNumber;
+    uint64 UnlockPeriod;
     uint64 MaxPendingInactiveValidatorRatio;
     uint256 MinDelegateStake;
     uint256 MinValidatorStake;

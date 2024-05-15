@@ -36,7 +36,7 @@ func (e *EpochInfo) Convert() *types.EpochInfo {
 			StakeEnable:                      e.StakeParams.StakeEnable,
 			MaxAddStakeRatio:                 e.StakeParams.MaxAddStakeRatio,
 			MaxUnlockStakeRatio:              e.StakeParams.MaxUnlockStakeRatio,
-			UnlockPeriodEpochNumber:          e.StakeParams.UnlockPeriodEpochNumber,
+			UnlockPeriod:                     e.StakeParams.UnlockPeriod,
 			MaxPendingInactiveValidatorRatio: e.StakeParams.MaxPendingInactiveValidatorRatio,
 			MinDelegateStake:                 types.CoinNumberByBigInt(e.StakeParams.MinDelegateStake),
 			MinValidatorStake:                types.CoinNumberByBigInt(e.StakeParams.MaxValidatorStake),

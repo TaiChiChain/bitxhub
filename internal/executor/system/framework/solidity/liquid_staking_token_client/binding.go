@@ -46,7 +46,7 @@ type UnlockingRecord struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_approved\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"Approval\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bool\",\"name\":\"_approved\",\"type\":\"bool\"}],\"name\":\"ApprovalForAll\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"Transfer\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"newPrincipal\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"newUnlocked\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"newActiveEpoch\",\"type\":\"uint64\"}],\"name\":\"UpdateInfo\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"GetLockedCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"GetLockedReward\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"GetTotalCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"GetUnlockedCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"GetUnlockingCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"Info\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"PoolID\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"Principal\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"Unlocked\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"ActiveEpoch\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"Amount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"UnlockTimestamp\",\"type\":\"uint64\"}],\"internalType\":\"structUnlockingRecord[]\",\"name\":\"UnlockingRecords\",\"type\":\"tuple[]\"}],\"internalType\":\"structLiquidStakingTokenInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_approved\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"approve\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"balanceOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getApproved\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"}],\"name\":\"isApprovedForAll\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"ownerOf\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"safeTransferFrom\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"safeTransferFrom\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"},{\"internalType\":\"bool\",\"name\":\"_approved\",\"type\":\"bool\"}],\"name\":\"setApprovalForAll\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"transferFrom\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}]",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_approved\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"Approval\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bool\",\"name\":\"_approved\",\"type\":\"bool\"}],\"name\":\"ApprovalForAll\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"Transfer\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"newPrincipal\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"newUnlocked\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"newActiveEpoch\",\"type\":\"uint64\"}],\"name\":\"UpdateInfo\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_approved\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"approve\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"balanceOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getApproved\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"PoolID\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"Principal\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"Unlocked\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"ActiveEpoch\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"Amount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"UnlockTimestamp\",\"type\":\"uint64\"}],\"internalType\":\"structUnlockingRecord[]\",\"name\":\"UnlockingRecords\",\"type\":\"tuple[]\"}],\"internalType\":\"structLiquidStakingTokenInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getLockedCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getLockedReward\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getTotalCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getUnlockedCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"getUnlockingCoin\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"}],\"name\":\"isApprovedForAll\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"ownerOf\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"safeTransferFrom\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"safeTransferFrom\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_operator\",\"type\":\"address\"},{\"internalType\":\"bool\",\"name\":\"_approved\",\"type\":\"bool\"}],\"name\":\"setApprovalForAll\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"}],\"name\":\"transferFrom\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -195,192 +195,6 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
-// GetLockedCoin is a free data retrieval call binding the contract method 0x4d4b209c.
-//
-// Solidity: function GetLockedCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCaller) GetLockedCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetLockedCoin", _tokenId)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// GetLockedCoin is a free data retrieval call binding the contract method 0x4d4b209c.
-//
-// Solidity: function GetLockedCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractSession) GetLockedCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetLockedCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetLockedCoin is a free data retrieval call binding the contract method 0x4d4b209c.
-//
-// Solidity: function GetLockedCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCallerSession) GetLockedCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetLockedCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetLockedReward is a free data retrieval call binding the contract method 0xadfd0c07.
-//
-// Solidity: function GetLockedReward(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCaller) GetLockedReward(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetLockedReward", _tokenId)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// GetLockedReward is a free data retrieval call binding the contract method 0xadfd0c07.
-//
-// Solidity: function GetLockedReward(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractSession) GetLockedReward(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetLockedReward(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetLockedReward is a free data retrieval call binding the contract method 0xadfd0c07.
-//
-// Solidity: function GetLockedReward(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCallerSession) GetLockedReward(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetLockedReward(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetTotalCoin is a free data retrieval call binding the contract method 0xc5f50eb9.
-//
-// Solidity: function GetTotalCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCaller) GetTotalCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetTotalCoin", _tokenId)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// GetTotalCoin is a free data retrieval call binding the contract method 0xc5f50eb9.
-//
-// Solidity: function GetTotalCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractSession) GetTotalCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetTotalCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetTotalCoin is a free data retrieval call binding the contract method 0xc5f50eb9.
-//
-// Solidity: function GetTotalCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCallerSession) GetTotalCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetTotalCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetUnlockedCoin is a free data retrieval call binding the contract method 0x262cd446.
-//
-// Solidity: function GetUnlockedCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCaller) GetUnlockedCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetUnlockedCoin", _tokenId)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// GetUnlockedCoin is a free data retrieval call binding the contract method 0x262cd446.
-//
-// Solidity: function GetUnlockedCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractSession) GetUnlockedCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetUnlockedCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetUnlockedCoin is a free data retrieval call binding the contract method 0x262cd446.
-//
-// Solidity: function GetUnlockedCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCallerSession) GetUnlockedCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetUnlockedCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetUnlockingCoin is a free data retrieval call binding the contract method 0x273d9adb.
-//
-// Solidity: function GetUnlockingCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCaller) GetUnlockingCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "GetUnlockingCoin", _tokenId)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// GetUnlockingCoin is a free data retrieval call binding the contract method 0x273d9adb.
-//
-// Solidity: function GetUnlockingCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractSession) GetUnlockingCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetUnlockingCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// GetUnlockingCoin is a free data retrieval call binding the contract method 0x273d9adb.
-//
-// Solidity: function GetUnlockingCoin(uint256 _tokenId) view returns(uint256)
-func (_BindingContract *BindingContractCallerSession) GetUnlockingCoin(_tokenId *big.Int) (*big.Int, error) {
-	return _BindingContract.Contract.GetUnlockingCoin(&_BindingContract.CallOpts, _tokenId)
-}
-
-// Info is a free data retrieval call binding the contract method 0xe6f250dc.
-//
-// Solidity: function Info(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
-func (_BindingContract *BindingContractCaller) Info(opts *bind.CallOpts, _tokenId *big.Int) (LiquidStakingTokenInfo, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "Info", _tokenId)
-
-	if err != nil {
-		return *new(LiquidStakingTokenInfo), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(LiquidStakingTokenInfo)).(*LiquidStakingTokenInfo)
-
-	return out0, err
-
-}
-
-// Info is a free data retrieval call binding the contract method 0xe6f250dc.
-//
-// Solidity: function Info(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
-func (_BindingContract *BindingContractSession) Info(_tokenId *big.Int) (LiquidStakingTokenInfo, error) {
-	return _BindingContract.Contract.Info(&_BindingContract.CallOpts, _tokenId)
-}
-
-// Info is a free data retrieval call binding the contract method 0xe6f250dc.
-//
-// Solidity: function Info(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
-func (_BindingContract *BindingContractCallerSession) Info(_tokenId *big.Int) (LiquidStakingTokenInfo, error) {
-	return _BindingContract.Contract.Info(&_BindingContract.CallOpts, _tokenId)
-}
-
 // BalanceOf is a free data retrieval call binding the contract method 0x70a08231.
 //
 // Solidity: function balanceOf(address _owner) view returns(uint256)
@@ -441,6 +255,192 @@ func (_BindingContract *BindingContractSession) GetApproved(_tokenId *big.Int) (
 // Solidity: function getApproved(uint256 _tokenId) view returns(address)
 func (_BindingContract *BindingContractCallerSession) GetApproved(_tokenId *big.Int) (common.Address, error) {
 	return _BindingContract.Contract.GetApproved(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetInfo is a free data retrieval call binding the contract method 0x1a3cd59a.
+//
+// Solidity: function getInfo(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
+func (_BindingContract *BindingContractCaller) GetInfo(opts *bind.CallOpts, _tokenId *big.Int) (LiquidStakingTokenInfo, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getInfo", _tokenId)
+
+	if err != nil {
+		return *new(LiquidStakingTokenInfo), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(LiquidStakingTokenInfo)).(*LiquidStakingTokenInfo)
+
+	return out0, err
+
+}
+
+// GetInfo is a free data retrieval call binding the contract method 0x1a3cd59a.
+//
+// Solidity: function getInfo(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
+func (_BindingContract *BindingContractSession) GetInfo(_tokenId *big.Int) (LiquidStakingTokenInfo, error) {
+	return _BindingContract.Contract.GetInfo(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetInfo is a free data retrieval call binding the contract method 0x1a3cd59a.
+//
+// Solidity: function getInfo(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
+func (_BindingContract *BindingContractCallerSession) GetInfo(_tokenId *big.Int) (LiquidStakingTokenInfo, error) {
+	return _BindingContract.Contract.GetInfo(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetLockedCoin is a free data retrieval call binding the contract method 0xd5691067.
+//
+// Solidity: function getLockedCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCaller) GetLockedCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getLockedCoin", _tokenId)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetLockedCoin is a free data retrieval call binding the contract method 0xd5691067.
+//
+// Solidity: function getLockedCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractSession) GetLockedCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetLockedCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetLockedCoin is a free data retrieval call binding the contract method 0xd5691067.
+//
+// Solidity: function getLockedCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCallerSession) GetLockedCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetLockedCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetLockedReward is a free data retrieval call binding the contract method 0x803ea356.
+//
+// Solidity: function getLockedReward(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCaller) GetLockedReward(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getLockedReward", _tokenId)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetLockedReward is a free data retrieval call binding the contract method 0x803ea356.
+//
+// Solidity: function getLockedReward(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractSession) GetLockedReward(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetLockedReward(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetLockedReward is a free data retrieval call binding the contract method 0x803ea356.
+//
+// Solidity: function getLockedReward(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCallerSession) GetLockedReward(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetLockedReward(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetTotalCoin is a free data retrieval call binding the contract method 0xf5a0aace.
+//
+// Solidity: function getTotalCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCaller) GetTotalCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getTotalCoin", _tokenId)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetTotalCoin is a free data retrieval call binding the contract method 0xf5a0aace.
+//
+// Solidity: function getTotalCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractSession) GetTotalCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetTotalCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetTotalCoin is a free data retrieval call binding the contract method 0xf5a0aace.
+//
+// Solidity: function getTotalCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCallerSession) GetTotalCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetTotalCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetUnlockedCoin is a free data retrieval call binding the contract method 0xf064dd20.
+//
+// Solidity: function getUnlockedCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCaller) GetUnlockedCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getUnlockedCoin", _tokenId)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetUnlockedCoin is a free data retrieval call binding the contract method 0xf064dd20.
+//
+// Solidity: function getUnlockedCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractSession) GetUnlockedCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetUnlockedCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetUnlockedCoin is a free data retrieval call binding the contract method 0xf064dd20.
+//
+// Solidity: function getUnlockedCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCallerSession) GetUnlockedCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetUnlockedCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetUnlockingCoin is a free data retrieval call binding the contract method 0xa906c0ae.
+//
+// Solidity: function getUnlockingCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCaller) GetUnlockingCoin(opts *bind.CallOpts, _tokenId *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getUnlockingCoin", _tokenId)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetUnlockingCoin is a free data retrieval call binding the contract method 0xa906c0ae.
+//
+// Solidity: function getUnlockingCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractSession) GetUnlockingCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetUnlockingCoin(&_BindingContract.CallOpts, _tokenId)
+}
+
+// GetUnlockingCoin is a free data retrieval call binding the contract method 0xa906c0ae.
+//
+// Solidity: function getUnlockingCoin(uint256 _tokenId) view returns(uint256)
+func (_BindingContract *BindingContractCallerSession) GetUnlockingCoin(_tokenId *big.Int) (*big.Int, error) {
+	return _BindingContract.Contract.GetUnlockingCoin(&_BindingContract.CallOpts, _tokenId)
 }
 
 // IsApprovedForAll is a free data retrieval call binding the contract method 0xe985e9c5.

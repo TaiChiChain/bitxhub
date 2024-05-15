@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -22,6 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/packer"
@@ -54,6 +54,9 @@ type NativeVM struct {
 
 	// contract addr -> contract cfg
 	contractBuildConfigMap map[string]*common.SystemContractStaticConfig
+
+	// priority -> contract addr
+	contractGenesisInitPriority []string
 }
 
 func New() *NativeVM {
@@ -64,25 +67,20 @@ func New() *NativeVM {
 	}
 
 	// deploy all system contract
-	nvm.Deploy(governance.BuildConfig.StaticConfig())
 	nvm.Deploy(token.AXCBuildConfig.StaticConfig())
+
 	nvm.Deploy(framework.EpochManagerBuildConfig.StaticConfig())
 	nvm.Deploy(framework.NodeManagerBuildConfig.StaticConfig())
 	nvm.Deploy(framework.LiquidStakingTokenBuildConfig.StaticConfig())
 	nvm.Deploy(framework.StakingManagerBuildConfig.StaticConfig())
+
 	nvm.Deploy(access.WhitelistBuildConfig.StaticConfig())
+	nvm.Deploy(governance.BuildConfig.StaticConfig())
 
 	nvm.Deploy(saccount.EntryPointBuildConfig.StaticConfig())
 	nvm.Deploy(saccount.VerifyingPaymasterBuildConfig.StaticConfig())
-
-	// nvm.Deploy(common.AccountFactoryContractAddr, smartAccountFactoryABI, func() common.SystemContract {
-	//	entryPoint := saccount.NewEntryPoint()
-	//	return saccount.NewSmartAccountFactory(entryPoint)
-	// })
-	// nvm.Deploy(common.TokenPaymasterContractAddr, paymasterABI, func() common.SystemContract {
-	//	entryPoint := saccount.NewEntryPoint()
-	//	return saccount.NewTokenPaymaster(entryPoint)
-	// })
+	nvm.Deploy(saccount.TokenPaymasterBuildConfig.StaticConfig())
+	nvm.Deploy(saccount.SmartAccountFactoryBuildConfig.StaticConfig())
 
 	return nvm
 }
@@ -111,7 +109,7 @@ func (nvm *NativeVM) Deploy(cfg *common.SystemContractStaticConfig) {
 		id2Name[[4]byte(method.ID)] = methodName
 	}
 	nvm.contractMethodID2Name[cfg.Address] = id2Name
-
+	nvm.contractGenesisInitPriority = append(nvm.contractGenesisInitPriority, cfg.Address)
 	nvm.setEVMPrecompiled(cfg.Address)
 }
 
@@ -217,7 +215,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	}
 
 	if returnRes != nil {
-		return nvm.PackOutputArgs(contractBuildCfg, methodName, returnRes...)
+		return nvm.packOutputArgs(contractBuildCfg, methodName, returnRes...)
 	}
 	return nil, nil
 }
@@ -286,8 +284,8 @@ func (nvm *NativeVM) parseArgs(contractBuildCfg *common.SystemContractStaticConf
 	return unpacked, nil
 }
 
-// PackOutputArgs pack the output arguments by method name
-func (nvm *NativeVM) PackOutputArgs(contractBuildCfg *common.SystemContractStaticConfig, methodName string, outputArgs ...any) ([]byte, error) {
+// packOutputArgs pack the output arguments by method name
+func (nvm *NativeVM) packOutputArgs(contractBuildCfg *common.SystemContractStaticConfig, methodName string, outputArgs ...any) ([]byte, error) {
 	contractABI := contractBuildCfg.GetAbi()
 
 	var args abi.Arguments
@@ -302,8 +300,8 @@ func (nvm *NativeVM) PackOutputArgs(contractBuildCfg *common.SystemContractStati
 	return args.Pack(outputArgs...)
 }
 
-// UnpackOutputArgs unpack the output arguments by method name
-func (nvm *NativeVM) UnpackOutputArgs(contractBuildCfg *common.SystemContractStaticConfig, methodName string, packed []byte) ([]any, error) {
+// unpackOutputArgs unpack the output arguments by method name
+func (nvm *NativeVM) unpackOutputArgs(contractBuildCfg *common.SystemContractStaticConfig, methodName string, packed []byte) ([]any, error) {
 	contractABI := contractBuildCfg.GetAbi()
 	var args abi.Arguments
 	if method, ok := contractABI.Methods[methodName]; ok {
@@ -333,9 +331,10 @@ func (nvm *NativeVM) setEVMPrecompiled(addr string) {
 }
 
 func (nvm *NativeVM) GenesisInit(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
-	InitSystemContractCode(lg)
+	nvm.initSystemContractCode(lg)
 
-	for _, contractBuildCfg := range nvm.contractBuildConfigMap {
+	for _, contractAddr := range nvm.contractGenesisInitPriority {
+		contractBuildCfg := nvm.contractBuildConfigMap[contractAddr]
 		if err := contractBuildCfg.Build(common.NewVMContextByExecutor(lg).DisableRecordLogToLedger()).GenesisInit(genesis); err != nil {
 			return err
 		}
@@ -345,7 +344,7 @@ func (nvm *NativeVM) GenesisInit(genesis *repo.GenesisConfig, lg ledger.StateLed
 }
 
 // InitSystemContractCode init system contract code for compatible with ethereum abstract account
-func InitSystemContractCode(lg ledger.StateLedger) {
+func (nvm *NativeVM) initSystemContractCode(lg ledger.StateLedger) {
 	contractAddr := types.NewAddressByStr(common.SystemContractStartAddr)
 	contractAddrBig := contractAddr.ETHAddress().Big()
 	endContractAddrBig := types.NewAddressByStr(common.SystemContractEndAddr).ETHAddress().Big()

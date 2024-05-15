@@ -6,7 +6,6 @@ import (
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -42,21 +41,6 @@ type OperatorApprovalKey struct {
 	Operator ethcommon.Address
 }
 
-type UnlockingRecord struct {
-	Amount          *big.Int
-	UnlockTimestamp uint64
-}
-
-type LiquidStakingTokenInfo struct {
-	PoolID      uint64
-	Principal   *big.Int
-	Unlocked    *big.Int
-	ActiveEpoch uint64
-
-	// limit: MaxUnlockingRecords
-	UnlockingRecords []UnlockingRecord
-}
-
 type LiquidStakingToken struct {
 	common.SystemContractBase
 
@@ -64,7 +48,7 @@ type LiquidStakingToken struct {
 	nextID *common.VMSlot[*big.Int]
 
 	// tokenID -> token info
-	infoMap *common.VMMap[*big.Int, LiquidStakingTokenInfo]
+	infoMap *common.VMMap[*big.Int, liquid_staking_token.LiquidStakingTokenInfo]
 
 	// tokenID -> owner
 	ownerMap *common.VMMap[*big.Int, ethcommon.Address]
@@ -87,7 +71,7 @@ func (lst *LiquidStakingToken) SetContext(context *common.VMContext) {
 	lst.SystemContractBase.SetContext(context)
 
 	lst.nextID = common.NewVMSlot[*big.Int](lst.StateAccount, LiquidStakingTokenNextIDStorageKey)
-	lst.infoMap = common.NewVMMap[*big.Int, LiquidStakingTokenInfo](lst.StateAccount, LiquidStakingTokenInfoStorageKey, func(key *big.Int) string {
+	lst.infoMap = common.NewVMMap[*big.Int, liquid_staking_token.LiquidStakingTokenInfo](lst.StateAccount, LiquidStakingTokenInfoStorageKey, func(key *big.Int) string {
 		return key.String()
 	})
 	lst.ownerMap = common.NewVMMap[*big.Int, ethcommon.Address](lst.StateAccount, LiquidStakingTokenOwnerStorageKey, func(key *big.Int) string {
@@ -104,92 +88,47 @@ func (lst *LiquidStakingToken) SetContext(context *common.VMContext) {
 	})
 }
 
-func (lst *LiquidStakingToken) InternalMint(to ethcommon.Address, info *LiquidStakingTokenInfo) (tokenID *big.Int, err error) {
-	exist, nextID, err := lst.nextID.Get()
-	if err != nil {
-		return nil, err
-	}
-	if !exist {
-		nextID = big.NewInt(1)
-	}
-
-	// set info
-	if err = lst.infoMap.Put(nextID, *info); err != nil {
-		return nil, err
-	}
-
-	// update nextID
-	if err := lst.nextID.Put(big.NewInt(0).Add(nextID, big.NewInt(1))); err != nil {
-		return nil, err
-	}
-
-	_, err = lst.updateOwnership(to, nextID, ethcommon.Address{})
-	if err != nil {
-		return nil, err
-	}
-	return nextID, nil
-}
-
-func (lst *LiquidStakingToken) InternalBurn(tokenID *big.Int) error {
-	exist, owner, err := lst.ownerMap.Get(tokenID)
-	if err != nil {
+func (lst *LiquidStakingToken) updateInfo(tokenID *big.Int, info *liquid_staking_token.LiquidStakingTokenInfo) error {
+	if err := lst.infoMap.Put(tokenID, *info); err != nil {
 		return err
 	}
-	if !exist || common.IsZeroAddress(owner) {
-		return errors.Errorf("token not exist: %s", tokenID.String())
-	}
-
-	_, err = lst.updateOwnership(ethcommon.Address{}, tokenID, ethcommon.Address{})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (lst *LiquidStakingToken) InternalUpdateInfo(tokenID *big.Int, info *LiquidStakingTokenInfo) error {
-	exist, owner, err := lst.ownerMap.Get(tokenID)
-	if err != nil {
-		return err
-	}
-
-	if !exist || common.IsZeroAddress(owner) {
-		return errors.Errorf("token not exist: %s", tokenID.String())
-	}
-
-	if err = lst.infoMap.Put(tokenID, *info); err != nil {
-		return err
-	}
-
 	lst.EmitUpdateInfoEvent(tokenID, info.Principal, info.Unlocked, info.ActiveEpoch)
 	return nil
 }
 
-func (lst *LiquidStakingToken) Info(tokenID *big.Int) (info liquid_staking_token.LiquidStakingTokenInfo, err error) {
-	exist, getInfo, err := lst.infoMap.Get(tokenID)
+func (lst *LiquidStakingToken) GetInfo(tokenID *big.Int) (info liquid_staking_token.LiquidStakingTokenInfo, err error) {
+	exist, info, err := lst.infoMap.Get(tokenID)
 	if err != nil {
 		return liquid_staking_token.LiquidStakingTokenInfo{}, err
 	}
 	if !exist {
 		return liquid_staking_token.LiquidStakingTokenInfo{}, nil
 	}
-	return liquid_staking_token.LiquidStakingTokenInfo{
-		PoolID:      getInfo.PoolID,
-		Principal:   getInfo.Principal,
-		Unlocked:    getInfo.Unlocked,
-		ActiveEpoch: getInfo.ActiveEpoch,
-		UnlockingRecords: lo.Map(getInfo.UnlockingRecords, func(item UnlockingRecord, index int) liquid_staking_token.UnlockingRecord {
-			return liquid_staking_token.UnlockingRecord{
-				Amount:          item.Amount,
-				UnlockTimestamp: item.UnlockTimestamp,
-			}
-		}),
-	}, nil
+	return info, nil
 }
 
-func (lst *LiquidStakingToken) getLockedReward(tokenID *big.Int, info LiquidStakingTokenInfo) (*big.Int, error) {
-	// TODO implement me
-	panic("implement me")
+func (lst *LiquidStakingToken) lockedReward(info liquid_staking_token.LiquidStakingTokenInfo) (*big.Int, error) {
+	stakingManager := StakingManagerBuildConfig.Build(lst.CrossCallSystemContractContext())
+	currentEpoch, err := EpochManagerBuildConfig.Build(lst.CrossCallSystemContractContext()).CurrentEpoch()
+	if err != nil {
+		return nil, err
+	}
+	// add stake epoch: info.ActiveEpoch-1 == currentEpoch.Epoch
+	// add stake next epoch: info.ActiveEpoch == currentEpoch.Epoch
+	if info.ActiveEpoch-1 == currentEpoch.Epoch || info.ActiveEpoch == currentEpoch.Epoch {
+		return big.NewInt(0), nil
+	}
+
+	stakingRate, err := stakingManager.GetPoolHistoryLiquidStakingTokenRate(info.PoolID, info.ActiveEpoch-1)
+	if err != nil {
+		return nil, err
+	}
+	lastRate, err := stakingManager.GetPoolHistoryLiquidStakingTokenRate(info.PoolID, currentEpoch.Epoch-1)
+	if err != nil {
+		return nil, err
+	}
+	principalAndReward := calculatePrincipalAndReward(stakingRate, lastRate, info.Principal)
+	return new(big.Int).Sub(principalAndReward, info.Principal), nil
 }
 
 func (lst *LiquidStakingToken) GetLockedReward(tokenID *big.Int) (*big.Int, error) {
@@ -201,7 +140,7 @@ func (lst *LiquidStakingToken) GetLockedReward(tokenID *big.Int) (*big.Int, erro
 		return big.NewInt(0), nil
 	}
 
-	return lst.getLockedReward(tokenID, info)
+	return lst.lockedReward(info)
 }
 
 func (lst *LiquidStakingToken) GetUnlockingCoin(tokenID *big.Int) (*big.Int, error) {
@@ -247,23 +186,25 @@ func (lst *LiquidStakingToken) GetLockedCoin(tokenID *big.Int) (*big.Int, error)
 		return big.NewInt(0), nil
 	}
 
-	return lst.getLockedCoin(tokenID, info)
+	return lst.getLockedCoin(info)
 }
 
-func (lst *LiquidStakingToken) getLockedCoin(tokenID *big.Int, info LiquidStakingTokenInfo) (*big.Int, error) {
-	exist, info, err := lst.infoMap.Get(tokenID)
+func (lst *LiquidStakingToken) getLockedCoin(info liquid_staking_token.LiquidStakingTokenInfo) (*big.Int, error) {
+	currentEpoch, err := EpochManagerBuildConfig.Build(lst.CrossCallSystemContractContext()).CurrentEpoch()
 	if err != nil {
 		return nil, err
 	}
-	if !exist {
+	if info.ActiveEpoch > currentEpoch.Epoch {
 		return big.NewInt(0), nil
 	}
+	if info.ActiveEpoch == currentEpoch.Epoch {
+		return info.Principal, nil
+	}
 
-	lockedReward, err := lst.getLockedReward(tokenID, info)
+	lockedReward, err := lst.lockedReward(info)
 	if err != nil {
 		return nil, err
 	}
-
 	return lockedReward.Add(lockedReward, info.Principal), nil
 }
 
@@ -276,14 +217,16 @@ func (lst *LiquidStakingToken) GetTotalCoin(tokenID *big.Int) (*big.Int, error) 
 		return big.NewInt(0), nil
 	}
 
-	lockedCoin, err := lst.getLockedCoin(tokenID, info)
+	totalCoin := new(big.Int).Set(info.Principal)
+	lockedReward, err := lst.lockedReward(info)
 	if err != nil {
 		return nil, err
 	}
+	totalCoin = totalCoin.Add(totalCoin, lockedReward)
 	for _, record := range info.UnlockingRecords {
-		lockedCoin = lockedCoin.Add(lockedCoin, record.Amount)
+		totalCoin = totalCoin.Add(totalCoin, record.Amount)
 	}
-	return lockedCoin, nil
+	return totalCoin, nil
 }
 
 func (lst *LiquidStakingToken) Name() string {
@@ -307,6 +250,49 @@ func (lst *LiquidStakingToken) BalanceOf(owner ethcommon.Address) (*big.Int, err
 		return big.NewInt(0), nil
 	}
 	return balance, nil
+}
+
+func (lst *LiquidStakingToken) Mint(to ethcommon.Address, info *liquid_staking_token.LiquidStakingTokenInfo) (tokenID *big.Int, err error) {
+	exist, nextID, err := lst.nextID.Get()
+	if err != nil {
+		return nil, err
+	}
+	if !exist {
+		nextID = big.NewInt(1)
+	}
+
+	// set info
+	if err = lst.infoMap.Put(nextID, *info); err != nil {
+		return nil, err
+	}
+
+	// update nextID
+	if err := lst.nextID.Put(big.NewInt(0).Add(nextID, big.NewInt(1))); err != nil {
+		return nil, err
+	}
+
+	_, err = lst.updateOwnership(to, nextID, ethcommon.Address{})
+	if err != nil {
+		return nil, err
+	}
+	return nextID, nil
+}
+
+func (lst *LiquidStakingToken) Burn(tokenID *big.Int) error {
+	exist, owner, err := lst.ownerMap.Get(tokenID)
+	if err != nil {
+		return err
+	}
+	if !exist || common.IsZeroAddress(owner) {
+		return errors.Errorf("token not exist: %s", tokenID.String())
+	}
+
+	_, err = lst.updateOwnership(ethcommon.Address{}, tokenID, lst.Ctx.From)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (lst *LiquidStakingToken) ownerOf(tokenID *big.Int) (ethcommon.Address, error) {
@@ -386,7 +372,7 @@ func (lst *LiquidStakingToken) GetApproved(tokenID *big.Int) (operator ethcommon
 		return ethcommon.Address{}, err
 	}
 	if !exist {
-		return ethcommon.Address{}, errors.Errorf("token not exist: %s", tokenID.String())
+		return ethcommon.Address{}, nil
 	}
 	return approved, nil
 }
@@ -567,7 +553,7 @@ func (lst *LiquidStakingToken) updateOwnership(to ethcommon.Address, tokenID *bi
 }
 
 func (lst *LiquidStakingToken) mustGetInfo(tokenID *big.Int) (*liquid_staking_token.LiquidStakingTokenInfo, error) {
-	info, err := lst.Info(tokenID)
+	info, err := lst.GetInfo(tokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -575,4 +561,16 @@ func (lst *LiquidStakingToken) mustGetInfo(tokenID *big.Int) (*liquid_staking_to
 		return nil, errors.Errorf("token not exist: %s", tokenID.String())
 	}
 	return &info, nil
+}
+
+func updateLiquidStakingTokenUnlockingRecords(blockTimestamp uint64, info *liquid_staking_token.LiquidStakingTokenInfo) {
+	var remainRecords []liquid_staking_token.UnlockingRecord
+	for _, record := range info.UnlockingRecords {
+		if record.UnlockTimestamp >= blockTimestamp {
+			info.Unlocked = info.Unlocked.Add(info.Unlocked, record.Amount)
+		} else {
+			remainRecords = append(remainRecords, record)
+		}
+	}
+	info.UnlockingRecords = remainRecords
 }

@@ -107,7 +107,7 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 	consensusPubKey, p2pPubKey, p2pID, err := framework.CheckNodeInfo(node_manager.NodeInfo{
 		ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
 		P2PPubKey:       nodeExtraArgs.P2PPubKey,
-		OperatorAddress: nm.gov.Ctx.From.String(),
+		Operator:        nm.gov.Ctx.From,
 		MetaData:        nodeExtraArgs.MetaData,
 	})
 
@@ -185,10 +185,10 @@ func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	_, err := nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+	_, err := nodeManagerContract.Register(node_manager.NodeInfo{
 		ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
 		P2PPubKey:       nodeExtraArgs.P2PPubKey,
-		OperatorAddress: proposal.Proposer,
+		Operator:        ethcommon.HexToAddress(proposal.Proposer),
 		MetaData:        nodeExtraArgs.MetaData,
 		Status:          uint8(types.NodeStatusDataSyncer),
 	})
@@ -206,7 +206,7 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	if err := nodeManagerContract.LeaveValidatorOrCandidateSet(nodeExtraArgs.NodeID); err != nil {
+	if err := nodeManagerContract.Exit(nodeExtraArgs.NodeID); err != nil {
 		return err
 	}
 

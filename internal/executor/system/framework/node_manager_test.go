@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -54,32 +54,14 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	assert.Nil(t, err)
 	operatorAddress := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013")
 
-	// register permission denied
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		_, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
-			ConsensusPubKey: consensusKeystore.PublicKey.String(),
-			P2PPubKey:       p2pKeystore.PublicKey.String(),
-			P2PID:           nodes[0].P2PID,
-			OperatorAddress: operatorAddress.String(),
-			MetaData: node_manager.NodeMetaData{
-				Name:       "mockName",
-				Desc:       "mockDesc",
-				ImageURL:   "https://example.com/image.png",
-				WebsiteURL: "https://example.com/",
-			},
-		})
-		assert.ErrorContains(t, err, ErrPermissionDenied.Error())
-		return err
-	})
-
 	// error repeat register
 	for i := 0; i < 4; i++ {
 		testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-			_, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+			_, err = nodeManagerContract.Register(node_manager.NodeInfo{
 				ConsensusPubKey: consensusKeystore.PublicKey.String(),
 				P2PPubKey:       p2pKeystore.PublicKey.String(),
 				P2PID:           nodes[i].P2PID,
-				OperatorAddress: operatorAddress.String(),
+				Operator:        operatorAddress,
 				MetaData: node_manager.NodeMetaData{
 					Name:       "mockName",
 					Desc:       "mockDesc",
@@ -95,11 +77,11 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	// register a node success
 	var node5ID uint64
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		node5ID, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+		node5ID, err = nodeManagerContract.Register(node_manager.NodeInfo{
 			ConsensusPubKey: consensusKeystore.PublicKey.String(),
 			P2PPubKey:       p2pKeystore.PublicKey.String(),
 			P2PID:           p2pKeystore.P2PID(),
-			OperatorAddress: operatorAddress.String(),
+			Operator:        operatorAddress,
 			MetaData: node_manager.NodeMetaData{
 				Name:       "mockName",
 				Desc:       "mockDesc",
@@ -121,7 +103,7 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.Equal(t, p2pKeystore.P2PID(), nodes[4].P2PID)
 		assert.EqualValues(t, types.NodeStatusDataSyncer, nodes[4].Status)
 		assert.Equal(t, "mockName", nodes[4].MetaData.Name)
-		assert.Equal(t, operatorAddress, ethcommon.HexToAddress(nodes[4].OperatorAddress))
+		assert.Equal(t, operatorAddress, nodes[4].Operator)
 
 		dataSyncerSet, err := nodeManagerContract.GetDataSyncerSet()
 		assert.Nil(t, err)
@@ -129,13 +111,13 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.JoinCandidateSet(node5ID)
-		assert.EqualError(t, err, ErrPermissionDenied.Error())
+		err = nodeManagerContract.JoinCandidateSet(node5ID, 0)
+		assert.ErrorContains(t, err, "no permission")
 		return err
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, operatorAddress, func() error {
-		err = nodeManagerContract.JoinCandidateSet(node5ID)
+		err = nodeManagerContract.JoinCandidateSet(node5ID, 0)
 		assert.Nil(t, err)
 		return err
 	})
@@ -150,36 +132,13 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		nodes[4].Status = uint8(types.NodeStatusCandidate)
 		assert.Equal(t, []node_manager.NodeInfo{nodes[4]}, candidateSet)
 
-		candidates, err := nodeManagerContract.InternalGetConsensusCandidateNodeIDs()
+		candidates, err := nodeManagerContract.getConsensusCandidateNodeIDs()
 		assert.Nil(t, err)
 		assert.Equal(t, []uint64{1, 2, 3, 4, 5}, candidates)
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.InternalUpdateActiveValidatorSet([]node_manager.ConsensusVotingPower{
-			{
-				NodeID:               1,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               2,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               3,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               5,
-				ConsensusVotingPower: 100,
-			},
-		})
-		assert.ErrorContains(t, err, ErrPermissionDenied.Error())
-		return err
-	})
-
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.InternalUpdateActiveValidatorSet([]node_manager.ConsensusVotingPower{
+		err = nodeManagerContract.updateActiveValidatorSet([]node_manager.ConsensusVotingPower{
 			{
 				NodeID:               1,
 				ConsensusVotingPower: 100,
@@ -233,7 +192,7 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, operatorAddress, func() error {
-		err = nodeManagerContract.LeaveValidatorOrCandidateSet(node5ID)
+		err = nodeManagerContract.Exit(node5ID)
 		assert.Nil(t, err)
 		return err
 	})
@@ -249,14 +208,8 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.Equal(t, []node_manager.NodeInfo{nodes[4]}, pendingInactiveSet)
 	})
 
-	testNVM.RunSingleTX(stakingManagerContract, types.NewAddressByStr(nodes[4].OperatorAddress).ETHAddress(), func() error {
-		err = stakingManagerContract.CreateStakingPool(nodes[4].ID, 0)
-		assert.Nil(t, err)
-		return err
-	})
-
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.InternalProcessNodeLeave()
+		err = nodeManagerContract.processNodeLeave()
 		assert.Nil(t, err)
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
@@ -292,11 +245,11 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 
 	var node5ID uint64
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		node5ID, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+		node5ID, err = nodeManagerContract.Register(node_manager.NodeInfo{
 			ConsensusPubKey: consensusKeystore.PublicKey.String(),
 			P2PPubKey:       p2pKeystore.PublicKey.String(),
 			P2PID:           p2pKeystore.P2PID(),
-			OperatorAddress: operatorAddress,
+			Operator:        ethcommon.HexToAddress(operatorAddress),
 			MetaData: node_manager.NodeMetaData{
 				Name:       "mockName",
 				Desc:       "mockDesc",
@@ -309,14 +262,15 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
 
+	zeroAddr := ethcommon.Address{}
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.UpdateOperator(node5ID, common.ZeroAddress)
-		assert.EqualError(t, err, ErrPermissionDenied.Error())
+		err = nodeManagerContract.UpdateOperator(node5ID, zeroAddr)
+		assert.ErrorContains(t, err, "no permission")
 		return err
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
-		err = nodeManagerContract.UpdateOperator(node5ID, common.ZeroAddress)
+		err = nodeManagerContract.UpdateOperator(node5ID, zeroAddr)
 		assert.Nil(t, err)
 		return err
 	})
@@ -324,12 +278,12 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
 		info, err := nodeManagerContract.GetNodeInfo(node5ID)
 		assert.Nil(t, err)
-		assert.Equal(t, common.ZeroAddress, info.OperatorAddress)
+		assert.Equal(t, zeroAddr, info.Operator)
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
 		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{})
-		assert.EqualError(t, err, ErrPermissionDenied.Error())
+		assert.ErrorContains(t, err, "no permission")
 		return err
 	})
 
@@ -380,11 +334,11 @@ func TestCheckNodeInfo(t *testing.T) {
 
 	var node5ID uint64
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		node5ID, err = nodeManagerContract.InternalRegisterNode(node_manager.NodeInfo{
+		node5ID, err = nodeManagerContract.Register(node_manager.NodeInfo{
 			ConsensusPubKey: consensusKeystore.PublicKey.String(),
 			P2PPubKey:       p2pKeystore.PublicKey.String(),
 			P2PID:           p2pKeystore.P2PID(),
-			OperatorAddress: operatorAddress,
+			Operator:        ethcommon.HexToAddress(operatorAddress),
 			MetaData: node_manager.NodeMetaData{
 				Name:       "mockName",
 				Desc:       "mockDesc",

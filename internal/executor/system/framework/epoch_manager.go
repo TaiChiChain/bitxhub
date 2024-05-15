@@ -28,6 +28,7 @@ var EpochManagerBuildConfig = &common.SystemContractBuildConfig[*EpochManager]{
 	},
 }
 
+// var _ epoch_manager.EpochManager = (*EpochManager)(nil)
 type EpochManager struct {
 	common.SystemContractBase
 

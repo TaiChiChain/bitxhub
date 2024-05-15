@@ -83,7 +83,7 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		backend:          ldb,
 		storageTrieCache: storagemgr.NewCacheWrapper(32, false),
 		cache:            ac,
-		changer:          NewChanger(),
+		changer:          newChanger(),
 		selfDestructed:   false,
 		created:          false,
 	}

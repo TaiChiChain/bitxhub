@@ -10,7 +10,6 @@ pragma solidity >=0.7.0 <0.9.0;
         uint256 Principal;
         uint256 Unlocked;
         uint64 ActiveEpoch;
-        // limit size: MaxUnlockingRecords
         UnlockingRecord[] UnlockingRecords;
     }
 
@@ -43,15 +42,15 @@ interface LiquidStakingToken {
 
     // liquid staking token specific methods
 
-    function Info(uint256 _tokenId) external view returns (LiquidStakingTokenInfo memory info);
+    function getInfo(uint256 _tokenId) external view returns (LiquidStakingTokenInfo memory info);
 
-    function GetLockedReward(uint256 _tokenId) external view returns (uint256);
+    function getLockedReward(uint256 _tokenId) external view returns (uint256);
 
-    function GetUnlockingCoin(uint256 _tokenId) external view returns (uint256);
+    function getUnlockingCoin(uint256 _tokenId) external view returns (uint256);
 
-    function GetUnlockedCoin(uint256 _tokenId) external view returns (uint256);
+    function getUnlockedCoin(uint256 _tokenId) external view returns (uint256);
 
-    function GetLockedCoin(uint256 _tokenId) external view returns (uint256);
+    function getLockedCoin(uint256 _tokenId) external view returns (uint256);
 
-    function GetTotalCoin(uint256 _tokenId) external view returns (uint256);
+    function getTotalCoin(uint256 _tokenId) external view returns (uint256);
 }

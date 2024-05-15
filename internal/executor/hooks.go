@@ -10,26 +10,35 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 )
 
-func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
+func (exec *BlockExecutor) tryTurnIntoNewEpoch(block *types.Block) error {
 	// check need turn into NewEpoch
 	epochInfo := exec.chainState.EpochInfo
 	if block.Header.Number == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1) {
-		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
-		votingPowers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
-		if err != nil {
-			panic(err)
-		}
-
 		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+		stakingManagerContract := framework.StakingManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+
 		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 		if err != nil {
-			panic(err)
+			return err
+		}
+
+		if err := stakingManagerContract.TurnIntoNewEpoch(epochInfo, newEpoch); err != nil {
+			return err
+		}
+		if err := nodeManagerContract.TurnIntoNewEpoch(epochInfo, newEpoch); err != nil {
+			return err
+		}
+
+		votingPowers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
+		if err != nil {
+			return err
 		}
 
 		if err := exec.chainState.UpdateByEpochInfo(newEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
 			return item.NodeID, item.ConsensusVotingPower
 		})); err != nil {
-			panic(err)
+			return err
 		}
 
 		exec.logger.WithFields(logrus.Fields{
@@ -38,17 +47,22 @@ func (exec *BlockExecutor) updateEpochInfo(block *types.Block) {
 			"new_epoch_start_block": newEpoch.StartBlock,
 		}).Info("Turn into new epoch")
 	}
+	return nil
 }
 
-func (exec *BlockExecutor) updateMiningInfo(block *types.Block) {
+func (exec *BlockExecutor) recordReward(block *types.Block) error {
 	// calculate mining rewards and transfer the mining reward
-	if err := exec.incentive.SetMiningRewards(block.Header.ProposerNodeID, exec.ledger.StateLedger,
-		block.Header.GasFeeReward); err != nil {
-		exec.logger.WithFields(logrus.Fields{
-			"height": block.Height(),
-			"err":    err.Error(),
-		}).Errorf("set mining rewards error")
-		// should panic the error, since there is no chance to get an error only if the logic is wrong
-		panic(err)
+	stakingManager := framework.StakingManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+	stakeReword, err := stakingManager.RecordReward(block.Header.ProposerNodeID, block.Header.GasFeeReward)
+	if err != nil {
+		return err
 	}
+	exec.logger.Debugf("RecordReward to node %d, gas reward: %s, stake reward: %s", block.Header.ProposerNodeID, block.Header.GasFeeReward, stakeReword)
+
+	exec.logger.WithFields(logrus.Fields{
+		"node":         block.Header.Number,
+		"gas_reward":   block.Header.GasFeeReward,
+		"stake_reward": stakeReword,
+	}).Info("Record block reward")
+	return nil
 }

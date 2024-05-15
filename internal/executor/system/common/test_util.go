@@ -66,7 +66,6 @@ func (nvm *TestNVM) RunSingleTX(contract SystemContract, from ethcommon.Address,
 	contract.SetContext(ctx)
 	if err := executor(); err != nil {
 		nvm.Ledger.StateLedger.RevertToSnapshot(snapshot)
-		return
 	}
 	nvm.Ledger.StateLedger.Finalise()
 }
@@ -84,6 +83,7 @@ func (nvm *TestNVM) Call(contract SystemContract, from ethcommon.Address, execut
 	})
 	executor()
 	nvm.Ledger.StateLedger.RevertToSnapshot(snapshot)
+	nvm.Ledger.StateLedger.Finalise()
 }
 
 func (nvm *TestNVM) NewEVM(caller ethcommon.Address, stateLedger *LogsCollectorStateLedger, blkCtxSetter func(ctx *vm.BlockContext), txCtxSetter func(ctx *vm.TxContext)) *vm.EVM {

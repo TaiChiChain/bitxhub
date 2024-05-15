@@ -5,12 +5,14 @@ import (
 	"math"
 	"math/big"
 	"sort"
-	"strings"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 
+	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager_client"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
@@ -18,18 +20,16 @@ import (
 )
 
 var (
-	ErrRewardPerBlockNotFound = errors.New("reward per block not found")
-	ErrStakeValue             = errors.New("total supply smaller than total stake")
-	ErrStakeNotFound          = errors.New("total stake not found")
+	ErrStakeValue = errors.New("total supply smaller than total stake")
 )
 
 const (
-	blocksPerYear                   = uint64(63072000)
-	rewardPerBlockStorageKey        = "stakeRewardPerBlock"
-	availableStakingPoolsStorageKey = "availableStakingPools"
-	rewardRecordsStorageKey         = "rewardRecords"
-	gasRecordsStorageKey
-	totalStakeStorageKey = "totalStake"
+	blocksPerYear                    = uint64(63072000)
+	rewardPerBlockStorageKey         = "stakeRewardPerBlock"
+	availablePoolsStorageKey         = "availablePools"
+	proposeBlockCountTableStorageKey = "proposeBlockCountTable"
+	gasRewardTableStorageKey         = "gasRewardTable"
+	totalStakeStorageKey             = "totalStake"
 )
 
 var StakingManagerBuildConfig = &common.SystemContractBuildConfig[*StakingManager]{
@@ -48,54 +48,76 @@ var _ staking_manager.StakingManager = (*StakingManager)(nil)
 type StakingManager struct {
 	common.SystemContractBase
 
-	AvailableStakingPools *common.VMSlot[[]uint64]
-	RewardRecordTable     *common.VMMap[uint64, uint64]
-	RewardPerBlock        *common.VMSlot[*big.Int]
-	GasRewardTable        *common.VMMap[uint64, *big.Int]
-	TotalStake            *common.VMSlot[*big.Int]
+	availablePools         *common.VMSlot[[]uint64]
+	rewardPerBlock         *common.VMSlot[*big.Int]
+	proposeBlockCountTable *common.VMMap[uint64, uint64]
+	gasRewardTable         *common.VMMap[uint64, *big.Int]
+	totalStake             *common.VMSlot[*big.Int]
 }
 
-func (s *StakingManager) GenesisInit(_ *repo.GenesisConfig) error {
-	// init is already done in node manager
+func (s *StakingManager) GenesisInit(genesis *repo.GenesisConfig) error {
+	// init staking pools
+	totalStake := big.NewInt(0)
+	var needCreateStakingPoolIDs []uint64
+	for i, nodeCfg := range genesis.Nodes {
+		if !nodeCfg.IsDataSyncer {
+			nodeID := uint64(i + 1)
+			stakeNumber := nodeCfg.StakeNumber.ToBigInt()
+			if err := s.CreatePoolWithStake(nodeID, nodeCfg.CommissionRate, stakeNumber, true); err != nil {
+				return errors.Wrapf(err, "failed to create staking pool for node %d", nodeID)
+			}
+			if err := s.LoadPool(nodeID).GenesisInit(genesis); err != nil {
+				return errors.Wrapf(err, "failed to genesis init staking pool for node %d", nodeID)
+			}
+
+			totalStake = totalStake.Add(totalStake, stakeNumber)
+			needCreateStakingPoolIDs = append(needCreateStakingPoolIDs, nodeID)
+		}
+	}
+
+	s.StateAccount.AddBalance(totalStake)
+	if err := s.totalStake.Put(totalStake); err != nil {
+		return err
+	}
+
+	// init stake reward per block
+	if err := s.UpdateStakeRewardPerBlock(); err != nil {
+		return err
+	}
+
+	if err := s.availablePools.Put(needCreateStakingPoolIDs); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (s *StakingManager) SetContext(ctx *common.VMContext) {
 	s.SystemContractBase.SetContext(ctx)
 
-	s.AvailableStakingPools = common.NewVMSlot[[]uint64](s.StateAccount, availableStakingPoolsStorageKey)
-	s.RewardRecordTable = common.NewVMMap[uint64, uint64](s.StateAccount, rewardRecordsStorageKey, func(key uint64) string {
+	s.availablePools = common.NewVMSlot[[]uint64](s.StateAccount, availablePoolsStorageKey)
+	s.proposeBlockCountTable = common.NewVMMap[uint64, uint64](s.StateAccount, proposeBlockCountTableStorageKey, func(key uint64) string {
 		return fmt.Sprintf("%d", key)
 	})
-	s.RewardPerBlock = common.NewVMSlot[*big.Int](s.StateAccount, rewardPerBlockStorageKey)
-	s.TotalStake = common.NewVMSlot[*big.Int](s.StateAccount, totalStakeStorageKey)
-	s.GasRewardTable = common.NewVMMap[uint64, *big.Int](s.StateAccount, gasRecordsStorageKey, func(key uint64) string {
+	s.gasRewardTable = common.NewVMMap[uint64, *big.Int](s.StateAccount, gasRewardTableStorageKey, func(key uint64) string {
 		return fmt.Sprintf("%d", key)
 	})
+	s.rewardPerBlock = common.NewVMSlot[*big.Int](s.StateAccount, rewardPerBlockStorageKey)
+	s.totalStake = common.NewVMSlot[*big.Int](s.StateAccount, totalStakeStorageKey)
 }
 
-func (s *StakingManager) GetStakingPool(poolID uint64) *StakingPool {
+func (s *StakingManager) LoadPool(poolID uint64) *StakingPool {
 	return NewStakingPool(s.SystemContractBase).Load(poolID)
 }
 
-func (s *StakingManager) InternalInitAvailableStakingPools(availableStakingPools []uint64) (err error) {
-	if !s.Ctx.CallFromSystem {
-		return ErrPermissionDenied
-	}
-	return s.AvailableStakingPools.Put(availableStakingPools)
-}
-
-func (s *StakingManager) InternalTurnIntoNewEpoch() error {
-	if !s.Ctx.CallFromSystem {
-		return ErrPermissionDenied
-	}
+func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *types.EpochInfo) error {
 	axc := token.AXCBuildConfig.Build(s.CrossCallSystemContractContext())
-	pools, err := s.AvailableStakingPools.MustGet()
+	pools, err := s.availablePools.MustGet()
 	if err != nil {
 		return err
 	}
 	for _, poolID := range pools {
-		exists, cnt, err := s.RewardRecordTable.Get(poolID)
+		exists, cnt, err := s.proposeBlockCountTable.Get(poolID)
 		if err != nil {
 			return err
 		}
@@ -103,7 +125,7 @@ func (s *StakingManager) InternalTurnIntoNewEpoch() error {
 			return errors.Errorf("reward record of %d not found", poolID)
 		}
 
-		exists, rewardPerBlock, err := s.RewardPerBlock.Get()
+		exists, rewardPerBlock, err := s.rewardPerBlock.Get()
 		if err != nil {
 			return err
 		}
@@ -111,7 +133,7 @@ func (s *StakingManager) InternalTurnIntoNewEpoch() error {
 			return errors.New("reward per block not found")
 		}
 
-		exists, gasReward, err := s.GasRewardTable.Get(poolID)
+		exists, gasReward, err := s.gasRewardTable.Get(poolID)
 		if err != nil {
 			return err
 		}
@@ -124,104 +146,68 @@ func (s *StakingManager) InternalTurnIntoNewEpoch() error {
 		if err = axc.Mint(reward); err != nil {
 			return err
 		}
+		// add gas to the reward
+		reward = reward.Add(reward, gasReward)
+
 		// transfer token to staking manager contract
 		axc.StateAccount.SubBalance(reward)
 		s.StateAccount.AddBalance(reward)
-		// add gas to the reward
-		reward = reward.Add(reward, gasReward)
-		if err = s.GetStakingPool(poolID).TurnIntoNewEpoch(reward); err != nil {
+		if err = s.LoadPool(poolID).TurnIntoNewEpoch(oldEpoch, newEpoch, reward); err != nil {
 			return err
 		}
-		if err = s.RewardRecordTable.Put(poolID, 0); err != nil {
+		if err = s.proposeBlockCountTable.Put(poolID, 0); err != nil {
 			return err
 		}
-		if err = s.GasRewardTable.Put(poolID, big.NewInt(0)); err != nil {
+		if err = s.gasRewardTable.Put(poolID, big.NewInt(0)); err != nil {
 			return err
 		}
 	}
-	return s.InternalCalculateStakeReward()
+	return s.UpdateStakeRewardPerBlock()
 }
 
-func (s *StakingManager) InternalDisablePool(poolID uint64) error {
-	if !s.Ctx.CallFromSystem {
-		return ErrPermissionDenied
+func (s *StakingManager) DisablePool(poolID uint64) error {
+	if !s.LoadPool(poolID).Exists() {
+		return errors.New("pool not exists")
 	}
-	isExist, curPools, err := s.AvailableStakingPools.Get()
-	if err != nil {
+	if err := s.removeAvailableStakingPool(poolID); err != nil {
 		return err
 	}
-	if !isExist {
-		return errors.New("available pools not found")
-	}
-	index := -1
-	for i, id := range curPools {
-		if id == poolID {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return errors.Errorf("pool %d not found", poolID)
-	}
-	curPools = append(curPools[:index], curPools[index+1:]...)
-	return s.AvailableStakingPools.Put(curPools)
+	return nil
 }
 
-func (s *StakingManager) InternalRecordReward(poolID uint64, gasReward *big.Int) (reward *big.Int, err error) {
-	if !s.Ctx.CallFromSystem {
-		return nil, ErrPermissionDenied
-	}
-	exists, reward, err := s.RewardPerBlock.Get()
+func (s *StakingManager) RecordReward(poolID uint64, gasReward *big.Int) (stakeReword *big.Int, err error) {
+	poolReward, err := s.proposeBlockCountTable.MustGet(poolID)
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
-		return nil, ErrRewardPerBlockNotFound
-	}
-	exists, poolReward, err := s.RewardRecordTable.Get(poolID)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		poolReward = 1
-	} else {
-		poolReward++
-	}
-	if err = s.RewardRecordTable.Put(poolID, poolReward); err != nil {
+	poolReward++
+	if err = s.proposeBlockCountTable.Put(poolID, poolReward); err != nil {
 		return nil, err
 	}
 
 	// record gas reward
-	exists, gas, err := s.GasRewardTable.Get(poolID)
+	oldGasReward, err := s.gasRewardTable.MustGet(poolID)
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
-		return nil, errors.New("Gas reward not found")
-	}
-	newGasReward := new(big.Int).Add(gas, gasReward)
-	if err = s.GasRewardTable.Put(poolID, newGasReward); err != nil {
+	newGasReward := new(big.Int).Add(oldGasReward, gasReward)
+	if err = s.gasRewardTable.Put(poolID, newGasReward); err != nil {
 		return nil, err
 	}
-	return reward, nil
+
+	return s.rewardPerBlock.MustGet()
 }
 
-func (s *StakingManager) InternalCalculateStakeReward() error {
-	if !s.Ctx.CallFromSystem {
-		return ErrPermissionDenied
-	}
+func (s *StakingManager) UpdateStakeRewardPerBlock() error {
 	axc := token.AXCBuildConfig.Build(s.CrossCallSystemContractContext())
 
 	totalSupply, err := axc.TotalSupply()
 	if err != nil {
 		return err
 	}
-	exists, totalStake, err := s.TotalStake.Get()
+	totalStake, err := s.totalStake.MustGet()
 	if err != nil {
 		return err
-	}
-	if !exists {
-		return ErrStakeNotFound
 	}
 	if totalSupply.Cmp(totalStake) < 0 {
 		return ErrStakeValue
@@ -237,92 +223,186 @@ func (s *StakingManager) InternalCalculateStakeReward() error {
 		),
 	)
 	multipliedInt, _ := multiplied.Int(nil)
-	return s.RewardPerBlock.Put(multipliedInt)
+	return s.rewardPerBlock.Put(multipliedInt)
 }
 
-func (s *StakingManager) CreateStakingPool(poolID uint64, commissionRate uint64) (err error) {
-	nodeManager := NodeManagerBuildConfig.Build(s.CrossCallSystemContractContext())
-	info, err := nodeManager.GetNodeInfo(poolID)
+func (s *StakingManager) CreatePool(poolID uint64, commissionRate uint64) (err error) {
+	return s.CreatePoolWithStake(poolID, commissionRate, big.NewInt(0), false)
+}
+
+func (s *StakingManager) CreatePoolWithStake(poolID uint64, commissionRate uint64, stake *big.Int, isGenesisInit bool) (err error) {
+	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
+	nodeManagerContract := NodeManagerBuildConfig.Build(s.CrossCallSystemContractContext())
+
+	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
 		return err
 	}
-	if strings.ToLower(info.OperatorAddress) != strings.ToLower(s.Ctx.From.String()) {
-		return errors.Errorf("operator address %s is not equal to caller %s", info.OperatorAddress, s.Ctx.From.String())
-	}
-	if err := s.GetStakingPool(poolID).Create(poolID, commissionRate); err != nil {
-		return err
-	}
-	_, curPools, err := s.AvailableStakingPools.Get()
+	nodeInfo, err := nodeManagerContract.GetNodeInfo(poolID)
 	if err != nil {
 		return err
 	}
-	curPools = append(curPools, poolID)
-	sort.Slice(curPools, func(i, j int) bool { return curPools[i] < curPools[j] })
-	if err := s.AvailableStakingPools.Put(curPools); err != nil {
+
+	if err := s.LoadPool(poolID).Create(nodeInfo.Operator, currentEpoch.Epoch, commissionRate, stake); err != nil {
+		return err
+	}
+
+	if !isGenesisInit {
+		if err := s.addAvailableStakingPool(poolID); err != nil {
+			return err
+		}
+	}
+
+	if err = s.proposeBlockCountTable.Put(poolID, 0); err != nil {
+		return err
+	}
+	if err = s.gasRewardTable.Put(poolID, big.NewInt(0)); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (s *StakingManager) AddStake(poolID uint64, owner ethcommon.Address, amount *big.Int) error {
-	exist, stake, err := s.TotalStake.Get()
+	if err := s.updateTotalStake(true, amount); err != nil {
+		return err
+	}
+	return s.LoadPool(poolID).AddStake(owner, amount)
+}
+
+func (s *StakingManager) checkLiquidStakingTokenPermission(liquidStakingTokenID *big.Int) (*liquid_staking_token.LiquidStakingTokenInfo, error) {
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(s.CrossCallSystemContractContext())
+	liquidStakingTokenInfo, err := liquidStakingTokenContract.mustGetInfo(liquidStakingTokenID)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := liquidStakingTokenContract.ownerOf(liquidStakingTokenID)
+	if err != nil {
+		return nil, err
+	}
+	if s.Ctx.From != owner {
+		return nil, errors.New("no permission")
+	}
+	return liquidStakingTokenInfo, nil
+}
+
+func (s *StakingManager) checkPoolPermission(poolID uint64) error {
+	nodeManagerContract := NodeManagerBuildConfig.Build(s.CrossCallSystemContractContext())
+	nodeInfo, err := nodeManagerContract.GetNodeInfo(poolID)
 	if err != nil {
 		return err
 	}
-	if !exist {
-		return ErrStakeNotFound
+
+	if s.Ctx.From != nodeInfo.Operator {
+		return errors.New("no permission")
 	}
-	stake = stake.Add(stake, amount)
-	if err = s.TotalStake.Put(stake); err != nil {
-		return err
-	}
-	return s.GetStakingPool(poolID).AddStake(owner, amount)
+	return nil
 }
 
-func (s *StakingManager) Unlock(poolID uint64, owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
-	exist, stake, err := s.TotalStake.Get()
+func (s *StakingManager) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) error {
+	liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
 	if err != nil {
 		return err
 	}
-	if !exist {
-		return ErrStakeNotFound
-	}
-	after := stake.Sub(stake, amount)
-	if after.Cmp(big.NewInt(0)) < 0 {
-		return errors.Errorf("total stake %s less than amount %s", stake.String(), amount.String())
-	}
-	if err = s.TotalStake.Put(after); err != nil {
+	if err := s.updateTotalStake(false, amount); err != nil {
 		return err
 	}
-	return s.GetStakingPool(poolID).UnlockStake(owner, liquidStakingTokenID, amount)
+	return s.LoadPool(liquidStakingTokenInfo.PoolID).UnlockStake(liquidStakingTokenID, liquidStakingTokenInfo, amount)
 }
 
-func (s *StakingManager) Withdraw(poolID uint64, owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
-	return s.GetStakingPool(poolID).WithdrawStake(owner, liquidStakingTokenID, amount)
+func (s *StakingManager) Withdraw(liquidStakingTokenID *big.Int, recipient ethcommon.Address, amount *big.Int) error {
+	liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
+	if err != nil {
+		return err
+	}
+	principalWithdraw, err := s.LoadPool(liquidStakingTokenInfo.PoolID).WithdrawStake(liquidStakingTokenID, liquidStakingTokenInfo, recipient, amount)
+	if err != nil {
+		return err
+	}
+	if err := s.updateTotalStake(false, principalWithdraw); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *StakingManager) UpdatePoolCommissionRate(poolID uint64, newCommissionRate uint64) error {
-	return s.GetStakingPool(poolID).UpdateCommissionRate(newCommissionRate)
+	if err := s.checkPoolPermission(poolID); err != nil {
+		return err
+	}
+	return s.LoadPool(poolID).UpdateCommissionRate(newCommissionRate)
 }
 
-func (s *StakingManager) GetPoolActiveStake(poolID uint64) (*big.Int, error) {
-	return s.GetStakingPool(poolID).GetActiveStake()
+func (s *StakingManager) PoolActiveStake(poolID uint64) (*big.Int, error) {
+	info, err := s.LoadPool(poolID).MustGetInfo()
+	if err != nil {
+		return nil, err
+	}
+	return new(big.Int).Set(info.ActiveStake), nil
 }
 
-func (s *StakingManager) GetPoolNextEpochActiveStake(poolID uint64) (*big.Int, error) {
-	return s.GetStakingPool(poolID).GetNextEpochActiveStake()
+func (s *StakingManager) GetPoolInfo(poolID uint64) (staking_manager.PoolInfo, error) {
+	return s.LoadPool(poolID).Info()
 }
 
-func (s *StakingManager) GetPoolCommissionRate(poolID uint64) (uint64, error) {
-	return s.GetStakingPool(poolID).GetCommissionRate()
+func (s *StakingManager) GetPoolHistoryLiquidStakingTokenRate(poolID uint64, epoch uint64) (staking_manager.LiquidStakingTokenRate, error) {
+	return s.LoadPool(poolID).HistoryLiquidStakingTokenRate(epoch)
 }
 
-func (s *StakingManager) GetPoolNextEpochCommissionRate(poolID uint64) (uint64, error) {
-	return s.GetStakingPool(poolID).GetNextEpochCommissionRate()
+func (s *StakingManager) updateTotalStake(isAdd bool, amount *big.Int) error {
+	if amount == nil {
+		return nil
+	}
+	if amount.Sign() == 0 {
+		return nil
+	}
+	totalStake, err := s.totalStake.MustGet()
+	if err != nil {
+		return err
+	}
+	if isAdd {
+		totalStake = totalStake.Add(totalStake, amount)
+	} else {
+		if totalStake.Cmp(amount) < 0 {
+			return errors.Errorf("total stake %s less than amount %s", totalStake.String(), amount.String())
+		}
+		totalStake = totalStake.Sub(totalStake, amount)
+	}
+
+	if err = s.totalStake.Put(totalStake); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *StakingManager) GetPoolCumulativeReward(poolID uint64) (*big.Int, error) {
-	return s.GetStakingPool(poolID).GetCumulativeReward()
+func (s *StakingManager) addAvailableStakingPool(poolID uint64) error {
+	pools, err := s.availablePools.MustGet()
+	if err != nil {
+		return err
+	}
+	_, found := lo.Find(pools, func(id uint64) bool {
+		return id == poolID
+	})
+	if found {
+		return errors.Errorf("pool %d already available", poolID)
+	}
+	pools = append(pools, poolID)
+	sort.Slice(pools, func(i, j int) bool { return pools[i] < pools[j] })
+	return s.availablePools.Put(pools)
+}
+
+func (s *StakingManager) removeAvailableStakingPool(poolID uint64) error {
+	pools, err := s.availablePools.MustGet()
+	if err != nil {
+		return err
+	}
+	_, index, found := lo.FindIndexOf(pools, func(id uint64) bool {
+		return id == poolID
+	})
+	if !found {
+		return errors.Errorf("pool %d not available", poolID)
+	}
+	pools = append(pools[:index], pools[index+1:]...)
+	sort.Slice(pools, func(i, j int) bool { return pools[i] < pools[j] })
+	return s.availablePools.Put(pools)
 }
 
 func divideBigInt(a, b *big.Int) float64 {

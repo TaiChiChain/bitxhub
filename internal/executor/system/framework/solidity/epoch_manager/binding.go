@@ -69,7 +69,7 @@ type StakeParams struct {
 	StakeEnable                      bool
 	MaxAddStakeRatio                 uint64
 	MaxUnlockStakeRatio              uint64
-	UnlockPeriodEpochNumber          uint64
+	UnlockPeriod                     uint64
 	MaxPendingInactiveValidatorRatio uint64
 	MinDelegateStake                 *big.Int
 	MinValidatorStake                *big.Int

@@ -179,7 +179,7 @@ func TestNativeVM_PackOutputArgs(t *testing.T) {
 	data := "0x8e604d15a98b7f944a25c1d8e463c1583fb7a24bf222ad76ac3aae3079b135b2"
 	hash := crypto.Keccak256Hash([]byte(data))
 
-	outputs, err := nvm.PackOutputArgs(saccount.EntryPointBuildConfig.StaticConfig(), "getUserOpHash", hash)
+	outputs, err := nvm.packOutputArgs(saccount.EntryPointBuildConfig.StaticConfig(), "getUserOpHash", hash)
 	assert.Nil(t, err)
 	assert.NotNil(t, outputs)
 }

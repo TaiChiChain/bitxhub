@@ -168,8 +168,6 @@ func TestGetBlockHashFunc(t *testing.T) {
 
 func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	r := repo.MockRepo(t)
-	r.GenesisConfig.EpochInfo.StartBlock = 0
-	r.GenesisConfig.EpochInfo.EpochPeriod = 1
 
 	mockLedger, err := ledger.NewMemory(r)
 	require.Nil(t, err)
@@ -321,8 +319,10 @@ func mockCommitEvent(blockNumber uint64, txs []*types.Transaction) *consensuscom
 
 func mockBlock(blockNumber uint64, txs []*types.Transaction) *types.Block {
 	header := &types.BlockHeader{
-		Number:    blockNumber,
-		Timestamp: time.Now().Unix(),
+		Number:         blockNumber,
+		Timestamp:      time.Now().Unix(),
+		ProposerNodeID: 1,
+		GasFeeReward:   new(big.Int),
 	}
 
 	block := &types.Block{
@@ -365,6 +365,10 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 
 	ldg, err := ledger.NewMemory(r)
 	require.Nil(t, err)
+
+	nvm := system.New()
+	err = nvm.GenesisInit(r.GenesisConfig, ldg.StateLedger)
+	assert.Nil(t, err)
 
 	signer, err := types.GenerateSigner()
 	require.Nil(t, err)

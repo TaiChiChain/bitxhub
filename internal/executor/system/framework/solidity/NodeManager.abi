@@ -8,12 +8,12 @@
         "type": "uint8"
       }
     ],
-    "name": "incorrectStatus",
+    "name": "IncorrectStatus",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "pendingInactiveSetIsFull",
+    "name": "PendingInactiveSetIsFull",
     "type": "error"
   },
   {
@@ -67,9 +67,76 @@
         "internalType": "uint64",
         "name": "nodeID",
         "type": "uint64"
+      },
+      {
+        "components":
+        [
+          {
+            "internalType": "uint64",
+            "name": "ID",
+            "type": "uint64"
+          },
+          {
+            "internalType": "string",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
+            "type": "string"
+          },
+          {
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "desc",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "imageURL",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "websiteURL",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct NodeMetaData",
+            "name": "MetaData",
+            "type": "tuple"
+          },
+          {
+            "internalType": "enum Status",
+            "name": "Status",
+            "type": "uint8"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct NodeInfo",
+        "name": "info",
+        "type": "tuple"
       }
     ],
-    "name": "Registered",
+    "name": "Register",
     "type": "event"
   },
   {
@@ -127,17 +194,31 @@
       },
       {
         "indexed": false,
-        "internalType": "string",
-        "name": "newOperatorAddress",
-        "type": "string"
+        "internalType": "address",
+        "name": "newOperator",
+        "type": "address"
       }
     ],
     "name": "UpdateOperator",
     "type": "event"
   },
   {
+    "inputs":
+    [
+      {
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      }
+    ],
+    "name": "exit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "GetActiveValidatorSet",
+    "name": "getActiveValidatorSet",
     "outputs":
     [
       {
@@ -164,9 +245,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -230,7 +311,7 @@
   },
   {
     "inputs": [],
-    "name": "GetCandidateSet",
+    "name": "getCandidateSet",
     "outputs":
     [
       {
@@ -257,9 +338,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -305,7 +386,7 @@
   },
   {
     "inputs": [],
-    "name": "GetDataSyncerSet",
+    "name": "getDataSyncerSet",
     "outputs":
     [
       {
@@ -332,9 +413,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -380,7 +461,7 @@
   },
   {
     "inputs": [],
-    "name": "GetExitedSet",
+    "name": "getExitedSet",
     "outputs":
     [
       {
@@ -407,9 +488,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -462,7 +543,7 @@
         "type": "uint64"
       }
     ],
-    "name": "GetNodeInfo",
+    "name": "getNodeInfo",
     "outputs":
     [
       {
@@ -489,9 +570,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -544,7 +625,7 @@
         "type": "uint64[]"
       }
     ],
-    "name": "GetNodeInfos",
+    "name": "getNodeInfos",
     "outputs":
     [
       {
@@ -571,9 +652,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -619,7 +700,7 @@
   },
   {
     "inputs": [],
-    "name": "GetPendingInactiveSet",
+    "name": "getPendingInactiveSet",
     "outputs":
     [
       {
@@ -646,9 +727,9 @@
             "type": "string"
           },
           {
-            "internalType": "string",
-            "name": "OperatorAddress",
-            "type": "string"
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
           },
           {
             "components":
@@ -694,7 +775,7 @@
   },
   {
     "inputs": [],
-    "name": "GetTotalNodeCount",
+    "name": "getTotalNodeCount",
     "outputs":
     [
       {
@@ -713,23 +794,14 @@
         "internalType": "uint64",
         "name": "nodeID",
         "type": "uint64"
-      }
-    ],
-    "name": "joinCandidateSet",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs":
-    [
+      },
       {
         "internalType": "uint64",
-        "name": "nodeID",
+        "name": "commissionRate",
         "type": "uint64"
       }
     ],
-    "name": "leaveValidatorOrCandidateSet",
+    "name": "joinCandidateSet",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -785,9 +857,9 @@
         "type": "uint64"
       },
       {
-        "internalType": "string",
-        "name": "newOperatorAddress",
-        "type": "string"
+        "internalType": "address",
+        "name": "newOperator",
+        "type": "address"
       }
     ],
     "name": "updateOperator",

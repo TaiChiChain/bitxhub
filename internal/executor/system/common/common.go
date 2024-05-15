@@ -354,6 +354,19 @@ func (s *SystemContractBase) CrossCallEVMContractWithValue(gas, value *big.Int, 
 	return result, gasLeft, err
 }
 
+func (s *SystemContractBase) Transfer(to ethcommon.Address, amount *big.Int) error {
+	if amount.Sign() == 0 {
+		return nil
+	}
+	balance := s.StateAccount.GetBalance()
+	if balance.Cmp(amount) < 0 {
+		return errors.New("balance is not enough")
+	}
+	s.StateAccount.SubBalance(amount)
+	s.Ctx.StateLedger.AddBalance(types.NewAddress(to.Bytes()), amount)
+	return nil
+}
+
 func IsZeroAddress(addr ethcommon.Address) bool {
 	for _, b := range addr {
 		if b != 0 {

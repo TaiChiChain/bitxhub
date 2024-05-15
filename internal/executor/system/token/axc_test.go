@@ -12,7 +12,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func TestInitAxmTokenManager(t *testing.T) {
+func TestInitAxCTokenManager(t *testing.T) {
 	rep := repo.MockRepo(t)
 	lg, err := ledger.NewMemory(rep)
 	assert.Nil(t, err)

@@ -3,13 +3,16 @@ package framework
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
@@ -19,30 +22,12 @@ const (
 	StakingPoolLiquidStakingTokenRateHistoryKeyPrefix = "liquidStakingTokenRateHistory"
 )
 
-type LiquidStakingTokenRate struct {
-	StakeAmount                   *big.Int
-	TotalLiquidStakingTokenAmount *big.Int
-}
-
-type StakingPoolInfo struct {
-	PoolID                       uint64
-	IsActive                     bool
-	ActiveStake                  *big.Int
-	TotalLiquidStakingToken      *big.Int
-	PendingActiveStake           *big.Int
-	PendingInactiveStake         *big.Int
-	CommissionRate               uint64
-	NextEpochCommissionRate      uint64
-	CumulativeReward             *big.Int
-	OperatorLiquidStakingTokenID *big.Int
-}
-
 type StakingPool struct {
 	common.SystemContractBase
 
 	poolID                           uint64
-	info                             *common.VMSlot[StakingPoolInfo]
-	HistoryLiquidStakingTokenRateMap *common.VMMap[uint64, LiquidStakingTokenRate]
+	info                             *common.VMSlot[staking_manager.PoolInfo]
+	historyLiquidStakingTokenRateMap *common.VMMap[uint64, staking_manager.LiquidStakingTokenRate]
 }
 
 func NewStakingPool(systemContractBase common.SystemContractBase) *StakingPool {
@@ -53,51 +38,76 @@ func NewStakingPool(systemContractBase common.SystemContractBase) *StakingPool {
 
 func (sp *StakingPool) Load(poolID uint64) *StakingPool {
 	sp.poolID = poolID
-	sp.info = common.NewVMSlot[StakingPoolInfo](sp.StateAccount, fmt.Sprintf("%s_%d_%s", StakingPoolNamespace, poolID, StakingPoolInfoKeySuffix))
-	sp.HistoryLiquidStakingTokenRateMap = common.NewVMMap[uint64, LiquidStakingTokenRate](sp.StateAccount, fmt.Sprintf("%s_%d_%s", StakingPoolNamespace, poolID, StakingPoolLiquidStakingTokenRateHistoryKeyPrefix), func(key uint64) string {
-		return fmt.Sprintf("%d", key)
+	sp.info = common.NewVMSlot[staking_manager.PoolInfo](sp.StateAccount, fmt.Sprintf("%s_%d_%s", StakingPoolNamespace, poolID, StakingPoolInfoKeySuffix))
+	sp.historyLiquidStakingTokenRateMap = common.NewVMMap[uint64, staking_manager.LiquidStakingTokenRate](sp.StateAccount, fmt.Sprintf("%s_%d_%s", StakingPoolNamespace, poolID, StakingPoolLiquidStakingTokenRateHistoryKeyPrefix), func(key uint64) string {
+		return strconv.FormatUint(key, 10)
 	})
 	return sp
 }
 
-func (sp *StakingPool) Create(poolID uint64, commissionRate uint64) error {
+func (sp *StakingPool) Create(operator ethcommon.Address, epoch uint64, commissionRate uint64, stakeNumber *big.Int) error {
 	zero := big.NewInt(0)
 
-	stakingPoolInfo := &StakingPoolInfo{
-		PoolID:                       poolID,
-		IsActive:                     true,
-		ActiveStake:                  zero,
-		TotalLiquidStakingToken:      zero,
-		PendingActiveStake:           zero,
-		PendingInactiveStake:         zero,
-		CommissionRate:               commissionRate,
-		NextEpochCommissionRate:      commissionRate,
-		CumulativeReward:             zero,
-		OperatorLiquidStakingTokenID: zero,
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
+	liquidStakingTokenID, err := liquidStakingTokenContract.Mint(operator, &liquid_staking_token.LiquidStakingTokenInfo{
+		PoolID:           sp.poolID,
+		Principal:        stakeNumber,
+		Unlocked:         zero,
+		ActiveEpoch:      epoch,
+		UnlockingRecords: []liquid_staking_token.UnlockingRecord{},
+	})
+	if err != nil {
+		return errors.Wrapf(err, "failed to mint liquid staking token for node %d", sp.poolID)
 	}
 
-	return sp.createByStakingPool(stakingPoolInfo)
-}
-
-func (sp *StakingPool) createByStakingPool(stakingPoolInfo *StakingPoolInfo) error {
-	sp.Load(stakingPoolInfo.PoolID)
+	stakingPoolInfo := &staking_manager.PoolInfo{
+		ID:                                      sp.poolID,
+		IsActive:                                true,
+		ActiveStake:                             stakeNumber,
+		TotalLiquidStakingToken:                 stakeNumber,
+		PendingActiveStake:                      zero,
+		PendingInactiveStake:                    zero,
+		PendingInactiveLiquidStakingTokenAmount: zero,
+		CommissionRate:                          commissionRate,
+		NextEpochCommissionRate:                 commissionRate,
+		CumulativeReward:                        zero,
+		CumulativeCommission:                    zero,
+		OperatorLiquidStakingTokenID:            liquidStakingTokenID,
+	}
 
 	if sp.info.Has() {
-		return errors.Errorf("staking pool %d already exists", stakingPoolInfo.PoolID)
+		return errors.Errorf("staking pool %d already exists", stakingPoolInfo.ID)
 	}
 
 	if stakingPoolInfo.CommissionRate > CommissionRateDenominator {
 		return errors.Errorf("invalid commission rate: %d, must be less than or equal %d", stakingPoolInfo.CommissionRate, CommissionRateDenominator)
 	}
+	if err := sp.info.Put(*stakingPoolInfo); err != nil {
+		return err
+	}
 
-	return sp.info.Put(*stakingPoolInfo)
+	return nil
+}
+
+func (sp *StakingPool) GenesisInit(genesis *repo.GenesisConfig) error {
+	info, err := sp.MustGetInfo()
+	if err != nil {
+		return err
+	}
+	if err := sp.historyLiquidStakingTokenRateMap.Put(genesis.EpochInfo.Epoch, staking_manager.LiquidStakingTokenRate{
+		StakeAmount:              info.ActiveStake,
+		LiquidStakingTokenAmount: info.TotalLiquidStakingToken,
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (sp *StakingPool) Exists() bool {
 	return sp.info.Has()
 }
 
-func (sp *StakingPool) MustLoadInfo() (*StakingPoolInfo, error) {
+func (sp *StakingPool) MustGetInfo() (*staking_manager.PoolInfo, error) {
 	exist, info, err := sp.info.Get()
 	if err != nil {
 		return nil, err
@@ -112,38 +122,33 @@ func (sp *StakingPool) MustLoadInfo() (*StakingPoolInfo, error) {
 // AddStake Add stake and mint an LiquidStakingToken,
 // pendingActive LiquidStakingToken can quick Withdraw and not need call UnlockStake
 // set PendingActiveStake = [PendingActiveStake + amount] if pool is active
-// set ActiveStake = [ActiveStake + amount] if pool is Candidate
 // mint a LiquidStakingToken, set LiquidStakingToken.ActiveEpoch = CurrentEpoch + 1
 // emit a AddStake event
 // emit a MintLiquidStakingToken event
 func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error {
-	info, err := sp.MustLoadInfo()
+	info, err := sp.MustGetInfo()
 	if err != nil {
 		return err
 	}
 
 	if !info.IsActive {
-		return errors.Errorf("staking pool %d is inactive", info.PoolID)
+		return errors.Errorf("staking pool %d is inactive", info.ID)
 	}
 
 	// TODO: check received value is equal to amount, implement it after geth upgrade
 
 	nodeManagerContract := NodeManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
-	nodeInfo, err := nodeManagerContract.GetNodeInfo(info.PoolID)
+	nodeInfo, err := nodeManagerContract.GetNodeInfo(info.ID)
 	if err != nil {
 		return err
 	}
 
-	// add stake to pool
-	switch types.NodeStatus(nodeInfo.Status) {
-	case types.NodeStatusCandidate:
-		info.ActiveStake = new(big.Int).Add(info.ActiveStake, amount)
-	case types.NodeStatusActive:
-		info.PendingActiveStake = new(big.Int).Add(info.PendingActiveStake, amount)
-	default:
-		return errors.Errorf("staking pool %d status does not support adding stake", info.PoolID)
+	if types.NodeStatus(nodeInfo.Status) != types.NodeStatusCandidate && types.NodeStatus(nodeInfo.Status) != types.NodeStatusActive {
+		return errors.Errorf("staking pool %d status does not support adding stake", info.ID)
 	}
 
+	// add stake to pool
+	info.PendingActiveStake = new(big.Int).Add(info.PendingActiveStake, amount)
 	epochManagerContract := EpochManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
 	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
@@ -152,19 +157,23 @@ func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error 
 
 	// mint nft for owner
 	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
-	tokenID, err := liquidStakingTokenContract.InternalMint(owner, &LiquidStakingTokenInfo{
-		PoolID:           info.PoolID,
+	tokenID, err := liquidStakingTokenContract.Mint(owner, &liquid_staking_token.LiquidStakingTokenInfo{
+		PoolID:           info.ID,
 		Principal:        amount,
 		Unlocked:         new(big.Int),
 		ActiveEpoch:      currentEpoch.Epoch + 1,
-		UnlockingRecords: []UnlockingRecord{},
+		UnlockingRecords: []liquid_staking_token.UnlockingRecord{},
 	})
 	if err != nil {
 		return err
 	}
 
+	if err := sp.info.Put(*info); err != nil {
+		return err
+	}
+
 	sp.EmitEvent(&staking_manager.EventAddStake{
-		PoolID:               info.PoolID,
+		PoolID:               info.ID,
 		Owner:                owner,
 		Amount:               amount,
 		LiquidStakingTokenID: tokenID,
@@ -176,9 +185,18 @@ func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error 
 // UnlockStake Unlock the specified amount and enter the lockin period and add a record to UnlockingRecords to liquidStakingToken, will refresh the LiquidStakingToken.ActiveEpoch and LiquidStakingToken.Principal(first calculate reward)
 // NOTICE: Unable to obtain reward after calling unlock, and will revert when the LiquidStakingToken is pendingActive
 // move unlocked amount from LiquidStakingToken.UnlockingRecords to LiquidStakingToken.Unlocked
-// set PendingInactiveStake = [PendingInactiveStake + amount]
+// cal lst principalAndReward and lstAmount, unlock all principalAndReward and restake remain
+// set PendingInactiveStake = [PendingInactiveStake - principalAndReward]
+// set PendingActiveStake = [PendingActiveStake + principalAndReward - unlock]
+// set PendingInactiveLiquidStakingTokenAmount = [PendingInactiveLiquidStakingTokenAmount - lstAmount]
 // append UnlockingRecord{Amount: amount, UnlockTimestamp: block.Timestamp} to LiquidStakingToken.UnlockingRecords
-func (sp *StakingPool) UnlockStake(owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
+// emit a EventUnlock event
+func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingTokenInfo *liquid_staking_token.LiquidStakingTokenInfo, amount *big.Int) error {
+	info, err := sp.MustGetInfo()
+	if err != nil {
+		return err
+	}
+
 	epochManagerContract := EpochManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
 	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
@@ -186,82 +204,243 @@ func (sp *StakingPool) UnlockStake(owner ethcommon.Address, liquidStakingTokenID
 	}
 
 	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
-	liquidStakingTokenInfo, err := liquidStakingTokenContract.mustGetInfo(liquidStakingTokenID)
-	if err != nil {
-		return err
-	}
-
 	// token is not active, use Withdraw instead of Unlock
-	if liquidStakingTokenInfo.ActiveEpoch > currentEpoch.Epoch {
+	if liquidStakingTokenInfo.ActiveEpoch-1 == currentEpoch.Epoch {
 		return errors.Errorf("token is not active yet, use `WithdrawStake` instead")
 	}
 
-	if liquidStakingTokenInfo.ActiveEpoch == currentEpoch.Epoch {
+	var pendingInactiveStakeWithdraw, pendingInactiveLiquidStakingTokenAmount *big.Int
+	// calculate liquidStakingToken amount
+	stakingRate, err := sp.HistoryLiquidStakingTokenRate(liquidStakingTokenInfo.ActiveEpoch - 1)
+	if err != nil {
+		return err
 	}
+	lstAmount := calculateLSTAmount(stakingRate, liquidStakingTokenInfo.Principal)
+	// update Principal by reward
+	if liquidStakingTokenInfo.ActiveEpoch < currentEpoch.Epoch {
+		lastRate, err := sp.HistoryLiquidStakingTokenRate(currentEpoch.Epoch - 1)
+		if err != nil {
+			return err
+		}
+		principalAndReward := calculatePrincipalAndReward(stakingRate, lastRate, liquidStakingTokenInfo.Principal)
+		pendingInactiveStakeWithdraw = new(big.Int).Set(principalAndReward)
+	} else {
+		// no reward
+		pendingInactiveStakeWithdraw = new(big.Int).Set(liquidStakingTokenInfo.Principal)
+	}
+	pendingInactiveLiquidStakingTokenAmount = new(big.Int).Set(lstAmount)
+	if pendingInactiveStakeWithdraw.Cmp(amount) < 0 {
+		return errors.Errorf("amount is not enough, pendingInactiveStakeWithdraw: %s, amount: %s", pendingInactiveStakeWithdraw.String(), amount.String())
+	}
+
+	info.PendingInactiveStake = new(big.Int).Add(info.PendingInactiveStake, pendingInactiveStakeWithdraw)
+	info.PendingInactiveLiquidStakingTokenAmount = new(big.Int).Add(info.PendingInactiveLiquidStakingTokenAmount, pendingInactiveLiquidStakingTokenAmount)
+	unlockRecord := liquid_staking_token.UnlockingRecord{
+		Amount:          amount,
+		UnlockTimestamp: sp.Ctx.CurrentEVM.Context.Time + currentEpoch.StakeParams.UnlockPeriod,
+	}
+	liquidStakingTokenInfo.UnlockingRecords = append(liquidStakingTokenInfo.UnlockingRecords, unlockRecord)
+
+	// restake remain
+	liquidStakingTokenInfo.Principal = new(big.Int).Sub(pendingInactiveStakeWithdraw, amount)
+	liquidStakingTokenInfo.ActiveEpoch = currentEpoch.Epoch + 1
+	info.PendingActiveStake = new(big.Int).Add(info.PendingActiveStake, liquidStakingTokenInfo.Principal)
+
+	if err := liquidStakingTokenContract.updateInfo(liquidStakingTokenID, liquidStakingTokenInfo); err != nil {
+		return err
+	}
+	if err := sp.info.Put(*info); err != nil {
+		return err
+	}
+
+	sp.EmitEvent(&staking_manager.EventUnlock{
+		LiquidStakingTokenID: liquidStakingTokenID,
+		Amount:               amount,
+		UnlockTimestamp:      unlockRecord.UnlockTimestamp,
+	})
 
 	return nil
 }
 
 // WithdrawStake Withdraw the unlocked amount from LiquidStakingToken.Unlocked
 // move unlocked amount from LiquidStakingToken.UnlockingRecords to LiquidStakingToken.Unlocked
-// set LiquidStakingToken.Unlocked = LiquidStakingToken.Unlocked - amount
-func (sp *StakingPool) WithdrawStake(owner ethcommon.Address, liquidStakingTokenID *big.Int, amount *big.Int) error {
+// if LiquidStakingToken.Unlocked < amount, set LiquidStakingToken.Unlocked = LiquidStakingToken.Unlocked - amount
+// else
+//
+//	if token is not active, Principal can directly withdraw
+//
+// emit a EventWithdraw event
+func (sp *StakingPool) WithdrawStake(liquidStakingTokenID *big.Int, liquidStakingTokenInfo *liquid_staking_token.LiquidStakingTokenInfo, recipient ethcommon.Address, amount *big.Int) (principalWithdraw *big.Int, err error) {
+	info, err := sp.MustGetInfo()
+	if err != nil {
+		return nil, err
+	}
+
 	epochManagerContract := EpochManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
 	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	principalWithdraw = new(big.Int)
 	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
-	liquidStakingTokenInfo, err := liquidStakingTokenContract.mustGetInfo(liquidStakingTokenID)
-	if err != nil {
-		return err
+	updateLiquidStakingTokenUnlockingRecords(sp.Ctx.CurrentEVM.Context.Time, liquidStakingTokenInfo)
+	if liquidStakingTokenInfo.Unlocked.Cmp(amount) >= 0 {
+		liquidStakingTokenInfo.Unlocked = new(big.Int).Sub(liquidStakingTokenInfo.Unlocked, amount)
+		if err := liquidStakingTokenContract.updateInfo(liquidStakingTokenID, liquidStakingTokenInfo); err != nil {
+			return nil, err
+		}
+	} else {
+		// token is not active, Principal can directly withdraw
+		if liquidStakingTokenInfo.ActiveEpoch > currentEpoch.Epoch {
+			totalAmount := new(big.Int).Add(liquidStakingTokenInfo.Principal, liquidStakingTokenInfo.Unlocked)
+			if totalAmount.Cmp(amount) < 0 {
+				return nil, errors.Errorf("unlocked amount is not enough")
+			}
+			// withdraw unlocked amount first
+			if liquidStakingTokenInfo.Unlocked.Cmp(amount) >= 0 {
+				liquidStakingTokenInfo.Unlocked = new(big.Int).Sub(liquidStakingTokenInfo.Unlocked, amount)
+			} else {
+				principalWithdraw = new(big.Int).Sub(amount, liquidStakingTokenInfo.Unlocked)
+				liquidStakingTokenInfo.Principal = new(big.Int).Sub(liquidStakingTokenInfo.Principal, principalWithdraw)
+				liquidStakingTokenInfo.Unlocked = new(big.Int)
+				info.PendingActiveStake = new(big.Int).Sub(info.PendingActiveStake, principalWithdraw)
+				if err := sp.info.Put(*info); err != nil {
+					return nil, err
+				}
+			}
+
+			if err := liquidStakingTokenContract.updateInfo(liquidStakingTokenID, liquidStakingTokenInfo); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, errors.Errorf("unlocked amount is not enough")
+		}
 	}
 
-	if liquidStakingTokenInfo.ActiveEpoch > currentEpoch.Epoch {
-		return errors.Errorf("staking pool %d is not active", liquidStakingTokenInfo.PoolID)
+	if err := sp.Transfer(recipient, amount); err != nil {
+		return nil, err
 	}
 
-	return nil
+	sp.EmitEvent(&staking_manager.EventWithdraw{
+		LiquidStakingTokenID: liquidStakingTokenID,
+		Recipient:            recipient,
+		Amount:               amount,
+	})
+	return principalWithdraw, nil
 }
 
 // TurnIntoNewEpoch update staking pool status
 // Distribute reward to staking pool, and process stake status changes
-// calculate stakerReward =  reward * (1 - CommissionRate / CommissionRateDenominator)
-// calculate operatorCommission = reward * CommissionRate / CommissionRateDenominator
+// calculate stakerReward =  reward * (CommissionRateDenominator - CommissionRate / CommissionRateDenominator)
+// calculate operatorCommission = reward - stakerReward
 // set ActiveStake = [ActiveStake + PendingActiveStake - PendingInactiveStake + stakerReward]
-// set TotalLiquidStakingToken = LiquidStakingTokenRateHistory[CurrentEpoch - 1].TotalLiquidStakingTokenAmount / LiquidStakingTokenRateHistory[CurrentEpoch - 1].TotalLiquidStakingTokenAmount * ActiveStake
-// set LiquidStakingTokenRateHistory[CurrentEpoch] = LiquidStakingTokenRate{StakeAmount: ActiveStake, TotalLiquidStakingTokenAmount: TotalLiquidStakingToken}
-// if OperatorLiquidStakingTokenID == 0 (mint a new LiquidStakingToken)
+// set TotalLiquidStakingToken = LiquidStakingTokenRateHistory[CurrentEpoch - 1].LiquidStakingTokenAmount / LiquidStakingTokenRateHistory[CurrentEpoch - 1].StakeAmount * ActiveStake
+// set LiquidStakingTokenRateHistory[CurrentEpoch] = LiquidStakingTokenRate{StakeAmount: ActiveStake, LiquidStakingTokenAmount: TotalLiquidStakingToken}
+// merge OperatorLiquidStakingToken:
 //
-//	set OperatorLiquidStakingTokenID = mint new LiquidStakingToken{ ActiveEpoch: CurrentEpoch+1, Principal: operatorCommission, UnlockingRecords: []UnlockingRecord{}}
+//	calculate totalTokens = GetLockedToken(OperatorLiquidStakingTokenID)
 //
-// else(merge LiquidStakingToken)
-//
-//			calculate totalTokens = GetLockedToken(OperatorLiquidStakingTokenID)
-//	     set OperatorLiquidStakingToken.Principal = totalTokens + operatorCommission
-//	     set OperatorLiquidStakingToken.ActiveEpoch = CurrentEpoch + 1
+// set OperatorLiquidStakingToken.Principal = totalTokens + operatorCommission
+// set OperatorLiquidStakingToken.ActiveEpoch = CurrentEpoch + 1
 //
 // set CommissionRate = NextEpochCommissionRate
-func (sp *StakingPool) TurnIntoNewEpoch(reward *big.Int) error {
+func (sp *StakingPool) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *types.EpochInfo, reward *big.Int) error {
+	info, err := sp.MustGetInfo()
+	if err != nil {
+		return err
+	}
+	stakerReward := new(big.Int).Mul(reward, new(big.Int).SetUint64(CommissionRateDenominator-info.CommissionRate))
+	stakerReward = new(big.Int).Div(stakerReward, new(big.Int).SetUint64(CommissionRateDenominator))
+	operatorCommission := new(big.Int).Sub(reward, stakerReward)
+
+	info.CumulativeReward = new(big.Int).Add(info.CumulativeReward, stakerReward)
+	info.CumulativeCommission = new(big.Int).Add(info.CumulativeCommission, operatorCommission)
+
+	// update ActiveStake
+	info.ActiveStake = new(big.Int).Add(info.ActiveStake, stakerReward)
+	info.ActiveStake = new(big.Int).Sub(info.ActiveStake, info.PendingInactiveStake)
+	info.PendingInactiveStake = big.NewInt(0)
+	info.TotalLiquidStakingToken = new(big.Int).Sub(info.TotalLiquidStakingToken, info.PendingInactiveLiquidStakingTokenAmount)
+	info.PendingInactiveLiquidStakingTokenAmount = big.NewInt(0)
+
+	oldActiveStake := new(big.Int).Set(info.ActiveStake)
+	info.ActiveStake = new(big.Int).Add(info.ActiveStake, info.PendingActiveStake)
+	info.PendingActiveStake = big.NewInt(0)
+
+	info.TotalLiquidStakingToken = calculateLSTAmount(staking_manager.LiquidStakingTokenRate{
+		StakeAmount:              oldActiveStake,
+		LiquidStakingTokenAmount: info.TotalLiquidStakingToken,
+	}, info.ActiveStake)
+
+	// restake operatorCommission to operatorLiquidStakingToken
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
+	operatorLiquidStakingTokenInfo, err := liquidStakingTokenContract.mustGetInfo(info.OperatorLiquidStakingTokenID)
+	if err != nil {
+		return err
+	}
+
+	// withdraw
+	// notice: operatorLiquidStakingTokenInfo.ActiveEpoch = oldEpoch.Epoch, so use rate[oldEpoch.Epoch]
+	// calculate operator reward: stakerReward * (operatorLiquidStakingTokenInfo.Principal / lastActiveStake)
+	lastRate, err := sp.HistoryLiquidStakingTokenRate(oldEpoch.Epoch - 1)
+	if err != nil {
+		return err
+	}
+
+	if operatorLiquidStakingTokenInfo.ActiveEpoch == oldEpoch.Epoch {
+		operatorPrincipalAndReward := calculatePrincipalAndReward(lastRate, staking_manager.LiquidStakingTokenRate{
+			StakeAmount:              info.ActiveStake,
+			LiquidStakingTokenAmount: info.TotalLiquidStakingToken,
+		}, operatorLiquidStakingTokenInfo.Principal)
+		operatorLiquidStakingTokenInfo.Principal = new(big.Int).Add(operatorPrincipalAndReward, operatorCommission)
+		operatorLiquidStakingTokenInfo.ActiveEpoch = newEpoch.Epoch
+		if err := liquidStakingTokenContract.updateInfo(info.OperatorLiquidStakingTokenID, operatorLiquidStakingTokenInfo); err != nil {
+			return err
+		}
+	} else {
+		// operator lst has been unlocked in current epoch, not get stake reward in current epoch
+		// add operatorCommission to operatorLiquidStakingToken
+		operatorLiquidStakingTokenInfo.Principal = new(big.Int).Add(operatorLiquidStakingTokenInfo.Principal, operatorCommission)
+		operatorLiquidStakingTokenInfo.ActiveEpoch = newEpoch.Epoch
+
+		if err := liquidStakingTokenContract.updateInfo(info.OperatorLiquidStakingTokenID, operatorLiquidStakingTokenInfo); err != nil {
+			return err
+		}
+	}
+
+	// add stake
+	oldActiveStake = new(big.Int).Set(info.ActiveStake)
+	info.ActiveStake = new(big.Int).Add(info.ActiveStake, operatorCommission)
+	info.TotalLiquidStakingToken = calculateLSTAmount(staking_manager.LiquidStakingTokenRate{
+		StakeAmount:              oldActiveStake,
+		LiquidStakingTokenAmount: info.TotalLiquidStakingToken,
+	}, info.ActiveStake)
+
+	// update commission
+	info.CommissionRate = info.NextEpochCommissionRate
+	if err := sp.info.Put(*info); err != nil {
+		return err
+	}
+
+	// final rate formula:
+	// stake = lastRateStake + reward - pendingInActiveStake + pendingActiveStake,
+	// lst = (lastRateLST - pendingInActiveLST) * stake / (lastRateStake + (1-commissionRate)reward - pendingInActiveStake)
+	if err := sp.historyLiquidStakingTokenRateMap.Put(oldEpoch.Epoch, staking_manager.LiquidStakingTokenRate{
+		StakeAmount:              info.ActiveStake,
+		LiquidStakingTokenAmount: info.TotalLiquidStakingToken,
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // UpdateCommissionRate set NextEpochCommissionRate = newCommissionRate, NextEpochCommissionRate will be used in next epoch
 func (sp *StakingPool) UpdateCommissionRate(newCommissionRate uint64) error {
-	info, err := sp.MustLoadInfo()
+	info, err := sp.MustGetInfo()
 	if err != nil {
 		return err
-	}
-
-	nodeManagerContract := NodeManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
-	nodeInfo, err := nodeManagerContract.GetNodeInfo(info.PoolID)
-	if err != nil {
-		return err
-	}
-
-	if sp.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
-		return ErrPermissionDenied
 	}
 
 	if newCommissionRate > CommissionRateDenominator {
@@ -274,50 +453,76 @@ func (sp *StakingPool) UpdateCommissionRate(newCommissionRate uint64) error {
 	return nil
 }
 
-func (sp *StakingPool) GetActiveStake() (*big.Int, error) {
-	info, err := sp.MustLoadInfo()
-	if err != nil {
-		return nil, err
-	}
-
-	return info.ActiveStake, nil
+func (sp *StakingPool) Info() (staking_manager.PoolInfo, error) {
+	_, info, err := sp.info.Get()
+	return info, err
 }
 
-func (sp *StakingPool) GetNextEpochActiveStake() (*big.Int, error) {
-	info, err := sp.MustLoadInfo()
+func (sp *StakingPool) HistoryLiquidStakingTokenRate(epoch uint64) (staking_manager.LiquidStakingTokenRate, error) {
+	exist, rate, err := sp.historyLiquidStakingTokenRateMap.Get(epoch)
 	if err != nil {
-		return nil, err
+		return staking_manager.LiquidStakingTokenRate{}, err
 	}
-
-	nextEpochActiveStake := new(big.Int).Set(info.ActiveStake)
-	nextEpochActiveStake = nextEpochActiveStake.Add(nextEpochActiveStake, info.PendingActiveStake)
-	nextEpochActiveStake = nextEpochActiveStake.Sub(nextEpochActiveStake, info.PendingInactiveStake)
-	return nextEpochActiveStake, nil
+	if !exist {
+		return staking_manager.LiquidStakingTokenRate{
+			StakeAmount:              new(big.Int),
+			LiquidStakingTokenAmount: new(big.Int),
+		}, nil
+	}
+	return rate, err
 }
 
-func (sp *StakingPool) GetCommissionRate() (uint64, error) {
-	info, err := sp.MustLoadInfo()
-	if err != nil {
-		return 0, err
+func calculateLSTAmount(rate staking_manager.LiquidStakingTokenRate, stakeAmount *big.Int) *big.Int {
+	if rate.StakeAmount.Sign() == 0 || rate.LiquidStakingTokenAmount.Sign() == 0 {
+		return new(big.Int).Set(stakeAmount)
 	}
 
-	return info.CommissionRate, nil
+	// lst = rate.LiquidStakingTokenAmount / rate.StakeAmount * stakeAmount
+	lst := new(big.Int).Set(rate.LiquidStakingTokenAmount)
+	lst = lst.Mul(lst, stakeAmount)
+	lst = lst.Div(lst, rate.StakeAmount)
+	return lst
 }
 
-func (sp *StakingPool) GetNextEpochCommissionRate() (uint64, error) {
-	info, err := sp.MustLoadInfo()
-	if err != nil {
-		return 0, err
+func calculateStakeAmount(rate staking_manager.LiquidStakingTokenRate, lstAmount *big.Int) *big.Int {
+	if rate.StakeAmount.Sign() == 0 || rate.LiquidStakingTokenAmount.Sign() == 0 {
+		return new(big.Int).Set(lstAmount)
 	}
 
-	return info.NextEpochCommissionRate, nil
+	// lst:= rate.StakeAmount / rate.LiquidStakingTokenAmount * lstAmount
+	res := new(big.Int).Set(rate.StakeAmount)
+	res = res.Mul(res, lstAmount)
+	res = res.Div(res, rate.LiquidStakingTokenAmount)
+	return res
 }
 
-func (sp *StakingPool) GetCumulativeReward() (*big.Int, error) {
-	info, err := sp.MustLoadInfo()
-	if err != nil {
-		return nil, err
+func calculatePrincipalAndReward(stakingRate, lastRate staking_manager.LiquidStakingTokenRate, principal *big.Int) *big.Int {
+	lstAmount := calculateLSTAmount(stakingRate, principal)
+	principalAndReward := calculateStakeAmount(lastRate, lstAmount)
+	return principalAndReward
+}
+
+func calculatePrincipalAndReward2(stakingRate, lastRate staking_manager.LiquidStakingTokenRate, principal *big.Int) *big.Int {
+	// avoid divide by zero
+	if stakingRate.StakeAmount.Sign() == 0 || stakingRate.LiquidStakingTokenAmount.Sign() == 0 {
+		stakingRate.StakeAmount = big.NewInt(1)
+		stakingRate.LiquidStakingTokenAmount = big.NewInt(1)
+	}
+	// avoid divide by zero
+	if lastRate.StakeAmount.Sign() == 0 || lastRate.LiquidStakingTokenAmount.Sign() == 0 {
+		lastRate.StakeAmount = big.NewInt(1)
+		lastRate.LiquidStakingTokenAmount = big.NewInt(1)
 	}
 
-	return info.CumulativeReward, nil
+	// res = principal *  stakingRateLST / stakingRateStake * lastRateStake / lastRateLST
+	// do multiplication at the end to reduce precision loss
+	// optimization: res = principal *  stakingRateLST * lastRateStake / (lastRateLST * stakingRateStake)
+	res := new(big.Int).Set(principal)
+	res = res.Mul(res, stakingRate.LiquidStakingTokenAmount)
+	res = res.Mul(res, lastRate.StakeAmount)
+
+	divPart := new(big.Int).Set(lastRate.LiquidStakingTokenAmount)
+	divPart = divPart.Mul(divPart, stakingRate.StakeAmount)
+	res = res.Div(res, divPart)
+	return res
 }

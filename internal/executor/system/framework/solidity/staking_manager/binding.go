@@ -21,6 +21,28 @@ var (
 	_ = packer.RevertError{}
 )
 
+// LiquidStakingTokenRate is an auto generated low-level Go binding around an user-defined struct.
+type LiquidStakingTokenRate struct {
+	StakeAmount              *big.Int
+	LiquidStakingTokenAmount *big.Int
+}
+
+// PoolInfo is an auto generated low-level Go binding around an user-defined struct.
+type PoolInfo struct {
+	ID                                      uint64
+	IsActive                                bool
+	ActiveStake                             *big.Int
+	TotalLiquidStakingToken                 *big.Int
+	PendingActiveStake                      *big.Int
+	PendingInactiveStake                    *big.Int
+	PendingInactiveLiquidStakingTokenAmount *big.Int
+	CommissionRate                          uint64
+	NextEpochCommissionRate                 uint64
+	CumulativeReward                        *big.Int
+	CumulativeCommission                    *big.Int
+	OperatorLiquidStakingTokenID            *big.Int
+}
+
 type StakingManager interface {
 
 	// AddStake is a paid mutator transaction binding the contract method 0xad899a39.
@@ -28,15 +50,25 @@ type StakingManager interface {
 	// Solidity: function addStake(uint64 poolID, address owner, uint256 amount) payable returns()
 	AddStake(poolID uint64, owner common.Address, amount *big.Int) error
 
-	// Unlock is a paid mutator transaction binding the contract method 0x7a94f25b.
+	// Unlock is a paid mutator transaction binding the contract method 0x5bfadb24.
 	//
-	// Solidity: function unlock(uint64 poolID, address owner, uint256 liquidStakingTokenID, uint256 amount) returns()
-	Unlock(poolID uint64, owner common.Address, liquidStakingTokenID *big.Int, amount *big.Int) error
+	// Solidity: function unlock(uint256 liquidStakingTokenID, uint256 amount) returns()
+	Unlock(liquidStakingTokenID *big.Int, amount *big.Int) error
 
-	// Withdraw is a paid mutator transaction binding the contract method 0xcdfc4800.
+	// Withdraw is a paid mutator transaction binding the contract method 0xe63697c8.
 	//
-	// Solidity: function withdraw(uint64 poolID, address owner, uint256 liquidStakingTokenID, uint256 amount) returns()
-	Withdraw(poolID uint64, owner common.Address, liquidStakingTokenID *big.Int, amount *big.Int) error
+	// Solidity: function withdraw(uint256 liquidStakingTokenID, address recipient, uint256 amount) returns()
+	Withdraw(liquidStakingTokenID *big.Int, recipient common.Address, amount *big.Int) error
+
+	// GetPoolHistoryLiquidStakingTokenRate is a free data retrieval call binding the contract method 0x222b3405.
+	//
+	// Solidity: function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) view returns((uint256,uint256) poolHistoryLiquidStakingTokenRate)
+	GetPoolHistoryLiquidStakingTokenRate(poolID uint64, epoch uint64) (LiquidStakingTokenRate, error)
+
+	// GetPoolInfo is a free data retrieval call binding the contract method 0xf2347366.
+	//
+	// Solidity: function getPoolInfo(uint64 poolID) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256) poolInfo)
+	GetPoolInfo(poolID uint64) (PoolInfo, error)
 }
 
 // EventAddStake represents a AddStake event raised by the StakingManager contract.
@@ -53,10 +85,9 @@ func (_event *EventAddStake) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 
 // EventUnlock represents a Unlock event raised by the StakingManager contract.
 type EventUnlock struct {
-	PoolID               uint64
-	Owner                common.Address
 	LiquidStakingTokenID *big.Int
 	Amount               *big.Int
+	UnlockTimestamp      uint64
 }
 
 func (_event *EventUnlock) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
@@ -65,9 +96,8 @@ func (_event *EventUnlock) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 
 // EventWithdraw represents a Withdraw event raised by the StakingManager contract.
 type EventWithdraw struct {
-	PoolID               uint64
-	Owner                common.Address
 	LiquidStakingTokenID *big.Int
+	Recipient            common.Address
 	Amount               *big.Int
 }
 

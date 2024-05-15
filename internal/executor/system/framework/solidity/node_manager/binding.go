@@ -33,7 +33,7 @@ type NodeInfo struct {
 	ConsensusPubKey string
 	P2PPubKey       string
 	P2PID           string
-	OperatorAddress string
+	Operator        common.Address
 	MetaData        NodeMetaData
 	Status          uint8
 }
@@ -48,64 +48,64 @@ type NodeMetaData struct {
 
 type NodeManager interface {
 
-	// JoinCandidateSet is a paid mutator transaction binding the contract method 0x2b27ec44.
+	// Exit is a paid mutator transaction binding the contract method 0x0f143c6a.
 	//
-	// Solidity: function joinCandidateSet(uint64 nodeID) returns()
-	JoinCandidateSet(nodeID uint64) error
+	// Solidity: function exit(uint64 nodeID) returns()
+	Exit(nodeID uint64) error
 
-	// LeaveValidatorOrCandidateSet is a paid mutator transaction binding the contract method 0xe2aa7a23.
+	// JoinCandidateSet is a paid mutator transaction binding the contract method 0xece07dd6.
 	//
-	// Solidity: function leaveValidatorOrCandidateSet(uint64 nodeID) returns()
-	LeaveValidatorOrCandidateSet(nodeID uint64) error
+	// Solidity: function joinCandidateSet(uint64 nodeID, uint64 commissionRate) returns()
+	JoinCandidateSet(nodeID uint64, commissionRate uint64) error
 
 	// UpdateMetaData is a paid mutator transaction binding the contract method 0xee99437a.
 	//
 	// Solidity: function updateMetaData(uint64 nodeID, (string,string,string,string) metaData) returns()
 	UpdateMetaData(nodeID uint64, metaData NodeMetaData) error
 
-	// UpdateOperator is a paid mutator transaction binding the contract method 0xcee4d6f5.
+	// UpdateOperator is a paid mutator transaction binding the contract method 0xb016e7d6.
 	//
-	// Solidity: function updateOperator(uint64 nodeID, string newOperatorAddress) returns()
-	UpdateOperator(nodeID uint64, newOperatorAddress string) error
+	// Solidity: function updateOperator(uint64 nodeID, address newOperator) returns()
+	UpdateOperator(nodeID uint64, newOperator common.Address) error
 
-	// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x59acaac4.
+	// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x24408a68.
 	//
-	// Solidity: function GetActiveValidatorSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
+	// Solidity: function getActiveValidatorSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
 	GetActiveValidatorSet() ([]NodeInfo, []ConsensusVotingPower, error)
 
-	// GetCandidateSet is a free data retrieval call binding the contract method 0x84c3e579.
+	// GetCandidateSet is a free data retrieval call binding the contract method 0x9c137646.
 	//
-	// Solidity: function GetCandidateSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+	// Solidity: function getCandidateSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetCandidateSet() ([]NodeInfo, error)
 
-	// GetDataSyncerSet is a free data retrieval call binding the contract method 0x834b2b3b.
+	// GetDataSyncerSet is a free data retrieval call binding the contract method 0x39937e75.
 	//
-	// Solidity: function GetDataSyncerSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+	// Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetDataSyncerSet() ([]NodeInfo, error)
 
-	// GetExitedSet is a free data retrieval call binding the contract method 0x709de02e.
+	// GetExitedSet is a free data retrieval call binding the contract method 0x4c434612.
 	//
-	// Solidity: function GetExitedSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+	// Solidity: function getExitedSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetExitedSet() ([]NodeInfo, error)
 
-	// GetNodeInfo is a free data retrieval call binding the contract method 0x7e6f8582.
+	// GetNodeInfo is a free data retrieval call binding the contract method 0xdcea08de.
 	//
-	// Solidity: function GetNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,string,(string,string,string,string),uint8) info)
+	// Solidity: function getNodeInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
 	GetNodeInfo(nodeID uint64) (NodeInfo, error)
 
-	// GetNodeInfos is a free data retrieval call binding the contract method 0xc8c22194.
+	// GetNodeInfos is a free data retrieval call binding the contract method 0xbc39e0c4.
 	//
-	// Solidity: function GetNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] info)
+	// Solidity: function getNodeInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
 	GetNodeInfos(nodeIDs []uint64) ([]NodeInfo, error)
 
-	// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xa3295256.
+	// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
 	//
-	// Solidity: function GetPendingInactiveSet() view returns((uint64,string,string,string,string,(string,string,string,string),uint8)[] infos)
+	// Solidity: function getPendingInactiveSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetPendingInactiveSet() ([]NodeInfo, error)
 
-	// GetTotalNodeCount is a free data retrieval call binding the contract method 0x1a9efb39.
+	// GetTotalNodeCount is a free data retrieval call binding the contract method 0x4110fe25.
 	//
-	// Solidity: function GetTotalNodeCount() view returns(uint64)
+	// Solidity: function getTotalNodeCount() view returns(uint64)
 	GetTotalNodeCount() (uint64, error)
 }
 
@@ -136,13 +136,14 @@ func (_event *EventLeavedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err
 	return packer.PackEvent(_event, abi.Events["LeavedCandidateSet"])
 }
 
-// EventRegistered represents a Registered event raised by the NodeManager contract.
-type EventRegistered struct {
+// EventRegister represents a Register event raised by the NodeManager contract.
+type EventRegister struct {
 	NodeID uint64
+	Info   NodeInfo
 }
 
-func (_event *EventRegistered) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["Registered"])
+func (_event *EventRegister) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["Register"])
 }
 
 // EventUpdateMetaData represents a UpdateMetaData event raised by the NodeManager contract.
@@ -157,8 +158,8 @@ func (_event *EventUpdateMetaData) Pack(abi abi.ABI) (log *types.EvmLog, err err
 
 // EventUpdateOperator represents a UpdateOperator event raised by the NodeManager contract.
 type EventUpdateOperator struct {
-	NodeID             uint64
-	NewOperatorAddress string
+	NodeID      uint64
+	NewOperator common.Address
 }
 
 func (_event *EventUpdateOperator) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
@@ -171,7 +172,7 @@ type ErrorIncorrectStatus struct {
 }
 
 func (_error *ErrorIncorrectStatus) Pack(abi abi.ABI) error {
-	return packer.PackError(_error, abi.Errors["incorrectStatus"])
+	return packer.PackError(_error, abi.Errors["IncorrectStatus"])
 }
 
 // ErrorPendingInactiveSetIsFull represents a PendingInactiveSetIsFull error raised by the NodeManager contract.
@@ -179,5 +180,5 @@ type ErrorPendingInactiveSetIsFull struct {
 }
 
 func (_error *ErrorPendingInactiveSetIsFull) Pack(abi abi.ABI) error {
-	return packer.PackError(_error, abi.Errors["pendingInactiveSetIsFull"])
+	return packer.PackError(_error, abi.Errors["PendingInactiveSetIsFull"])
 }

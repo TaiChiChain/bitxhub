@@ -497,10 +497,8 @@ func (l *StateLedgerImpl) RevertToSnapshot(revid int) {
 }
 
 func (l *StateLedgerImpl) ClearChangerAndRefund() {
-	if len(l.changer.changes) > 0 {
-		l.changer = NewChanger()
-		l.refund = 0
-	}
+	l.changer.reset()
+	l.refund = 0
 	l.validRevisions = l.validRevisions[:0]
 	l.nextRevisionId = 0
 }

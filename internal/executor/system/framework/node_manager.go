@@ -35,7 +35,6 @@ var (
 	ErrNodeNotFound            = errors.New("node not found")
 	ErrStatusSetNotFound       = errors.New("status set not found")
 	ErrNodeNotFoundInStatusSet = errors.New("node not found in status set")
-	ErrPermissionDenied        = errors.New("permission denied")
 )
 
 var NodeManagerBuildConfig = &common.SystemContractBuildConfig[*NodeManager]{
@@ -49,13 +48,7 @@ var NodeManagerBuildConfig = &common.SystemContractBuildConfig[*NodeManager]{
 	},
 }
 
-type NewNodeInfo struct {
-	// Operator address, with permission to manage node (can update)
-	OperatorAddress string
-
-	// Meta data (can update)
-	MetaData node_manager.NodeMetaData
-}
+var _ node_manager.NodeManager = (*NodeManager)(nil)
 
 type NodeManager struct {
 	common.SystemContractBase
@@ -122,7 +115,6 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 			ID:              uint64(i + 1),
 			ConsensusPubKey: nodeCfg.ConsensusPubKey,
 			P2PPubKey:       nodeCfg.P2PPubKey,
-			OperatorAddress: nodeCfg.OperatorAddress,
 			MetaData: node_manager.NodeMetaData{
 				Name:       nodeCfg.MetaData.Name,
 				Desc:       nodeCfg.MetaData.Desc,
@@ -132,6 +124,15 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		}
 
 		err := func() error {
+			if nodeCfg.IsDataSyncer && nodeCfg.StakeNumber.ToBigInt().Sign() != 0 {
+				return errors.Errorf("invalid stake number %s for data syncer, must be 0", nodeCfg.StakeNumber.String())
+			}
+
+			if !ethcommon.IsHexAddress(nodeCfg.OperatorAddress) {
+				return errors.New("invalid operator address")
+			}
+			nodeInfo.Operator = ethcommon.HexToAddress(nodeCfg.OperatorAddress)
+
 			if nodeCfg.CommissionRate > CommissionRateDenominator {
 				return errors.Errorf("invalid commission rate %d, need <= %d", nodeCfg.CommissionRate, CommissionRateDenominator)
 			}
@@ -202,7 +203,7 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		for _, nodeID := range nodeIDs {
 			nodeInfo := nodeInfoMap[nodeID]
 			nodeInfo.Status = uint8(nodeStatus)
-			if _, err := n.registerNode(*nodeInfo, true); err != nil {
+			if _, err := n.register(*nodeInfo, true); err != nil {
 				return errors.Wrapf(err, "failed to register node %d", nodeID)
 			}
 		}
@@ -233,60 +234,6 @@ func (n *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		return err
 	}
 
-	stakingManagerContract := StakingManagerBuildConfig.Build(n.Ctx)
-	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(n.Ctx)
-
-	// init staking pools
-	for _, nodeID := range needCreateStakingPoolIDs {
-		nodeCfg := nodeCfgMap[nodeID]
-		nodeInfo := nodeInfoMap[nodeID]
-		stakeNumber := nodeStakeNumberMap[nodeID]
-		zero := big.NewInt(0)
-
-		liquidStakingTokenID, err := liquidStakingTokenContract.InternalMint(ethcommon.HexToAddress(nodeInfo.OperatorAddress), &LiquidStakingTokenInfo{
-			PoolID:           nodeID,
-			Principal:        stakeNumber,
-			Unlocked:         zero,
-			ActiveEpoch:      genesis.EpochInfo.Epoch,
-			UnlockingRecords: []UnlockingRecord{},
-		})
-		if err != nil {
-			return errors.Wrapf(err, "failed to mint liquid staking token for node %d", nodeID)
-		}
-		if err := stakingManagerContract.GetStakingPool(nodeID).createByStakingPool(&StakingPoolInfo{
-			PoolID:                       nodeID,
-			IsActive:                     true,
-			ActiveStake:                  stakeNumber,
-			TotalLiquidStakingToken:      stakeNumber,
-			PendingActiveStake:           zero,
-			PendingInactiveStake:         zero,
-			CommissionRate:               nodeCfg.CommissionRate,
-			NextEpochCommissionRate:      nodeCfg.CommissionRate,
-			CumulativeReward:             zero,
-			OperatorLiquidStakingTokenID: liquidStakingTokenID,
-		}); err != nil {
-			return errors.Wrapf(err, "failed to create staking pool for node %d", nodeID)
-		}
-		exists, totalStake, err := stakingManagerContract.TotalStake.Get()
-		if err != nil {
-			return err
-		}
-		if !exists {
-			totalStake = big.NewInt(0)
-		}
-		totalStake = totalStake.Add(totalStake, stakeNumber)
-		if err = stakingManagerContract.TotalStake.Put(totalStake); err != nil {
-			return err
-		}
-	}
-	// calculate stake reward
-	if err := stakingManagerContract.InternalCalculateStakeReward(); err != nil {
-		return err
-	}
-
-	if err := stakingManagerContract.InternalInitAvailableStakingPools(needCreateStakingPoolIDs); err != nil {
-		return err
-	}
 	axcUnit := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 	activeValidatorVotingPowers := lo.Map(activeValidators, func(item uint64, index int) node_manager.ConsensusVotingPower {
 		stakeNumber := nodeStakeNumberMap[item]
@@ -328,20 +275,17 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 	n.activeValidatorVotingPowers = common.NewVMSlot[[]node_manager.ConsensusVotingPower](n.StateAccount, activeValidatorVotingPowers)
 }
 
-func (n *NodeManager) InternalRegisterNode(info node_manager.NodeInfo) (id uint64, err error) {
-	if !n.Ctx.CallFromSystem {
-		return 0, ErrPermissionDenied
-	}
+func (n *NodeManager) Register(info node_manager.NodeInfo) (id uint64, err error) {
 	info.Status = uint8(types.NodeStatusDataSyncer)
-	id, err = n.registerNode(info, false)
+	id, err = n.register(info, false)
 	if err != nil {
 		return
 	}
-	n.EmitEvent(&node_manager.EventRegistered{NodeID: id})
-	return
+	n.EmitEvent(&node_manager.EventRegister{NodeID: info.ID, Info: info})
+	return id, nil
 }
 
-func (n *NodeManager) registerNode(info node_manager.NodeInfo, isGenesisInit bool) (id uint64, err error) {
+func (n *NodeManager) register(info node_manager.NodeInfo, isGenesisInit bool) (id uint64, err error) {
 	info = StandardizationNodeInfo(info)
 	if n.nodeP2PIDIndex.Has(info.P2PID) {
 		return 0, errors.Errorf("p2p id %s is already in use", info.P2PID)
@@ -397,15 +341,15 @@ func (n *NodeManager) registerNode(info node_manager.NodeInfo, isGenesisInit boo
 	return info.ID, nil
 }
 
-// InternalTurnIntoNewEpoch turn into new epoch, should be called after stakeManager epoch change
+// TurnIntoNewEpoch turn into new epoch, should be called after stakeManager epoch change
 // since the active stake value will impact on the sort
-func (n *NodeManager) InternalTurnIntoNewEpoch(epochInfo *types.EpochInfo) error {
+func (n *NodeManager) TurnIntoNewEpoch(_ *types.EpochInfo, newEpoch *types.EpochInfo) error {
 	// process node leave first
-	if err := n.InternalProcessNodeLeave(); err != nil {
+	if err := n.processNodeLeave(); err != nil {
 		return err
 	}
 	// sort all candidates and validators
-	nodesIDs, err := n.InternalGetConsensusCandidateNodeIDs()
+	nodesIDs, err := n.getConsensusCandidateNodeIDs()
 	if err != nil {
 		return err
 	}
@@ -416,7 +360,7 @@ func (n *NodeManager) InternalTurnIntoNewEpoch(epochInfo *types.EpochInfo) error
 	sortInfos := make(sortNodeInfos, len(nodeInfos))
 	stakeManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
 	for i, info := range nodeInfos {
-		stakeValue, err := stakeManager.GetPoolActiveStake(info.ID)
+		stakeValue, err := stakeManager.PoolActiveStake(info.ID)
 		if err != nil {
 			return err
 		}
@@ -426,9 +370,9 @@ func (n *NodeManager) InternalTurnIntoNewEpoch(epochInfo *types.EpochInfo) error
 		}
 	}
 	sort.Sort(sortInfos)
-	maxValidator := epochInfo.ConsensusParams.MaxValidatorNum
-	minValidator := epochInfo.ConsensusParams.MinValidatorNum
-	minStakeValue := epochInfo.StakeParams.MinValidatorStake
+	maxValidator := newEpoch.ConsensusParams.MaxValidatorNum
+	minValidator := newEpoch.ConsensusParams.MinValidatorNum
+	minStakeValue := newEpoch.StakeParams.MinValidatorStake
 	var validatorsIDs, candidatesIDs []uint64
 	var validators, candidates []node_manager.NodeInfo
 	// traverse from highest to lowest
@@ -465,7 +409,7 @@ func (n *NodeManager) InternalTurnIntoNewEpoch(epochInfo *types.EpochInfo) error
 	return nil
 }
 
-func (n *NodeManager) InternalProcessNodeLeave() error {
+func (n *NodeManager) processNodeLeave() error {
 	pendingInactiveSlot := n.getStatusSet(types.NodeStatusPendingInactive)
 	// get pending inactive sets
 	isExist, nodeIDs, err := pendingInactiveSlot.Get()
@@ -488,7 +432,7 @@ func (n *NodeManager) InternalProcessNodeLeave() error {
 	return nil
 }
 
-func (n *NodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
+func (n *NodeManager) getConsensusCandidateNodeIDs() ([]uint64, error) {
 	isExist, candidateIDs, err := n.getStatusSet(types.NodeStatusCandidate).Get()
 	if err != nil {
 		return nil, err
@@ -510,11 +454,8 @@ func (n *NodeManager) InternalGetConsensusCandidateNodeIDs() ([]uint64, error) {
 	return nodeIDs, nil
 }
 
-func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
-	if !n.Ctx.CallFromSystem {
-		return ErrPermissionDenied
-	}
-	allValidaNodes, err := n.InternalGetConsensusCandidateNodeIDs()
+func (n *NodeManager) updateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
+	allValidaNodes, err := n.getConsensusCandidateNodeIDs()
 	if err != nil {
 		return err
 	}
@@ -562,22 +503,40 @@ func (n *NodeManager) InternalUpdateActiveValidatorSet(ActiveValidatorVotingPowe
 	return n.activeValidatorVotingPowers.Put(ActiveValidatorVotingPowers)
 }
 
-func (n *NodeManager) JoinCandidateSet(nodeID uint64) error {
+func (n *NodeManager) checkPermission(nodeID uint64) (*node_manager.NodeInfo, error) {
 	nodeInfo, err := n.GetNodeInfo(nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !n.Ctx.CallFromSystem && n.Ctx.From != nodeInfo.Operator {
+		return nil, errors.New("no permission")
+	}
+	return &nodeInfo, nil
+}
+
+func (n *NodeManager) JoinCandidateSet(nodeID uint64, commissionRate uint64) error {
+	nodeInfo, err := n.checkPermission(nodeID)
 	if err != nil {
 		return err
 	}
-	if err = n.operatorTransferStatus(types.NodeStatusDataSyncer, types.NodeStatusCandidate, &nodeInfo); err != nil {
+	if err = n.operatorTransferStatus(types.NodeStatusDataSyncer, types.NodeStatusCandidate, nodeInfo); err != nil {
 		return err
 	}
+
+	if err := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext()).CreatePool(nodeID, commissionRate); err != nil {
+		return errors.Wrapf(err, "failed to create staking pool for node %d", nodeID)
+	}
+
 	n.EmitEvent(&node_manager.EventJoinedCandidateSet{
 		NodeID: nodeID,
 	})
+
 	return nil
 }
 
-func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
-	nodeInfo, err := n.GetNodeInfo(nodeID)
+func (n *NodeManager) Exit(nodeID uint64) error {
+	nodeInfo, err := n.checkPermission(nodeID)
 	if err != nil {
 		return err
 	}
@@ -613,13 +572,13 @@ func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
 			return n.Revert(&node_manager.ErrorPendingInactiveSetIsFull{})
 		}
 		// transfer the status
-		if err = n.operatorTransferStatus(types.NodeStatusActive, types.NodeStatusPendingInactive, &nodeInfo); err != nil {
+		if err = n.operatorTransferStatus(types.NodeStatusActive, types.NodeStatusPendingInactive, nodeInfo); err != nil {
 			return err
 		}
 		n.EmitEvent(&node_manager.EventJoinedPendingInactiveSet{NodeID: nodeID})
 		return nil
 	case types.NodeStatusCandidate, types.NodeStatusDataSyncer:
-		if err = n.operatorTransferStatus(types.NodeStatus(nodeInfo.Status), types.NodeStatusExited, &nodeInfo); err != nil {
+		if err = n.operatorTransferStatus(types.NodeStatus(nodeInfo.Status), types.NodeStatusExited, nodeInfo); err != nil {
 			return err
 		}
 		n.EmitEvent(&node_manager.EventLeavedCandidateSet{NodeID: nodeID})
@@ -630,77 +589,49 @@ func (n *NodeManager) LeaveValidatorOrCandidateSet(nodeID uint64) error {
 }
 
 func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMetaData) error {
-	nodeInfo, err := n.GetNodeInfo(nodeID)
+	nodeInfo, err := n.checkPermission(nodeID)
 	if err != nil {
 		return err
 	}
-
-	// check permission
-	if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
-		return ErrPermissionDenied
-	}
-
+	oldName := nodeInfo.MetaData.Name
 	if metaData.Name == "" {
 		return errors.New("name cannot be empty")
 	}
 
-	if n.nodeNameIndex.Has(metaData.Name) {
+	if n.nodeNameIndex.Has(metaData.Name) && metaData.Name != oldName {
 		return errors.Errorf("name %s is already in use", metaData.Name)
 	}
 
-	newNodeInfo := NewNodeInfo{
-		OperatorAddress: nodeInfo.OperatorAddress,
-		MetaData: node_manager.NodeMetaData{
-			Name:       metaData.Name,
-			Desc:       metaData.Desc,
-			ImageURL:   metaData.ImageURL,
-			WebsiteURL: metaData.WebsiteURL,
-		},
+	nodeInfo.MetaData = metaData
+	if err = n.nodeRegistry.Put(nodeID, *nodeInfo); err != nil {
+		return err
 	}
 
 	// rebuild name index
-	if err := n.nodeNameIndex.Delete(nodeInfo.MetaData.Name); err != nil {
-		return err
+	if metaData.Name != oldName {
+		if err := n.nodeNameIndex.Delete(oldName); err != nil {
+			return err
+		}
+		if err := n.nodeNameIndex.Put(nodeInfo.MetaData.Name, nodeID); err != nil {
+			return err
+		}
 	}
-	if err := n.nodeNameIndex.Put(newNodeInfo.MetaData.Name, nodeID); err != nil {
-		return err
-	}
-	if err = n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo); err != nil {
-		return err
-	}
+
 	n.EmitEvent(&node_manager.EventUpdateMetaData{NodeID: nodeID, MetaData: metaData})
 	return nil
 }
 
-func (n *NodeManager) UpdateOperator(nodeID uint64, newOperatorAddress string) error {
-	nodeInfo, err := n.GetNodeInfo(nodeID)
+func (n *NodeManager) UpdateOperator(nodeID uint64, newOperator ethcommon.Address) error {
+	nodeInfo, err := n.checkPermission(nodeID)
 	if err != nil {
 		return err
 	}
-	// check permission
-	if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
-		return ErrPermissionDenied
-	}
-	newNodeInfo := NewNodeInfo{
-		OperatorAddress: newOperatorAddress,
-		MetaData: node_manager.NodeMetaData{
-			Name:       nodeInfo.MetaData.Name,
-			Desc:       nodeInfo.MetaData.Desc,
-			ImageURL:   nodeInfo.MetaData.ImageURL,
-			WebsiteURL: nodeInfo.MetaData.WebsiteURL,
-		},
-	}
-	if err = n.updateNodeInfo(nodeID, nodeInfo, newNodeInfo); err != nil {
+	nodeInfo.Operator = newOperator
+	if err = n.nodeRegistry.Put(nodeID, *nodeInfo); err != nil {
 		return err
 	}
-	n.EmitEvent(&node_manager.EventUpdateOperator{NodeID: nodeID, NewOperatorAddress: newOperatorAddress})
+	n.EmitEvent(&node_manager.EventUpdateOperator{NodeID: nodeID, NewOperator: newOperator})
 	return nil
-}
-
-func (n *NodeManager) updateNodeInfo(nodeID uint64, oldNodeInfo node_manager.NodeInfo, newNodeInfo NewNodeInfo) error {
-	oldNodeInfo.OperatorAddress = newNodeInfo.OperatorAddress
-	oldNodeInfo.MetaData = newNodeInfo.MetaData
-	return n.nodeRegistry.Put(nodeID, oldNodeInfo)
 }
 
 func (n *NodeManager) GetNodeInfo(nodeID uint64) (info node_manager.NodeInfo, err error) {
@@ -837,14 +768,6 @@ func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo
 	if from == to {
 		return errors.New("from and to status cannot be the same")
 	}
-	// check permission, must be called from operator or system contract
-	// governance has permission
-	if !n.Ctx.CallFromSystem {
-		// check permission
-		if n.Ctx.From != ethcommon.HexToAddress(nodeInfo.OperatorAddress) {
-			return ErrPermissionDenied
-		}
-	}
 	// check status
 	if nodeInfo.Status != uint8(from) {
 		return n.Revert(&node_manager.ErrorIncorrectStatus{Status: uint8(from)})
@@ -897,7 +820,7 @@ func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo
 	if to == types.NodeStatusExited {
 		// get staking manager
 		stakingManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
-		return stakingManager.InternalDisablePool(nodeInfo.ID)
+		return stakingManager.DisablePool(nodeInfo.ID)
 	}
 	return nil
 }
@@ -916,7 +839,7 @@ func StandardizationNodeInfo(info node_manager.NodeInfo) node_manager.NodeInfo {
 		ConsensusPubKey: hexutil.Encode(hexutil.Decode(info.ConsensusPubKey)),
 		P2PPubKey:       hexutil.Encode(hexutil.Decode(info.P2PPubKey)),
 		P2PID:           info.P2PID,
-		OperatorAddress: hexutil.Encode(hexutil.Decode(info.OperatorAddress)),
+		Operator:        info.Operator,
 		MetaData: node_manager.NodeMetaData{
 			Name:       info.MetaData.Name,
 			Desc:       info.MetaData.Desc,
@@ -930,10 +853,6 @@ func StandardizationNodeInfo(info node_manager.NodeInfo) node_manager.NodeInfo {
 func CheckNodeInfo(nodeInfo node_manager.NodeInfo) (consensusPubKey *crypto.Bls12381PublicKey, p2pPubKey *crypto.Ed25519PublicKey, p2pID string, err error) {
 	if nodeInfo.MetaData.Name == "" {
 		return nil, nil, "", errors.New("name cannot be empty")
-	}
-
-	if !ethcommon.IsHexAddress(nodeInfo.OperatorAddress) {
-		return nil, nil, "", errors.New("invalid operator address")
 	}
 
 	consensusPubKey = &crypto.Bls12381PublicKey{}

@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"math/big"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
@@ -28,13 +27,17 @@ const (
 
 var _ Executor = (*BlockExecutor)(nil)
 
+type AfterBlockHook struct {
+	Name string
+	Func func(block *types.Block) error
+}
+
 // BlockExecutor executes block from consensus
 type BlockExecutor struct {
 	ledger             *ledger.Ledger
 	logger             logrus.FieldLogger
 	blockC             chan *common.CommitEvent
 	gas                *finance.Gas
-	incentive          *finance.Incentive
 	cumulativeGasUsed  uint64
 	currentHeight      uint64
 	currentBlockHash   *types.Hash
@@ -49,10 +52,9 @@ type BlockExecutor struct {
 	gasLimit    uint64
 	rep         *repo.Repo
 	chainState  *chainstate.ChainState
-	lock        *sync.Mutex
 
 	nvm             syscommon.VirtualMachine
-	afterBlockHooks []func(block *types.Block)
+	afterBlockHooks []AfterBlockHook
 }
 
 // New creates executor instance
@@ -73,22 +75,24 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 		evmChainCfg:       newEVMChainCfg(rep.GenesisConfig),
 		rep:               rep,
 		gasLimit:          rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
-		lock:              &sync.Mutex{},
 	}
 
 	blockExecutor.evm = newEvm(1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
 
 	// initialize native vm
 	blockExecutor.nvm = system.New()
-	var err error
-	blockExecutor.incentive, err = finance.NewIncentive(rep.GenesisConfig)
-
-	blockExecutor.afterBlockHooks = []func(block *types.Block){
-		blockExecutor.updateEpochInfo,
-		blockExecutor.updateMiningInfo,
+	blockExecutor.afterBlockHooks = []AfterBlockHook{
+		{
+			Name: "recordReward",
+			Func: blockExecutor.recordReward,
+		},
+		{
+			Name: "tryTurnIntoNewEpoch",
+			Func: blockExecutor.tryTurnIntoNewEpoch,
+		},
 	}
 
-	return blockExecutor, err
+	return blockExecutor, nil
 }
 
 // Start starts executor
