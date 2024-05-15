@@ -162,7 +162,7 @@ func (p *priorityQueue[T, Constraint]) shift(from string, lastNonce uint64) {
 		return
 	}
 
-	nonce := account.minNonceQueue.peek()
+	nonce := account.minNonceQueue.PeekItem()
 	if lastNonce+1 != nonce {
 		return
 	}

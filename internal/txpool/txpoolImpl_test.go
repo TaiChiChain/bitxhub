@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -1416,9 +1417,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ast.Nil(err)
 				ch <- batch
 			}
-			err = batchTimer.CreateTimer(timer.Batch, 10*time.Millisecond, handler)
+			err = batchTimer.CreateTimer(common.Batch, 10*time.Millisecond, handler)
 			ast.Nil(err)
-			err = batchTimer.StartTimer(timer.Batch)
+			err = batchTimer.StartTimer(common.Batch)
 			ast.Nil(err)
 
 			batch := <-ch
@@ -1449,9 +1450,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ast.Contains(err.Error(), "there is no pending tx, ignore generate batch")
 				ch <- batch
 			}
-			err = batchTimer.CreateTimer(timer.Batch, 10*time.Millisecond, handler)
+			err = batchTimer.CreateTimer(common.Batch, 10*time.Millisecond, handler)
 			ast.Nil(err)
-			err = batchTimer.StartTimer(timer.Batch)
+			err = batchTimer.StartTimer(common.Batch)
 			ast.Nil(err)
 
 			batch := <-ch
@@ -1528,9 +1529,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ast.Nil(err)
 				ch <- batch
 			}
-			err = noTxBatchTimer.CreateTimer(timer.NoTxBatch, 10*time.Millisecond, handler)
+			err = noTxBatchTimer.CreateTimer(common.NoTxBatch, 10*time.Millisecond, handler)
 			ast.Nil(err)
-			err = noTxBatchTimer.StartTimer(timer.NoTxBatch)
+			err = noTxBatchTimer.StartTimer(common.NoTxBatch)
 			ast.Nil(err)
 
 			batch := <-ch

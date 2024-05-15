@@ -4,6 +4,7 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/pkg/errors"
 )
 
@@ -12,11 +13,31 @@ const (
 	RemoteTxEvent
 )
 
+const (
+	Batch     timer.TimeoutEvent = "Batch"
+	NoTxBatch timer.TimeoutEvent = "NoTxBatch"
+)
+
 var (
 	ErrorPreCheck       = errors.New("precheck failed")
 	ErrorAddTxPool      = errors.New("add txpool failed")
 	ErrorConsensusStart = errors.New("consensus not start yet")
 )
+
+var ArchivePipeName = []string{
+	"NULL_REQUEST",           // primary heartbeat
+	"PRE_PREPARE",            // get batch
+	"SIGNED_CHECKPOINT",      // get checkpoint
+	"SYNC_STATE_RESPONSE",    // get quorum state
+	"FETCH_MISSING_RESPONSE", // get missing txs in local pool
+	"EPOCH_CHANGE_PROOF",     // get epoch change for state update
+}
+
+var ArchiveRequestName = []string{
+	"SYNC_STATE",            // get quorum state
+	"FETCH_MISSING_REQUEST", // get missing txs in local pool
+	"EPOCH_CHANGE_REQUEST",  // get epoch change for state update
+}
 
 // UncheckedTxEvent represents misc event sent by local modules
 type UncheckedTxEvent struct {

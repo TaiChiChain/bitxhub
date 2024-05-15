@@ -23,7 +23,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	network2 "github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/network/mock_network"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -576,113 +575,6 @@ func stopSyncs(syncs []*SyncManager) {
 	}
 }
 
-var _ network2.Network = (*mockNetwork)(nil)
-
-type mockNetwork struct {
-	p2p         *network.MockP2P
-	msgHandlers sync.Map
-	logger      logrus.FieldLogger
-}
-
-func (m *mockNetwork) CreatePipe(ctx context.Context, pipeID string) (network.Pipe, error) {
-	return m.p2p.CreatePipe(ctx, pipeID)
-}
-
-func (m *mockNetwork) Start() error {
-	m.p2p.SetMessageHandler(m.handleMessage)
-	return m.p2p.Start()
-}
-
-func (m *mockNetwork) Stop() error {
-	return m.p2p.Stop()
-}
-
-func (m *mockNetwork) PeerID() string {
-	return m.p2p.PeerID()
-}
-
-func (m *mockNetwork) Send(to string, message *pb.Message) (*pb.Message, error) {
-	msg, err := message.MarshalVT()
-	if err != nil {
-		return nil, err
-	}
-	resp, err := m.p2p.Send(to, msg)
-	if err != nil {
-		return nil, err
-	}
-	respMsg := &pb.Message{}
-	if err = respMsg.UnmarshalVT(resp); err != nil {
-		return nil, err
-	}
-	return respMsg, nil
-}
-
-func (m *mockNetwork) SendWithStream(stream network.Stream, message *pb.Message) error {
-	msg, err := message.MarshalVT()
-	if err != nil {
-		return err
-	}
-	return stream.AsyncSend(msg)
-}
-
-func (m *mockNetwork) CountConnectedValidators() uint64 {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (m *mockNetwork) handleMessage(s network.Stream, data []byte) {
-	msg := &pb.Message{}
-	if err := msg.UnmarshalVT(data); err != nil {
-		m.logger.Errorf("unmarshal message error: %w", err)
-		return
-	}
-
-	handler, ok := m.msgHandlers.Load(msg.Type)
-	if !ok {
-		m.logger.WithFields(logrus.Fields{
-			"error": fmt.Errorf("can't handle msg[type: %v]", msg.Type),
-			"type":  msg.Type.String(),
-		}).Error("Handle message")
-		return
-	}
-
-	msgHandler, ok := handler.(func(network.Stream, *pb.Message))
-	if !ok {
-		m.logger.WithFields(logrus.Fields{
-			"error": fmt.Errorf("invalid handler for msg [type: %v]", msg.Type),
-			"type":  msg.Type.String(),
-		}).Error("Handle message")
-		return
-	}
-
-	msgHandler(s, msg)
-}
-
-func (m *mockNetwork) RegisterMsgHandler(messageType pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
-	if handler == nil {
-		return errors.New("register msg handler: empty handler")
-	}
-
-	for msgType := range pb.Message_Type_name {
-		if msgType == int32(messageType) {
-			m.msgHandlers.Store(messageType, handler)
-			return nil
-		}
-	}
-
-	return errors.New("register msg handler: invalid message type")
-}
-
-func (m *mockNetwork) RegisterMultiMsgHandler(messageTypes []pb.Message_Type, handler func(network.Stream, *pb.Message)) error {
-	for _, typ := range messageTypes {
-		if err := m.RegisterMsgHandler(typ, handler); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange, []*common.Node) {
 	syncs := make([]*SyncManager, count)
 	var (
@@ -748,7 +640,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 	}
 	// nets := newMockMiniNetworks(count)
 
-	nets := make(map[string]*mockNetwork)
+	nets := make(map[string]*mock_network.MiniNetwork)
 	peers := make([]*common.Node, count)
 	for i := 0; i < count; i++ {
 		peers[i] = &common.Node{Id: uint64(i), PeerID: strconv.Itoa(i)}
@@ -756,16 +648,11 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 	peerIds := lo.FlatMap(peers, func(peer *common.Node, _ int) []string {
 		return []string{peer.PeerID}
 	})
-	hm := network.GenMockHostManager(peerIds)
 
-	lo.ForEach(peerIds, func(peer string, _ int) {
-		p2pLog := log.NewWithModule(fmt.Sprintf("p2p%s", peer))
-		p2p, err := network.NewMockP2P(peer, hm, p2pLog)
+	manager := network.GenMockHostManager(peerIds)
+	lo.ForEach(peerIds, func(peer string, i int) {
+		net, err := mock_network.NewMiniNetwork(uint64(i), peer, manager)
 		require.Nil(t, err)
-		net := &mockNetwork{
-			p2p:    p2p,
-			logger: p2pLog,
-		}
 
 		err = net.Start()
 		require.Nil(t, err)

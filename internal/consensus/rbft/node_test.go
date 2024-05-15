@@ -21,7 +21,6 @@ import (
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck/mock_precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
@@ -30,12 +29,11 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-var validTxsCh = make(chan *precheck.ValidTxs, 1024)
-
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	assert.Nil(t, err)
 	mockRbft := rbft.NewMockMinimalNode[types.Transaction, *types.Transaction](ctrl)
+	mockRbft.EXPECT().Init().Return(nil).AnyTimes()
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
 		ID:     uint64(1),
 		View:   uint64(1),
@@ -67,6 +65,9 @@ func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 		txFeed:     event.Feed{},
 		txPreCheck: mockPrecheckMgr,
 		txpool:     consensusConf.TxPool,
+		archiveMode: func() bool {
+			return false
+		},
 	}
 	return node
 }
@@ -78,9 +79,20 @@ func TestStart(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
+			name: "init rbft failed",
+			setupMocks: func(n *Node, ctrl *gomock.Controller) {
+				r := rbft.NewMockNode[types.Transaction, *types.Transaction](ctrl)
+				r.EXPECT().Init().Return(fmt.Errorf("init rbft error")).AnyTimes()
+				r.EXPECT().ReportExecuted(gomock.Any()).AnyTimes()
+				n.n = r
+			},
+			expectedErrMsg: "init rbft error",
+		},
+		{
 			name: "start rbft failed",
 			setupMocks: func(n *Node, ctrl *gomock.Controller) {
 				r := rbft.NewMockNode[types.Transaction, *types.Transaction](ctrl)
+				r.EXPECT().Init().Return(nil).AnyTimes()
 				r.EXPECT().Start().Return(fmt.Errorf("start rbft error")).AnyTimes()
 				r.EXPECT().ReportExecuted(gomock.Any()).AnyTimes()
 				n.n = r
@@ -140,11 +152,12 @@ func TestInit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	node := MockMinNode(ctrl, t)
 
-	node.config.Config.Rbft.EnableMultiPipes = false
 	err := node.initConsensusMsgPipes()
 	ast.Nil(err)
 
-	node.config.Config.Rbft.EnableMultiPipes = true
+	node.archiveMode = func() bool {
+		return true
+	}
 	err = node.initConsensusMsgPipes()
 	ast.Nil(err)
 }
@@ -158,8 +171,6 @@ func TestNewNode(t *testing.T) {
 		{
 			name: "new node success",
 			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
-				// 设置mock和所需的条件
-				// 例如，storagemgr初始化，logger等
 			},
 			expectedErrMsg: "",
 		},
@@ -188,6 +199,17 @@ func TestNewNode(t *testing.T) {
 				consensusConf.GenesisEpochInfo.Epoch = 100
 			},
 			expectedErrMsg: "genesis epoch and start_block must be 1",
+		},
+
+		{
+			name: "new archive node success",
+			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
+				// illegal genesis epoch
+				consensusConf.GetArchiveModeFunc = func() bool {
+					return true
+				}
+			},
+			expectedErrMsg: "",
 		},
 
 		{
@@ -230,6 +252,7 @@ func TestPrepare(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	node := MockMinNode(ctrl, t)
 	mockRbft := rbft.NewMockMinimalNode[types.Transaction, *types.Transaction](ctrl)
+	mockRbft.EXPECT().Init().Return(nil).AnyTimes()
 	node.n = mockRbft
 
 	txSubscribeCh := make(chan []*types.Transaction, 1)
@@ -263,20 +286,6 @@ func TestPrepare(t *testing.T) {
 	}).AnyTimes()
 	err = node.Ready()
 	ast.Nil(err)
-
-	txCache := make(map[string]*types.Transaction)
-	nonceCache := make(map[string]uint64)
-	node.n.(*rbft.MockNode[types.Transaction, *types.Transaction]).EXPECT().Propose(gomock.Any(), gomock.Any()).Do(func(requests []*types.Transaction, local bool) error {
-		for _, tx := range requests {
-			txCache[tx.RbftGetTxHash()] = tx
-			if _, ok := nonceCache[tx.GetFrom().String()]; !ok {
-				nonceCache[tx.GetFrom().String()] = tx.GetNonce()
-			} else if nonceCache[tx.GetFrom().String()] < tx.GetNonce() {
-				nonceCache[tx.GetFrom().String()] = tx.GetNonce()
-			}
-		}
-		return nil
-	}).Return(nil).AnyTimes()
 
 	err = node.Prepare(tx1)
 	ast.Nil(err)

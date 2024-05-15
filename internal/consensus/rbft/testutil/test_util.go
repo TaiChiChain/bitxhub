@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/sirupsen/logrus"
@@ -71,7 +70,6 @@ func ConstructBlock(blockHashStr string, height uint64) *types.Block {
 	header := &types.BlockHeader{
 		Number:     height,
 		ParentHash: blockHash,
-		Timestamp:  time.Now().Unix(),
 	}
 	return &types.Block{
 		Header:       header,
@@ -154,6 +152,9 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		},
 		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*rbft.EpochInfo, error) {
 			return genesisEpochInfo, nil
+		},
+		GetArchiveModeFunc: func() bool {
+			return false
 		},
 
 		EpochStore: epochStore,

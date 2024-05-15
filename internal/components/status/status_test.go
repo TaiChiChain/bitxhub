@@ -1,4 +1,4 @@
-package txpool
+package status
 
 import (
 	"testing"
@@ -7,7 +7,13 @@ import (
 )
 
 func TestTurnOnStatus(t *testing.T) {
-	st := newPoolStatusMgr()
+	const (
+		ReadyGenerateBatch StatusType = iota
+		PoolFull
+		PoolEmpty
+		HasPendingRequest
+	)
+	st := NewStatusMgr()
 	require.False(t, st.InOne(ReadyGenerateBatch, PoolFull, PoolEmpty))
 	st.On(ReadyGenerateBatch)
 	require.True(t, st.InOne(ReadyGenerateBatch, PoolFull, PoolEmpty))

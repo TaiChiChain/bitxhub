@@ -1,36 +1,29 @@
-package txpool
+package status
 
 import (
 	"sync/atomic"
 )
 
-type statusType uint32
+type StatusType uint32
 
-const (
-	ReadyGenerateBatch statusType = iota
-	HasPendingRequest
-	PoolFull
-	PoolEmpty
-)
-
-type PoolStatusMgr struct {
+type StatusMgr struct {
 	atomicStatus uint32
 }
 
-func newPoolStatusMgr() *PoolStatusMgr {
-	return &PoolStatusMgr{
+func NewStatusMgr() *StatusMgr {
+	return &StatusMgr{
 		atomicStatus: 0,
 	}
 }
 
 // turn on a status
-func (st *PoolStatusMgr) On(statusPos ...statusType) {
+func (st *StatusMgr) On(statusPos ...StatusType) {
 	for _, pos := range statusPos {
 		st.atomicSetBit(pos)
 	}
 }
 
-func (st *PoolStatusMgr) atomicSetBit(position statusType) {
+func (st *StatusMgr) atomicSetBit(position StatusType) {
 	// try CompareAndSwapUint64 until success
 	for {
 		oldStatus := atomic.LoadUint32(&st.atomicStatus)
@@ -41,13 +34,13 @@ func (st *PoolStatusMgr) atomicSetBit(position statusType) {
 }
 
 // turn off a status
-func (st *PoolStatusMgr) Off(status ...statusType) {
+func (st *StatusMgr) Off(status ...StatusType) {
 	for _, pos := range status {
 		st.atomicClearBit(pos)
 	}
 }
 
-func (st *PoolStatusMgr) atomicClearBit(position statusType) {
+func (st *StatusMgr) atomicClearBit(position StatusType) {
 	// try CompareAndSwapUint64 until success
 	for {
 		oldStatus := atomic.LoadUint32(&st.atomicStatus)
@@ -58,16 +51,16 @@ func (st *PoolStatusMgr) atomicClearBit(position statusType) {
 }
 
 // In returns the atomic status of specified position.
-func (st *PoolStatusMgr) In(pos statusType) bool {
+func (st *StatusMgr) In(pos StatusType) bool {
 	return st.atomicHasBit(pos)
 }
 
-func (st *PoolStatusMgr) atomicHasBit(position statusType) bool {
+func (st *StatusMgr) atomicHasBit(position StatusType) bool {
 	val := atomic.LoadUint32(&st.atomicStatus) & (1 << position)
 	return val > 0
 }
 
-func (st *PoolStatusMgr) InOne(poss ...statusType) bool {
+func (st *StatusMgr) InOne(poss ...StatusType) bool {
 	var rs = false
 	for _, pos := range poss {
 		rs = rs || st.In(pos)
@@ -75,6 +68,6 @@ func (st *PoolStatusMgr) InOne(poss ...statusType) bool {
 	return rs
 }
 
-func (st *PoolStatusMgr) Reset() {
+func (st *StatusMgr) Reset() {
 	atomic.StoreUint32(&st.atomicStatus, 0)
 }

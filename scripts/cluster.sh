@@ -75,10 +75,10 @@ function prepare() {
 }
 
 function splitWindow() {
-  tmux splitw -v -p 50
-  tmux splitw -h -p 50
+  tmux splitw -v -l 50%
+  tmux splitw -h -l 50%
   tmux selectp -t 0
-  tmux splitw -h -p 50
+  tmux splitw -h -l 50%
 }
 
 function start_by_tmux() {

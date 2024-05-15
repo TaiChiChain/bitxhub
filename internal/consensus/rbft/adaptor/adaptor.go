@@ -38,7 +38,6 @@ type RBFTAdaptor struct {
 	p2pID2PubKeyCacheLock *sync.RWMutex
 	network               network.Network
 	msgPipes              map[int32]p2p.Pipe
-	globalMsgPipe         p2p.Pipe
 	ReadyC                chan *Ready
 	BlockC                chan *common.CommitEvent
 	logger                logrus.FieldLogger
@@ -63,6 +62,7 @@ type RBFTAdaptor struct {
 type Ready struct {
 	Txs             []*types.Transaction
 	LocalList       []bool
+	BatchDigest     string
 	Height          uint64
 	Timestamp       int64
 	ProposerAccount string
@@ -121,13 +121,12 @@ func (a *RBFTAdaptor) UpdateEpoch() error {
 		return err
 	}
 	a.EpochInfo = e
-	a.broadcastNodes = lo.Map(lo.Flatten([][]rbft.NodeInfo{a.EpochInfo.ValidatorSet, a.EpochInfo.CandidateSet}), func(item rbft.NodeInfo, index int) string {
+	a.broadcastNodes = lo.Map(lo.Flatten([][]rbft.NodeInfo{a.EpochInfo.ValidatorSet, a.EpochInfo.CandidateSet, a.EpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
 		return item.P2PNodeID
 	})
 	return nil
 }
 
-func (a *RBFTAdaptor) SetMsgPipes(msgPipes map[int32]p2p.Pipe, globalMsgPipe p2p.Pipe) {
+func (a *RBFTAdaptor) SetMsgPipes(msgPipes map[int32]p2p.Pipe) {
 	a.msgPipes = msgPipes
-	a.globalMsgPipe = globalMsgPipe
 }

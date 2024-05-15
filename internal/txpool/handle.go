@@ -6,15 +6,15 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveTimeout(timeoutEvent timer.Timeo
 	p.timerMgr.StopTimer(timeoutEvent)
 	var ev txPoolEvent
 	switch timeoutEvent {
-	case timer.RemoveTx:
+	case RemoveTx:
 		ev = &removeTxsEvent{
 			EventType: timeoutTxsEvent,
 		}
-	case timer.CleanEmptyAccount:
+	case CleanEmptyAccount:
 		ev = &localEvent{
 			EventType: gcAccountEvent,
 		}
-	case timer.RotateTxLocals:
+	case RotateTxLocals:
 		ev = &localEvent{
 			EventType: rotateTxLocalsEvent,
 		}

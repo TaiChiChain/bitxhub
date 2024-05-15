@@ -47,7 +47,6 @@ type TxCache struct {
 }
 
 type RBFT struct {
-	EnableMultiPipes          bool        `mapstructure:"enable_multi_pipes" toml:"enable_multi_pipes"`
 	EnableMetrics             bool        `mapstructure:"enable_metrics" toml:"enable_metrics"`
 	CommittedBlockCacheNumber uint64      `mapstructure:"committed_block_cache_number" toml:"committed_block_cache_number"`
 	Timeout                   RBFTTimeout `mapstructure:"timeout" toml:"timeout"`
@@ -102,7 +101,6 @@ func DefaultConsensusConfig() *ConsensusConfig {
 			SetTimeout: Duration(100 * time.Millisecond),
 		},
 		Rbft: RBFT{
-			EnableMultiPipes:          false,
 			EnableMetrics:             true,
 			CommittedBlockCacheNumber: 10,
 			Timeout: RBFTTimeout{
