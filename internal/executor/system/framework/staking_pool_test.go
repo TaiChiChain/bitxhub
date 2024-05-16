@@ -489,7 +489,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 	// [active stake] before: 110000, after: 140000 = 110000 - 20000 + 30000 +20000
 	// [operator] before: 43220, after: 58133 = 43220 + 12000 * 43220/(110000-34980) + 8000
 	// [user A] before: 34980, after: 14980 = 34980 - 20000
-	// [user B] before: 30000, after: 36886 = 31800 + 12000 * 31800/(110000-34980)
+	// [user B] before: 31800, after: 36886 = 31800 + 12000 * 31800/(110000-34980)
 	// [user C] before: 30000, after: 30000
 	userC := ethcommon.HexToAddress("0xC000000000000000000000000000000000000000")
 	var userCLSTTokenID *big.Int
