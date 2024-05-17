@@ -5,18 +5,22 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/urfave/cli/v2"
 
+	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	sys_contract "github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/sys-contract"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func main() {
+	loadEnvFile()
+
 	app := cli.NewApp()
 	app.Name = repo.AppName
-	app.Usage = "A leading inter-blockchain platform"
+	app.Usage = "A blockchain infrastructure with high scalability, privacy, security and composability"
 	app.Compiled = time.Now()
 
 	cli.VersionPrinter = func(c *cli.Context) {
@@ -83,5 +87,19 @@ func main() {
 	err := app.Run(os.Args)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+func loadEnvFile() {
+	envFile := os.Getenv("AXIOM_LEDGER_ENV_FILE")
+	if envFile == "" {
+		envFile = ".env"
+	}
+	if fileutil.Exist(envFile) {
+		if err := godotenv.Load(envFile); err != nil {
+			fmt.Printf("load env file %s failed: %s\n", envFile, err)
+			return
+		}
+		fmt.Printf("load env file %s\n", envFile)
 	}
 }

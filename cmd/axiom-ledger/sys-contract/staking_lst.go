@@ -307,7 +307,7 @@ func (_ StakingLSTActions) bindingContract(ctx *cli.Context) (*liquid_staking_to
 		return nil, nil, errors.Wrap(err, "dial rpc failed")
 	}
 
-	contract, err := liquid_staking_token_client.NewBindingContract(ethcommon.HexToAddress(syscommon.StakingManagerContractAddr), client)
+	contract, err := liquid_staking_token_client.NewBindingContract(ethcommon.HexToAddress(syscommon.LiquidStakingTokenContractAddr), client)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "bind staking contract failed")
 	}
@@ -472,9 +472,9 @@ func (a StakingLSTActions) info(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	lstID, ok := new(big.Int).SetString(StakingLSTCMDOwnerOfArgs.LSTID, 10)
+	lstID, ok := new(big.Int).SetString(StakingLSTCMDInfoArgs.LSTID, 10)
 	if !ok {
-		return errors.Errorf("invalid lst id: %s", StakingLSTCMDOwnerOfArgs.LSTID)
+		return errors.Errorf("invalid lst id: %s", StakingLSTCMDInfoArgs.LSTID)
 	}
 
 	res, err := lstContract.GetInfo(&bind.CallOpts{Context: ctx.Context}, lstID)

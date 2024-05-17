@@ -36,10 +36,6 @@ epoch = 1
 epoch_period = 10000
 # Start block of the initial epoch
 start_block = 1
-# Addresses of P2P bootstrap nodes
-p2p_bootstrap_node_addresses = [
-    '/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF'
-]
 # Consensus parameter configuration
 [epoch_info.consensus_params]
 # Validator node election type:

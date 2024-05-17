@@ -114,7 +114,7 @@ func (nvm *NativeVM) Deploy(cfg *common.SystemContractStaticConfig) {
 }
 
 func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult []byte, execErr error) {
-	adaptor, ok := statefulArgs.StateDB.(*ledger.EvmStateDBAdaptor)
+	adaptor, ok := statefulArgs.EVM.StateDB.(*ledger.EvmStateDBAdaptor)
 	if !ok {
 		return nil, ErrInvalidStateDB
 	}
@@ -127,7 +127,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if contractBuildCfg == nil {
 		return nil, ErrNotExistSystemContract
 	}
-	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From))
+	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From, statefulArgs.Value.ToBig()))
 	defer func() {
 		if err := recover(); err != nil {
 			nvm.logger.Error(err)

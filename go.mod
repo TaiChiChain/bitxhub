@@ -2,14 +2,14 @@ module github.com/axiomesh/axiom-ledger
 
 go 1.20
 
-replace github.com/ethereum/go-ethereum v1.13.14 => github.com/axiomesh/go-ethereum v1.13.14-1
+replace github.com/ethereum/go-ethereum v1.13.14 => github.com/axiomesh/go-ethereum v1.13.14-2
 
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240515161621-9e9509a4d9d1
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240516110416-ce42e15d4939
-	github.com/axiomesh/axiom-p2p v0.0.3-0.20240227055221-b5e353b29d5d
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240518131128-ec6aa9d1c97a
+	github.com/axiomesh/axiom-p2p v0.0.3-0.20240519143502-86fe8e7c5625
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a

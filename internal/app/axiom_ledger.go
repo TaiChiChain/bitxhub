@@ -247,7 +247,11 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}, func(epoch uint64) (*types.EpochInfo, error) {
 		lg := vl.NewView()
 		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
-		return epochManagerContract.HistoryEpoch(epoch)
+		epochInfo, err := epochManagerContract.HistoryEpoch(epoch)
+		if err != nil {
+			return nil, err
+		}
+		return epochInfo.ToTypesEpoch(), nil
 	})
 
 	axm := &AxiomLedger{
@@ -412,7 +416,7 @@ func (axm *AxiomLedger) initChainState() error {
 		return err
 	}
 
-	if err := axm.ChainState.UpdateByEpochInfo(currentEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
+	if err := axm.ChainState.UpdateByEpochInfo(currentEpoch.ToTypesEpoch(), lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
 		return item.NodeID, item.ConsensusVotingPower
 	})); err != nil {
 		return err

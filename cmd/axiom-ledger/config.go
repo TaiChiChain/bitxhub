@@ -21,7 +21,7 @@ var configCMD = &cli.Command{
 	Subcommands: []*cli.Command{
 		{
 			Name:   "generate",
-			Usage:  "Generate default config and node private key(if not exist)",
+			Usage:  "Generate default config",
 			Action: generate,
 		},
 		{

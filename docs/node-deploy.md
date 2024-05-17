@@ -33,7 +33,7 @@ Generate configuration files and node keys (randomly generated)
 
 After execution, the node's account address and p2p-id will be printed. You can also view them again using `./axiom-ledger config node-info`.
 
-The node's account address and p2p-id will be used in the genesis configuration.
+The node's consensus public-key and p2p public-key will be used in the genesis configuration.
 
 # Modifying Node Configuration
 

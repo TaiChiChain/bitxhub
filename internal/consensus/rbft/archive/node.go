@@ -67,7 +67,7 @@ type Node[T any, Constraint types.TXConstraint[T]] struct {
 	wg      sync.WaitGroup
 }
 
-func NewArchiveNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, stack rbft.ExternalStack[T, Constraint], chainState *chainstate.ChainState, pool txpool.TxPool[T, Constraint], genesisBlockHash string, log logrus.FieldLogger) (*Node[T, Constraint], error) {
+func NewArchiveNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, stack rbft.ExternalStack[T, Constraint], chainState *chainstate.ChainState, pool txpool.TxPool[T, Constraint], log logrus.FieldLogger) (*Node[T, Constraint], error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	node := &Node[T, Constraint]{
 		config:            rbftConfig,
@@ -1076,7 +1076,7 @@ func (n *Node[T, Constraint]) verifySignedCheckpoint(sckpt *consensus.SignedChec
 func (n *Node[T, Constraint]) handleSignedCheckpoint(sckpt *consensus.SignedCheckpoint, remoteEpoch uint64) *archiveEvent {
 	// 1. verify checkpoint
 	if err := n.verifySignedCheckpoint(sckpt); err != nil {
-		n.logger.Errorf("checkpoint verify failed: %w", err)
+		n.logger.Errorf("checkpoint verify failed: %v", err)
 		return nil
 	}
 

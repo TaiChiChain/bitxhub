@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +20,7 @@ import (
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -2139,7 +2138,6 @@ func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
 			ast.Equal(pool.txStore.priorityByPrice.accountsM[from].lastNonce, uint64(3))
 			ast.Equal(pool.txStore.priorityByPrice.size(), uint64(4))
 		}
-
 	}
 }
 

@@ -141,6 +141,11 @@
               },
               {
                 "internalType": "uint64",
+                "name": "MaxUnlockingRecordNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
                 "name": "UnlockPeriod",
                 "type": "uint64"
               },
@@ -327,6 +332,11 @@
               },
               {
                 "internalType": "uint64",
+                "name": "MaxUnlockingRecordNum",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
                 "name": "UnlockPeriod",
                 "type": "uint64"
               },
@@ -502,6 +512,11 @@
               {
                 "internalType": "uint64",
                 "name": "MaxUnlockStakeRatio",
+                "type": "uint64"
+              },
+              {
+                "internalType": "uint64",
+                "name": "MaxUnlockingRecordNum",
                 "type": "uint64"
               },
               {

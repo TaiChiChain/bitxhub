@@ -32,7 +32,7 @@ func KeystorePasswordFlag() *cli.StringFlag {
 
 func EnterPassword(needConfirm bool) (string, error) {
 	var password string
-	fmt.Println("enter a password for keystore:")
+	fmt.Println("enter a password for keystore(will use default if input empty):")
 	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", errors.Wrap(err, "can not read password")

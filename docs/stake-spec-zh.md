@@ -57,6 +57,8 @@ commission_rate = 0
     max_add_stake_ratio = 1000
     # 每个epoch最多能解锁的代币数量的比例(每个epoch解锁stake数量上限：max_unlock_stake_ratio/10000 * 上一个epoch总ActiveStake)
     max_unlock_stake_ratio = 1000
+    # 每个lst代币最多可以同时存在的解锁记录数量
+    max_unlocking_record_num = 5
     # 代币解锁的锁定期(单位是秒，默认3天)
     unlock_period = 259200
     # 每个epoch最多能exit的验证者节点的数量比例(每个epoch验证者节点exit数量上限：max_pending_inactive_validator_ratio/10000 * 当前epoch总ActiveValidator数量)
@@ -174,7 +176,7 @@ node-name: 节点名称，不能和已有的重复
 node-desc: 节点描述，可为空  
 node-image-url：节点图片的url，可为空  
 node-website-url：节点官网的url，可为空  
-sender: 发送交易的私钥，会默认成为节点的operator（不限制是治理委员会成员）
+sender: 发送交易的私钥，会默认成为节点的operator（不限制是治理委员会成员）  
 rpc: 接收交易的节点的rpc（不要用本节点的，因为本节点的状态是落后的）
 
 

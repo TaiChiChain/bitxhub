@@ -75,7 +75,7 @@ func NewNode(config *common.Config) (*Node, error) {
 
 	var n rbft.InboundNode
 	if config.ChainState.IsDataSyncer {
-		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.ChainState, config.TxPool, config.GenesisDigest, config.Logger)
+		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.ChainState, config.TxPool, config.Logger)
 	} else {
 		n, err = rbft.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.TxPool)
 	}

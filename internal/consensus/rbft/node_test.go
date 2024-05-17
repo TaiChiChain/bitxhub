@@ -61,9 +61,6 @@ func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
 		txFeed:     event.Feed{},
 		txPreCheck: mockPrecheckMgr,
 		txpool:     consensusConf.TxPool,
-		archiveMode: func() bool {
-			return false
-		},
 	}
 	return node
 }
@@ -78,7 +75,7 @@ func TestStart(t *testing.T) {
 			name: "init rbft failed",
 			setupMocks: func(n *Node, ctrl *gomock.Controller) {
 				r := rbft.NewMockNode[types.Transaction, *types.Transaction](ctrl)
-				r.EXPECT().Init().Return(fmt.Errorf("init rbft error")).AnyTimes()
+				r.EXPECT().Init().Return(errors.New("init rbft error")).AnyTimes()
 				r.EXPECT().ReportExecuted(gomock.Any()).AnyTimes()
 				n.n = r
 			},
@@ -148,10 +145,7 @@ func TestInit(t *testing.T) {
 
 	err := node.initConsensusMsgPipes()
 	ast.Nil(err)
-
-	node.archiveMode = func() bool {
-		return true
-	}
+	node.config.ChainState.IsDataSyncer = true
 	err = node.initConsensusMsgPipes()
 	ast.Nil(err)
 }
@@ -163,9 +157,9 @@ func TestNewNode(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name: "new node success",
-			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
-			},
+			name:       "new node success",
+			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {},
+
 			expectedErrMsg: "",
 		},
 		{
@@ -177,21 +171,10 @@ func TestNewNode(t *testing.T) {
 			expectedErrMsg: "unsupported consensus storage type",
 		},
 		{
-			name: "new rbft err",
-			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
-				// illegal genesis epoch
-				consensusConf.GenesisEpochInfo.Epoch = 100
-			},
-			expectedErrMsg: "genesis epoch and start_block must be 1",
-		},
-
-		{
 			name: "new archive node success",
 			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
 				// illegal genesis epoch
-				consensusConf.GetArchiveModeFunc = func() bool {
-					return true
-				}
+				consensusConf.ChainState.IsDataSyncer = true
 			},
 			expectedErrMsg: "",
 		},

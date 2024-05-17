@@ -87,6 +87,8 @@ func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 
 func TestStakingManager_LifeCycle(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
+
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -137,7 +139,7 @@ func TestStakingManager_LifeCycle(t *testing.T) {
 	testNVM.RunSingleTX(stakingManagerContract, operatorAddr.ETHAddress(), func() error {
 		before, err := stakingManagerContract.totalStake.MustGet()
 		assert.Nil(t, err)
-		// todo: use tx value instead and check balance
+		stakingManagerContract.Ctx.Value = big.NewInt(200)
 		stakingManagerContract.StateAccount.AddBalance(big.NewInt(200))
 
 		err = stakingManagerContract.AddStake(5, operatorAddr.ETHAddress(), big.NewInt(200))

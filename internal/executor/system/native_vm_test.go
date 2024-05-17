@@ -155,13 +155,9 @@ func TestContractRun(t *testing.T) {
 	for i, testcase := range testcases {
 		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
 			args := &vm.StatefulArgs{
-				StateDB: &ledger.EvmStateDBAdaptor{
-					StateLedger: lg.StateLedger,
-				},
-				Height: big.NewInt(2),
-				From:   testcase.Message.From,
-				To:     testcase.Message.To,
-				EVM:    evm,
+				From: testcase.Message.From,
+				To:   testcase.Message.To,
+				EVM:  evm,
 			}
 			_, err := nvm.Run(testcase.Message.Data, args)
 			if testcase.IsExpectedErr {

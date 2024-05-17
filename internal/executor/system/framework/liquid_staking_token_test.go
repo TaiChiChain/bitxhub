@@ -45,7 +45,7 @@ func TestLiquidStakingToken_stakeInfo(t *testing.T) {
 		assert.Nil(t, err)
 
 		// turn into new epoch
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(10000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
 		assert.Nil(t, err)
 
 		// check
@@ -96,7 +96,7 @@ func TestLiquidStakingToken_stakeInfo(t *testing.T) {
 		assert.Nil(t, err)
 
 		// turn into new epoch
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(10000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
 		assert.Nil(t, err)
 
 		// check

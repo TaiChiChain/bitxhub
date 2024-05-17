@@ -15,7 +15,12 @@ import (
 )
 
 func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*types.EpochInfo) *ChainState {
+	return NewMockChainStateWithNodeID(genesisConfig, epochMap, 1)
+}
+
+func NewMockChainStateWithNodeID(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*types.EpochInfo, selfNodeID uint64) *ChainState {
 	nodeInfoMap := map[uint64]*ExpandedNodeInfo{}
+	var validatorSet []ValidatorInfo
 	for i, nodeInfo := range genesisConfig.Nodes {
 		nodeID := uint64(i + 1)
 
@@ -51,6 +56,9 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 			P2PPubKey:       p2pPubKey,
 			ConsensusPubKey: consensusPubKey,
 		}
+		if !nodeInfo.IsDataSyncer {
+			validatorSet = append(validatorSet, ValidatorInfo{ID: nodeID, ConsensusVotingPower: 1000})
+		}
 	}
 	if epochMap == nil {
 		epochMap = map[uint64]*types.EpochInfo{}
@@ -58,6 +66,8 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 	if _, ok := epochMap[genesisConfig.EpochInfo.Epoch]; !ok {
 		epochMap[genesisConfig.EpochInfo.Epoch] = genesisConfig.EpochInfo
 	}
+	selfNodeInfo := nodeInfoMap[selfNodeID]
+	isDataSyncer := genesisConfig.Nodes[selfNodeID-1].IsDataSyncer
 	return &ChainState{
 		nodeInfoCacheLock:     sync.RWMutex{},
 		p2pID2NodeIDCacheLock: sync.RWMutex{},
@@ -82,10 +92,9 @@ func NewMockChainState(genesisConfig *repo.GenesisConfig, epochMap map[uint64]*t
 			Height:    0,
 			BlockHash: nil,
 		},
-		ValidatorSet: lo.Map(genesisConfig.Nodes, func(_ repo.GenesisNodeInfo, index int) ValidatorInfo {
-			return ValidatorInfo{ID: uint64(index + 1), ConsensusVotingPower: 1000}
-		}),
-		SelfNodeInfo: nodeInfoMap[1],
-		IsValidator:  true,
+		ValidatorSet: validatorSet,
+		SelfNodeInfo: selfNodeInfo,
+		IsDataSyncer: isDataSyncer,
+		IsValidator:  !isDataSyncer,
 	}
 }

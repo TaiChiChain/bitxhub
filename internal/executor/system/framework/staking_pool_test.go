@@ -13,8 +13,14 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 )
 
+func setEpochParam(nvm *common.TestNVM) {
+	nvm.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
+	nvm.Rep.GenesisConfig.EpochInfo.StakeParams.MinValidatorStake = types.CoinNumberByMol(1)
+}
+
 func TestStakingPool_ManageInfo(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	setEpochParam(testNVM)
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -118,6 +124,7 @@ func TestStakingPool_ManageInfo(t *testing.T) {
 
 func TestStakingPool_ManageStake(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	setEpochParam(testNVM)
 	testNVM.Rep.GenesisConfig.Nodes[0].IsDataSyncer = false
 	testNVM.Rep.GenesisConfig.Nodes[0].StakeNumber = types.CoinNumberByMol(10000)
 	testNVM.Rep.GenesisConfig.Nodes[0].CommissionRate = 4000
@@ -147,7 +154,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		assert.Nil(t, err)
 
 		// turn into new epoch
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(10000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
 		assert.Nil(t, err)
 
 		// check auto restake
@@ -203,6 +210,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		assert.Nil(t, err)
 
 		stakingManagerContract.Ctx.From = userA
+		stakingManagerContract.Ctx.Value = big.NewInt(30000)
 		err = stakingManagerContract.AddStake(1, userA, big.NewInt(30000))
 		assert.Nil(t, err)
 		userALSTTokenID = stakingManagerContract.Ctx.TestLogs[0].(*staking_manager.EventAddStake).LiquidStakingTokenID
@@ -235,7 +243,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		// turn into new epoch
 		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 		assert.Nil(t, err)
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(10000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
 		assert.Nil(t, err)
 
 		// check auto restake
@@ -302,6 +310,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		assert.Nil(t, err)
 
 		stakingManagerContract.Ctx.From = userB
+		stakingManagerContract.Ctx.Value = big.NewInt(30000)
 		err = stakingManagerContract.AddStake(1, userB, big.NewInt(30000))
 		assert.Nil(t, err)
 		userBLSTTokenID = stakingManagerContract.Ctx.TestLogs[0].(*staking_manager.EventAddStake).LiquidStakingTokenID
@@ -333,7 +342,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		// turn into new epoch
 		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 		assert.Nil(t, err)
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(10000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
 		assert.Nil(t, err)
 
 		// check auto restake
@@ -418,7 +427,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		// turn into new epoch
 		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 		assert.Nil(t, err)
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(10000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
 		assert.Nil(t, err)
 
 		// check auto restake
@@ -535,6 +544,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 
 		// add stake
 		stakingManagerContract.Ctx.From = userC
+		stakingManagerContract.Ctx.Value = big.NewInt(30000)
 		err = stakingManagerContract.AddStake(1, userC, big.NewInt(30000))
 		assert.Nil(t, err)
 		userCLSTTokenID = stakingManagerContract.Ctx.TestLogs[1].(*staking_manager.EventAddStake).LiquidStakingTokenID
@@ -566,7 +576,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		// turn into new epoch
 		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 		assert.Nil(t, err)
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(20000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(20000))
 		assert.Nil(t, err)
 
 		// check auto restake
@@ -699,7 +709,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 		// turn into new epoch
 		newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 		assert.Nil(t, err)
-		err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(20000))
+		err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(20000))
 		assert.Nil(t, err)
 
 		// check auto restake
@@ -794,7 +804,7 @@ func TestStakingPool_ManageStake(t *testing.T) {
 			// turn into new epoch
 			newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
 			assert.Nil(t, err)
-			err = pool.TurnIntoNewEpoch(oldEpoch, newEpoch, big.NewInt(20000))
+			err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(20000))
 			assert.Nil(t, err)
 
 			info, err := pool.MustGetInfo()

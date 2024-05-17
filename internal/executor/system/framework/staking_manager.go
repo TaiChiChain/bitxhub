@@ -1,10 +1,10 @@
 package framework
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"sort"
+	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -24,12 +24,15 @@ var (
 )
 
 const (
-	blocksPerYear                    = uint64(63072000)
-	rewardPerBlockStorageKey         = "stakeRewardPerBlock"
-	availablePoolsStorageKey         = "availablePools"
-	proposeBlockCountTableStorageKey = "proposeBlockCountTable"
-	gasRewardTableStorageKey         = "gasRewardTable"
-	totalStakeStorageKey             = "totalStake"
+	blocksPerYear                          = uint64(63072000)
+	rewardPerBlockStorageKey               = "stakeRewardPerBlock"
+	availablePoolsStorageKey               = "availablePools"
+	proposeBlockCountTableStorageKey       = "proposeBlockCountTable"
+	gasRewardTableStorageKey               = "gasRewardTable"
+	totalStakeStorageKey                   = "totalStake"
+	lastEpochTotalStakeStorageKey          = "lsatEpochTotalStake"
+	currentEpochTotalAddStakeStorageKey    = "currentEpochTotalAddStake"
+	currentEpochTotalUnlockStakeStorageKey = "currentEpochTotalUnlockStake"
 )
 
 var StakingManagerBuildConfig = &common.SystemContractBuildConfig[*StakingManager]{
@@ -48,11 +51,14 @@ var _ staking_manager.StakingManager = (*StakingManager)(nil)
 type StakingManager struct {
 	common.SystemContractBase
 
-	availablePools         *common.VMSlot[[]uint64]
-	rewardPerBlock         *common.VMSlot[*big.Int]
-	proposeBlockCountTable *common.VMMap[uint64, uint64]
-	gasRewardTable         *common.VMMap[uint64, *big.Int]
-	totalStake             *common.VMSlot[*big.Int]
+	availablePools               *common.VMSlot[[]uint64]
+	rewardPerBlock               *common.VMSlot[*big.Int]
+	proposeBlockCountTable       *common.VMMap[uint64, uint64]
+	gasRewardTable               *common.VMMap[uint64, *big.Int]
+	totalStake                   *common.VMSlot[*big.Int]
+	lastEpochTotalStake          *common.VMSlot[*big.Int]
+	currentEpochTotalAddStake    *common.VMSlot[*big.Int]
+	currentEpochTotalUnlockStake *common.VMSlot[*big.Int]
 }
 
 func (s *StakingManager) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -79,6 +85,15 @@ func (s *StakingManager) GenesisInit(genesis *repo.GenesisConfig) error {
 	if err := s.totalStake.Put(totalStake); err != nil {
 		return err
 	}
+	if err := s.lastEpochTotalStake.Put(totalStake); err != nil {
+		return err
+	}
+	if err := s.currentEpochTotalAddStake.Put(new(big.Int)); err != nil {
+		return err
+	}
+	if err := s.currentEpochTotalUnlockStake.Put(new(big.Int)); err != nil {
+		return err
+	}
 
 	// init stake reward per block
 	if err := s.UpdateStakeRewardPerBlock(); err != nil {
@@ -97,13 +112,17 @@ func (s *StakingManager) SetContext(ctx *common.VMContext) {
 
 	s.availablePools = common.NewVMSlot[[]uint64](s.StateAccount, availablePoolsStorageKey)
 	s.proposeBlockCountTable = common.NewVMMap[uint64, uint64](s.StateAccount, proposeBlockCountTableStorageKey, func(key uint64) string {
-		return fmt.Sprintf("%d", key)
+		return strconv.FormatUint(key, 10)
 	})
 	s.gasRewardTable = common.NewVMMap[uint64, *big.Int](s.StateAccount, gasRewardTableStorageKey, func(key uint64) string {
-		return fmt.Sprintf("%d", key)
+		return strconv.FormatUint(key, 10)
 	})
 	s.rewardPerBlock = common.NewVMSlot[*big.Int](s.StateAccount, rewardPerBlockStorageKey)
 	s.totalStake = common.NewVMSlot[*big.Int](s.StateAccount, totalStakeStorageKey)
+
+	s.lastEpochTotalStake = common.NewVMSlot[*big.Int](s.StateAccount, lastEpochTotalStakeStorageKey)
+	s.currentEpochTotalAddStake = common.NewVMSlot[*big.Int](s.StateAccount, currentEpochTotalAddStakeStorageKey)
+	s.currentEpochTotalUnlockStake = common.NewVMSlot[*big.Int](s.StateAccount, currentEpochTotalUnlockStakeStorageKey)
 }
 
 func (s *StakingManager) LoadPool(poolID uint64) *StakingPool {
@@ -161,6 +180,21 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 		if err = s.gasRewardTable.Put(poolID, big.NewInt(0)); err != nil {
 			return err
 		}
+	}
+
+	// reset vars in epoch
+	if err := s.currentEpochTotalAddStake.Put(new(big.Int)); err != nil {
+		return err
+	}
+	if err := s.currentEpochTotalUnlockStake.Put(new(big.Int)); err != nil {
+		return err
+	}
+	totalStake, err := s.totalStake.MustGet()
+	if err != nil {
+		return err
+	}
+	if err := s.lastEpochTotalStake.Put(totalStake); err != nil {
+		return err
 	}
 	return s.UpdateStakeRewardPerBlock()
 }
@@ -263,10 +297,43 @@ func (s *StakingManager) CreatePoolWithStake(poolID uint64, commissionRate uint6
 }
 
 func (s *StakingManager) AddStake(poolID uint64, owner ethcommon.Address, amount *big.Int) error {
+	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
+	currentEpoch, err := epochManagerContract.CurrentEpoch()
+	if err != nil {
+		return err
+	}
+	if currentEpoch.StakeParams.MinDelegateStake.Cmp(amount) > 0 {
+		return errors.Errorf("amount %s less than min stake %s", amount.String(), currentEpoch.StakeParams.MinDelegateStake.String())
+	}
+
+	// check add stake limit
+	currentEpochTotalAddStake, err := s.currentEpochTotalAddStake.MustGet()
+	if err != nil {
+		return err
+	}
+	lastEpochTotalStake, err := s.lastEpochTotalStake.MustGet()
+	if err != nil {
+		return err
+	}
+	currentEpochTotalAddStake = new(big.Int).Add(currentEpochTotalAddStake, amount)
+	limit := lastEpochTotalStake.Mul(lastEpochTotalStake, big.NewInt(int64(currentEpoch.StakeParams.MaxAddStakeRatio)))
+	limit = limit.Div(limit, big.NewInt(types.RatioLimit))
+	if currentEpochTotalAddStake.Cmp(limit) > 0 {
+		return errors.Errorf("add stake reach epoch limit %s", limit.String())
+	}
+
 	if err := s.updateTotalStake(true, amount); err != nil {
 		return err
 	}
-	return s.LoadPool(poolID).AddStake(owner, amount)
+
+	if err := s.LoadPool(poolID).AddStake(owner, amount); err != nil {
+		return err
+	}
+
+	if err := s.currentEpochTotalAddStake.Put(currentEpochTotalAddStake); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *StakingManager) checkLiquidStakingTokenPermission(liquidStakingTokenID *big.Int) (*liquid_staking_token.LiquidStakingTokenInfo, error) {
@@ -303,10 +370,40 @@ func (s *StakingManager) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) 
 	if err != nil {
 		return err
 	}
+
+	// check add stake limit
+	currentEpochTotalUnlockStake, err := s.currentEpochTotalUnlockStake.MustGet()
+	if err != nil {
+		return err
+	}
+	lastEpochTotalStake, err := s.lastEpochTotalStake.MustGet()
+	if err != nil {
+		return err
+	}
+	currentEpochTotalUnlockStake = new(big.Int).Add(currentEpochTotalUnlockStake, amount)
+	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
+	currentEpoch, err := epochManagerContract.CurrentEpoch()
+	if err != nil {
+		return err
+	}
+	limit := lastEpochTotalStake.Mul(lastEpochTotalStake, big.NewInt(int64(currentEpoch.StakeParams.MaxUnlockStakeRatio)))
+	limit = limit.Div(limit, big.NewInt(types.RatioLimit))
+	if currentEpochTotalUnlockStake.Cmp(limit) > 0 {
+		return errors.Errorf("unlock stake reach epoch limit %s", limit.String())
+	}
+
 	if err := s.updateTotalStake(false, amount); err != nil {
 		return err
 	}
-	return s.LoadPool(liquidStakingTokenInfo.PoolID).UnlockStake(liquidStakingTokenID, liquidStakingTokenInfo, amount)
+
+	if err := s.LoadPool(liquidStakingTokenInfo.PoolID).UnlockStake(liquidStakingTokenID, liquidStakingTokenInfo, amount); err != nil {
+		return err
+	}
+	if err := s.currentEpochTotalUnlockStake.Put(currentEpochTotalUnlockStake); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *StakingManager) Withdraw(liquidStakingTokenID *big.Int, recipient ethcommon.Address, amount *big.Int) error {

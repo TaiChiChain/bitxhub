@@ -184,10 +184,21 @@ func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 		return errors.Wrap(err, "unmarshal node register extra arguments error")
 	}
 
-	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	_, err := nodeManagerContract.Register(node_manager.NodeInfo{
+	_, _, p2pID, err := framework.CheckNodeInfo(node_manager.NodeInfo{
 		ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
 		P2PPubKey:       nodeExtraArgs.P2PPubKey,
+		Operator:        nm.gov.Ctx.From,
+		MetaData:        nodeExtraArgs.MetaData,
+	})
+	if err != nil {
+		return errors.Wrap(err, "check node info error")
+	}
+
+	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
+	_, err = nodeManagerContract.Register(node_manager.NodeInfo{
+		ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
+		P2PPubKey:       nodeExtraArgs.P2PPubKey,
+		P2PID:           p2pID,
 		Operator:        ethcommon.HexToAddress(proposal.Proposer),
 		MetaData:        nodeExtraArgs.MetaData,
 		Status:          uint8(types.NodeStatusDataSyncer),

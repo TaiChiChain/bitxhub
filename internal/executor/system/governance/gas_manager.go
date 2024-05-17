@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -66,7 +65,7 @@ func (gm *GasManager) VotePassExecute(proposal *Proposal) error {
 	if err != nil {
 		return err
 	}
-	nextEpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByMol(extraArgs.MinGasPrice)
+	nextEpochInfo.FinanceParams.MinGasPrice = new(big.Int).SetUint64(extraArgs.MinGasPrice)
 
 	if err := epochManagerContract.UpdateNextEpoch(nextEpochInfo); err != nil {
 		return err
@@ -104,7 +103,7 @@ func (gm *GasManager) getGasProposalExtraArgs(extra []byte) (*GasExtraArgs, erro
 		return nil, err
 	}
 	financeParams := nextEpochInfo.FinanceParams
-	if financeParams.MinGasPrice.ToBigInt().Cmp(new(big.Int).SetUint64(extraArgs.MinGasPrice)) == 0 {
+	if financeParams.MinGasPrice.Cmp(new(big.Int).SetUint64(extraArgs.MinGasPrice)) == 0 {
 		return nil, ErrRepeatedGasInfo
 	}
 

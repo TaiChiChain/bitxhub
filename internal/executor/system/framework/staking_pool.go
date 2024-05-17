@@ -135,7 +135,9 @@ func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error 
 		return errors.Errorf("staking pool %d is inactive", info.ID)
 	}
 
-	// TODO: check received value is equal to amount, implement it after geth upgrade
+	if sp.Ctx.Value == nil || sp.Ctx.Value.Cmp(amount) < 0 {
+		return errors.Errorf("received value %d is less than amount %d", sp.Ctx.Value, amount)
+	}
 
 	nodeManagerContract := NodeManagerBuildConfig.Build(sp.CrossCallSystemContractContext())
 	nodeInfo, err := nodeManagerContract.GetInfo(info.ID)
@@ -209,6 +211,8 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 		return errors.Errorf("token is not active yet, use `WithdrawStake` instead")
 	}
 
+	updateLiquidStakingTokenUnlockingRecords(sp.Ctx.CurrentEVM.Context.Time, liquidStakingTokenInfo)
+
 	var pendingInactiveStakeWithdraw, pendingInactiveLiquidStakingTokenAmount *big.Int
 	// calculate liquidStakingToken amount
 	stakingRate, err := sp.HistoryLiquidStakingTokenRate(liquidStakingTokenInfo.ActiveEpoch - 1)
@@ -240,6 +244,9 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 		UnlockTimestamp: sp.Ctx.CurrentEVM.Context.Time + currentEpoch.StakeParams.UnlockPeriod,
 	}
 	liquidStakingTokenInfo.UnlockingRecords = append(liquidStakingTokenInfo.UnlockingRecords, unlockRecord)
+	if uint64(len(liquidStakingTokenInfo.UnlockingRecords)) > currentEpoch.StakeParams.MaxUnlockingRecordNum {
+		return errors.Errorf("unlocking record num exceed max num %d", currentEpoch.StakeParams.MaxUnlockingRecordNum)
+	}
 
 	// restake remain
 	liquidStakingTokenInfo.Principal = new(big.Int).Sub(pendingInactiveStakeWithdraw, amount)

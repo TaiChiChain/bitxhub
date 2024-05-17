@@ -123,7 +123,7 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		2: rep.GenesisConfig.EpochInfo.Clone(),
 	})
 	chainState.ChainMeta = GetChainMetaFunc()
-
+	chainState.IsDataSyncer = false
 	conf := &common.Config{
 		Repo:             repo.MockRepo(t),
 		Logger:           logger,
@@ -140,9 +140,6 @@ func MockConsensusConfig(logger logrus.FieldLogger, ctrl *gomock.Controller, t *
 		},
 		GetAccountNonce: func(address *types.Address) uint64 {
 			return 0
-		},
-		GetArchiveModeFunc: func() bool {
-			return false
 		},
 		EpochStore: epochStore,
 	}

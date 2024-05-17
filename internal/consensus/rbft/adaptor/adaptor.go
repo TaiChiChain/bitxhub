@@ -72,7 +72,7 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 		return nil, errors.Errorf("unsupported consensus storage type: %s", config.Repo.Config.Consensus.StorageType)
 	}
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("open consensus storage %s failed: %v", storePath, err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -246,7 +246,7 @@ func (a GovernanceActions) proposeNodeRegister(ctx *cli.Context) error {
 		return err
 	}
 
-	return a.doPropose(ctx, uint8(governance.NodeRemove), func(client *ethclient.Client) ([]byte, error) {
+	return a.doPropose(ctx, uint8(governance.NodeRegister), func(client *ethclient.Client) ([]byte, error) {
 		if GovernanceCMDProposeArgs.Title == "" {
 			GovernanceCMDProposeArgs.Title = fmt.Sprintf("register node[%s]", NodeCMDProposeNodeRegisterArgs.Name)
 		}

@@ -103,6 +103,7 @@ type VMContext struct {
 	StateLedger    *LogsCollectorStateLedger
 	BlockNumber    uint64
 	From           ethcommon.Address
+	Value          *big.Int
 	CallFromSystem bool
 	CurrentEVM     *vm.EVM
 
@@ -110,11 +111,12 @@ type VMContext struct {
 	TestLogs                 []any
 }
 
-func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address) *VMContext {
+func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address, value *big.Int) *VMContext {
 	return &VMContext{
 		StateLedger: &LogsCollectorStateLedger{StateLedger: stateLedger},
 		BlockNumber: evm.Context.BlockNumber.Uint64(),
 		From:        from,
+		Value:       value,
 		CurrentEVM:  evm,
 	}
 }

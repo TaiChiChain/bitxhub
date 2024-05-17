@@ -22,11 +22,12 @@ func (exec *BlockExecutor) tryTurnIntoNewEpoch(block *types.Block) error {
 		if err != nil {
 			return err
 		}
+		typesNewEpoch := newEpoch.ToTypesEpoch()
 
-		if err := stakingManagerContract.TurnIntoNewEpoch(epochInfo, newEpoch); err != nil {
+		if err := stakingManagerContract.TurnIntoNewEpoch(epochInfo, typesNewEpoch); err != nil {
 			return err
 		}
-		if err := nodeManagerContract.TurnIntoNewEpoch(epochInfo, newEpoch); err != nil {
+		if err := nodeManagerContract.TurnIntoNewEpoch(epochInfo, typesNewEpoch); err != nil {
 			return err
 		}
 
@@ -35,7 +36,7 @@ func (exec *BlockExecutor) tryTurnIntoNewEpoch(block *types.Block) error {
 			return err
 		}
 
-		if err := exec.chainState.UpdateByEpochInfo(newEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
+		if err := exec.chainState.UpdateByEpochInfo(typesNewEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
 			return item.NodeID, item.ConsensusVotingPower
 		})); err != nil {
 			return err

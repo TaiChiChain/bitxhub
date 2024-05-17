@@ -714,7 +714,7 @@ func generateTrie(ctx *cli.Context) error {
 	errC := make(chan error)
 	go originStateLedger.IterateTrie(&ledger.SnapshotMeta{
 		BlockHeader: blockHeader,
-		EpochInfo:   epochInfo,
+		EpochInfo:   epochInfo.ToTypesEpoch(),
 		Nodes:       peers,
 	}, targetStateStorage, errC)
 	err = <-errC

@@ -97,9 +97,10 @@ func GenesisEpochInfo() *types.EpochInfo {
 			MinGasPrice: DefaultMinGasPrice,
 		},
 		StakeParams: types.StakeParams{
-			StakeEnable:         true,
-			MaxAddStakeRatio:    1000,
-			MaxUnlockStakeRatio: 1000,
+			StakeEnable:           true,
+			MaxAddStakeRatio:      1000,
+			MaxUnlockStakeRatio:   1000,
+			MaxUnlockingRecordNum: 5,
 			// 3 days
 			UnlockPeriod:                     uint64(3*24*time.Hour) / uint64(time.Second),
 			MaxPendingInactiveValidatorRatio: 10,
