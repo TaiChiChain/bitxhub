@@ -38,6 +38,7 @@ var (
 	DefaultIgnorePrice = big.NewInt(2 * params.Wei)
 	DefaultChainID     = uint64(1356)
 	DefaultGasLimit    = uint64(50000000)
+	DefaultGasPrice    = big.NewInt(5 * params.GWei)
 )
 
 type Config struct {
@@ -81,6 +82,7 @@ func generateConfig(rep *repo.Repo) Config {
 		MaxHeaderHistory: 300,
 		MaxBlockHistory:  5,
 		MaxPrice:         DefaultMaxPrice,
+		Default:          DefaultGasPrice,
 		IgnorePrice:      DefaultIgnorePrice,
 	}
 	// config := oracle.Config{
