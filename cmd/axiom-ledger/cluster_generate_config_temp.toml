@@ -31,11 +31,17 @@ address = '0xc0Ff2e0b3189132D815b8eb325bE17285AC898f8'
 weight = 1
 name = 'Q2F0'
 
+# genesis nodes
 [[nodes]]
+# node name (will be `node_${idx+1}`, if empty)
 name = 'node1'
+# node desc (will be `node_${idx+1}`, if empty)
 desc = 'node1'
+# will auto generate if empty
 p2p_private_key = '0xce374993d8867572a043e443355400ff4628662486d0d6ef9d76bc3c8b2aa8a8'
+# will auto generate if empty
 consensus_private_key = '0x099383c2b41a282936fe9e656467b2ad6ecafd38753eefa080b5a699e3276372'
+# will auto generate if empty
 operator_address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
 is_data_syncer = false
 # (e.g. 10000000axc; 1000gmol; 1000mol; 1000)

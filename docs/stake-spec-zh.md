@@ -2,16 +2,17 @@
 Axiom-Ledger引入POS后的Stake模块，包含以下特点：
 1. 委托质押池: 节点可以创建质押池成为候选节点(当池子的总质押数满足)，普通用户可以委托质押自己的代币给指定的质押池获取LST(ERC721代币，LiquidStakingToken)，并按照质押比例分得质押奖励。
 2. 节点抽水委托质押者的奖励：验证者奖励每个epoch进行分发，并按照节点配置的比例抽水（抽水也会自动添加到质押池中进行复利）。
-3. 节点进入退出队列：每个epoch的节点进入和退出是有上限的，每个epoch重置。
-4. 最低和最高质押限制：每个质押池的总代币有上限，质押池代币需要满足下限才有可能成为验证者节点。
-5. 质押奖励包含两部分：质押通胀奖励和节点出块的gas fee收益。
-6. 复利：奖励自动添加入池子进行质押。
-7. 共识惩罚异常节点的后续一段时间收益。
-8. 节点状态/stake代币状态的变更都是需要延迟一个epoch。
-9. 治理委员会有权利踢出验证者(保证网络安全性)。
-10. 取消质押后的提款有锁定期：必须先进行unlock，等锁定期过了再withdraw。
-11. 单笔委托质押有最低限制。
-12. 单账户同时存在的Unlocking记录有限制。
+3. 节点退出队列：每个epoch的节点退出是有上限的，每个epoch重置。
+4. 每个epoch添加和解锁的代币数量是有上限的，每个epoch重置
+5. 最低和最高质押限制：每个质押池的总代币有上限，质押池代币需要满足下限才有可能成为验证者节点。
+6. 质押奖励包含两部分：质押通胀奖励和节点出块的gas fee收益。
+7. 复利：奖励自动添加入池子进行质押(不受质押池上限的限制)。
+8. 共识惩罚异常节点的后续一段时间收益。
+9. 节点状态/stake代币状态的变更都是需要延迟一个epoch。
+10. 治理委员会有权利踢出验证者(保证网络安全性)。
+11. 取消质押后的提款有锁定期：必须先进行unlock，等锁定期过了再withdraw。
+12. 单笔委托质押有最低限制。
+13. 单账户同时存在的Unlocking记录有限制。
 
 ## 1. Genesis配置
 Genesis配置需要配置创世节点stake的数量，并指定节点的角色，注意创世节点的stake数量需要满足配置的stake下限才可能成为验证者节点。
@@ -61,8 +62,8 @@ commission_rate = 0
     max_unlocking_record_num = 5
     # 代币解锁的锁定期(单位是秒，默认3天)
     unlock_period = 259200
-    # 每个epoch最多能exit的验证者节点的数量比例(每个epoch验证者节点exit数量上限：max_pending_inactive_validator_ratio/10000 * 当前epoch总ActiveValidator数量)
-    max_pending_inactive_validator_ratio = 10
+    # 每个epoch最多能exit的验证者节点的数量比例(每个epoch验证者节点exit数量上限：max_pending_inactive_validator_ratio/10000 * 当前epoch总ActiveValidator数量，向下取整)
+    max_pending_inactive_validator_ratio = 1000
     # 委托质押的最低stake数量
     min_delegate_stake = '100axc'
     # 成为validator所需的质押池的最低stake数量
@@ -116,12 +117,11 @@ interface NodeManager {
     error IncorrectStatus(uint8 status);
     error PendingInactiveSetIsFull();
 
-    event Register(uint64 indexed nodeID, NodeInfo info);
-    event JoinedCandidateSet(uint64 indexed nodeID);
-    event LeavedCandidateSet(uint64 indexed nodeID);
-    event JoinedPendingInactiveSet(uint64 indexed nodeID);
-    event UpdateMetaData(uint64 indexed nodeID, NodeMetaData metaData);
-    event UpdateOperator(uint64 indexed nodeID, address newOperator);
+   event Register(uint64 indexed nodeID, NodeInfo info);
+   event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate);
+   event Exit(uint64 indexed nodeID);
+   event UpdateMetaData(uint64 indexed nodeID, NodeMetaData metaData);
+   event UpdateOperator(uint64 indexed nodeID, address newOperator);
 
     function joinCandidateSet(uint64 nodeID, uint64 commissionRate) external;
 
@@ -172,7 +172,7 @@ interface NodeManager {
 block-number: 提案的过期时间，不设置会自动设置为当前区块高度+epoch间隔区块  
 title：提案的标题，不设置会自动设置为`register node[node-name]`  
 desc：提案的描述，不设置会自动设置为`register node[node-name]: node-desc`  
-node-name: 节点名称，不能和已有的重复  
+node-name: 节点名称，不能和已有的重复(也不能和提案中的重复)  
 node-desc: 节点描述，可为空  
 node-image-url：节点图片的url，可为空  
 node-website-url：节点官网的url，可为空  
@@ -255,7 +255,7 @@ sender: 发送交易的私钥（必须是节点的operator）
 
 ![stake state model](./images/stake/stake-state-model.png "stake state model")
 
-节点管理的涉及到的合约如下(地址: 0x0000000000000000000000000000000000001003)：
+质押管理的涉及到的合约如下(地址: 0x0000000000000000000000000000000000001003)：
 ```solidity
 // SPDX-License-Identifier: UNLICENSED
 
@@ -496,7 +496,7 @@ StakerReward: 6000
 
 epoch变更前后ActiveStake代币数量：  
 [pool] before: 60000, after: 100000 = 60000 + 10000 + 30000  
-[operator] before: 30000, after: 37000  = 20000 + 6000 * 30000/60000 + 4000  
+[operator] before: 30000, after: 37000  = 30000 + 6000 * 30000/60000 + 4000  
 [userA] before: 30000, after: 33000  = 30000 + 6000 * 30000/60000  
 [userB] before: 30000, after: 30000  
 
@@ -510,8 +510,8 @@ StakerReward: 6000
 
 epoch变更前后ActiveStake代币数量：  
 [pool] before: 100000, after: 110000 = 100000 + 10000  
-[operator] before: 37000, after: 43220  = 20000  + 6000 * 37000/100000+ 4000  
-[userA] before: 33000, after: 34980  = 30000 + 6000 * 33000/100000  
+[operator] before: 37000, after: 43220  = 37000  + 6000 * 37000/100000+ 4000  
+[userA] before: 33000, after: 34980  = 33000 + 6000 * 33000/100000  
 [userB] before: 30000, after: 31800 = 30000 + 6000 * 30000/100000  
 
 ### epoch 5:

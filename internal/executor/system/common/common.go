@@ -107,17 +107,19 @@ type VMContext struct {
 	CallFromSystem bool
 	CurrentEVM     *vm.EVM
 
+	output                   *vm.StatefulArgsOutput
 	disableRecordLogToLedger bool
 	TestLogs                 []any
 }
 
-func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address, value *big.Int) *VMContext {
+func NewVMContext(stateLedger ledger.StateLedger, evm *vm.EVM, from ethcommon.Address, value *big.Int, output *vm.StatefulArgsOutput) *VMContext {
 	return &VMContext{
 		StateLedger: &LogsCollectorStateLedger{StateLedger: stateLedger},
 		BlockNumber: evm.Context.BlockNumber.Uint64(),
 		From:        from,
 		Value:       value,
 		CurrentEVM:  evm,
+		output:      output,
 	}
 }
 
@@ -161,6 +163,12 @@ func (s *VMContext) DisableRecordLogToLedger() *VMContext {
 	s.disableRecordLogToLedger = true
 	s.StateLedger.disableRecordLogToLedger = true
 	return s
+}
+
+func (s *VMContext) SetGasCost(gasCost uint64) {
+	if s.output != nil {
+		s.output.GasCost = &gasCost
+	}
 }
 
 // SystemContract must be implemented by all system contract
@@ -234,10 +242,11 @@ func (cfg *SystemContractBuildConfig[T]) StaticConfig() *SystemContractStaticCon
 }
 
 type SystemContractStaticConfig struct {
-	Name        string
-	Address     string
-	AbiStr      string
-	Constructor func(systemContractBase SystemContractBase) SystemContract
+	Name              string
+	Address           string
+	AbiStr            string
+	Constructor       func(systemContractBase SystemContractBase) SystemContract
+	CustomRequiredGas bool
 
 	address    *types.Address
 	ethAddress ethcommon.Address

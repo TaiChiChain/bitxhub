@@ -142,6 +142,9 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 		return errors.Errorf("name already registered: %s", nodeExtraArgs.ConsensusPubKey)
 	}
 
+	// 10axc / 1000gmol
+	// Increase gas consumption to avoid attacks
+	nm.gov.Ctx.SetGasCost(10000000)
 	return nil
 }
 

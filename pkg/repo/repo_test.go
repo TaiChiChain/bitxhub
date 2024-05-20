@@ -63,3 +63,12 @@ func TestRepoLoad(t *testing.T) {
 		})
 	}
 }
+
+func TestReadConfigFromEnv(t *testing.T) {
+	cfg := &GenesisConfig{}
+	err := os.Setenv("AXIOM_LEDGER_GENESIS_TIMESTAMP", "1")
+	assert.Nil(t, err)
+	err = ReadConfigFromEnv(cfg)
+	assert.Nil(t, err)
+	assert.EqualValues(t, 1, cfg.Timestamp)
+}

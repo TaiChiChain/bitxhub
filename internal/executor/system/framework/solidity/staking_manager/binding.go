@@ -38,6 +38,8 @@ type PoolInfo struct {
 	PendingInactiveLiquidStakingTokenAmount *big.Int
 	CommissionRate                          uint64
 	NextEpochCommissionRate                 uint64
+	LastEpochReward                         *big.Int
+	LastEpochCommission                     *big.Int
 	CumulativeReward                        *big.Int
 	CumulativeCommission                    *big.Int
 	OperatorLiquidStakingTokenID            *big.Int
@@ -67,7 +69,7 @@ type StakingManager interface {
 
 	// GetPoolInfo is a free data retrieval call binding the contract method 0xf2347366.
 	//
-	// Solidity: function getPoolInfo(uint64 poolID) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256) poolInfo)
+	// Solidity: function getPoolInfo(uint64 poolID) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256,uint256,uint256) poolInfo)
 	GetPoolInfo(poolID uint64) (PoolInfo, error)
 }
 

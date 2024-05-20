@@ -41,7 +41,7 @@ ifneq ($(net),)
 endif
 
 
-COVERAGE_TEST_PKGS := $(shell ${GO_BIN} list ./... | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd'| grep -v 'api')
+COVERAGE_TEST_PKGS := $(shell ${GO_BIN} list ./... | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd' | grep -v 'api' | grep -v 'solidity')
 INTEGRATION_COVERAGE_TEST_PKGS :=$(shell ${GO_BIN} list -f '{{if not .Standard}}{{.ImportPath}}{{end}}' -deps ./... |grep -E 'github.com/axiomesh/axiom-ledger|github.com/axiomesh/axiom-bft|github.com/axiomesh/axiom-kit|github.com/axiomesh/axiom-p2p|github.com/axiomesh/eth-kit' | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd'| paste -sd ",")
 INTEGRATION_COVERAGE_DIR = $(CURRENT_PATH)/integration
 

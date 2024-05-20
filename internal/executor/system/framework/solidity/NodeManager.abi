@@ -27,35 +27,27 @@
         "type": "uint64"
       }
     ],
+    "name": "Exit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "nodeID",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "commissionRate",
+        "type": "uint64"
+      }
+    ],
     "name": "JoinedCandidateSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs":
-    [
-      {
-        "indexed": true,
-        "internalType": "uint64",
-        "name": "nodeID",
-        "type": "uint64"
-      }
-    ],
-    "name": "JoinedPendingInactiveSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs":
-    [
-      {
-        "indexed": true,
-        "internalType": "uint64",
-        "name": "nodeID",
-        "type": "uint64"
-      }
-    ],
-    "name": "LeavedCandidateSet",
     "type": "event"
   },
   {

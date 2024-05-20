@@ -208,6 +208,16 @@
           },
           {
             "internalType": "uint256",
+            "name": "LastEpochReward",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "LastEpochCommission",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "CumulativeReward",
             "type": "uint256"
           },

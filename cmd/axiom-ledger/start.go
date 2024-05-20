@@ -58,7 +58,7 @@ func start(ctx *cli.Context) error {
 
 	if password == "" {
 		password = repo.DefaultKeystorePassword
-		fmt.Println("keystore password is empty, will use default:", password)
+		fmt.Println("keystore password is empty, will use default")
 	}
 	if err := r.DecryptKeystore(password); err != nil {
 		return err

@@ -129,7 +129,7 @@ func generateKeystore(ctx *cli.Context) error {
 
 	if password == "" {
 		password = repo.DefaultKeystorePassword
-		fmt.Println("keystore password is empty, will use default:", password)
+		fmt.Println("keystore password is empty, will use default")
 	}
 	p2pKeystore, err := repo.GenerateP2PKeystore(p, p2pKeystorePrivateKeyFlagVar, password)
 	if err != nil {
@@ -249,7 +249,7 @@ func showP2PKeystorePrivateKey(ctx *cli.Context) error {
 	}
 	if password == "" {
 		password = repo.DefaultKeystorePassword
-		fmt.Println("keystore password is empty, will use default:", password)
+		fmt.Println("keystore password is empty, will use default")
 	}
 	if err := p2pKeystore.DecryptPrivateKey(password); err != nil {
 		return errors.Wrap(err, "failed to decrypt p2p keystore private key, please check password")
@@ -315,7 +315,7 @@ func showConsensusKeystorePrivateKey(ctx *cli.Context) error {
 	}
 	if password == "" {
 		password = repo.DefaultKeystorePassword
-		fmt.Println("keystore password is empty, will use default:", password)
+		fmt.Println("keystore password is empty, will use default")
 	}
 	if err := consensusKeystore.DecryptPrivateKey(password); err != nil {
 		return errors.Wrap(err, "failed to decrypt consensus keystore private key, please check password")

@@ -361,6 +361,8 @@ func (sp *StakingPool) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *typ
 	stakerReward = new(big.Int).Div(stakerReward, new(big.Int).SetUint64(CommissionRateDenominator))
 	operatorCommission := new(big.Int).Sub(reward, stakerReward)
 
+	info.LastEpochReward = new(big.Int).Set(stakerReward)
+	info.LastEpochCommission = new(big.Int).Set(operatorCommission)
 	info.CumulativeReward = new(big.Int).Add(info.CumulativeReward, stakerReward)
 	info.CumulativeCommission = new(big.Int).Add(info.CumulativeCommission, operatorCommission)
 
@@ -507,29 +509,4 @@ func calculatePrincipalAndReward(stakingRate, lastRate staking_manager.LiquidSta
 	lstAmount := calculateLSTAmount(stakingRate, principal)
 	principalAndReward := calculateStakeAmount(lastRate, lstAmount)
 	return principalAndReward
-}
-
-func calculatePrincipalAndReward2(stakingRate, lastRate staking_manager.LiquidStakingTokenRate, principal *big.Int) *big.Int {
-	// avoid divide by zero
-	if stakingRate.StakeAmount.Sign() == 0 || stakingRate.LiquidStakingTokenAmount.Sign() == 0 {
-		stakingRate.StakeAmount = big.NewInt(1)
-		stakingRate.LiquidStakingTokenAmount = big.NewInt(1)
-	}
-	// avoid divide by zero
-	if lastRate.StakeAmount.Sign() == 0 || lastRate.LiquidStakingTokenAmount.Sign() == 0 {
-		lastRate.StakeAmount = big.NewInt(1)
-		lastRate.LiquidStakingTokenAmount = big.NewInt(1)
-	}
-
-	// res = principal *  stakingRateLST / stakingRateStake * lastRateStake / lastRateLST
-	// do multiplication at the end to reduce precision loss
-	// optimization: res = principal *  stakingRateLST * lastRateStake / (lastRateLST * stakingRateStake)
-	res := new(big.Int).Set(principal)
-	res = res.Mul(res, stakingRate.LiquidStakingTokenAmount)
-	res = res.Mul(res, lastRate.StakeAmount)
-
-	divPart := new(big.Int).Set(lastRate.LiquidStakingTokenAmount)
-	divPart = divPart.Mul(divPart, stakingRate.StakeAmount)
-	res = res.Div(res, divPart)
-	return res
 }

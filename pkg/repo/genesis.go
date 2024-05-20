@@ -39,7 +39,7 @@ type GenesisNodeInfo struct {
 type GenesisConfig struct {
 	ChainID            uint64            `mapstructure:"chainid" toml:"chainid"`
 	Timestamp          int64             `mapstructure:"timestamp" toml:"timestamp"`
-	Axc                *Token            `mapstructure:"axm" toml:"axm"`
+	Axc                *Token            `mapstructure:"axc" toml:"axc"`
 	Incentive          *Incentive        `mapstructure:"incentive" toml:"incentive"`
 	CouncilMembers     []*CouncilMember  `mapstructure:"council_members" toml:"council_members"`
 	SmartAccountAdmin  string            `mapstructure:"smart_account_admin" toml:"smart_account_admin"`
@@ -54,7 +54,7 @@ type Token struct {
 }
 
 type Incentive struct {
-	Referral *Referral `mapstructure:"user_acquisition" toml:"user_acquisition"`
+	Referral *Referral `mapstructure:"referral" toml:"referral"`
 }
 
 type Referral struct {
@@ -103,7 +103,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 			MaxUnlockingRecordNum: 5,
 			// 3 days
 			UnlockPeriod:                     uint64(3*24*time.Hour) / uint64(time.Second),
-			MaxPendingInactiveValidatorRatio: 10,
+			MaxPendingInactiveValidatorRatio: 1000,
 			MinDelegateStake:                 types.CoinNumberByAxc(100),
 			MinValidatorStake:                types.CoinNumberByAxc(10000000),
 			MaxValidatorStake:                types.CoinNumberByAxc(50000000),
@@ -128,7 +128,12 @@ func defaultGenesisConfig() *GenesisConfig {
 		Axc: &Token{
 			TotalSupply: DefaultAXCBalance,
 		},
-		Incentive:          &Incentive{},
+		Incentive: &Incentive{
+			Referral: &Referral{
+				AvgBlockReward: "0",
+				BlockToNone:    0,
+			},
+		},
 		CouncilMembers:     []*CouncilMember{},
 		SmartAccountAdmin:  "0x0000000000000000000000000000000000000000",
 		WhitelistProviders: []string{},

@@ -127,7 +127,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if contractBuildCfg == nil {
 		return nil, ErrNotExistSystemContract
 	}
-	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From, statefulArgs.Value.ToBig()))
+	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From, statefulArgs.Value.ToBig(), statefulArgs.Output))
 	defer func() {
 		if err := recover(); err != nil {
 			nvm.logger.Error(err)

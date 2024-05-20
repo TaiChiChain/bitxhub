@@ -109,31 +109,23 @@ type NodeManager interface {
 	GetTotalCount() (uint64, error)
 }
 
+// EventExit represents a Exit event raised by the NodeManager contract.
+type EventExit struct {
+	NodeID uint64
+}
+
+func (_event *EventExit) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["Exit"])
+}
+
 // EventJoinedCandidateSet represents a JoinedCandidateSet event raised by the NodeManager contract.
 type EventJoinedCandidateSet struct {
-	NodeID uint64
+	NodeID         uint64
+	CommissionRate uint64
 }
 
 func (_event *EventJoinedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 	return packer.PackEvent(_event, abi.Events["JoinedCandidateSet"])
-}
-
-// EventJoinedPendingInactiveSet represents a JoinedPendingInactiveSet event raised by the NodeManager contract.
-type EventJoinedPendingInactiveSet struct {
-	NodeID uint64
-}
-
-func (_event *EventJoinedPendingInactiveSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["JoinedPendingInactiveSet"])
-}
-
-// EventLeavedCandidateSet represents a LeavedCandidateSet event raised by the NodeManager contract.
-type EventLeavedCandidateSet struct {
-	NodeID uint64
-}
-
-func (_event *EventLeavedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
-	return packer.PackEvent(_event, abi.Events["LeavedCandidateSet"])
 }
 
 // EventRegister represents a Register event raised by the NodeManager contract.

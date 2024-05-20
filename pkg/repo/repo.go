@@ -210,14 +210,16 @@ func ReadConfigFromFile(cfgFilePath string, config any) error {
 }
 
 func readConfig(vp *viper.Viper, config any, fromFile bool) error {
+	// not use viper 1.18.2(it not support only read env without file default)
 	vp.AutomaticEnv()
-	if _, ok := config.(*GenesisConfig); ok {
-		vp.SetEnvPrefix("AXIOM_LEDGER_GENESIS")
-	} else if _, ok := config.(*ConsensusConfig); ok {
-		vp.SetEnvPrefix("AXIOM_LEDGER_CONSENSUS")
-	} else {
-		vp.SetEnvPrefix("AXIOM_LEDGER")
+	envPrefix := "AXIOM_LEDGER"
+	switch config.(type) {
+	case *GenesisConfig:
+		envPrefix += "_GENESIS"
+	case *ConsensusConfig:
+		envPrefix += "_CONSENSUS"
 	}
+	vp.SetEnvPrefix(envPrefix)
 	replacer := strings.NewReplacer(".", "_")
 	vp.SetEnvKeyReplacer(replacer)
 

@@ -17,6 +17,8 @@ pragma solidity ^0.8.20;
         uint256 PendingInactiveLiquidStakingTokenAmount;
         uint64 CommissionRate;
         uint64 NextEpochCommissionRate;
+        uint256 LastEpochReward;
+        uint256 LastEpochCommission;
         uint256 CumulativeReward;
         uint256 CumulativeCommission;
         uint256 OperatorLiquidStakingTokenID;

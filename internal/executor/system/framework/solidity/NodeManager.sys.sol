@@ -37,9 +37,8 @@ interface NodeManager {
     error PendingInactiveSetIsFull();
 
     event Register(uint64 indexed nodeID, NodeInfo info);
-    event JoinedCandidateSet(uint64 indexed nodeID);
-    event LeavedCandidateSet(uint64 indexed nodeID);
-    event JoinedPendingInactiveSet(uint64 indexed nodeID);
+    event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate);
+    event Exit(uint64 indexed nodeID);
     event UpdateMetaData(uint64 indexed nodeID, NodeMetaData metaData);
     event UpdateOperator(uint64 indexed nodeID, address newOperator);
 

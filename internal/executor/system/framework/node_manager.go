@@ -1,7 +1,6 @@
 package framework
 
 import (
-	"fmt"
 	"math/big"
 	"sort"
 	"strconv"
@@ -256,7 +255,7 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 
 	n.nextNodeID = common.NewVMSlot[uint64](n.StateAccount, nextNodeIDStorageKey)
 	n.nodeRegistry = common.NewVMMap[uint64, node_manager.NodeInfo](n.StateAccount, nodeRegistry, func(key uint64) string {
-		return fmt.Sprintf("%d", key)
+		return strconv.FormatUint(key, 10)
 	})
 	n.nodeP2PIDIndex = common.NewVMMap[string, uint64](n.StateAccount, nodeP2PIDIndex, func(key string) string {
 		return key
@@ -269,7 +268,7 @@ func (n *NodeManager) SetContext(ctx *common.VMContext) {
 	})
 
 	n.nextEpochUpdateNodes = common.NewVMMap[uint64, node_manager.NodeInfo](n.StateAccount, nextEpochUpdateNodes, func(key uint64) string {
-		return fmt.Sprintf("%d", key)
+		return strconv.FormatUint(key, 10)
 	})
 	n.nextEpochUpdatedNodeIDSet = common.NewVMSlot[[]uint64](n.StateAccount, nextEpochUpdatedNodeIDSet)
 	n.activeValidatorVotingPowers = common.NewVMSlot[[]node_manager.ConsensusVotingPower](n.StateAccount, activeValidatorVotingPowers)
@@ -529,7 +528,8 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64, commissionRate uint64) err
 	}
 
 	n.EmitEvent(&node_manager.EventJoinedCandidateSet{
-		NodeID: nodeID,
+		NodeID:         nodeID,
+		CommissionRate: commissionRate,
 	})
 
 	return nil
@@ -564,24 +564,22 @@ func (n *NodeManager) Exit(nodeID uint64) error {
 			return err
 		}
 		// calculate the max pending inactive number
-		maxPendingInactiveNumber := new(big.Int).Div(
-			new(big.Int).Mul(big.NewInt(CommissionRateDenominator), big.NewInt(int64(len(activeSet)))),
-			new(big.Int).SetUint64(epochInfo.StakeParams.MaxPendingInactiveValidatorRatio))
+		maxPendingInactiveNumber := uint64(len(activeSet)) * epochInfo.StakeParams.MaxPendingInactiveValidatorRatio / CommissionRateDenominator
 		// check if the pending inactive set still has sparse space to leave
-		if uint64(len(pendingInactiveSet))+1 >= maxPendingInactiveNumber.Uint64() {
+		if uint64(len(pendingInactiveSet)) >= maxPendingInactiveNumber {
 			return n.Revert(&node_manager.ErrorPendingInactiveSetIsFull{})
 		}
 		// transfer the status
 		if err = n.operatorTransferStatus(types.NodeStatusActive, types.NodeStatusPendingInactive, nodeInfo); err != nil {
 			return err
 		}
-		n.EmitEvent(&node_manager.EventJoinedPendingInactiveSet{NodeID: nodeID})
+		n.EmitEvent(&node_manager.EventExit{NodeID: nodeID})
 		return nil
 	case types.NodeStatusCandidate, types.NodeStatusDataSyncer:
 		if err = n.operatorTransferStatus(types.NodeStatus(nodeInfo.Status), types.NodeStatusExited, nodeInfo); err != nil {
 			return err
 		}
-		n.EmitEvent(&node_manager.EventLeavedCandidateSet{NodeID: nodeID})
+		n.EmitEvent(&node_manager.EventExit{NodeID: nodeID})
 		return nil
 	default:
 		return n.Revert(&node_manager.ErrorIncorrectStatus{Status: nodeInfo.Status})

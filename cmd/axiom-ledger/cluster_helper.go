@@ -103,7 +103,7 @@ func (h *ClusterGeneratorHelper) Generate() error {
 
 	if h.keystorePassword == "" {
 		h.keystorePassword = repo.DefaultKeystorePassword
-		fmt.Println("keystore password is empty, will use default:", h.keystorePassword)
+		fmt.Println("keystore password is empty, will use default")
 	}
 
 	if h.cfg.DefaultPort == nil {
