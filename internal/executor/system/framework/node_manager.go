@@ -344,7 +344,8 @@ func (n *NodeManager) register(info node_manager.NodeInfo, isGenesisInit bool) (
 // since the active stake value will impact on the sort
 func (n *NodeManager) TurnIntoNewEpoch(_ *types.EpochInfo, newEpoch *types.EpochInfo) error {
 	// process node leave first
-	if err := n.processNodeLeave(); err != nil {
+	exitedNodes, err := n.processNodeLeave()
+	if err != nil {
 		return err
 	}
 	// sort all candidates and validators
@@ -352,6 +353,12 @@ func (n *NodeManager) TurnIntoNewEpoch(_ *types.EpochInfo, newEpoch *types.Epoch
 	if err != nil {
 		return err
 	}
+	// exclude exited nodes
+	exitedNodeMap := lo.SliceToMap(exitedNodes, func(nodeID uint64) (uint64, struct{}) { return nodeID, struct{}{} })
+	nodesIDs = lo.Reject(nodesIDs, func(item uint64, index int) bool {
+		_, ok := exitedNodeMap[item]
+		return ok
+	})
 	nodeInfos, err := n.GetInfos(nodesIDs)
 	if err != nil {
 		return err
@@ -373,22 +380,18 @@ func (n *NodeManager) TurnIntoNewEpoch(_ *types.EpochInfo, newEpoch *types.Epoch
 	minValidator := newEpoch.ConsensusParams.MinValidatorNum
 	minStakeValue := newEpoch.StakeParams.MinValidatorStake
 	var validatorsIDs, candidatesIDs []uint64
-	var validators, candidates []node_manager.NodeInfo
+	var validators, candidates []sortNodeInfo
 	// traverse from highest to lowest
 	for i := len(sortInfos) - 1; i >= 0; i-- {
 		// only add to validator if it has enough stake and validator set is not full
 		if sortInfos[i].stakeValue.Cmp(minStakeValue.ToBigInt()) >= 0 && uint64(len(validators)) < maxValidator {
-			// reset node status
-			sortInfos[i].Status = uint8(types.NodeStatusActive)
 			// put node into validator nodes
-			validators = append(validators, sortInfos[i].NodeInfo)
+			validators = append(validators, sortInfos[i])
 			// record relative node id
 			validatorsIDs = append(validatorsIDs, sortInfos[i].ID)
 		} else {
-			// reset node status
-			sortInfos[i].Status = uint8(types.NodeStatusCandidate)
 			// put node into candidate nodes
-			candidates = append(candidates, sortInfos[i].NodeInfo)
+			candidates = append(candidates, sortInfos[i])
 			// record relative node id
 			candidatesIDs = append(candidatesIDs, sortInfos[i].ID)
 		}
@@ -397,38 +400,70 @@ func (n *NodeManager) TurnIntoNewEpoch(_ *types.EpochInfo, newEpoch *types.Epoch
 	if uint64(len(validators)) < minValidator {
 		return errors.New("not enough validators")
 	}
-	candidateSet := n.getStatusSet(types.NodeStatusCandidate)
-	validatorSet := n.getStatusSet(types.NodeStatusActive)
-	if err = candidateSet.Put(candidatesIDs); err != nil {
+
+	// update role set
+	if err = n.getStatusSet(types.NodeStatusCandidate).Put(candidatesIDs); err != nil {
 		return err
 	}
-	if err = validatorSet.Put(validatorsIDs); err != nil {
+	if err = n.getStatusSet(types.NodeStatusActive).Put(validatorsIDs); err != nil {
 		return err
+	}
+
+	// update activeValidatorVotingPowers
+	axcUnit := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	activeValidatorVotingPowers := lo.Map(validators, func(item sortNodeInfo, index int) node_manager.ConsensusVotingPower {
+		// convert unit `mol` to `axc`
+		standardizedStakeNumber := new(big.Int).Div(item.stakeValue, axcUnit)
+		return node_manager.ConsensusVotingPower{
+			NodeID:               item.ID,
+			ConsensusVotingPower: standardizedStakeNumber.Int64(),
+		}
+	})
+	if err := n.activeValidatorVotingPowers.Put(activeValidatorVotingPowers); err != nil {
+		return err
+	}
+
+	// update node role if need
+	for _, candidate := range candidates {
+		if candidate.Status != uint8(types.NodeStatusCandidate) {
+			candidate.Status = uint8(types.NodeStatusCandidate)
+			if err := n.nodeRegistry.Put(candidate.ID, candidate.NodeInfo); err != nil {
+				return err
+			}
+		}
+	}
+	for _, validator := range validators {
+		if validator.Status != uint8(types.NodeStatusActive) {
+			validator.Status = uint8(types.NodeStatusActive)
+			if err := n.nodeRegistry.Put(validator.ID, validator.NodeInfo); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
-func (n *NodeManager) processNodeLeave() error {
+func (n *NodeManager) processNodeLeave() ([]uint64, error) {
 	pendingInactiveSlot := n.getStatusSet(types.NodeStatusPendingInactive)
 	// get pending inactive sets
 	isExist, nodeIDs, err := pendingInactiveSlot.Get()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !isExist {
-		return nil
+		return []uint64{}, nil
 	}
 	for _, id := range nodeIDs {
 		// get the node
 		info, err := n.GetInfo(id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err = n.operatorTransferStatus(types.NodeStatusPendingInactive, types.NodeStatusExited, &info); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nodeIDs, nil
 }
 
 func (n *NodeManager) getConsensusCandidateNodeIDs() ([]uint64, error) {
@@ -453,6 +488,7 @@ func (n *NodeManager) getConsensusCandidateNodeIDs() ([]uint64, error) {
 	return nodeIDs, nil
 }
 
+// TODO: remove it
 func (n *NodeManager) updateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
 	allValidaNodes, err := n.getConsensusCandidateNodeIDs()
 	if err != nil {
