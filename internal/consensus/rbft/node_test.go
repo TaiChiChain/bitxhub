@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/samber/lo"
@@ -171,7 +172,7 @@ func TestNewNode(t *testing.T) {
 			expectedErrMsg: "unsupported consensus storage type",
 		},
 		{
-			name: "new archive node success",
+			name: "new data_syncer node success",
 			setupMocks: func(consensusConf *common.Config, ctrl *gomock.Controller) {
 				// illegal genesis epoch
 				consensusConf.ChainState.IsDataSyncer = true
@@ -394,6 +395,30 @@ func TestReportState(t *testing.T) {
 		node.ReportState(uint64(30), block.Hash(), nil, ckp, false)
 		ast.Equal(false, node.stack.StateUpdating)
 	})
+}
+
+func TestNotifyStop(t *testing.T) {
+	ast := assert.New(t)
+	ctrl := gomock.NewController(t)
+	node := MockMinNode(ctrl, t)
+	stopCh := make(chan error, 1)
+	node.config.NotifyStop = func(err error) {
+		stopCh <- err
+	}
+	node.config.ChainState.IsDataSyncer = true
+
+	block := testutil.ConstructBlock("blockHash", uint64(2))
+	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, nil, false)
+	err := <-stopCh
+	ast.Contains(err.Error(), "not support switch candidate/validator to data syncer")
+
+	mockRbft := rbft.NewMockNode[types.Transaction, *types.Transaction](ctrl)
+	mockRbft.EXPECT().ArchiveMode().Return(true).AnyTimes()
+	node.n = mockRbft
+	node.config.ChainState.IsDataSyncer = false
+	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, nil, false)
+	err = <-stopCh
+	ast.Contains(err.Error(), "switch inbound node from data syncer to candidate")
 }
 
 func TestQuorum(t *testing.T) {

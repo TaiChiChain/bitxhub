@@ -25,7 +25,7 @@ var (
 	ErrorConsensusStart = errors.New("consensus not start yet")
 )
 
-var ArchivePipeName = []string{
+var DataSyncerPipeName = []string{
 	"NULL_REQUEST",           // primary heartbeat
 	"PRE_PREPARE",            // get batch
 	"SIGNED_CHECKPOINT",      // get checkpoint
@@ -34,7 +34,7 @@ var ArchivePipeName = []string{
 	"EPOCH_CHANGE_PROOF",     // get epoch change for state update
 }
 
-var ArchiveRequestName = []string{
+var DataSyncerRequestName = []string{
 	"SYNC_STATE",            // get quorum state
 	"FETCH_MISSING_REQUEST", // get missing txs in local pool
 	"EPOCH_CHANGE_REQUEST",  // get epoch change for state update

@@ -30,6 +30,7 @@ type Config struct {
 	GetBlockHeaderFunc func(height uint64) (*types.BlockHeader, error)
 	GetAccountBalance  func(address string) *big.Int
 	GetAccountNonce    func(address *types.Address) uint64
+	NotifyStop         func(err error)
 	EpochStore         kv.Storage
 }
 
@@ -116,6 +117,12 @@ func WithGetAccountNonceFunc(f func(address *types.Address) uint64) Option {
 func WithEpochStore(epochStore kv.Storage) Option {
 	return func(config *Config) {
 		config.EpochStore = epochStore
+	}
+}
+
+func WithNotifyStopCh(f func(err error)) Option {
+	return func(config *Config) {
+		config.NotifyStop = f
 	}
 }
 

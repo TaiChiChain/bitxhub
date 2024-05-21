@@ -1,4 +1,4 @@
-package archive
+package data_syncer
 
 import (
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"

@@ -1,4 +1,4 @@
-package archive
+package data_syncer
 
 import (
 	"time"
@@ -9,7 +9,7 @@ import (
 var (
 	processEventDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "archive",
+			Namespace: "data_syncer",
 			Name:      "process_event_duration_seconds",
 			Help:      "the duration of process event",
 			Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 10),
