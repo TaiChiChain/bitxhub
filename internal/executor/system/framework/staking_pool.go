@@ -70,6 +70,8 @@ func (sp *StakingPool) Create(operator ethcommon.Address, epoch uint64, commissi
 		PendingInactiveLiquidStakingTokenAmount: zero,
 		CommissionRate:                          commissionRate,
 		NextEpochCommissionRate:                 commissionRate,
+		LastEpochReward:                         zero,
+		LastEpochCommission:                     zero,
 		CumulativeReward:                        zero,
 		CumulativeCommission:                    zero,
 		OperatorLiquidStakingTokenID:            liquidStakingTokenID,

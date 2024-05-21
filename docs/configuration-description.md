@@ -67,7 +67,7 @@ start_block = 0
     # Number of checkpoints within the high watermark (only processes consensus messages within the high watermark)
     high_watermark_checkpoint_period = 10
     # Minimum number of validators
-    Min_validator_num = 4
+    min_validator_num = 4
     # Maximum number of validators (a batch of validator nodes will be elected if it exceeds the limit)
     max_validator_num = 4
     # Maximum number of transactions in a single block
