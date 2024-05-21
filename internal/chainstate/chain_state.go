@@ -107,7 +107,7 @@ func (c *ChainState) UpdateByEpochInfo(epochInfo *types.EpochInfo, validatorSet 
 }
 
 func (c *ChainState) TryUpdateSelfNodeInfo() {
-	if c.selfRegistered {
+	if c.selfRegistered && !c.IsDataSyncer {
 		return
 	}
 	selfNodeID, err := c.getNodeIDByP2PIDFn(c.SelfNodeInfo.P2PID)
@@ -118,6 +118,8 @@ func (c *ChainState) TryUpdateSelfNodeInfo() {
 			c.selfRegistered = true
 			if c.SelfNodeInfo.NodeInfo.Status != uint8(types.NodeStatusDataSyncer) {
 				c.IsDataSyncer = false
+			} else {
+				c.IsDataSyncer = true
 			}
 		}
 	}

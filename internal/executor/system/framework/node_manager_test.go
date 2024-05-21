@@ -210,8 +210,9 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.processNodeLeave()
+		exitedIDs, err := nodeManagerContract.processNodeLeave()
 		assert.Nil(t, err)
+		assert.EqualValues(t, []uint64{5}, exitedIDs)
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
 
