@@ -1,8 +1,6 @@
 package jsonrpc
 
 import (
-	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/oracle"
-	"github.com/axiomesh/axiom-ledger/api/jsonrpc/txpool"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/sirupsen/logrus"
 
@@ -12,6 +10,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth/tracers"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/net"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/web3"
+	"github.com/axiomesh/axiom-ledger/api/jsonrpc/txpool"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -31,15 +30,6 @@ const (
 // GetAPIs returns the list of all APIs from the Ethereum namespaces
 func GetAPIs(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) ([]rpc.API, error) {
 	var apis []rpc.API
-
-	apis = append(apis,
-		rpc.API{
-			Namespace: EthNamespace,
-			Version:   apiVersion,
-			Service:   oracle.NewOracle(rep, api, logger),
-			Public:    true,
-		},
-	)
 
 	apis = append(apis,
 		rpc.API{
@@ -63,7 +53,16 @@ func GetAPIs(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) ([]rpc.
 		rpc.API{
 			Namespace: EthNamespace,
 			Version:   apiVersion,
-			Service:   eth.NewAxiomAPI(rep, api, logger),
+			Service:   eth.NewEthereumAPI(rep, api, logger),
+			Public:    true,
+		},
+	)
+
+	apis = append(apis,
+		rpc.API{
+			Namespace: EthNamespace,
+			Version:   apiVersion,
+			Service:   eth.NewGasPriceAPI(rep, api, logger),
 			Public:    true,
 		},
 	)

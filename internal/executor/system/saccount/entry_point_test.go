@@ -2,6 +2,7 @@ package saccount
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -10,18 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
@@ -29,155 +27,7 @@ const (
 	accountBalance = 3000000000000000000
 )
 
-type AccountMap struct {
-	accountMap map[string]*ledger.SimpleAccount
-}
-
-func newAccountMap() *AccountMap {
-	return &AccountMap{
-		accountMap: make(map[string]*ledger.SimpleAccount),
-	}
-}
-
-func (am *AccountMap) getAccount(addr string) *ledger.SimpleAccount {
-	account, ok := am.accountMap[addr]
-	if !ok {
-		acc := ledger.NewMockAccount(2, types.NewAddressByStr(addr))
-		acc.SetBalance(big.NewInt(accountBalance))
-		am.accountMap[addr] = acc
-		return acc
-	}
-	return account
-}
-
-func initEntryPoint(t *testing.T) (*EntryPoint, *SmartAccountFactory) {
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	accountMap := newAccountMap()
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).DoAndReturn(func(address *types.Address) ledger.IAccount {
-		return accountMap.getAccount(address.String())
-	}).AnyTimes()
-	stateLedger.EXPECT().GetBalance(gomock.Any()).DoAndReturn(func(address *types.Address) *big.Int {
-		account := accountMap.getAccount(address.String())
-		return account.GetBalance()
-	}).AnyTimes()
-	stateLedger.EXPECT().SubBalance(gomock.Any(), gomock.Any()).DoAndReturn(func(address *types.Address, value *big.Int) {
-		account := accountMap.getAccount(address.String())
-		account.SubBalance(value)
-	}).AnyTimes()
-	stateLedger.EXPECT().AddBalance(gomock.Any(), gomock.Any()).DoAndReturn(func(address *types.Address, value *big.Int) {
-		account := accountMap.getAccount(address.String())
-		account.AddBalance(value)
-	}).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).DoAndReturn(func(address *types.Address, value *big.Int) {
-		account := accountMap.getAccount(address.String())
-		account.SetBalance(value)
-	}).AnyTimes()
-	stateLedger.EXPECT().GetCodeHash(gomock.Any()).DoAndReturn(func(address *types.Address) *types.Hash {
-		account := accountMap.getAccount(address.String())
-		return types.NewHash(account.CodeHash())
-	}).AnyTimes()
-	stateLedger.EXPECT().GetCode(gomock.Any()).DoAndReturn(func(address *types.Address) []byte {
-		account := accountMap.getAccount(address.String())
-		return account.Code()
-	}).AnyTimes()
-	stateLedger.EXPECT().AddressInAccessList(gomock.Any()).Return(true).AnyTimes()
-	stateLedger.EXPECT().SlotInAccessList(gomock.Any(), gomock.Any()).Return(true, true).AnyTimes()
-	stateLedger.EXPECT().GetState(gomock.Any(), gomock.Any()).DoAndReturn(func(a *types.Address, key []byte) (bool, []byte) {
-		account := accountMap.getAccount(a.String())
-		return account.GetState(key)
-	}).AnyTimes()
-	stateLedger.EXPECT().SetState(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(a *types.Address, key, value []byte) {
-		account := accountMap.getAccount(a.String())
-		account.SetState(key, value)
-	}).AnyTimes()
-	stateLedger.EXPECT().GetCommittedState(gomock.Any(), gomock.Any()).DoAndReturn(func(a *types.Address, b []byte) []byte {
-		account := accountMap.getAccount(a.String())
-		return account.GetCommittedState(b)
-	}).AnyTimes()
-	stateLedger.EXPECT().Exist(gomock.Any()).Return(true).AnyTimes()
-
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetNonce(gomock.Any()).Return(0).AnyTimes()
-	stateLedger.EXPECT().Snapshot().AnyTimes()
-	stateLedger.EXPECT().Commit().Return(types.NewHash([]byte("")), nil).AnyTimes()
-	stateLedger.EXPECT().Clear().AnyTimes()
-	stateLedger.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Finalise().AnyTimes()
-	stateLedger.EXPECT().Snapshot().Return(0).AnyTimes()
-	stateLedger.EXPECT().RevertToSnapshot(0).AnyTimes()
-	stateLedger.EXPECT().SetTxContext(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetLogs(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	stateLedger.EXPECT().PrepareBlock(gomock.Any(), gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().Exist(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().GetRefund().AnyTimes()
-
-	coinbase := "0xed17543171C1459714cdC6519b58fFcC29A3C3c9"
-	blkCtx := vm.BlockContext{
-		CanTransfer: core.CanTransfer,
-		Transfer:    core.Transfer,
-		GetHash:     nil,
-		Coinbase:    ethcommon.HexToAddress(coinbase),
-		BlockNumber: new(big.Int).SetUint64(1),
-		Time:        uint64(time.Now().Unix()),
-		Difficulty:  big.NewInt(0x2000),
-		BaseFee:     big.NewInt(0),
-		GasLimit:    0x2fefd8,
-		Random:      &ethcommon.Hash{},
-	}
-
-	shanghaiTime := uint64(0)
-	CancunTime := uint64(0)
-	PragueTime := uint64(0)
-
-	entryPoint := NewEntryPoint(&common.SystemContractConfig{})
-
-	evm := vm.NewEVM(blkCtx, vm.TxContext{
-		Origin:   entryPoint.selfAddress().ETHAddress(),
-		GasPrice: big.NewInt(100000000000),
-	}, &ledger.EvmStateDBAdaptor{
-		StateLedger: stateLedger,
-	}, &params.ChainConfig{
-		ChainID:                 big.NewInt(1356),
-		HomesteadBlock:          big.NewInt(0),
-		EIP150Block:             big.NewInt(0),
-		EIP155Block:             big.NewInt(0),
-		EIP158Block:             big.NewInt(0),
-		ByzantiumBlock:          big.NewInt(0),
-		ConstantinopleBlock:     big.NewInt(0),
-		PetersburgBlock:         big.NewInt(0),
-		IstanbulBlock:           big.NewInt(0),
-		MuirGlacierBlock:        big.NewInt(0),
-		BerlinBlock:             big.NewInt(0),
-		LondonBlock:             big.NewInt(0),
-		ArrowGlacierBlock:       big.NewInt(0),
-		MergeNetsplitBlock:      big.NewInt(0),
-		TerminalTotalDifficulty: big.NewInt(0),
-		ShanghaiTime:            &shanghaiTime,
-		CancunTime:              &CancunTime,
-		PragueTime:              &PragueTime,
-	}, vm.Config{})
-
-	context := &common.VMContext{
-		CurrentEVM:    evm,
-		CurrentHeight: 1,
-		CurrentLogs:   new([]common.Log),
-		CurrentUser:   nil,
-		StateLedger:   stateLedger,
-	}
-	entryPoint.SetContext(context)
-
-	accountFactory := NewSmartAccountFactory(&common.SystemContractConfig{Logger: entryPoint.logger}, entryPoint)
-	entryPointAddr := entryPoint.selfAddress().ETHAddress()
-	context.CurrentUser = &entryPointAddr
-	accountFactory.SetContext(context)
-	return entryPoint, accountFactory
-}
-
-func buildUserOp(t *testing.T, entryPoint *EntryPoint, accountFactory *SmartAccountFactory) (*interfaces.UserOperation, *ecdsa.PrivateKey) {
+func buildUserOp(t *testing.T, testNVM *common.TestNVM, entrypoint *EntryPoint, accountFactory *SmartAccountFactory) (*interfaces.UserOperation, *ecdsa.PrivateKey) {
 	sk, _ := crypto.GenerateKey()
 	owner := crypto.PubkeyToAddress(sk.PublicKey)
 	initCode := ethcommon.Hex2Bytes("00000000000000000000000000000000000010095fbfb9cf0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc0000000000000000000000000000000000000000000000000000000000015b43")
@@ -198,7 +48,12 @@ func buildUserOp(t *testing.T, entryPoint *EntryPoint, accountFactory *SmartAcco
 		MaxPriorityFeePerGas: big.NewInt(2000000000000),
 		PaymasterAndData:     nil,
 	}
-	userOpHash := entryPoint.GetUserOpHash(*userOp)
+
+	var userOpHash ethcommon.Hash
+	testNVM.Call(entrypoint, ethcommon.Address{}, func() {
+		userOpHash = entrypoint.GetUserOpHash(*userOp)
+	})
+
 	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
@@ -207,34 +62,49 @@ func buildUserOp(t *testing.T, entryPoint *EntryPoint, accountFactory *SmartAcco
 }
 
 func TestEntryPoint_SimulateHandleOp(t *testing.T) {
-	entryPoint, accountFactory := initEntryPoint(t)
-	userOp, sk := buildUserOp(t, entryPoint, accountFactory)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster)
 
-	err := entryPoint.SimulateHandleOp(*userOp, ethcommon.Address{}, nil)
-	executeResultErr, ok := err.(*common.RevertError)
-	assert.True(t, ok, "can't convert err to RevertError")
-	assert.Equal(t, executeResultErr.GetError(), vm.ErrExecutionReverted)
-	assert.Contains(t, executeResultErr.Error(), "AA21 didn't pay prefund")
+	userOp, sk := buildUserOp(t, testNVM, entrypoint, accountFactory)
+	testNVM.Call(entrypoint, ethcommon.Address{}, func() {
+		err := entrypoint.SimulateHandleOp(*userOp, ethcommon.Address{}, nil)
+		executeResultErr, ok := err.(*packer.RevertError)
+		assert.True(t, ok, "can't convert err to RevertError")
+		assert.Equal(t, executeResultErr.Err, vm.ErrExecutionReverted)
+		assert.Contains(t, executeResultErr.Error(), "AA21 didn't pay prefund")
+	})
 
 	userOp.InitCode = nil
 	userOp.VerificationGasLimit = big.NewInt(90000)
-	userOpHash := entryPoint.GetUserOpHash(*userOp)
+	userOpHash := entrypoint.GetUserOpHash(*userOp)
 	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
 	userOp.Signature = sig
 
-	err = entryPoint.SimulateHandleOp(*userOp, ethcommon.Address{}, nil)
-	executeResultErr, ok = err.(*common.RevertError)
-	assert.True(t, ok, "can't convert err to RevertError")
-	assert.Equal(t, executeResultErr.GetError(), vm.ErrExecutionReverted)
-	assert.Contains(t, executeResultErr.Error(), "error ExecutionResult")
+	testNVM.Call(entrypoint, ethcommon.Address{}, func() {
+		err := entrypoint.SimulateHandleOp(*userOp, ethcommon.Address{}, nil)
+		executeResultErr, ok := err.(*packer.RevertError)
+		assert.True(t, ok, "can't convert err to RevertError")
+		assert.Equal(t, executeResultErr.Err, vm.ErrExecutionReverted)
+		assert.ErrorContains(t, executeResultErr, "account not deployed")
+	})
 }
 
 func TestEntryPoint_HandleOp_Error(t *testing.T) {
-	entryPoint, accountFactory := initEntryPoint(t)
-	userOp, sk := buildUserOp(t, entryPoint, accountFactory)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
 
+	userOp, sk := buildUserOp(t, testNVM, entrypoint, accountFactory)
+
+	var err error
 	testcases := []struct {
 		BeforeRun  func(userOp *interfaces.UserOperation)
 		IsSkipSign bool
@@ -242,11 +112,17 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 	}{
 		{
 			BeforeRun: func(userOp *interfaces.UserOperation) {},
-			ErrMsg:    "AA21 didn't pay prefund",
+
+			ErrMsg: "AA21 didn't pay prefund",
 		},
 		{
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
+
+				testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+					_, _, err := entrypoint.createSender(userOp.VerificationGasLimit, userOp.InitCode)
+					return err
+				})
 			},
 			ErrMsg: "AA10 sender already constructed",
 		},
@@ -263,19 +139,9 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.InitCode = nil
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
-				verifyingPaymaster := NewVerifyingPaymaster(entryPoint)
-				paymasterPriv, _ := crypto.GenerateKey()
-				owner := crypto.PubkeyToAddress(paymasterPriv.PublicKey)
-				InitializeVerifyingPaymaster(entryPoint.stateLedger, owner)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				verifyingPaymaster.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
 				paymasterAndData := ethcommon.HexToAddress(common.VerifyingPaymasterContractAddr).Bytes()
 				arg := abi.Arguments{
 					{Name: "validUntil", Type: common.UInt48Type},
@@ -294,19 +160,9 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.InitCode = nil
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
-				verifyingPaymaster := NewVerifyingPaymaster(entryPoint)
-				paymasterPriv, _ := crypto.GenerateKey()
-				owner := crypto.PubkeyToAddress(paymasterPriv.PublicKey)
-				InitializeVerifyingPaymaster(entryPoint.stateLedger, owner)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				verifyingPaymaster.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
 				paymasterAndData := ethcommon.HexToAddress(common.VerifyingPaymasterContractAddr).Bytes()
 				arg := abi.Arguments{
 					{Name: "validUntil", Type: common.UInt48Type},
@@ -316,11 +172,13 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 				validAfter := big.NewInt(time.Now().Add(-time.Second).Unix())
 				timeData, _ := arg.Pack(validUntil, validAfter)
 				paymasterAndData = append(paymasterAndData, timeData...)
-				hash := verifyingPaymaster.getHash(*userOp, validUntil, validAfter)
-				// error signature format
-				ethHash := accounts.TextHash(hash)
-				sig, _ := crypto.Sign(ethHash, sk)
-				userOp.PaymasterAndData = append(paymasterAndData, sig...)
+				testNVM.Call(verifyingPaymaster, ethcommon.Address{}, func() {
+					hash := verifyingPaymaster.getHash(*userOp, validUntil, validAfter)
+					// error signature format
+					ethHash := accounts.TextHash(hash[:])
+					sig, _ := crypto.Sign(ethHash, sk)
+					userOp.PaymasterAndData = append(paymasterAndData, sig...)
+				})
 			},
 			ErrMsg: "AA34 signature error",
 		},
@@ -329,33 +187,25 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				// deploy oracle
 				oracleContractAddr := ethcommon.HexToAddress("0x3EBD66861C1d8F298c20ED56506b063206103227")
-				contractAccount := entryPoint.stateLedger.GetOrCreateAccount(types.NewAddress(oracleContractAddr.Bytes()))
+				contractAccount := testNVM.StateLedger.GetOrCreateAccount(types.NewAddress(oracleContractAddr.Bytes()))
 				contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(oracleBytecode))
 				// deploy erc20
 				erc20ContractAddr := ethcommon.HexToAddress("0x82C6D3ed4cD33d8EC1E51d0B5Cc1d822Eaa0c3dC")
-				contractAccount = entryPoint.stateLedger.GetOrCreateAccount(types.NewAddress(erc20ContractAddr.Bytes()))
+				contractAccount = testNVM.StateLedger.GetOrCreateAccount(types.NewAddress(erc20ContractAddr.Bytes()))
 				contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(erc20bytecode))
 
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.InitCode = nil
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
-
-				tokenPaymaster := NewTokenPaymaster(entryPoint)
-				paymasterPriv, _ := crypto.GenerateKey()
-				owner := crypto.PubkeyToAddress(paymasterPriv.PublicKey)
-				InitializeTokenPaymaster(entryPoint.stateLedger, owner)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				tokenPaymaster.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &owner,
-					CurrentLogs: entryPoint.currentLogs,
-				})
-				err := tokenPaymaster.AddToken(erc20ContractAddr, oracleContractAddr)
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
 
+				testNVM.RunSingleTX(tokenPaymaster, ethcommon.HexToAddress(testNVM.Rep.GenesisConfig.SmartAccountAdmin), func() error {
+					err := tokenPaymaster.AddToken(erc20ContractAddr, oracleContractAddr)
+					assert.Nil(t, err)
+					return err
+				})
+
 				// reset caller
-				tokenPaymaster.currentUser = &entryPointAddr
 				paymasterAndData := ethcommon.HexToAddress(common.TokenPaymasterContractAddr).Bytes()
 				tokenAddr := erc20ContractAddr.Bytes()
 				userOp.PaymasterAndData = append(paymasterAndData, tokenAddr...)
@@ -364,30 +214,48 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 		},
 	}
 
-	for _, testcase := range testcases {
-		tmpUserOp := *userOp
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			tmpUserOp := *userOp
+			testcase.BeforeRun(&tmpUserOp)
 
-		testcase.BeforeRun(&tmpUserOp)
+			testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+				entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(tmpUserOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(verifyingPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(tokenPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
 
-		if !testcase.IsSkipSign {
-			userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
-			hash := accounts.TextHash(userOpHash.Bytes())
-			sig, err := crypto.Sign(hash, sk)
-			assert.Nil(t, err)
-			tmpUserOp.Signature = sig
-		}
+				if !testcase.IsSkipSign {
+					userOpHash := entrypoint.GetUserOpHash(tmpUserOp)
+					hash := accounts.TextHash(userOpHash.Bytes())
+					sig, err := crypto.Sign(hash, sk)
+					assert.Nil(t, err)
+					tmpUserOp.Signature = sig
+				} else {
+					tmpUserOp.Signature = nil
+				}
 
-		err := entryPoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, ethcommon.Address{})
-		executeResultErr, ok := err.(*common.RevertError)
-		assert.True(t, ok, "can't convert err to RevertError")
-		assert.Equal(t, executeResultErr.GetError(), vm.ErrExecutionReverted)
-		assert.Contains(t, executeResultErr.Error(), testcase.ErrMsg)
+				err := entrypoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, ethcommon.Address{})
+				executeResultErr, ok := err.(*packer.RevertError)
+				assert.True(t, ok, "can't convert err to RevertError")
+				assert.Equal(t, executeResultErr.Err, vm.ErrExecutionReverted)
+				assert.Contains(t, executeResultErr.Error(), testcase.ErrMsg)
+				return err
+			})
+		})
 	}
 }
 
 func TestEntryPoint_HandleOp_UserOperationRevert(t *testing.T) {
-	entryPoint, accountFactory := initEntryPoint(t)
-	userOp, sk := buildUserOp(t, entryPoint, accountFactory)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
+	var err error
+	userOp, sk := buildUserOp(t, testNVM, entrypoint, accountFactory)
 
 	testcases := []struct {
 		BeforeRun func(userOp *interfaces.UserOperation)
@@ -397,7 +265,9 @@ func TestEntryPoint_HandleOp_UserOperationRevert(t *testing.T) {
 			// session key validAfter > validUntil
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
+
 				sessionPriv, _ := crypto.GenerateKey()
 				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
 				userOp.CallData = append([]byte{}, setSessionSig...)
@@ -415,13 +285,15 @@ func TestEntryPoint_HandleOp_UserOperationRevert(t *testing.T) {
 			BeforeRun: func(userOp *interfaces.UserOperation) {
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.InitCode = nil
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 				sessionPriv, _ := crypto.GenerateKey()
 				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
 				userOp.CallData = append([]byte{}, executeBatchSig...)
 				// error arguments
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(owner.Bytes(), 32)...)
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
+				userOp.CallGasLimit = big.NewInt(499923)
 			},
 			ErrMsg: "unpack error",
 		},
@@ -429,46 +301,65 @@ func TestEntryPoint_HandleOp_UserOperationRevert(t *testing.T) {
 
 	beneficiaryPriv, _ := crypto.GenerateKey()
 	beneficiary := crypto.PubkeyToAddress(beneficiaryPriv.PublicKey)
-	for _, testcase := range testcases {
-		tmpUserOp := *userOp
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			tmpUserOp := *userOp
+			testcase.BeforeRun(&tmpUserOp)
 
-		testcase.BeforeRun(&tmpUserOp)
+			testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+				entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(tmpUserOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(verifyingPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(tokenPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
 
-		userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
-		hash := accounts.TextHash(userOpHash.Bytes())
-		sig, err := crypto.Sign(hash, sk)
-		assert.Nil(t, err)
-		tmpUserOp.Signature = sig
+				userOpHash := entrypoint.GetUserOpHash(tmpUserOp)
 
-		err = entryPoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, beneficiary)
-		assert.Nil(t, err)
-		assert.Greater(t, len(*entryPoint.currentLogs), 1)
-		// get log
-		userOpRevertEvent := abi.NewEvent("UserOperationRevertReason", "UserOperationRevertReason", false, abi.Arguments{
-			{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
-			{Name: "sender", Type: common.AddressType, Indexed: true},
-			{Name: "nonce", Type: common.BigIntType},
-			{Name: "revertReason", Type: common.BytesType},
-		})
-		hasUserOpRevertEvent := false
-		for _, currentLog := range *entryPoint.currentLogs {
-			topicOne := *currentLog.Topics[0]
-			if topicOne.ETHHash() == userOpRevertEvent.ID {
-				revertReason := string(currentLog.Data[32:])
-				if strings.Contains(revertReason, testcase.ErrMsg) {
-					hasUserOpRevertEvent = true
+				hash := accounts.TextHash(userOpHash.Bytes())
+				sig, err := crypto.Sign(hash, sk)
+				assert.Nil(t, err)
+				tmpUserOp.Signature = sig
+
+				err = entrypoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, beneficiary)
+				assert.Nil(t, err)
+
+				logs := entrypoint.Ctx.GetLogs()
+				assert.Greater(t, len(logs), 1)
+				// get log
+				userOpRevertEvent := abi.NewEvent("UserOperationRevertReason", "UserOperationRevertReason", false, abi.Arguments{
+					{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
+					{Name: "sender", Type: common.AddressType, Indexed: true},
+					{Name: "nonce", Type: common.BigIntType},
+					{Name: "revertReason", Type: common.BytesType},
+				})
+				hasUserOpRevertEvent := false
+				for _, currentLog := range logs {
+					topicOne := *currentLog.Topics[0]
+					if topicOne.ETHHash() == userOpRevertEvent.ID {
+						revertReason := string(currentLog.Data[32:])
+						if strings.Contains(revertReason, testcase.ErrMsg) {
+							hasUserOpRevertEvent = true
+						}
+					}
 				}
-			}
-		}
-		// reset log
-		entryPoint.currentLogs = &[]common.Log{}
-		assert.True(t, hasUserOpRevertEvent, "must have UserOperationRevertReason event")
+				assert.True(t, hasUserOpRevertEvent, "must have UserOperationRevertReason event")
+				return err
+			})
+		})
 	}
 }
 
 func TestEntryPoint_HandleOp(t *testing.T) {
-	entryPoint, accountFactory := initEntryPoint(t)
-	userOp, sk := buildUserOp(t, entryPoint, accountFactory)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
+	paymasterPriv, err := crypto.HexToECDSA(repo.MockOperatorKeys[0])
+	assert.Nil(t, err)
+
+	userOp, sk := buildUserOp(t, testNVM, entrypoint, accountFactory)
 
 	guardianPriv, _ := crypto.GenerateKey()
 	guardian := crypto.PubkeyToAddress(guardianPriv.PublicKey)
@@ -485,7 +376,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				return nil
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				balance := entryPoint.stateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
+				balance := testNVM.StateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
 				assert.Greater(t, balance.Uint64(), uint64(0))
 				assert.Greater(t, uint64(accountBalance), balance.Uint64())
 			},
@@ -501,19 +392,9 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
 				userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
-				verifyingPaymaster := NewVerifyingPaymaster(entryPoint)
-				paymasterPriv, _ := crypto.GenerateKey()
-				paymasterOwner := crypto.PubkeyToAddress(paymasterPriv.PublicKey)
-				InitializeVerifyingPaymaster(entryPoint.stateLedger, paymasterOwner)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				verifyingPaymaster.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
 				paymasterAndData := ethcommon.HexToAddress(common.VerifyingPaymasterContractAddr).Bytes()
 				arg := abi.Arguments{
 					{Name: "validUntil", Type: common.UInt48Type},
@@ -523,19 +404,22 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				validAfter := big.NewInt(time.Now().Add(-time.Second).Unix())
 				timeData, _ := arg.Pack(validUntil, validAfter)
 				paymasterAndData = append(paymasterAndData, timeData...)
-				hash := verifyingPaymaster.getHash(*userOp, validUntil, validAfter)
-				ethHash := accounts.TextHash(hash)
+				var hash [32]byte
+				testNVM.Call(verifyingPaymaster, owner, func() {
+					hash = verifyingPaymaster.getHash(*userOp, validUntil, validAfter)
+				})
+				ethHash := accounts.TextHash(hash[:])
 				sig, _ := crypto.Sign(ethHash, paymasterPriv)
 				userOp.PaymasterAndData = append(paymasterAndData, sig...)
 
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				balance := entryPoint.stateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
+				balance := testNVM.StateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
 				assert.Equal(t, balance.Uint64(), uint64(accountBalance))
 				t.Logf("after run, sender %s balance: %s", userOp.Sender.Hex(), balance.Text(10))
 
-				balance = entryPoint.stateLedger.GetBalance(types.NewAddressByStr(common.VerifyingPaymasterContractAddr))
+				balance = testNVM.StateLedger.GetBalance(types.NewAddressByStr(common.VerifyingPaymasterContractAddr))
 				assert.Greater(t, balance.Uint64(), uint64(0))
 				assert.Greater(t, uint64(accountBalance), balance.Uint64())
 				t.Logf("after run, verifying paymaster balance: %s", balance.Text(10))
@@ -552,7 +436,8 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
 				userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
 				sessionPriv, _ := crypto.GenerateKey()
 				owner = crypto.PubkeyToAddress(sessionPriv.PublicKey)
@@ -567,20 +452,12 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				balance := entryPoint.stateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
+				balance := testNVM.StateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
 				assert.Greater(t, balance.Uint64(), uint64(0))
 				assert.Greater(t, uint64(accountBalance), balance.Uint64())
 
 				// get session
-				sa := NewSmartAccount(entryPoint.logger, entryPoint)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				sa.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
+				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
 				session := sa.getSession()
 				t.Logf("after run, session: %v", session)
 				assert.NotNil(t, session)
@@ -602,21 +479,14 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.InitCode = initCode
 				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				sa := NewSmartAccount(entryPoint.logger, entryPoint)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				sa.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
-
-				g := sa.getGuardian()
+				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
+				g, err := sa.getGuardian()
+				assert.Nil(t, err)
 				assert.Equal(t, g, guardian)
 			},
 		},
@@ -632,24 +502,17 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.InitCode = initCode
 				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
 				userOp.CallData = append([]byte{}, setGuardianSig...)
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(userOp.Sender.Bytes(), 32)...)
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				sa := NewSmartAccount(entryPoint.logger, entryPoint)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				sa.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
-
-				g := sa.getGuardian()
+				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
+				g, err := sa.getGuardian()
+				assert.Nil(t, err)
 				assert.Equal(t, g, userOp.Sender)
 			},
 		},
@@ -665,24 +528,16 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.InitCode = initCode
 				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
-
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 				userOp.CallData = append([]byte{}, resetOwnerSig...)
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(newOwner.Bytes(), 32)...)
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				sa := NewSmartAccount(entryPoint.logger, entryPoint)
-				entryPointAddr := entryPoint.selfAddress().ETHAddress()
-				sa.SetContext(&common.VMContext{
-					CurrentEVM:  entryPoint.currentEVM,
-					StateLedger: entryPoint.stateLedger,
-					CurrentUser: &entryPointAddr,
-					CurrentLogs: entryPoint.currentLogs,
-				})
-				sa.InitializeOrLoad(userOp.Sender, ethcommon.Address{}, ethcommon.Address{}, nil)
-
-				owner := sa.getOwner()
+				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
+				owner, err := sa.getOwner()
+				assert.Nil(t, err)
 				assert.Equal(t, owner, newOwner)
 			},
 		},
@@ -698,16 +553,17 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.InitCode = initCode
 				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
 				userOp.CallData = append([]byte{}, executeSig...)
-				data, err := executeMethod.Pack(entryPoint.selfAddress().ETHAddress(), big.NewInt(100000), []byte{})
+				data, err := executeMethod.Pack(entrypoint.EthAddress, big.NewInt(100000), []byte{})
 				assert.Nil(t, err)
 				userOp.CallData = append(userOp.CallData, data...)
 				return sk
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
-				balance := entryPoint.stateLedger.GetBalance(entryPoint.selfAddress())
+				balance := testNVM.StateLedger.GetBalance(entrypoint.Address)
 				assert.Greater(t, balance.Uint64(), uint64(100000))
 			},
 		},
@@ -723,7 +579,8 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				userOp.InitCode = initCode
 				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
-				userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
 
 				userOp.CallData = append([]byte{}, executeBatchSig...)
 				data, err := executeBatchMethod.Pack([]ethcommon.Address{guardian, newOwner}, [][]byte{nil, nil})
@@ -737,30 +594,50 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 
 	beneficiaryPriv, _ := crypto.GenerateKey()
 	beneficiary := crypto.PubkeyToAddress(beneficiaryPriv.PublicKey)
-	for _, testcase := range testcases {
-		tmpUserOp := *userOp
+	for i, testcase := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			tmpUserOp := *userOp
 
-		priv := testcase.BeforeRun(&tmpUserOp)
+			priv := testcase.BeforeRun(&tmpUserOp)
+			if priv == nil {
+				priv = sk
+			}
 
-		if priv == nil {
-			priv = sk
-		}
+			testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+				entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(tmpUserOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(verifyingPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
+				entrypoint.Ctx.StateLedger.SetBalance(tokenPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
 
-		userOpHash := entryPoint.GetUserOpHash(tmpUserOp)
-		hash := accounts.TextHash(userOpHash.Bytes())
-		sig, err := crypto.Sign(hash, priv)
-		assert.Nil(t, err)
-		tmpUserOp.Signature = sig
+				userOpHash := entrypoint.GetUserOpHash(tmpUserOp)
+				hash := accounts.TextHash(userOpHash.Bytes())
+				sig, err := crypto.Sign(hash, priv)
+				assert.Nil(t, err)
+				tmpUserOp.Signature = sig
 
-		err = entryPoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, beneficiary)
-		assert.Nil(t, err)
-		testcase.AfterRun(&tmpUserOp)
+				err = entrypoint.HandleOps([]interfaces.UserOperation{tmpUserOp}, beneficiary)
+				assert.Nil(t, err)
+				testcase.AfterRun(&tmpUserOp)
+				return err
+			})
+		})
 	}
 }
 
 func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
-	entryPoint, accountFactory := initEntryPoint(t)
-	userOp, _ := buildUserOp(t, entryPoint, accountFactory)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
+	entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, types.CoinNumberByAxc(3).ToBigInt())
+	entrypoint.Ctx.StateLedger.SetBalance(verifyingPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
+	entrypoint.Ctx.StateLedger.SetBalance(tokenPaymaster.Address, types.CoinNumberByAxc(3).ToBigInt())
+
+	var err error
+	userOp, _ := buildUserOp(t, testNVM, entrypoint, accountFactory)
 	beneficiaryPriv, _ := crypto.GenerateKey()
 	beneficiary := crypto.PubkeyToAddress(beneficiaryPriv.PublicKey)
 
@@ -772,7 +649,8 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	copy(initCode[20+4+(32-20):], owner.Bytes())
 	userOp.InitCode = initCode
 	userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
-	userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	assert.Nil(t, err)
 
 	sessionPriv, _ := crypto.GenerateKey()
 	sessionOwner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
@@ -785,7 +663,7 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validAfter.Bytes(), 32)...)
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validUntil.Bytes(), 32)...)
 
-	userOpHash := entryPoint.GetUserOpHash(*userOp)
+	userOpHash := entrypoint.GetUserOpHash(*userOp)
 	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
@@ -798,32 +676,42 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	sessionUserOp.Nonce = new(big.Int).Add(userOp.Nonce, big.NewInt(1))
 	sessionUserOp.CallData = append([]byte{}, executeSig...)
 	transferAmount := big.NewInt(100000)
-	data, err := executeMethod.Pack(entryPoint.selfAddress().ETHAddress(), transferAmount, []byte{})
+	data, err := executeMethod.Pack(entrypoint.EthAddress, transferAmount, []byte{})
 	assert.Nil(t, err)
 	sessionUserOp.CallData = append(sessionUserOp.CallData, data...)
-	userOpHash = entryPoint.GetUserOpHash(sessionUserOp)
+	userOpHash = entrypoint.GetUserOpHash(sessionUserOp)
 	hash = accounts.TextHash(userOpHash.Bytes())
 	sessionKeySig, err := crypto.Sign(hash, sessionPriv)
 	assert.Nil(t, err)
 	sessionUserOp.Signature = sessionKeySig
 
-	err = entryPoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
-	assert.Nil(t, err)
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		err = entrypoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Nil(t, err)
+		return err
+	})
 
 	// after set session key effect, use session key to sign
-	err = entryPoint.HandleOps([]interfaces.UserOperation{sessionUserOp}, beneficiary)
-	assert.Nil(t, err)
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		err = entrypoint.HandleOps([]interfaces.UserOperation{sessionUserOp}, beneficiary)
+		assert.Nil(t, err)
+		return err
+	})
 
 	// get session key spend limit
-	sa := NewSmartAccount(entryPoint.logger, entryPoint)
-	entryPointAddr := entryPoint.selfAddress().ETHAddress()
-	sa.SetContext(&common.VMContext{
-		CurrentEVM:  entryPoint.currentEVM,
-		StateLedger: entryPoint.stateLedger,
-		CurrentUser: &entryPointAddr,
-		CurrentLogs: entryPoint.currentLogs,
+	sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), sessionUserOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
+	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		err := sa.Initialize(ethcommon.Address{}, ethcommon.Address{})
+		assert.Nil(t, err)
+		return err
 	})
-	sa.InitializeOrLoad(sessionUserOp.Sender, ethcommon.Address{}, ethcommon.Address{}, big.NewInt(MaxCallGasLimit))
+
 	session := sa.getSession()
 	assert.Greater(t, session.SpentAmount.Uint64(), transferAmount.Uint64())
 	assert.EqualValues(t, sessionKeyLimit.Uint64(), session.SpendingLimit.Uint64())
@@ -831,8 +719,15 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 
 func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	// use guardian to recovery owner
-	entryPoint, accountFactory := initEntryPoint(t)
-	userOp, _ := buildUserOp(t, entryPoint, accountFactory)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
+	var err error
+	userOp, _ := buildUserOp(t, testNVM, entrypoint, accountFactory)
 	beneficiaryPriv, _ := crypto.GenerateKey()
 	beneficiary := crypto.PubkeyToAddress(beneficiaryPriv.PublicKey)
 
@@ -844,7 +739,8 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	copy(initCode[20+4+(32-20):], owner.Bytes())
 	userOp.InitCode = initCode
 	userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
-	userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	assert.Nil(t, err)
 
 	// set guardian
 	guardianPriv, _ := crypto.GenerateKey()
@@ -852,25 +748,32 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	userOp.CallData = append([]byte{}, setGuardianSig...)
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(guardianOwner.Bytes(), 32)...)
 
-	userOpHash := entryPoint.GetUserOpHash(*userOp)
+	userOpHash := entrypoint.GetUserOpHash(*userOp)
 	hash := accounts.TextHash(userOpHash.Bytes())
 	sig, err := crypto.Sign(hash, sk)
 	assert.Nil(t, err)
 	userOp.Signature = sig
 
-	err = entryPoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
-	assert.Nil(t, err)
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		err = entrypoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Nil(t, err)
+		return err
+	})
 
 	// use guardian to sign to recovery owner
 	userOp.InitCode = nil
-	userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	assert.Nil(t, err)
+
 	newOwnerPriv, _ := crypto.GenerateKey()
 	newOwner := crypto.PubkeyToAddress(newOwnerPriv.PublicKey)
 	// call HandleAccountRecovery, directly set new owner
 	userOp.CallData = append([]byte{}, newOwner.Bytes()...)
 
 	// guardian sign
-	userOpHash = entryPoint.GetUserOpHash(*userOp)
+	userOpHash = entrypoint.GetUserOpHash(*userOp)
 	hash = accounts.TextHash(userOpHash.Bytes())
 	sig, err = crypto.Sign(hash, guardianPriv)
 	assert.Nil(t, err)
@@ -878,54 +781,92 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 
 	// tmp set lock time
 	LockedTime = 2 * time.Second
-	err = entryPoint.HandleAccountRecovery([]interfaces.UserOperation{*userOp}, beneficiary)
-	assert.Nil(t, err)
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		err = entrypoint.HandleAccountRecovery([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Nil(t, err)
+		return err
+	})
 
 	// use new owner would failed
 	userOp.InitCode = nil
-	userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	assert.Nil(t, err)
 	guardianPriv, _ = crypto.GenerateKey()
 	guardianOwner = crypto.PubkeyToAddress(guardianPriv.PublicKey)
 	userOp.CallData = append([]byte{}, setGuardianSig...)
 	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(guardianOwner.Bytes(), 32)...)
-	userOpHash = entryPoint.GetUserOpHash(*userOp)
+	userOpHash = entrypoint.GetUserOpHash(*userOp)
 	hash = accounts.TextHash(userOpHash.Bytes())
 	sig, err = crypto.Sign(hash, newOwnerPriv)
 	assert.Nil(t, err)
 	userOp.Signature = sig
-	err = entryPoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
-	assert.Contains(t, err.Error(), "signature error")
+
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		err = entrypoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Contains(t, err.Error(), "signature error")
+		return err
+	})
 
 	// after lock time, new owner would be success
 	time.Sleep(LockedTime + time.Second)
 	// update evm block time
-	entryPoint.currentEVM.Context.Time = uint64(time.Now().Unix())
-	userOp.Nonce = entryPoint.GetNonce(userOp.Sender, big.NewInt(salt))
-	userOpHash = entryPoint.GetUserOpHash(*userOp)
-	hash = accounts.TextHash(userOpHash.Bytes())
-	sig, err = crypto.Sign(hash, newOwnerPriv)
-	assert.Nil(t, err)
-	userOp.Signature = sig
-	err = entryPoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
-	assert.Nil(t, err)
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+		entrypoint.Ctx.CurrentEVM.Context.Time = uint64(time.Now().Unix())
+		userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+		userOpHash = entrypoint.GetUserOpHash(*userOp)
+		hash = accounts.TextHash(userOpHash.Bytes())
+		sig, err = crypto.Sign(hash, newOwnerPriv)
+		assert.Nil(t, err)
+		userOp.Signature = sig
+		err = entrypoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Nil(t, err)
+		return err
+	})
 }
 
 func TestEntryPoint_call(t *testing.T) {
-	entryPoint, _ := initEntryPoint(t)
-	// test call method
-	to := ethcommon.HexToAddress(common.AccountFactoryContractAddr)
-	res, usedGas, err := call(entryPoint.stateLedger, entryPoint.currentEVM, big.NewInt(300000), types.NewAddressByStr(common.EntryPointContractAddr), &to, []byte(""))
-	assert.Nil(t, err)
-	assert.Nil(t, res)
-	assert.EqualValues(t, usedGas, 300000)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
 
-	_, usedGas, err = callWithValue(entryPoint.stateLedger, entryPoint.currentEVM, big.NewInt(300000), big.NewInt(10000), types.NewAddressByStr(common.EntryPointContractAddr), &to, []byte(""))
-	assert.Nil(t, err)
-	assert.EqualValues(t, usedGas, 300000)
+	// test call method
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, types.CoinNumberByAxc(3).ToBigInt())
+
+		res, usedGas, err := entrypoint.CrossCallEVMContract(big.NewInt(300000), accountFactory.EthAddress, []byte(""))
+		assert.Nil(t, err)
+		assert.Nil(t, res)
+		assert.EqualValues(t, usedGas, 300000)
+		return err
+	})
+
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, types.CoinNumberByAxc(3).ToBigInt())
+
+		_, usedGas, err := entrypoint.CrossCallEVMContractWithValue(big.NewInt(300000), big.NewInt(10000), accountFactory.EthAddress, []byte(""))
+		assert.Nil(t, err)
+		assert.EqualValues(t, usedGas, 300000)
+		return err
+	})
 }
 
 func TestEntryPoint_GetUserOpHash(t *testing.T) {
-	entryPoint, _ := initEntryPoint(t)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
 	dstUserOpHash := "8ecc047965a0ba0f814465f3152cbba2420b6d3fb97fea3d9e1332fc47040b54"
 	sk, err := crypto.HexToECDSA("8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba")
 	assert.Nil(t, err)
@@ -939,9 +880,13 @@ func TestEntryPoint_GetUserOpHash(t *testing.T) {
 	t.Logf("initCode addr: %v", initCode)
 	callData := ethcommon.Hex2Bytes("b61d27f60000000000000000000000008464135c8f25da09e49bc8782676a84730c318bc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044a9059cbb000000000000000000000000c7f999b83af6df9e67d0a37ee7e900bf38b3d013000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000")
 
-	senderAddr, _, err := entryPoint.createSender(big.NewInt(10000), initCode)
-	assert.Nil(t, err)
-	t.Logf("sender addr: %s", senderAddr.String())
+	var senderAddr ethcommon.Address
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		senderAddr, _, err = entrypoint.createSender(big.NewInt(10000), initCode)
+		assert.Nil(t, err)
+		t.Logf("sender addr: %s", senderAddr.String())
+		return err
+	})
 
 	userOp := &interfaces.UserOperation{
 		Sender:               senderAddr,
@@ -957,10 +902,13 @@ func TestEntryPoint_GetUserOpHash(t *testing.T) {
 		Signature:            ethcommon.Hex2Bytes("e00bd84bf950f07cfde52f7726bc33b8e1afd5bc709f00a58c0e1fa4b19cd0c21c4784569452603a608ebc338a99a9428cb25922acc71936befaf4d7b90925311b"),
 	}
 
-	userOpHash := entryPoint.GetUserOpHash(*userOp)
-	t.Logf("op hash: %x", userOpHash)
-	t.Logf("chain id: %s", entryPoint.currentEVM.ChainConfig().ChainID.Text(10))
-	assert.Equal(t, ethcommon.Hex2Bytes(dstUserOpHash), userOpHash.Bytes())
+	var userOpHash ethcommon.Hash
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		userOpHash = entrypoint.GetUserOpHash(*userOp)
+		t.Logf("op hash: %x", userOpHash)
+		assert.Equal(t, ethcommon.Hex2Bytes(dstUserOpHash), userOpHash.Bytes())
+		return err
+	})
 
 	hash := accounts.TextHash(userOpHash.Bytes())
 	// 0xc911ab31b05daa531d9ef77fc2670e246a9489610e48e88d8296604c26dcd5c4
@@ -983,36 +931,29 @@ func TestEntryPoint_GetUserOpHash(t *testing.T) {
 }
 
 func TestEntryPoint_createSender(t *testing.T) {
-	entryPoint, _ := initEntryPoint(t)
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
 	initCode := ethcommon.Hex2Bytes("00000000000000000000000000000000000010095fbfb9cf0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc0000000000000000000000000000000000000000000000000000000000015b43")
-	addr, _, err := entryPoint.createSender(big.NewInt(10000), initCode)
-	assert.Nil(t, err)
 
-	assert.NotNil(t, addr)
-	assert.NotEqual(t, addr, ethcommon.Address{})
-
-	addr2, _, err := entryPoint.createSender(big.NewInt(10000), initCode)
-	assert.Nil(t, err)
-	assert.Equal(t, addr, addr2)
-}
-
-func TestEntryPoint_ExecutionResult(t *testing.T) {
-	err := interfaces.ExecutionResult(big.NewInt(1000), big.NewInt(999), big.NewInt(0), big.NewInt(0), false, nil)
-	_, ok := err.(*common.RevertError)
-	assert.True(t, ok)
-	t.Logf("err is : %s", err)
-}
-
-func TestEntryPoint_userOpEvent(t *testing.T) {
-	userOpEvent := abi.NewEvent("UserOperationEvent", "UserOperationEvent", false, abi.Arguments{
-		{Name: "userOpHash", Type: common.Bytes32Type, Indexed: true},
-		{Name: "sender", Type: common.AddressType, Indexed: true},
-		{Name: "paymaster", Type: common.AddressType, Indexed: true},
-		{Name: "nonce", Type: common.BigIntType},
-		{Name: "success", Type: common.BoolType},
-		{Name: "actualGasCost", Type: common.BigIntType},
-		{Name: "actualGasUsed", Type: common.BigIntType},
+	var addr ethcommon.Address
+	var err error
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		addr, _, err = entrypoint.createSender(big.NewInt(10000), initCode)
+		assert.Nil(t, err)
+		assert.NotNil(t, addr)
+		assert.NotEqual(t, addr, ethcommon.Address{})
+		return err
 	})
 
-	assert.Equal(t, "0x49628fd1471006c1482da88028e9ce4dbb080b815c9b0344d39e5a8e6ec1419f", types.NewHash(userOpEvent.ID.Bytes()).String())
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		addr2, _, err := entrypoint.createSender(big.NewInt(10000), initCode)
+		assert.Nil(t, err)
+		assert.Equal(t, addr, addr2)
+		return err
+	})
 }

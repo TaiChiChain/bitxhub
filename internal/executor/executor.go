@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"math/big"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
@@ -11,10 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
-	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/finance"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
@@ -27,13 +26,16 @@ const (
 
 var _ Executor = (*BlockExecutor)(nil)
 
+type AfterBlockHook struct {
+	Name string
+	Func func(block *types.Block) error
+}
+
 // BlockExecutor executes block from consensus
 type BlockExecutor struct {
 	ledger             *ledger.Ledger
 	logger             logrus.FieldLogger
 	blockC             chan *common.CommitEvent
-	gas                *finance.Gas
-	incentive          *finance.Incentive
 	cumulativeGasUsed  uint64
 	currentHeight      uint64
 	currentBlockHash   *types.Hash
@@ -47,47 +49,47 @@ type BlockExecutor struct {
 	evmChainCfg *params.ChainConfig
 	gasLimit    uint64
 	rep         *repo.Repo
-	lock        *sync.Mutex
+	chainState  *chainstate.ChainState
 
-	nvm sys_common.VirtualMachine
-
-	epochExchange   bool
-	afterBlockHooks []func(block *types.Block)
+	nvm             syscommon.VirtualMachine
+	afterBlockHooks []AfterBlockHook
 }
 
 // New creates executor instance
-func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
+func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainState) (*BlockExecutor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	blockExecutor := &BlockExecutor{
 		ledger:            ledger,
 		logger:            loggers.Logger(loggers.Executor),
 		ctx:               ctx,
+		chainState:        chainState,
 		cancel:            cancel,
 		blockC:            make(chan *common.CommitEvent, blockChanNumber),
-		gas:               finance.NewGas(rep),
 		cumulativeGasUsed: 0,
 		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
 		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,
 		evmChainCfg:       newEVMChainCfg(rep.GenesisConfig),
 		rep:               rep,
 		gasLimit:          rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
-		lock:              &sync.Mutex{},
 	}
 
 	blockExecutor.evm = newEvm(1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
 
 	// initialize native vm
 	blockExecutor.nvm = system.New()
-	var err error
-	blockExecutor.incentive, err = finance.NewIncentive(rep.GenesisConfig, blockExecutor.nvm)
-
-	blockExecutor.afterBlockHooks = []func(block *types.Block){
-		blockExecutor.updateEpochInfo,
-		blockExecutor.updateMiningInfo,
+	blockExecutor.afterBlockHooks = []AfterBlockHook{
+		{
+			Name: "recordReward",
+			Func: blockExecutor.recordReward,
+		},
+		{
+			Name: "tryTurnIntoNewEpoch",
+			Func: blockExecutor.tryTurnIntoNewEpoch,
+		},
 	}
 
-	return blockExecutor, err
+	return blockExecutor, nil
 }
 
 // Start starts executor

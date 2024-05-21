@@ -35,8 +35,6 @@ dist
 go.work
 go.work.sum
 .env.sh
-account.key
-p2p.key
-consensus.toml
-
-axiom-ledger
+*.key
+*.toml
+*-keystore.json

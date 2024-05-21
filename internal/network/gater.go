@@ -1,13 +1,10 @@
 package network
 
 import (
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/libp2p/go-libp2p/core/control"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
@@ -19,30 +16,13 @@ type connectionGater struct {
 	ledger *ledger.Ledger
 }
 
-func newConnectionGater(logger logrus.FieldLogger, ledger *ledger.Ledger) *connectionGater {
+func newConnectionGater(logger logrus.FieldLogger) *connectionGater {
 	return &connectionGater{
 		logger: logger,
-		ledger: ledger,
 	}
 }
 
 func (g *connectionGater) VerifyRemotePeer(peerID string) (allow bool) {
-	// Use the latest EpochInfo for node connection
-	epoch, err := base.GetCurrentEpochInfo(g.ledger.NewView().StateLedger)
-	if err != nil {
-		g.logger.Errorf("InterceptSecured, auth node %s failed, get node members error: %v", peerID, err)
-		return false
-	}
-	if !lo.ContainsBy(epoch.ValidatorSet, func(item rbft.NodeInfo) bool {
-		return item.P2PNodeID == peerID
-	}) && !lo.ContainsBy(epoch.CandidateSet, func(item rbft.NodeInfo) bool {
-		return item.P2PNodeID == peerID
-	}) && !lo.ContainsBy(epoch.DataSyncerSet, func(item rbft.NodeInfo) bool {
-		return item.P2PNodeID == peerID
-	}) {
-		g.logger.Warnf("InterceptSecured, auth node %s failed, unavailable node", peerID)
-		return false
-	}
 	return true
 }
 

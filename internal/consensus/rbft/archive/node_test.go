@@ -9,6 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
@@ -23,10 +28,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/sync/common/mock_sync"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	p2p "github.com/axiomesh/axiom-p2p"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestNewArchiveNode(t *testing.T) {
@@ -45,9 +46,8 @@ func TestNewArchiveNode(t *testing.T) {
 	rbftAdaptor, err := adaptor.NewRBFTAdaptor(consensusConf)
 	assert.Nil(t, err)
 
-	_, err = NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, nil, pool, "block1", logger)
+	_, err = NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, nil, pool, logger)
 	assert.Nil(t, err)
-
 }
 
 func TestNode_Start(t *testing.T) {
@@ -66,7 +66,7 @@ func TestNode_Start(t *testing.T) {
 			expectErr:    true,
 			expectResult: "failed to init sync state",
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
-				cnf.RepoRoot = filepath.Join(t.TempDir(), "repo")
+				cnf.Repo.RepoRoot = filepath.Join(t.TempDir(), "repo")
 				newStack, err := adaptor.NewRBFTAdaptor(cnf)
 				assert.Nil(t, err)
 
@@ -80,6 +80,7 @@ func TestNode_Start(t *testing.T) {
 		{
 			name: "start with same state, but verify signature failed",
 			remoteHandler: func(msg *consensus.ConsensusMessage, pipe p2p.Pipe, to string, id uint64) error {
+				fmt.Printf("receive sync state from %v: %v\n", msg.From, msg.Type)
 				if msg.Type != consensus.Type_SYNC_STATE {
 					return fmt.Errorf("invalid msg type: %v", msg.Type)
 				}
@@ -109,6 +110,7 @@ func TestNode_Start(t *testing.T) {
 				if err != nil {
 					return err
 				}
+				fmt.Printf("[%v-%v] send sync state response to %s", id, pipe.String(), to)
 				return nil
 			},
 			expectResult: "invalid signature",
@@ -306,7 +308,7 @@ func TestNode_Start(t *testing.T) {
 
 				cnf.BlockSync = mockSync
 
-				cnf.RepoRoot = filepath.Join(t.TempDir(), "repo")
+				cnf.Repo.RepoRoot = filepath.Join(t.TempDir(), "repo")
 				newStack, err := adaptor.NewRBFTAdaptor(cnf)
 				assert.Nil(t, err)
 
@@ -330,11 +332,9 @@ func TestNode_Start(t *testing.T) {
 								epcState.EpochChanged = true
 								epcState.Epoch = 2
 
-								cnf.GetCurrentEpochInfoFromEpochMgrContractFunc = func() (*rbft.EpochInfo, error) {
-									currentEpochInfo := cnf.GenesisEpochInfo.Clone()
-									currentEpochInfo.Epoch = 2
-									return currentEpochInfo, nil
-								}
+								currentEpochInfo := cnf.GenesisEpochInfo.Clone()
+								currentEpochInfo.Epoch = 2
+								cnf.ChainState.EpochInfo = currentEpochInfo
 								node.ReportStateUpdated(epcState)
 							}
 							if block.Block.Height() == 110 {
@@ -357,61 +357,62 @@ func TestNode_Start(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		t.Log(tc.name)
-		ctrl := gomock.NewController(t)
-		stack, cnf, pipes := mockConfig(t, ctrl)
-		node := mockArchiveNode(stack, cnf, t)
-		tc.setupMocks(node, stack, cnf, ctrl)
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stack, cnf, pipes := mockConfig(t, ctrl)
+			node := mockArchiveNode(stack, cnf, t)
+			tc.setupMocks(node, stack, cnf, ctrl)
 
-		// Start receiving messages on pipes
-		for id, pipesM := range pipes {
-			if id == node.selfID {
-				for _, pipe := range pipesM {
-					go func(pipe p2p.Pipe) {
-						for {
-							msg := pipe.Receive(context.Background())
-							if msg == nil {
-								return
+			// Start receiving messages on pipes
+			for id, pipesM := range pipes {
+				id := id
+				pipesM := pipesM
+				if id == node.selfID {
+					for _, pipe := range pipesM {
+						pipe := pipe
+						go func(pipe p2p.Pipe) {
+							for {
+								msg := pipe.Receive(context.Background())
+								if msg == nil {
+									return
+								}
+								consensusMsg := &consensus.ConsensusMessage{}
+								err := consensusMsg.UnmarshalVT(msg.Data)
+								assert.Nil(t, err)
+								node.Step(context.Background(), consensusMsg)
 							}
-							consensusMsg := &consensus.ConsensusMessage{}
-							err := consensusMsg.UnmarshalVT(msg.Data)
-							assert.Nil(t, err)
-							node.Step(context.Background(), consensusMsg)
-						}
-					}(pipe)
+						}(pipe)
+					}
+				} else {
+					go receiveMsg(t, pipesM, id, tc.remoteHandler)
 				}
-			} else {
-				go receiveMsg(t, pipesM, id, tc.remoteHandler)
 			}
-		}
 
-		poolBatch, txs := generateBatch(t)
-		lo.ForEach(txs, func(tx *types.Transaction, _ int) {
-			err := cnf.TxPool.AddLocalTx(tx)
-			assert.Nil(t, err)
-		})
-		broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-			return item.P2PNodeID
-		})
-		remoteProposal(t, 1, broadcastNodes, pipes, poolBatch, 2, 2)
+			poolBatch, txs := generateBatch(t)
+			lo.ForEach(txs, func(tx *types.Transaction, _ int) {
+				err := cnf.TxPool.AddLocalTx(tx)
+				assert.Nil(t, err)
+			})
+			remoteProposal(t, 1, repo.MockP2PIDs, pipes, poolBatch, 2, 2)
+			// wait date sync node to receive messages
+			time.Sleep(10 * time.Millisecond)
 
-		// wait date sync node to receive messages
-		time.Sleep(10 * time.Millisecond)
-
-		for id := range pipes {
-			if id != node.selfID {
-				remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+			for id := range pipes {
+				if id != node.selfID {
+					remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
+				}
 			}
-		}
 
-		// Setup log output capturing
-		taskDoneCh := make(chan bool, 1)
-		catchExpectLogOut(t, node.logger, tc.expectResult, taskDoneCh)
-		// Start node
-		err := node.Start()
-		assert.Equal(t, err != nil, tc.expectErr)
-		assert.True(t, <-taskDoneCh)
-		node.Stop()
+			// Setup log output capturing
+			taskDoneCh := make(chan bool, 1)
+			catchExpectLogOut(t, node.logger, tc.expectResult, taskDoneCh)
+			// Start node
+			err := node.Start()
+			assert.Equal(t, err != nil, tc.expectErr)
+
+			assert.True(t, <-taskDoneCh)
+			node.Stop()
+		})
 	}
 }
 
@@ -483,16 +484,17 @@ func TestNode_Step(t *testing.T) {
 	}
 
 	for _, tc := range testCase {
-		t.Log(tc.name)
-		ctrl := gomock.NewController(t)
-		stack, cnf, _ := mockConfig(t, ctrl)
-		node := mockArchiveNode(stack, cnf, t)
-		tc.setupMocks(node)
-		taskDoneCh := make(chan bool, 1)
-		catchExpectLogOut(t, node.logger, tc.expectResult.(string), taskDoneCh)
-		go node.listenEvent()
-		node.Step(context.Background(), tc.input)
-		assert.True(t, <-taskDoneCh)
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stack, cnf, _ := mockConfig(t, ctrl)
+			node := mockArchiveNode(stack, cnf, t)
+			tc.setupMocks(node)
+			taskDoneCh := make(chan bool, 1)
+			catchExpectLogOut(t, node.logger, tc.expectResult.(string), taskDoneCh)
+			go node.listenEvent()
+			node.Step(context.Background(), tc.input)
+			assert.True(t, <-taskDoneCh)
+		})
 	}
 }
 
@@ -555,7 +557,7 @@ func TestNode_Status(t *testing.T) {
 				mockSync.EXPECT().Commit().Return(blockChan).AnyTimes()
 				cnf.BlockSync = mockSync
 
-				cnf.RepoRoot = filepath.Join(t.TempDir(), "repo")
+				cnf.Repo.RepoRoot = filepath.Join(t.TempDir(), "repo")
 				newStack, err := adaptor.NewRBFTAdaptor(cnf)
 				assert.Nil(t, err)
 
@@ -629,7 +631,7 @@ func TestNode_Status(t *testing.T) {
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], pipes map[uint64]map[string]p2p.Pipe, consensusMsgPipes map[int32]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
 				waitSyncRespCh := make(chan bool, 1)
 				catchExpectLogOut(t, node.logger, "has reached state", waitSyncRespCh)
-				meta := node.getChainMetaFn()
+				meta := node.chainState.ChainMeta
 
 				remoteHandler := func(msg *consensus.ConsensusMessage, pipe p2p.Pipe, to string, id uint64) error {
 					if msg.Type == consensus.Type_SYNC_STATE {
@@ -707,7 +709,7 @@ func TestNode_Status(t *testing.T) {
 				mockSync.EXPECT().Commit().Return(blockChan).AnyTimes()
 				cnf.BlockSync = mockSync
 
-				cnf.RepoRoot = filepath.Join(t.TempDir(), "repo")
+				cnf.Repo.RepoRoot = filepath.Join(t.TempDir(), "repo")
 				newStack, err := adaptor.NewRBFTAdaptor(cnf)
 				assert.Nil(t, err)
 
@@ -742,16 +744,17 @@ func TestNode_Status(t *testing.T) {
 	}
 
 	for _, tc := range testCase {
-		t.Log(tc.name)
-		ctrl := gomock.NewController(t)
-		consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
-		tc.setupMocks(node, pipes, consensusMsgPipes, cnf, ctrl)
-		status := node.Status()
-		assert.Equal(t, tc.expectResult, status.Status)
-		if node.started.Load() {
-			node.Stop()
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
+			node := mockArchiveNode(consensusMsgPipes, cnf, t)
+			tc.setupMocks(node, pipes, consensusMsgPipes, cnf, ctrl)
+			status := node.Status()
+			assert.Equal(t, tc.expectResult, status.Status)
+			if node.started.Load() {
+				node.Stop()
+			}
+		})
 	}
 }
 
@@ -834,23 +837,20 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				return nil
 			},
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
-				broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-					return item.P2PNodeID
-				})
 				proposer := uint64(1)
 				poolBatch, txs := generateBatch(t)
 				lo.ForEach(txs, func(tx *types.Transaction, _ int) {
 					err := cnf.TxPool.AddLocalTx(tx)
 					assert.Nil(t, err)
 				})
-				remoteProposal(t, proposer, broadcastNodes, pipes, poolBatch, 2, 2)
+				remoteProposal(t, proposer, repo.MockP2PIDs, pipes, poolBatch, 2, 2)
 
 				// wait date sync node to receive messages
 				time.Sleep(10 * time.Millisecond)
 
 				for id := range pipes {
 					if id != node.selfID {
-						remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
 
@@ -907,16 +907,13 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 			},
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
 				mockSyncInStack(t, node, consensusMsgPipes, cnf, ctrl)
-				broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-					return item.P2PNodeID
-				})
 				proposer := uint64(1)
 				poolBatch, txs := generateBatch(t)
 				lo.ForEach(txs, func(tx *types.Transaction, _ int) {
 					err := cnf.TxPool.AddLocalTx(tx)
 					assert.Nil(t, err)
 				})
-				remoteProposal(t, proposer, broadcastNodes, pipes, poolBatch, 2, 2)
+				remoteProposal(t, proposer, repo.MockP2PIDs, pipes, poolBatch, 2, 2)
 
 				// wait date sync node to receive messages
 				time.Sleep(10 * time.Millisecond)
@@ -924,10 +921,9 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				node.statusMgr.On(InSyncState)
 				for id := range pipes {
 					if id != node.selfID {
-						remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
-
 			},
 		},
 		{
@@ -966,9 +962,6 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 			},
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
 				mockSyncInStack(t, node, consensusMsgPipes, cnf, ctrl)
-				broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-					return item.P2PNodeID
-				})
 				poolBatch, txs := generateBatch(t)
 				lo.ForEach(txs, func(tx *types.Transaction, _ int) {
 					err := cnf.TxPool.AddLocalTx(tx)
@@ -977,7 +970,7 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 
 				for id := range pipes {
 					if id != node.selfID {
-						remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
 			},
@@ -1053,9 +1046,6 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				return nil
 			},
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
-				broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-					return item.P2PNodeID
-				})
 				proposer := uint64(1)
 				poolBatch, txs := generateBatch(t)
 				missingTxM := make(map[uint64]*types.Transaction)
@@ -1067,14 +1057,14 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 					err := cnf.TxPool.AddLocalTx(tx)
 					assert.Nil(t, err)
 				})
-				remoteProposal(t, proposer, broadcastNodes, pipes, poolBatch, 2, 2)
+				remoteProposal(t, proposer, repo.MockP2PIDs, pipes, poolBatch, 2, 2)
 
 				// wait date sync node to receive messages
 				time.Sleep(10 * time.Millisecond)
 
 				for id := range pipes {
 					if id != node.selfID {
-						remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
 
@@ -1156,9 +1146,6 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				err = node.timeMgr.CreateTimer(fetchMissingTxsResp, 100*time.Millisecond, node.handleTimeout)
 				assert.Nil(t, err)
 
-				broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-					return item.P2PNodeID
-				})
 				proposer := uint64(1)
 				poolBatch, txs := generateBatch(t)
 				missingTxM := make(map[uint64]*types.Transaction)
@@ -1170,14 +1157,14 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 					err := cnf.TxPool.AddLocalTx(tx)
 					assert.Nil(t, err)
 				})
-				remoteProposal(t, proposer, broadcastNodes, pipes, poolBatch, 2, 2)
+				remoteProposal(t, proposer, repo.MockP2PIDs, pipes, poolBatch, 2, 2)
 
 				// wait date sync node to receive messages
 				time.Sleep(10 * time.Millisecond)
 
 				for id := range pipes {
 					if id != node.selfID {
-						remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
 
@@ -1236,7 +1223,6 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 
 		tc.setupMocks(node, consensusMsgPipes, pipes, cnf, ctrl)
 		assert.True(t, <-taskDoneCh)
-
 	}
 }
 
@@ -1270,30 +1256,6 @@ func TestNode_HandleTimeout(t *testing.T) {
 			expectResult: "timer syncStateRestart doesn't exist",
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
 				err := node.timeMgr.RemoveTimer(syncStateRestart)
-				assert.Nil(t, err)
-			},
-		},
-		{
-			name:         "initSyncState error",
-			input:        syncStateRestart,
-			expectResult: "pipe not exist",
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
-				s, err := types.GenerateSigner()
-				assert.Nil(t, err)
-				p2pID, err := repo.KeyToNodeID(s.Sk)
-				assert.Nil(t, err)
-				selfId := uint64(len(cnf.GenesisEpochInfo.DataSyncerSet)+len(cnf.GenesisEpochInfo.ValidatorSet)+len(cnf.GenesisEpochInfo.CandidateSet)) + 1
-				cnf.GetCurrentEpochInfoFromEpochMgrContractFunc = func() (*rbft.EpochInfo, error) {
-					currentEpochInfo := cnf.GenesisEpochInfo.Clone()
-					currentEpochInfo.CandidateSet = append(currentEpochInfo.CandidateSet, rbft.NodeInfo{
-						ID:                   selfId,
-						P2PNodeID:            p2pID,
-						AccountAddress:       s.Addr.String(),
-						ConsensusVotingPower: 10,
-					})
-					return currentEpochInfo, nil
-				}
-				err = node.stack.(*adaptor.RBFTAdaptor).UpdateEpoch()
 				assert.Nil(t, err)
 			},
 		},
@@ -1353,7 +1315,7 @@ func TestNode_HandleTimeout(t *testing.T) {
 			},
 		},
 		{
-			name:         "syncStateResp restart error",
+			name:         "syncStateResp restart error(timer syncStateResp doesn't exist)",
 			input:        syncStateResp,
 			expectResult: "timer syncStateResp doesn't exist",
 			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
@@ -1361,42 +1323,19 @@ func TestNode_HandleTimeout(t *testing.T) {
 				assert.Nil(t, err)
 			},
 		},
-		{
-			name:         "syncStateResp restart error",
-			input:        syncStateResp,
-			expectResult: "pipe not exist",
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction], consensusMsgPipes map[int32]p2p.Pipe, pipes map[uint64]map[string]p2p.Pipe, cnf *common.Config, ctrl *gomock.Controller) {
-				s, err := types.GenerateSigner()
-				assert.Nil(t, err)
-				p2pID, err := repo.KeyToNodeID(s.Sk)
-				assert.Nil(t, err)
-				selfId := uint64(len(cnf.GenesisEpochInfo.DataSyncerSet)+len(cnf.GenesisEpochInfo.ValidatorSet)+len(cnf.GenesisEpochInfo.CandidateSet)) + 1
-				cnf.GetCurrentEpochInfoFromEpochMgrContractFunc = func() (*rbft.EpochInfo, error) {
-					currentEpochInfo := cnf.GenesisEpochInfo.Clone()
-					currentEpochInfo.CandidateSet = append(currentEpochInfo.CandidateSet, rbft.NodeInfo{
-						ID:                   selfId,
-						P2PNodeID:            p2pID,
-						AccountAddress:       s.Addr.String(),
-						ConsensusVotingPower: 10,
-					})
-					return currentEpochInfo, nil
-				}
-				err = node.stack.(*adaptor.RBFTAdaptor).UpdateEpoch()
-				assert.Nil(t, err)
-			},
-		},
 	}
 
 	for _, tc := range testCases {
-		t.Log(tc.name)
-		ctrl := gomock.NewController(t)
-		consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
-		tc.setupMocks(node, consensusMsgPipes, pipes, cnf, ctrl)
-		taskDoneCh := make(chan bool, 1)
-		catchExpectLogOut(t, node.logger, tc.expectResult, taskDoneCh)
-		node.handleTimeout(tc.input)
-		assert.True(t, <-taskDoneCh)
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
+			node := mockArchiveNode(consensusMsgPipes, cnf, t)
+			tc.setupMocks(node, consensusMsgPipes, pipes, cnf, ctrl)
+			taskDoneCh := make(chan bool, 1)
+			catchExpectLogOut(t, node.logger, tc.expectResult, taskDoneCh)
+			node.handleTimeout(tc.input)
+			assert.True(t, <-taskDoneCh)
+		})
 	}
 }
 
@@ -1580,17 +1519,14 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 			err := cnf.TxPool.AddLocalTx(tx)
 			assert.Nil(t, err)
 		})
-		broadcastNodes := lo.Map(lo.Flatten([][]rbft.NodeInfo{cnf.GenesisEpochInfo.ValidatorSet, cnf.GenesisEpochInfo.CandidateSet, cnf.GenesisEpochInfo.DataSyncerSet}), func(item rbft.NodeInfo, index int) string {
-			return item.P2PNodeID
-		})
-		remoteProposal(t, proposer, broadcastNodes, pipes, poolBatch, 2, 2)
+		remoteProposal(t, proposer, repo.MockP2PIDs, pipes, poolBatch, 2, 2)
 
 		// wait date sync node to receive messages
 		time.Sleep(10 * time.Millisecond)
 
 		for id := range pipes {
 			if id != node.selfID {
-				remoteReportCheckpoint(t, id, broadcastNodes, pipes, poolBatch.BatchHash, 2)
+				remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 			}
 		}
 
@@ -1619,8 +1555,8 @@ func TestNode_ProcessEvent(t *testing.T) {
 				EventType: eventType_consensusMessage,
 				Event:     "wrong event",
 			},
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {
-			},
+			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {},
+
 			expectResult: "invalid event type",
 		},
 		{
@@ -1629,8 +1565,8 @@ func TestNode_ProcessEvent(t *testing.T) {
 				EventType: eventType_syncBlock,
 				Event:     "wrong event",
 			},
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {
-			},
+			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {},
+
 			expectResult: "invalid event type",
 		},
 		{
@@ -1639,8 +1575,8 @@ func TestNode_ProcessEvent(t *testing.T) {
 				EventType: eventType_epochSync,
 				Event:     "wrong event",
 			},
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {
-			},
+			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {},
+
 			expectResult: "invalid event type",
 		},
 		{
@@ -1649,8 +1585,8 @@ func TestNode_ProcessEvent(t *testing.T) {
 				EventType: eventType_stateUpdated,
 				Event:     "wrong event",
 			},
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {
-			},
+			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {},
+
 			expectResult: "invalid event type",
 		},
 		{
@@ -1659,8 +1595,8 @@ func TestNode_ProcessEvent(t *testing.T) {
 				EventType: eventType_executed,
 				Event:     "wrong event",
 			},
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {
-			},
+			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {},
+
 			expectResult: "invalid event type",
 		},
 		{
@@ -1672,8 +1608,8 @@ func TestNode_ProcessEvent(t *testing.T) {
 					Epoch: 1,
 				},
 			},
-			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {
-			},
+			setupMocks: func(node *Node[types.Transaction, *types.Transaction]) {},
+
 			expectResult: "Replica 5 need to start sync state progress",
 		},
 

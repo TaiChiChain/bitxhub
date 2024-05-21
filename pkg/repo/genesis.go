@@ -1,124 +1,88 @@
 package repo
 
 import (
-	"fmt"
-	"math/big"
 	"os"
 	"path"
+	"time"
 
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/axiomesh/axiom-kit/types"
 )
 
-type GenesisConfig struct {
-	ChainID                uint64          `mapstructure:"chainid" toml:"chainid"`
-	Timestamp              int64           `mapstructure:"timestamp" toml:"timestamp"`
-	Axm                    *Token          `mapstructure:"axm" toml:"axm"`
-	Axc                    *Token          `mapstructure:"axc" toml:"axc"`
-	Incentive              *Incentive      `mapstructure:"incentive" toml:"incentive"`
-	Admins                 []*Admin        `mapstructure:"admins" toml:"admins"`
-	SmartAccountAdmin      string          `mapstructure:"smart_account_admin" toml:"smart_account_admin"`
-	InitWhiteListProviders []string        `mapstructure:"init_white_list_providers" toml:"init_white_list_providers"`
-	Accounts               []*Account      `mapstructure:"accounts" toml:"accounts"`
-	EpochInfo              *rbft.EpochInfo `mapstructure:"epoch_info" toml:"epoch_info"`
-	NodeNames              []*NodeName     `mapstructure:"node_names" toml:"node_names"`
+type GenesisNodeMetaData struct {
+	Name       string `mapstructure:"name" toml:"name"`
+	Desc       string `mapstructure:"desc" toml:"desc"`
+	ImageURL   string `mapstructure:"image_url" toml:"image_url"`
+	WebsiteURL string `mapstructure:"website_url" toml:"website_url"`
 }
 
-type Account struct {
-	Address string `mapstructure:"address" toml:"address"`
-	Balance string `mapstructure:"balance" toml:"balance"`
+type GenesisNodeInfo struct {
+	// Use BLS12-381(Use of new consensus algorithm)
+	ConsensusPubKey string `mapstructure:"consensus_pubkey" toml:"consensus_pubkey"`
+
+	// Use ed25519(Currently used in consensus and p2p)
+	P2PPubKey string `mapstructure:"p2p_pubkey" toml:"p2p_pubkey"`
+
+	// Operator address, with permission to manage node (can update)
+	OperatorAddress string `mapstructure:"operator_address" toml:"operator_address"`
+
+	// Meta data (can update)
+	MetaData GenesisNodeMetaData `mapstructure:"metadata" toml:"metadata"`
+
+	IsDataSyncer   bool              `mapstructure:"is_data_syncer" toml:"is_data_syncer"`
+	StakeNumber    *types.CoinNumber `mapstructure:"stake_number" toml:"stake_number"`
+	CommissionRate uint64            `mapstructure:"commission_rate" toml:"commission_rate"`
+}
+
+type GenesisConfig struct {
+	ChainID            uint64            `mapstructure:"chainid" toml:"chainid"`
+	Timestamp          int64             `mapstructure:"timestamp" toml:"timestamp"`
+	Axc                *Token            `mapstructure:"axc" toml:"axc"`
+	Incentive          *Incentive        `mapstructure:"incentive" toml:"incentive"`
+	CouncilMembers     []*CouncilMember  `mapstructure:"council_members" toml:"council_members"`
+	SmartAccountAdmin  string            `mapstructure:"smart_account_admin" toml:"smart_account_admin"`
+	WhitelistProviders []string          `mapstructure:"whitelist_providers" toml:"whitelist_providers"`
+	EpochInfo          *types.EpochInfo  `mapstructure:"epoch_info" toml:"epoch_info"`
+	Nodes              []GenesisNodeInfo `mapstructure:"nodes" toml:"nodes"`
+	Accounts           []*Account        `mapstructure:"accounts" toml:"accounts"`
 }
 
 type Token struct {
-	Name        string `mapstructure:"name" toml:"name"`
-	Symbol      string `mapstructure:"symbol" toml:"symbol"`
-	Decimals    uint8  `mapstructure:"decimals" toml:"decimals"`
-	TotalSupply string `mapstructure:"total_supply" toml:"total_supply"`
+	TotalSupply *types.CoinNumber `mapstructure:"total_supply" toml:"total_supply"`
 }
 
 type Incentive struct {
-	Mining          *Mining          `mapstructure:"mining" toml:"mining"`
-	UserAcquisition *UserAcquisition `mapstructure:"user_acquisition" toml:"user_acquisition"`
-	Distributions   []*Distribution  `mapstructure:"distributions" toml:"distributions"`
+	Referral *Referral `mapstructure:"referral" toml:"referral"`
 }
 
-type Mining struct {
-	BlockNumToHalf uint64 `mapstructure:"block_num_to_half" toml:"block_num_to_half"`
-	BlockNumToNone uint64 `mapstructure:"block_num_to_none" toml:"block_num_to_none"`
-	TotalAmount    string `mapstructure:"total_amount" toml:"total_amount"`
-}
-
-type UserAcquisition struct {
+type Referral struct {
 	AvgBlockReward string `mapstructure:"avg_block_reward" toml:"avg_block_reward"`
 	BlockToNone    uint64 `mapstructure:"block_to_none" toml:"block_to_none"`
 }
 
-type Distribution struct {
-	Name         string  `mapstructure:"name" toml:"name"`
-	Addr         string  `mapstructure:"addr" toml:"addr"`
-	Percentage   float64 `mapstructure:"percentage" toml:"percentage"`
-	InitEmission float64 `mapstructure:"init_emission" toml:"init_emission"`
-	Locked       bool    `mapstructure:"locked" toml:"locked"`
-}
-
-type Admin struct {
+type CouncilMember struct {
 	Address string `mapstructure:"address" toml:"address"`
 	Weight  uint64 `mapstructure:"weight" toml:"weight"`
 	Name    string `mapstructure:"name" toml:"name"`
 }
 
-type NodeName struct {
-	ID   uint64 `mapstructure:"id" toml:"id"`
-	Name string `mapstructure:"name" toml:"name"`
+type Account struct {
+	Address string            `mapstructure:"address" toml:"address"`
+	Balance *types.CoinNumber `mapstructure:"balance" toml:"balance"`
 }
 
-func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
-	var candidateSet, validatorSet []rbft.NodeInfo
-	if epochEnable {
-		candidateSet = lo.Map(DefaultNodeAddrs[4:], func(item string, idx int) rbft.NodeInfo {
-			idx += 4
-			return rbft.NodeInfo{
-				ID:                   uint64(idx + 1),
-				AccountAddress:       DefaultNodeAddrs[idx],
-				P2PNodeID:            defaultNodeIDs[idx],
-				ConsensusVotingPower: int64(len(DefaultNodeAddrs)-idx) * 1000,
-			}
-		})
-		validatorSet = lo.Map(DefaultNodeAddrs[0:4], func(item string, idx int) rbft.NodeInfo {
-			return rbft.NodeInfo{
-				ID:                   uint64(idx + 1),
-				AccountAddress:       DefaultNodeAddrs[idx],
-				P2PNodeID:            defaultNodeIDs[idx],
-				ConsensusVotingPower: int64(len(DefaultNodeAddrs)-idx) * 1000,
-			}
-		})
-	} else {
-		validatorSet = lo.Map(DefaultNodeAddrs[0:4], func(item string, idx int) rbft.NodeInfo {
-			return rbft.NodeInfo{
-				ID:                   uint64(idx + 1),
-				AccountAddress:       DefaultNodeAddrs[idx],
-				P2PNodeID:            defaultNodeIDs[idx],
-				ConsensusVotingPower: 1000,
-			}
-		})
-	}
-
-	return &rbft.EpochInfo{
-		Version:     1,
+func GenesisEpochInfo() *types.EpochInfo {
+	return &types.EpochInfo{
 		Epoch:       1,
 		EpochPeriod: 100,
-		StartBlock:  1,
-		P2PBootstrapNodeAddresses: lo.Map(defaultNodeIDs[0:4], func(item string, idx int) string {
-			return fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/p2p/%s", 4001+idx, item)
-		}),
-		ConsensusParams: rbft.ConsensusParams{
-			ProposerElectionType:          rbft.ProposerElectionTypeWRF,
-			ValidatorElectionType:         rbft.ValidatorElectionTypeWRF,
+		StartBlock:  0,
+		ConsensusParams: types.ConsensusParams{
+			ProposerElectionType:          types.ProposerElectionTypeWRF,
 			CheckpointPeriod:              1,
 			HighWatermarkCheckpointPeriod: 10,
+			MinValidatorNum:               4,
 			MaxValidatorNum:               4,
 			BlockMaxTxNum:                 500,
 			EnableTimedGenEmptyBlock:      false,
@@ -128,117 +92,60 @@ func GenesisEpochInfo(epochEnable bool) *rbft.EpochInfo {
 			ContinuousNullRequestToleranceNumber:               3,
 			ReBroadcastToleranceNumber:                         2,
 		},
-		CandidateSet: candidateSet,
-		ValidatorSet: validatorSet,
-		FinanceParams: rbft.FinanceParams{
-			GasLimit:               0x5f5e100,
-			StartGasPriceAvailable: true,
-			StartGasPrice:          DefaultStartGasPrice,
-			MaxGasPrice:            DefaultMaxGasPrice,
-			MinGasPrice:            DefaultMinGasPrice,
-			GasChangeRateValue:     0,
-			GasChangeRateDecimals:  4,
+		FinanceParams: types.FinanceParams{
+			GasLimit:    0x5f5e100,
+			MinGasPrice: DefaultMinGasPrice,
 		},
-		MiscParams: rbft.MiscParams{
+		StakeParams: types.StakeParams{
+			StakeEnable:           true,
+			MaxAddStakeRatio:      1000,
+			MaxUnlockStakeRatio:   1000,
+			MaxUnlockingRecordNum: 5,
+			// 3 days
+			UnlockPeriod:                     uint64(3*24*time.Hour) / uint64(time.Second),
+			MaxPendingInactiveValidatorRatio: 1000,
+			MinDelegateStake:                 types.CoinNumberByAxc(100),
+			MinValidatorStake:                types.CoinNumberByAxc(10000000),
+			MaxValidatorStake:                types.CoinNumberByAxc(50000000),
+		},
+		MiscParams: types.MiscParams{
 			TxMaxSize: DefaultTxMaxSize,
 		},
 	}
 }
 
-func DefaultGenesisConfig(epochEnable bool) *GenesisConfig {
+func DefaultGenesisConfig() *GenesisConfig {
 	if testNetGenesisBuilder, ok := TestNetGenesisConfigBuilderMap[BuildNet]; ok {
 		return testNetGenesisBuilder()
 	}
-	axmBalance, _ := new(big.Int).SetString(DefaultAXMBalance, 10)
-	adminLen := 4
-	accountAddrs := []string{
-		"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-		"0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-		"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-		"0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-		"0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
-		"0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
-		"0x976EA74026E726554dB657fA54763abd0C3a0aa9",
-		"0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
-		"0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
-		"0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
-		"0xBcd4042DE499D14e55001CcbB24a551F3b954096",
-		"0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
-		"0xFABB0ac9d68B0B445fB7357272Ff202C5651694a",
-		"0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec",
-		"0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097",
-		"0xcd3B766CCDd6AE721141F452C550Ca635964ce71",
-		"0x2546BcD3c84621e976D8185a91A922aE77ECEc30",
-		"0xbDA5747bFD65F08deb54cb465eB87D40e51B197E",
-		"0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
-		"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
-	}
+	return defaultGenesisConfig()
+}
 
-	adminAddrs := DefaultNodeAddrs[0:adminLen]
-	// adminAddrs + accountAddrs
-	allAccounts := append(adminAddrs, accountAddrs...)
-
-	accounts := lo.Map(allAccounts, func(addr string, idx int) *Account {
-		return &Account{
-			Address: addr,
-			Balance: axmBalance.String(),
-		}
-	})
-
-	totalSupply := new(big.Int).Mul(axmBalance, big.NewInt(int64(len(allAccounts))))
+func defaultGenesisConfig() *GenesisConfig {
 	return &GenesisConfig{
 		ChainID:   1356,
 		Timestamp: 1704038400,
-		Admins: lo.Map(DefaultNodeAddrs[0:adminLen], func(item string, idx int) *Admin {
-			return &Admin{
-				Address: item,
-				Weight:  1,
-				Name:    DefaultAdminNames[idx],
-			}
-		}),
-		SmartAccountAdmin: DefaultNodeAddrs[0],
-		Axm: &Token{
-			Name:        "Axiom",
-			Symbol:      "AXM",
-			Decimals:    DefaultDecimals,
-			TotalSupply: totalSupply.String(),
-		},
 		Axc: &Token{
-			Name:        "Axiomesh Credit",
-			Symbol:      "axc",
-			Decimals:    DefaultDecimals,
-			TotalSupply: DefaultAXCTotalSupply,
+			TotalSupply: DefaultAXCBalance,
 		},
 		Incentive: &Incentive{
-			Mining: &Mining{
-				BlockNumToHalf: 126144000,
-				BlockNumToNone: 630720001,
-				TotalAmount:    "40000000000000000000000000",
+			Referral: &Referral{
+				AvgBlockReward: "0",
+				BlockToNone:    0,
 			},
-			UserAcquisition: &UserAcquisition{
-				AvgBlockReward: "126000000000000000",
-				BlockToNone:    315360000,
-			},
-			Distributions: lo.Map(DefaultAXCDistribution, func(item Distribution, _ int) *Distribution {
-				return &Distribution{
-					Name:         item.Name,
-					Addr:         item.Addr,
-					Percentage:   item.Percentage,
-					InitEmission: item.InitEmission,
-					Locked:       item.Locked,
-				}
-			}),
 		},
-		NodeNames:              GenesisNodeNameInfo(epochEnable),
-		InitWhiteListProviders: DefaultNodeAddrs,
-		Accounts:               accounts,
-		EpochInfo:              GenesisEpochInfo(epochEnable),
+		CouncilMembers:     []*CouncilMember{},
+		SmartAccountAdmin:  "0x0000000000000000000000000000000000000000",
+		WhitelistProviders: []string{},
+		EpochInfo:          GenesisEpochInfo(),
+		Accounts:           []*Account{},
+		Nodes:              []GenesisNodeInfo{},
 	}
 }
 
 func LoadGenesisConfig(repoRoot string) (*GenesisConfig, error) {
 	genesis, err := func() (*GenesisConfig, error) {
-		genesis := DefaultGenesisConfig(false)
+		genesis := DefaultGenesisConfig()
 		cfgPath := path.Join(repoRoot, genesisCfgFileName)
 		existConfig := fileutil.Exist(cfgPath)
 		if !existConfig {
@@ -254,7 +161,7 @@ func LoadGenesisConfig(repoRoot string) (*GenesisConfig, error) {
 			if err := CheckWritable(repoRoot); err != nil {
 				return nil, err
 			}
-			if err := readConfigFromFile(cfgPath, genesis); err != nil {
+			if err := ReadConfigFromFile(cfgPath, genesis); err != nil {
 				return nil, err
 			}
 		}
@@ -265,21 +172,4 @@ func LoadGenesisConfig(repoRoot string) (*GenesisConfig, error) {
 		return nil, errors.Wrap(err, "failed to load genesis config")
 	}
 	return genesis, nil
-}
-
-func GenesisNodeNameInfo(epochEnable bool) []*NodeName {
-	var nodes []*NodeName
-	var sliceLength int
-	if epochEnable {
-		sliceLength = len(DefaultNodeAddrs)
-	} else {
-		sliceLength = 4
-	}
-	nodes = lo.Map(DefaultNodeAddrs[:sliceLength], func(item string, idx int) *NodeName {
-		return &NodeName{
-			Name: DefaultNodeNames[idx],
-			ID:   uint64(idx + 1),
-		}
-	})
-	return nodes
 }

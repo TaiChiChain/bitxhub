@@ -16,11 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
@@ -28,24 +26,13 @@ import (
 	p2p "github.com/axiomesh/axiom-p2p"
 )
 
-func TestSwarm_OtherPeers(t *testing.T) {
-	peerCnt := 4
-	swarms := newMockSwarms(t, peerCnt, false)
-	defer stopSwarms(t, swarms)
-
-	for swarms[0].CountConnectedValidators() != 3 {
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
 func TestVersionCheck(t *testing.T) {
 	peerCnt := 4
 	// pass true to change the last Node's version
 	swarms := newMockSwarms(t, peerCnt, true)
-	defer stopSwarms(t, swarms)
-	for swarms[0].CountConnectedValidators() != 3 {
-		time.Sleep(100 * time.Millisecond)
-	}
+	defer func() {
+		_ = stopSwarms(t, swarms)
+	}()
 
 	msg := &pb.Message{Type: pb.Message_SYNC_STATE_REQUEST, Data: []byte(strconv.Itoa(1))}
 	_, err := swarms[0].Send(swarms[1].PeerID(), msg)
@@ -117,12 +104,11 @@ func TestSwarm_OnConnected(t *testing.T) {
 }
 
 func generateMockConfig(t *testing.T) *repo.GenesisConfig {
-	r, err := repo.Default(t.TempDir())
-	assert.Nil(t, err)
+	r := repo.MockRepo(t)
 	config := r.GenesisConfig
 
 	for i := 0; i < 4; i++ {
-		config.Admins = append(config.Admins, &repo.Admin{
+		config.CouncilMembers = append(config.CouncilMembers, &repo.CouncilMember{
 			Address: types.NewAddress([]byte{byte(1)}).String(),
 		})
 	}
@@ -145,55 +131,15 @@ func getAddr(p2p p2p.Network) (peer.AddrInfo, error) {
 
 func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl {
 	var swarms []*networkImpl
-	mockCtl := gomock.NewController(t)
-	chainLedger := mock_ledger.NewMockChainLedger(mockCtl)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-	mockLedger := &ledger.Ledger{
-		ChainLedger: chainLedger,
-		StateLedger: stateLedger,
-	}
-
-	chainLedger.EXPECT().GetBlock(gomock.Any()).Return(&types.Block{
-		Header: &types.BlockHeader{
-			Number: 1,
-		},
-	}, nil).AnyTimes()
-
-	chainLedger.EXPECT().GetBlockHeader(gomock.Any()).Return(&types.BlockHeader{
-		Number: 1,
-	}, nil).AnyTimes()
-
-	chainLedger.EXPECT().GetTransaction(gomock.Any()).Return(&types.Transaction{}, nil).AnyTimes()
-	stateLedger.EXPECT().NewView(gomock.Any(), gomock.Any()).Return(stateLedger, nil).AnyTimes()
-	chainLedger.EXPECT().GetChainMeta().Return(&types.ChainMeta{Height: 1, BlockHash: types.NewHashByStr("")}).AnyTimes()
-	stateLedger.EXPECT().GetState(gomock.Any(), gomock.Any()).DoAndReturn(func(addr *types.Address, key []byte) (bool, []byte) {
-		return false, nil
-	}).AnyTimes()
-
-	account := ledger.NewMockAccount(1, types.NewAddressByStr(common.EpochManagerContractAddr))
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-
-	epochInfo := repo.GenesisEpochInfo(true)
-	epochInfo.CandidateSet = append(epochInfo.CandidateSet, rbft.NodeInfo{
-		ID:             9,
-		P2PNodeID:      "16Uiu2HAmSBJ7tARZkRT3KS41KPuEbGYZvDXdSzTj8b31gQYYGs9a",
-		AccountAddress: "0xD1AEFdf2195f2457A6a675068Cad98B67Eb54e68",
-	})
-	err := base.InitEpochInfo(mockLedger.StateLedger, epochInfo)
-	assert.Nil(t, err)
-
 	var addrs []peer.AddrInfo
 	for i := 0; i < peerCnt; i++ {
-		rep, err := repo.DefaultWithNodeIndex(t.TempDir(), i, true, repo.DefaultKeyJsonPassword)
-		require.Nil(t, err)
+		rep := repo.MockRepoWithNodeID(t, peerCnt, uint64(i+1), repo.MockDefaultIsDataSyncers, repo.MockDefaultStakeNumbers)
 		if versionChange && i == peerCnt-1 {
 			repo.BuildVersionSecret = "Shanghai"
 		}
 
 		rep.Config.Port.P2P = 0
-		rep.GenesisConfig.EpochInfo.P2PBootstrapNodeAddresses = []string{}
-		rep.EpochInfo.P2PBootstrapNodeAddresses = []string{}
-		swarm, err := newNetworkImpl(rep, log.NewWithModule(fmt.Sprintf("swarm%d", i)), mockLedger)
+		swarm, err := newNetworkImpl(rep, log.NewWithModule(fmt.Sprintf("swarm%d", i)))
 		require.Nil(t, err)
 		err = swarm.Start()
 		require.Nil(t, err)
@@ -207,9 +153,15 @@ func newMockSwarms(t *testing.T, peerCnt int, versionChange bool) []*networkImpl
 	for i := 0; i < peerCnt; i++ {
 		for j := 0; j < peerCnt; j++ {
 			if i != j {
-				err = swarms[i].p2p.Connect(addrs[j])
+				err := swarms[i].p2p.Connect(addrs[j])
 				require.Nil(t, err)
 			}
+		}
+	}
+
+	for i := 0; i < peerCnt; i++ {
+		for len(swarms[i].p2p.GetPeers()) != 4 {
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 
@@ -224,37 +176,12 @@ func stopSwarms(t *testing.T, swarms []*networkImpl) error {
 	return nil
 }
 
-func TestSwarm_Gater(t *testing.T) {
-	peerCnt := 4
-	swarms := newMockSwarms(t, peerCnt, false)
-	defer stopSwarms(t, swarms)
-
-	for swarms[0].CountConnectedValidators() != 3 {
-		time.Sleep(100 * time.Millisecond)
-	}
-	gater := newConnectionGater(swarms[0].logger, swarms[0].ledger)
-	require.False(t, gater.InterceptPeerDial("1"))
-	for _, validator := range swarms[0].repo.EpochInfo.ValidatorSet {
-		peerID, err := peer.Decode(validator.P2PNodeID)
-		require.Nil(t, err)
-		require.True(t, gater.InterceptPeerDial(peerID))
-	}
-	for _, candidate := range swarms[0].repo.EpochInfo.CandidateSet {
-		peerID, err := peer.Decode(candidate.P2PNodeID)
-		require.Nil(t, err)
-		require.True(t, gater.InterceptPeerDial(peerID))
-	}
-	require.True(t, gater.InterceptAccept(nil))
-}
-
 func TestSwarm_Send(t *testing.T) {
 	peerCnt := 4
 	swarms := newMockSwarms(t, peerCnt, false)
-	defer stopSwarms(t, swarms)
-
-	for swarms[0].CountConnectedValidators() != 3 {
-		time.Sleep(100 * time.Millisecond)
-	}
+	defer func() {
+		_ = stopSwarms(t, swarms)
+	}()
 
 	err := swarms[1].RegisterMsgHandler(pb.Message_SYNC_STATE_REQUEST, func(stream p2p.Stream, msg *pb.Message) {
 		resp := &pb.Message{
@@ -289,11 +216,9 @@ func TestSwarm_Send(t *testing.T) {
 func TestSwarm_RegisterMsgHandler(t *testing.T) {
 	peerCnt := 4
 	swarms := newMockSwarms(t, peerCnt, false)
-	defer stopSwarms(t, swarms)
-
-	for swarms[0].CountConnectedValidators() != 3 {
-		time.Sleep(100 * time.Millisecond)
-	}
+	defer func() {
+		_ = stopSwarms(t, swarms)
+	}()
 
 	t.Run("register msg handler with nil handler", func(t *testing.T) {
 		err := swarms[1].RegisterMsgHandler(pb.Message_SYNC_STATE_REQUEST, nil)
@@ -341,11 +266,9 @@ func TestSwarm_RegisterMsgHandler(t *testing.T) {
 func TestSwarm_RegisterMultiMsgHandler(t *testing.T) {
 	peerCnt := 4
 	swarms := newMockSwarms(t, peerCnt, false)
-	defer stopSwarms(t, swarms)
-
-	for swarms[0].CountConnectedValidators() != 3 {
-		time.Sleep(100 * time.Millisecond)
-	}
+	defer func() {
+		_ = stopSwarms(t, swarms)
+	}()
 
 	err := swarms[1].RegisterMultiMsgHandler([]pb.Message_Type{pb.Message_SYNC_BLOCK_REQUEST, pb.Message_SYNC_STATE_REQUEST}, func(stream p2p.Stream, msg *pb.Message) {
 		var resp *pb.Message

@@ -8,7 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -20,7 +20,7 @@ type Snapshot struct {
 
 	accountSnapshotCache  *storagemgr.CacheWrapper
 	contractSnapshotCache *storagemgr.CacheWrapper
-	backend               storage.Storage
+	backend               kv.Storage
 
 	lock sync.RWMutex
 
@@ -36,7 +36,7 @@ var (
 // maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
 const maxBatchSize = 64 * 1024 * 1024
 
-func NewSnapshot(rep *repo.Repo, backend storage.Storage, logger logrus.FieldLogger) *Snapshot {
+func NewSnapshot(rep *repo.Repo, backend kv.Storage, logger logrus.FieldLogger) *Snapshot {
 	return &Snapshot{
 		rep:                   rep,
 		accountSnapshotCache:  storagemgr.NewCacheWrapper(rep.Config.Snapshot.AccountSnapshotCacheMegabytesLimit, true),
@@ -165,7 +165,7 @@ func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, dest
 
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, height), data)
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(height))
-	if height == 1 {
+	if height == 0 {
 		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalHeight(height))
 	}
 	batch.Commit()
@@ -185,16 +185,11 @@ func (snap *Snapshot) Rollback(height uint64) error {
 	minHeight, maxHeight := snap.GetJournalRange()
 	snap.logger.Infof("[Snapshot-Rollback] minHeight=%v,maxHeight=%v,height=%v", minHeight, maxHeight, height)
 
-	// empty snapshot, no-op
-	if minHeight == 0 && maxHeight == 0 {
-		return nil
-	}
-
 	if maxHeight < height {
 		return ErrorRollbackToHigherNumber
 	}
 
-	if minHeight > height && !(minHeight == 1 && height == 0) {
+	if minHeight > height {
 		return ErrorRollbackTooMuch
 	}
 
@@ -238,6 +233,6 @@ func (snap *Snapshot) ResetMetrics() {
 	snap.accountSnapshotCache.ResetCounterMetrics()
 }
 
-func (snap *Snapshot) Batch() storage.Batch {
+func (snap *Snapshot) Batch() kv.Batch {
 	return snap.backend.NewBatch()
 }

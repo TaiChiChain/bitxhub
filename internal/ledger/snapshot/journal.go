@@ -1,12 +1,12 @@
 package snapshot
 
 import (
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 )
 
-func revertJournal(journal *types.SnapshotJournalEntry, batch storage.Batch) {
+func revertJournal(journal *types.SnapshotJournalEntry, batch kv.Batch) {
 	if !journal.AccountChanged {
 		return
 	}

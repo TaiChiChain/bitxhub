@@ -20,6 +20,7 @@ import (
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -158,7 +159,7 @@ func (api *TracerAPI) traceTx(message *core.Message, txctx *tracers.Context, vmc
 	}()
 	defer cancel()
 
-	// Call Prepare to clear out the statedb access list
+	// CrossCallEVMContract Prepare to clear out the statedb access list
 	statedb.SetTxContext(types.NewHash(txctx.BlockHash.Bytes()), txctx.TxIndex)
 	if _, err = core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.GasLimit)); err != nil {
 		api.logger.Errorf("trace failed: %w", err)
@@ -196,7 +197,7 @@ func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.Blo
 		return nil, err
 	}
 
-	vmctx := executor.NewEVMBlockContextAdaptor(blockHeader.Number, uint64(blockHeader.Timestamp), blockHeader.ProposerAccount, nil)
+	vmctx := executor.NewEVMBlockContextAdaptor(blockHeader.Number, uint64(blockHeader.Timestamp), syscommon.StakingManagerContractAddr, nil)
 	// Apply the customization rules if required.
 	if config != nil {
 		if err := config.StateOverrides.Apply(statedb); err != nil {

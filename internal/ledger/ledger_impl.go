@@ -5,9 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -29,7 +28,7 @@ type SnapInfo struct {
 	SnapBlockHeader *types.BlockHeader
 }
 
-func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, snapshot storage.Storage, bf *blockfile.BlockFile) (*Ledger, error) {
+func NewLedgerWithStores(repo *repo.Repo, blockchainStore kv.Storage, ldb, snapshot kv.Storage, bf blockfile.BlockFile) (*Ledger, error) {
 	var err error
 	ledger := &Ledger{}
 	if blockchainStore != nil || bf != nil {
@@ -70,12 +69,12 @@ func NewLedgerWithStores(repo *repo.Repo, blockchainStore storage.Storage, ldb, 
 	return ledger, nil
 }
 
-func NewLedger(rep *repo.Repo) (*Ledger, error) {
-	return NewLedgerWithStores(rep, nil, nil, nil, nil)
+func NewMemory(repo *repo.Repo) (*Ledger, error) {
+	return NewLedgerWithStores(repo, kv.NewMemory(), kv.NewMemory(), kv.NewMemory(), blockfile.NewMemory())
 }
 
-func (l *Ledger) WithGetEpochInfoFunc(f func(lg StateLedger, epoch uint64) (*rbft.EpochInfo, error)) {
-	l.StateLedger.(*StateLedgerImpl).WithGetEpochInfoFunc(f)
+func NewLedger(rep *repo.Repo) (*Ledger, error) {
+	return NewLedgerWithStores(rep, nil, nil, nil, nil)
 }
 
 // PersistBlockData persists block data
@@ -94,16 +93,15 @@ func (l *Ledger) PersistBlockData(blockData *BlockData) {
 
 // Rollback rollback ledger to history version
 func (l *Ledger) Rollback(height uint64) error {
-	var stateRoot *types.Hash
-	if height != 0 {
-		blockHeader, err := l.ChainLedger.GetBlockHeader(height)
-		if err != nil {
-			return fmt.Errorf("rollback state to height %d failed: %w", height, err)
-		}
-		stateRoot = blockHeader.StateRoot
+	if l.ChainLedger.GetChainMeta().BlockHash == nil {
+		return nil
+	}
+	blockHeader, err := l.ChainLedger.GetBlockHeader(height)
+	if err != nil {
+		return fmt.Errorf("rollback state to height %d failed: %w", height, err)
 	}
 
-	if err := l.StateLedger.RollbackState(height, stateRoot); err != nil {
+	if err := l.StateLedger.RollbackState(height, blockHeader.StateRoot); err != nil {
 		return fmt.Errorf("rollback state to height %d failed: %w", height, err)
 	}
 

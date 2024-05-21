@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	log2 "github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 // nolint
@@ -28,7 +29,10 @@ var to = types.NewAddressByStr("0xa2f28344131970356c4a112d1e634e51589aa57c")
 // nolint
 func mockTxPoolImpl[T any, Constraint types.TXConstraint[T]](t *testing.T) *txPoolImpl[T, Constraint] {
 	ast := assert.New(t)
-	pool, err := newTxPoolImpl[T, Constraint](NewMockTxPoolConfig(t))
+	r := repo.MockRepo(t)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.EpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByMol(0)
+	pool, err := newTxPoolImpl[T, Constraint](NewMockTxPoolConfig(t), chainState)
 	ast.Nil(err)
 	conf := txpool.ConsensusConfig{
 		SelfID: 1,
@@ -44,7 +48,11 @@ func mockTxPoolImplWithTyp[T any, Constraint types.TXConstraint[T]](t *testing.T
 	ast := assert.New(t)
 	poolConf := NewMockTxPoolConfig(t)
 	poolConf.GenerateBatchType = typ
-	pool, err := newTxPoolImpl[T, Constraint](poolConf)
+	r := repo.MockRepo(t)
+	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
+	chainState.EpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByMol(defaultGasPrice)
+
+	pool, err := newTxPoolImpl[T, Constraint](poolConf, chainState)
 	ast.Nil(err)
 	conf := txpool.ConsensusConfig{
 		SelfID: 1,

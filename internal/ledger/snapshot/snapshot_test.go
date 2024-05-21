@@ -2,16 +2,14 @@ package snapshot
 
 import (
 	"math/big"
-	"path/filepath"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/storage/pebble"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -19,9 +17,7 @@ import (
 
 func TestNormalCase(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
@@ -77,7 +73,7 @@ func TestNormalCase(t *testing.T) {
 		"key3": []byte("val33"),
 	}
 
-	err = snapshot.Update(1, nil, destructSet, accountSet, storageSet)
+	err := snapshot.Update(1, nil, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -116,9 +112,7 @@ func TestNormalCase(t *testing.T) {
 
 func TestStateTransit(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
@@ -152,7 +146,7 @@ func TestStateTransit(t *testing.T) {
 		"key2": []byte("val2"),
 	}
 
-	err = snapshot.Update(1, nil, destructSet, accountSet, storageSet)
+	err := snapshot.Update(1, nil, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -206,9 +200,7 @@ func TestStateTransit(t *testing.T) {
 
 func TestRollback(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
@@ -256,7 +248,7 @@ func TestRollback(t *testing.T) {
 		PrevStates:     nil,
 	})
 
-	err = snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
+	err := snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -318,7 +310,7 @@ func TestRollback(t *testing.T) {
 			"key1": []byte("val1"),
 			"key2": []byte("val2"),
 			"key3": nil,
-			//"key4": make([]byte, maxBatchSize+1),
+			// "key4": make([]byte, maxBatchSize+1),
 		},
 	})
 
@@ -347,7 +339,6 @@ func TestRollback(t *testing.T) {
 	require.Equal(t, a2k3, []byte("val3"))
 
 	t.Run("rollback to state 1", func(t *testing.T) {
-
 		err = snapshot.Rollback(1)
 		require.Nil(t, err)
 
@@ -399,9 +390,7 @@ func TestRollback(t *testing.T) {
 
 func TestRemoveJournal(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 
@@ -449,7 +438,7 @@ func TestRemoveJournal(t *testing.T) {
 		PrevStates:     nil,
 	})
 
-	err = snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
+	err := snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -535,9 +524,7 @@ func TestRemoveJournal(t *testing.T) {
 
 func TestEmptySnapshot(t *testing.T) {
 	logger := log.NewWithModule("snapshot_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	snapshot := NewSnapshot(createMockRepo(t), pStateStorage, logger)
 	minHeight, maxHeight := snapshot.GetJournalRange()
@@ -563,7 +550,7 @@ func isEqualAccount(a1 *types.InnerAccount, a2 *types.InnerAccount) bool {
 	if a1 == nil && a2 == nil {
 		return true
 	}
-	if a1 == nil && a2 != nil || a1 != nil && a2 == nil {
+	if (a1 == nil && a2 != nil) || (a1 != nil && a2 == nil) {
 		return false
 	}
 
@@ -583,7 +570,6 @@ func isEqualAccount(a1 *types.InnerAccount, a2 *types.InnerAccount) bool {
 }
 
 func createMockRepo(t *testing.T) *repo.Repo {
-	r, err := repo.Default(t.TempDir())
-	require.Nil(t, err)
+	r := repo.MockRepo(t)
 	return r
 }

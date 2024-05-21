@@ -2,8 +2,9 @@ package storagemgr
 
 import (
 	"github.com/VictoriaMetrics/fastcache"
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/axiomesh/axiom-kit/storage/kv"
 )
 
 var (
@@ -41,11 +42,11 @@ func ResetCachedStorageMetrics() {
 }
 
 type CachedStorage struct {
-	storage.Storage
+	kv.Storage
 	cache *fastcache.Cache
 }
 
-func NewCachedStorage(s storage.Storage, megabytesLimit int) storage.Storage {
+func NewCachedStorage(s kv.Storage, megabytesLimit int) kv.Storage {
 	if megabytesLimit <= 0 {
 		megabytesLimit = 128
 	}
@@ -97,7 +98,7 @@ func (c *CachedStorage) Close() error {
 	return c.Storage.Close()
 }
 
-func (c *CachedStorage) NewBatch() storage.Batch {
+func (c *CachedStorage) NewBatch() kv.Batch {
 	return &BatchWrapper{
 		Batch:      c.Storage.NewBatch(),
 		cache:      c.cache,
@@ -106,7 +107,7 @@ func (c *CachedStorage) NewBatch() storage.Batch {
 }
 
 type BatchWrapper struct {
-	storage.Batch
+	kv.Batch
 	cache      *fastcache.Cache
 	finalState map[string][]byte
 }

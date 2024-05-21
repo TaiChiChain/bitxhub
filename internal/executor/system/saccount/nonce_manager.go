@@ -8,36 +8,46 @@ import (
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
 )
 
 var _ interfaces.INonceManager = (*NonceManager)(nil)
 
 type NonceManager struct {
+	common.SystemContractBase
+
 	// The next valid sequence number for a given nonce key
 	nonceSequenceNumber *common.VMMap[string, *big.Int]
 }
 
-func NewNonceManager() *NonceManager {
-	return &NonceManager{}
+func NewNonceManager(systemContractBase common.SystemContractBase) *NonceManager {
+	return &NonceManager{
+		SystemContractBase: systemContractBase,
+	}
 }
 
-func (nm *NonceManager) Init(account ledger.IAccount) {
-	nm.nonceSequenceNumber = common.NewVMMap[string, *big.Int](account, "nonce_manager", func(key string) string { return key })
+func (nm *NonceManager) SetContext(context *common.VMContext) {
+	nm.SystemContractBase.SetContext(context)
+
+	nm.nonceSequenceNumber = common.NewVMMap[string, *big.Int](nm.StateAccount, "nonce_manager", func(key string) string { return key })
 }
 
 // nolint
-func (nm *NonceManager) GetNonce(sender ethcommon.Address, key *big.Int) *big.Int {
+func (nm *NonceManager) GetNonce(sender ethcommon.Address, key *big.Int) (*big.Int, error) {
 	k := generateKey(sender, key)
-	exist, nonce, _ := nm.nonceSequenceNumber.Get(k)
+	exist, nonce, err := nm.nonceSequenceNumber.Get(k)
+	if err != nil {
+		return nil, err
+	}
 	if exist {
-		return nonce
+		return nonce, nil
 	}
 
 	// key << 64
 	newNonce := new(big.Int).Lsh(key, 64)
-	nm.nonceSequenceNumber.Put(k, newNonce)
-	return newNonce
+	if err := nm.nonceSequenceNumber.Put(k, newNonce); err != nil {
+		return nil, err
+	}
+	return newNonce, nil
 }
 
 // nolint
@@ -57,18 +67,22 @@ func (nm *NonceManager) incrementNonce(sender ethcommon.Address, key *big.Int) {
 }
 
 // nolint
-func (nm *NonceManager) validateAndUpdateNonce(sender ethcommon.Address, nonce *big.Int) bool {
+func (nm *NonceManager) validateAndUpdateNonce(sender ethcommon.Address, nonce *big.Int) (bool, error) {
 	key := new(big.Int).Rsh(nonce, 64)
-	n := nm.GetNonce(sender, key)
-
+	n, err := nm.GetNonce(sender, key)
+	if err != nil {
+		return false, err
+	}
 	if n.Cmp(nonce) == 0 {
 		n.Add(n, big.NewInt(1))
 		k := generateKey(sender, key)
-		nm.nonceSequenceNumber.Put(k, n)
-		return true
+		if err := nm.nonceSequenceNumber.Put(k, n); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }
 
 func generateKey(sender ethcommon.Address, key *big.Int) string {

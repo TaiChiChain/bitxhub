@@ -14,11 +14,9 @@ const (
 	BlockTxSetKey      = "block-tx-set-"
 	TransactionMetaKey = "tx-meta-"
 	ChainMetaKey       = "chain-meta"
-	TrieBlockHeaderKey = "trie-block-"
-	TrieNodeInfoKey    = "trie-nodeInfo-"
 	PruneJournalKey    = "prune-nodeInfo-"
-	TrieNodeIdKey      = "trie-nodeId-"
 	SnapshotKey        = "snap-"
+	SnapshotMetaKey    = "snap-meta"
 )
 
 const (

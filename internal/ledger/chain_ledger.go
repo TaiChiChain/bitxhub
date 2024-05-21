@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"path"
 	"strconv"
 	"time"
@@ -12,8 +11,8 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -28,8 +27,8 @@ var (
 var _ ChainLedger = (*ChainLedgerImpl)(nil)
 
 type ChainLedgerImpl struct {
-	blockchainStore storage.Storage
-	bf              *blockfile.BlockFile
+	blockchainStore kv.Storage
+	bf              blockfile.BlockFile
 	repo            *repo.Repo
 	chainMeta       *types.ChainMeta
 	logger          logrus.FieldLogger
@@ -47,7 +46,7 @@ type ChainLedgerImpl struct {
 	blockExtraCache *lru.Cache[uint64, *types.BlockExtra]
 }
 
-func newChainLedger(rep *repo.Repo, bcStorage storage.Storage, bf *blockfile.BlockFile) (*ChainLedgerImpl, error) {
+func newChainLedger(rep *repo.Repo, bcStorage kv.Storage, bf blockfile.BlockFile) (*ChainLedgerImpl, error) {
 	c := &ChainLedgerImpl{
 		blockchainStore: bcStorage,
 		bf:              bf,
@@ -148,7 +147,7 @@ func (l *ChainLedgerImpl) GetBlock(height uint64) (*types.Block, error) {
 }
 
 func (l *ChainLedgerImpl) GetBlockHeader(height uint64) (*types.BlockHeader, error) {
-	if height > l.chainMeta.Height {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -169,7 +168,7 @@ func (l *ChainLedgerImpl) GetBlockHeader(height uint64) (*types.BlockHeader, err
 }
 
 func (l *ChainLedgerImpl) GetBlockExtra(height uint64) (*types.BlockExtra, error) {
-	if height > l.chainMeta.Height {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -190,7 +189,7 @@ func (l *ChainLedgerImpl) GetBlockExtra(height uint64) (*types.BlockExtra, error
 }
 
 func (l *ChainLedgerImpl) GetBlockTxHashList(height uint64) ([]*types.Hash, error) {
-	if height > l.chainMeta.Height {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -206,7 +205,7 @@ func (l *ChainLedgerImpl) GetBlockTxHashList(height uint64) ([]*types.Hash, erro
 }
 
 func (l *ChainLedgerImpl) GetBlockTxList(height uint64) ([]*types.Transaction, error) {
-	if height > l.chainMeta.Height {
+	if height > l.chainMeta.Height || l.chainMeta.BlockHash == nil {
 		return nil, ErrNotFound
 	}
 
@@ -374,21 +373,19 @@ func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Bloc
 		listOfExtra = append(listOfExtra, e)
 	}
 
-	if err := l.bf.BatchAppendBlock(l.chainMeta.Height, listOfHash, listOfHeader, listOfExtra, listOfReceipts, listOfTransactions); err != nil {
-		return fmt.Errorf("append block with height %d to blockfile failed: %w", l.chainMeta.Height, err)
-	}
-
 	lastBlock := batchBlock[len(batchBlock)-1]
+
+	if err := l.bf.BatchAppendBlock(lastBlock.Header.Number, listOfHash, listOfHeader, listOfExtra, listOfReceipts, listOfTransactions); err != nil {
+		return fmt.Errorf("append block with height %d to blockfile failed: %w", lastBlock.Header.Number, err)
+	}
 
 	meta := &types.ChainMeta{
 		Height:    lastBlock.Header.Number,
-		GasPrice:  big.NewInt(lastBlock.Header.GasPrice),
 		BlockHash: lastBlock.Hash(),
 	}
 
 	l.logger.WithFields(logrus.Fields{
 		"Height":    meta.Height,
-		"GasPrice":  meta.GasPrice,
 		"BlockHash": meta.BlockHash,
 	}).Debug("prepare chain meta")
 
@@ -415,7 +412,6 @@ func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Bloc
 // UpdateChainMeta update the chain meta data
 func (l *ChainLedgerImpl) UpdateChainMeta(meta *types.ChainMeta) {
 	l.chainMeta.Height = meta.Height
-	l.chainMeta.GasPrice = meta.GasPrice
 	l.chainMeta.BlockHash = meta.BlockHash
 }
 
@@ -423,7 +419,6 @@ func (l *ChainLedgerImpl) UpdateChainMeta(meta *types.ChainMeta) {
 func (l *ChainLedgerImpl) GetChainMeta() *types.ChainMeta {
 	return &types.ChainMeta{
 		Height:    l.chainMeta.Height,
-		GasPrice:  l.chainMeta.GasPrice,
 		BlockHash: l.chainMeta.BlockHash,
 	}
 }
@@ -432,10 +427,7 @@ func (l *ChainLedgerImpl) GetChainMeta() *types.ChainMeta {
 func (l *ChainLedgerImpl) LoadChainMeta() (*types.ChainMeta, error) {
 	ok := l.blockchainStore.Has([]byte(utils.ChainMetaKey))
 
-	chain := &types.ChainMeta{
-		Height:    0,
-		BlockHash: &types.Hash{},
-	}
+	chain := &types.ChainMeta{}
 	if ok {
 		body := l.blockchainStore.Get([]byte(utils.ChainMetaKey))
 		if err := chain.Unmarshal(body); err != nil {
@@ -446,11 +438,11 @@ func (l *ChainLedgerImpl) LoadChainMeta() (*types.ChainMeta, error) {
 	return chain, nil
 }
 
-func (l *ChainLedgerImpl) prepareReceipts(_ storage.Batch, _ *types.Block, receipts []*types.Receipt) ([]byte, error) {
+func (l *ChainLedgerImpl) prepareReceipts(_ kv.Batch, _ *types.Block, receipts []*types.Receipt) ([]byte, error) {
 	return types.MarshalReceipts(receipts)
 }
 
-func (l *ChainLedgerImpl) prepareTransactions(batcher storage.Batch, block *types.Block) ([]byte, error) {
+func (l *ChainLedgerImpl) prepareTransactions(batcher kv.Batch, block *types.Block) ([]byte, error) {
 	for i, tx := range block.Transactions {
 		meta := &types.TransactionMeta{
 			BlockHeight: block.Header.Number,
@@ -469,7 +461,7 @@ func (l *ChainLedgerImpl) prepareTransactions(batcher storage.Batch, block *type
 	return types.MarshalTransactions(block.Transactions)
 }
 
-func (l *ChainLedgerImpl) prepareBlock(batcher storage.Batch, block *types.Block) (header []byte, extra []byte, err error) {
+func (l *ChainLedgerImpl) prepareBlock(batcher kv.Batch, block *types.Block) (header []byte, extra []byte, err error) {
 	if block.Extra == nil {
 		block.Extra = &types.BlockExtra{}
 	}
@@ -503,7 +495,7 @@ func (l *ChainLedgerImpl) prepareBlock(batcher storage.Batch, block *types.Block
 	return header, extra, nil
 }
 
-func (l *ChainLedgerImpl) persistChainMeta(batcher storage.Batch, meta *types.ChainMeta) error {
+func (l *ChainLedgerImpl) persistChainMeta(batcher kv.Batch, meta *types.ChainMeta) error {
 	data, err := meta.Marshal()
 	if err != nil {
 		return fmt.Errorf("marshal chain meta error: %w", err)
@@ -514,7 +506,7 @@ func (l *ChainLedgerImpl) persistChainMeta(batcher storage.Batch, meta *types.Ch
 	return nil
 }
 
-func (l *ChainLedgerImpl) removeChainDataOnBlock(batch storage.Batch, height uint64) error {
+func (l *ChainLedgerImpl) removeChainDataOnBlock(batch kv.Batch, height uint64) error {
 	block, err := l.GetBlock(height)
 	if err != nil {
 		return fmt.Errorf("get block with height %d failed: %w", height, err)
@@ -545,7 +537,7 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 		return ErrorRollbackToHigherNumber
 	}
 
-	if meta.Height == height {
+	if meta.Height == height || meta.BlockHash == nil {
 		return nil
 	}
 
@@ -563,23 +555,17 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 		}
 	}
 
-	if height == 0 {
-		batch.Delete([]byte(utils.ChainMetaKey))
-		meta = &types.ChainMeta{}
-	} else {
-		block, err := l.GetBlock(height)
-		if err != nil {
-			return fmt.Errorf("get block with height %d failed: %w", height, err)
-		}
-		meta = &types.ChainMeta{
-			Height:    block.Header.Number,
-			GasPrice:  big.NewInt(block.Header.GasPrice),
-			BlockHash: block.Hash(),
-		}
+	block, err := l.GetBlock(height)
+	if err != nil {
+		return fmt.Errorf("get block with height %d failed: %w", height, err)
+	}
+	meta = &types.ChainMeta{
+		Height:    block.Header.Number,
+		BlockHash: block.Hash(),
+	}
 
-		if err := l.persistChainMeta(batch, meta); err != nil {
-			return fmt.Errorf("persist chain meta failed: %w", err)
-		}
+	if err := l.persistChainMeta(batch, meta); err != nil {
+		return fmt.Errorf("persist chain meta failed: %w", err)
 	}
 
 	batch.Commit()
@@ -590,15 +576,19 @@ func (l *ChainLedgerImpl) RollbackBlockChain(height uint64) error {
 }
 
 func (l *ChainLedgerImpl) checkChainMeta() error {
-	bfHeight, err := l.bf.Blocks()
-	if err != nil {
-		return fmt.Errorf("get blockfile height: %w", err)
+	bfNextBlockNumber := l.bf.NextBlockNumber()
+	// no block
+	if bfNextBlockNumber == 0 {
+		if l.chainMeta.BlockHash != nil {
+			panic("illegal chain meta!")
+		}
+		return nil
 	}
-	if l.chainMeta.Height < bfHeight {
-		l.chainMeta.Height = bfHeight
+	if l.chainMeta.Height < bfNextBlockNumber-1 {
+		l.chainMeta.Height = bfNextBlockNumber - 1
 		batcher := l.blockchainStore.NewBatch()
 
-		currentBlock, err := l.GetBlock(bfHeight)
+		currentBlock, err := l.GetBlock(l.chainMeta.Height)
 		if err != nil {
 			return fmt.Errorf("get blockfile block: %w", err)
 		}
@@ -612,16 +602,12 @@ func (l *ChainLedgerImpl) checkChainMeta() error {
 			return err
 		}
 
-		l.chainMeta.GasPrice = big.NewInt(currentBlock.Header.GasPrice)
 		l.chainMeta.BlockHash = currentBlock.Hash()
 		if err := l.persistChainMeta(batcher, l.chainMeta); err != nil {
 			return fmt.Errorf("update chain meta: %w", err)
 		}
 
 		batcher.Commit()
-	}
-	if l.chainMeta.Height > bfHeight {
-		panic("illegal chain meta!")
 	}
 
 	return nil

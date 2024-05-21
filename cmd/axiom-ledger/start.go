@@ -15,6 +15,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc"
+	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/internal/app"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
@@ -28,7 +29,7 @@ var startArgs = struct {
 }{}
 
 func start(ctx *cli.Context) error {
-	p, err := getRootPath(ctx)
+	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
 	}
@@ -38,11 +39,30 @@ func start(ctx *cli.Context) error {
 		return nil
 	}
 
-	r, err := repo.Load(configGenerateArgs.Auth, p, true)
+	password := common.KeystorePasswordFlagVar
+	if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
+		password, err = common.EnterPassword(false)
+		if err != nil {
+			return err
+		}
+	}
+
+	r, err := repo.Load(p)
 	if err != nil {
 		return err
 	}
 	r.StartArgs = &repo.StartArgs{ReadonlyMode: startArgs.Readonly, SnapshotMode: startArgs.Snapshot}
+	if err := r.ReadKeystore(); err != nil {
+		return err
+	}
+
+	if password == "" {
+		password = repo.DefaultKeystorePassword
+		fmt.Println("keystore password is empty, will use default")
+	}
+	if err := r.DecryptKeystore(password); err != nil {
+		return err
+	}
 
 	appCtx, cancel := context.WithCancel(ctx.Context)
 	if err := loggers.Initialize(appCtx, r, true); err != nil {
@@ -104,10 +124,6 @@ func start(ctx *cli.Context) error {
 		if err := cbs.Start(); err != nil {
 			return fmt.Errorf("start chain broker service failed: %w", err)
 		}
-
-		axm.Monitor = monitor
-		axm.Pprof = pprof
-		axm.Jsonrpc = cbs
 
 		wg.Add(1)
 		handleShutdown(axm, &wg)

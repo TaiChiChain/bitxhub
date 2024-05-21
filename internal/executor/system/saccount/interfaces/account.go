@@ -24,6 +24,7 @@ type Validation struct {
 
 	// valid time range
 	ValidUntil uint64
+
 	ValidAfter uint64
 
 	// remaining limit to spend
@@ -32,12 +33,13 @@ type Validation struct {
 
 type IAccount interface {
 	common.SystemContract
+
 	// validateUserOp validate user's signature and nonce
 	// the entryPoint will make the call to the recipient only if this validation call returns successfully.
 	// signature failure should be reported by returning SIG_VALIDATION_FAILED (1).
 	// This allows making a "simulation call" without a valid signature
 	// Other failures (e.g. nonce mismatch, or invalid signature format) should still revert to signal failure.
-	ValidateUserOp(userOp UserOperation, userOpHash []byte, missingAccountFunds *big.Int) (validationData *big.Int, err error)
+	ValidateUserOp(userOp UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (validationData *big.Int, err error)
 }
 
 // extract validation

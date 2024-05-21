@@ -5,14 +5,14 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	pebbledb "github.com/cockroachdb/pebble"
 	"github.com/cockroachdb/pebble/bloom"
 	"github.com/prometheus/common/model"
 
-	"github.com/axiomesh/axiom-kit/storage"
-	"github.com/axiomesh/axiom-kit/storage/leveldb"
-	"github.com/axiomesh/axiom-kit/storage/pebble"
+	"github.com/axiomesh/axiom-kit/storage/kv"
+	"github.com/axiomesh/axiom-kit/storage/kv/leveldb"
+	"github.com/axiomesh/axiom-kit/storage/kv/pebble"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -28,14 +28,25 @@ const (
 )
 
 var globalStorageMgr = &storageMgr{
-	storageBuilderMap: make(map[string]func(p string, metricsPrefixName string) (storage.Storage, error)),
-	storages:          make(map[string]storage.Storage),
+	storageBuilderMap: make(map[string]func(p string, metricsPrefixName string) (kv.Storage, error)),
+	storages:          make(map[string]kv.Storage),
 	lock:              new(sync.Mutex),
 }
 
+func init() {
+	memoryBuilder := func(p string, metricsPrefixName string) (kv.Storage, error) {
+		return kv.NewMemory(), nil
+	}
+
+	// only for test
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = memoryBuilder
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = memoryBuilder
+	globalStorageMgr.storageBuilderMap[""] = memoryBuilder
+}
+
 type storageMgr struct {
-	storageBuilderMap map[string]func(p string, metricsPrefixName string) (storage.Storage, error)
-	storages          map[string]storage.Storage
+	storageBuilderMap map[string]func(p string, metricsPrefixName string) (kv.Storage, error)
+	storages          map[string]kv.Storage
 	defaultKVType     string
 	lock              *sync.Mutex
 }
@@ -62,7 +73,7 @@ var defaultPebbleOptions = &pebbledb.Options{
 	},
 }
 
-func (m *storageMgr) open(typ string, p string, metricsPrefixName string) (storage.Storage, error) {
+func (m *storageMgr) open(typ string, p string, metricsPrefixName string) (kv.Storage, error) {
 	builder, ok := m.storageBuilderMap[typ]
 	if !ok {
 		return nil, fmt.Errorf("unknow kv type %s, expect leveldb or pebble", typ)
@@ -71,10 +82,10 @@ func (m *storageMgr) open(typ string, p string, metricsPrefixName string) (stora
 }
 
 func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableMetrics bool) error {
-	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string, _ string) (storage.Storage, error) {
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypeLeveldb] = func(p string, _ string) (kv.Storage, error) {
 		return leveldb.New(p, nil)
 	}
-	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (storage.Storage, error) {
+	globalStorageMgr.storageBuilderMap[repo.KVStorageTypePebble] = func(p string, metricsPrefixName string) (kv.Storage, error) {
 		defaultPebbleOptions.Cache = pebbledb.NewCache(int64(defaultKvCacheSize * 1024 * 1024))
 		defaultPebbleOptions.MemTableSize = uint64(defaultKvCacheSize * 1024 * 1024 / 4) // The size of single memory table
 		namespace := "axiom_ledger"
@@ -97,18 +108,18 @@ func Initialize(defaultKVType string, defaultKvCacheSize int, sync bool, enableM
 	return nil
 }
 
-func Open(p string) (storage.Storage, error) {
+func Open(p string) (kv.Storage, error) {
 	return OpenSpecifyType(globalStorageMgr.defaultKVType, p, "")
 }
 
-func OpenWithMetrics(p string, uniqueMetricsPrefixName string) (storage.Storage, error) {
+func OpenWithMetrics(p string, uniqueMetricsPrefixName string) (kv.Storage, error) {
 	if uniqueMetricsPrefixName != "" && !model.IsValidMetricName(model.LabelValue(uniqueMetricsPrefixName)) {
 		return nil, fmt.Errorf("%q is not a valid metric name", uniqueMetricsPrefixName)
 	}
 	return OpenSpecifyType(globalStorageMgr.defaultKVType, p, uniqueMetricsPrefixName)
 }
 
-func OpenSpecifyType(typ string, p string, metricName string) (storage.Storage, error) {
+func OpenSpecifyType(typ string, p string, metricName string) (kv.Storage, error) {
 	globalStorageMgr.lock.Lock()
 	defer globalStorageMgr.lock.Unlock()
 	s, ok := globalStorageMgr.storages[p]

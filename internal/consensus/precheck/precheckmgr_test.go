@@ -13,10 +13,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var toAddr = common.HexToAddress(to)
@@ -83,21 +84,16 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 			}
 			return val
 		}
-		getChainmetaFn := func() *types.ChainMeta {
-			return &types.ChainMeta{
-				GasPrice: big.NewInt(0),
-			}
-		}
-
+		r := repo.MockRepo(t)
 		// assign txMaxSize to 0
 		cnf := &common2.Config{
 			Logger: lg,
-			GenesisEpochInfo: &rbft.EpochInfo{
-				MiscParams: rbft.MiscParams{
+			GenesisEpochInfo: &types.EpochInfo{
+				MiscParams: types.MiscParams{
 					TxMaxSize: 0,
 				},
 			},
-			GetChainMetaFunc:  getChainmetaFn,
+			ChainState:        chainstate.NewMockChainState(r.GenesisConfig, nil),
 			GetAccountBalance: getAccountBalance,
 		}
 
@@ -488,7 +484,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		tp.PostUncheckedTxEvent(event)
 		resp := <-event.Event.(*common2.TxWithResp).CheckCh
 		require.False(t, resp.Status)
-		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error(),
+		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFundsForTransfer.Error(),
 			"when gasFeeCap is not nil, preCheck gasFeeCap*gasLimit+value firstly")
 	})
 }
@@ -496,8 +492,8 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 func TestTxPreCheckMgr_UpdateEpochInfo(t *testing.T) {
 	tp, _, _ := newMockPreCheckMgr(nil, t)
 	oldTxMaxSize := tp.txMaxSize.Load()
-	tp.UpdateEpochInfo(&rbft.EpochInfo{
-		MiscParams: rbft.MiscParams{
+	tp.UpdateEpochInfo(&types.EpochInfo{
+		MiscParams: types.MiscParams{
 			TxMaxSize: oldTxMaxSize + 1,
 		},
 	})

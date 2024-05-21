@@ -2,6 +2,40 @@
 ```toml
 # Chain ID
 chainid = 1357
+# Genesis block timestamp
+timestamp = 1716185531
+# Smart account system contract adminn address
+smart_account_admin = '0xc0Ff2e0b3189132D815b8eb325bE17285AC898f8'
+# Addresses of providers on the initial whitelist
+whitelist_providers = []
+# Native Coin `axc` Configuration
+[axc]
+# Total supply(e.g. 10000000axc; 1000gmol; 1000mol; 1000)
+total_supply = '320000000axc'
+
+# Incentive Configuration
+[incentive]
+  # Referral reward(not supported yet)
+  [incentive.referral]
+    avg_block_reward = '0'
+    block_to_none = 0
+
+
+# Governance council member list
+[[council_members]]
+# Committee member address
+address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
+# Voting weight
+weight = 1
+# Name, base64 encoded
+name = 'S2luZw=='
+
+[[council_members]]
+address = '0x79a1215469FaB6f9c63c1816b45183AD3624bE34'
+weight = 1
+name = 'UmVk'
+
+
 # Initial token balance for accounts
 balance = '1000000000000000000000000000'
 # Addresses of providers on the initial whitelist
@@ -12,118 +46,104 @@ init_white_list_providers = [
 accounts = [
     '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 ]
-# Governance committee member list
-[[admins]]
-# Committee member address
-address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
-# Voting weight
-weight = 1
-# Name, base64 encoded
-name = 'S2luZw=='
-
-[[admins]]
-address = '0x79a1215469FaB6f9c63c1816b45183AD3624bE34'
-weight = 1
-name = 'UmVk'
 
 # Epoch information configuration
 [epoch_info]
-# Version number
 version = 1
 # Serial number of the initial epoch
 epoch = 1
 # Block interval for the epoch duration (epoch change occurs after this interval)
 epoch_period = 10000
-# Start block of the initial epoch
-start_block = 1
-# Addresses of P2P bootstrap nodes
-p2p_bootstrap_node_addresses = [
-    '/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF'
-]
+# Start block of the initial epoch(must be zero)
+start_block = 0
 # Consensus parameter configuration
-[epoch_info.consensus_params]
-# Validator node election type:
-# wrf (weighted random function, randomly select a batch from all consensus nodes based on the consensus voting weight)
-# voting-power-priority (select a batch of consensus nodes based on the voting power priority)
-validator_election_type = 'wrf'
-# Proposer node election type:
-# wrf (weighted random function, randomly select a node from all validator nodes based on the consensus voting weight, with a term of checkpoint_period, and reselection after the term expires)
-# abnormal-rotation (original pbft logic, no rotation under normal circumstances, rotation occurs during viewchange)
-proposer_election_type = 'wrf'
-# Block interval for checkpoints (consensus waits for module execution and executes checkpoint logic after every checkpoint blocks to confirm blocks before the checkpoint)
-checkpoint_period = 1
-# Number of checkpoints within the high watermark (only processes consensus messages within the high watermark)
-high_watermark_checkpoint_period = 10
-# Maximum number of validators (a batch of validator nodes will be elected if it exceeds the limit)
-max_validator_num = 4
-# Maximum number of transactions in a single block
-block_max_tx_num = 500
-# Enable timed generation of empty blocks (blocks are generated even without transactions)
-enable_timed_gen_empty_block = false
-# Reduced consensus voting weight when the primary node is inactive
-not_active_weight = 1
-# Interval for weight reduction recovery; reduced consensus voting weight will recover after epoch changes or after a certain number of checkpoint intervals
-abnormal_node_exclude_view = 10
-# Interval for nodes to propose blocks again as a percentage of the total number of validators, ensuring that nodes cannot propose blocks continuously (minimum 1, maximum total number of validators - 1)
-again_propose_interval_block_in_validators_num_percentage = 30
-# When non-proposing nodes discover locally packable transactions but receive a threshold number of null request heartbeats from primary nodes, trigger viewchange to change the primary node
-continuous_null_request_tolerance_number = 3
-# When non-proposing nodes discover locally packable transactions but receive a threshold number of null request heartbeats from primary nodes, replay these transactions
-rebroadcast_tolerance_number = 2
+  [epoch_info.consensus_params]
+    # Proposer node election type:
+    # wrf (weighted random function, randomly select a node from all validator nodes based on the consensus voting weight, with a term of checkpoint_period, and reselection after the term expires)
+    # abnormal-rotation (original pbft logic, no rotation under normal circumstances, rotation occurs during viewchange)
+    proposer_election_type = 'wrf'
+    # Block interval for checkpoints (consensus waits for module execution and executes checkpoint logic after every checkpoint blocks to confirm blocks before the checkpoint)
+    checkpoint_period = 1
+    # Number of checkpoints within the high watermark (only processes consensus messages within the high watermark)
+    high_watermark_checkpoint_period = 10
+    # Minimum number of validators
+    Min_validator_num = 4
+    # Maximum number of validators (a batch of validator nodes will be elected if it exceeds the limit)
+    max_validator_num = 4
+    # Maximum number of transactions in a single block
+    block_max_tx_num = 500
+    # Enable timed generation of empty blocks (blocks are generated even without transactions)
+    enable_timed_gen_empty_block = false
+    # Reduced consensus voting weight when the primary node is inactive
+    not_active_weight = 1
+    # Interval for weight reduction recovery; reduced consensus voting weight will recover after epoch changes or after a certain number of checkpoint intervals
+    abnormal_node_exclude_view = 10
+    # Interval for nodes to propose blocks again as a percentage of the total number of validators, ensuring that nodes cannot propose blocks continuously (minimum 1, maximum total number of validators - 1)
+    again_propose_interval_block_in_validators_num_percentage = 30
+    # When non-proposing nodes discover locally packable transactions but receive a threshold number of null request heartbeats from primary nodes, trigger viewchange to change the primary node
+    continuous_null_request_tolerance_number = 3
+    # When non-proposing nodes discover locally packable transactions but receive a threshold number of null request heartbeats from primary nodes, replay these transactions
+    rebroadcast_tolerance_number = 2
 
-# Token economic parameter
-[epoch_info.finance_params]
-# Gas limit for transactions
-gas_limit = 100000000
-# Whether the initial gas price for the epoch is set
-start_gas_price_available = true
-# Initial gas price for the epoch
-start_gas_price = 5000000000000
-# Maximum gas price
-max_gas_price = 10000000000000
-# Minimum gas price
-min_gas_price = 1000000000000
-# Magnitude of gas change
-gas_change_rate_value = 1250
-# Decimal places for the magnitude of gas change (actual value is gas_change_rate_value/10^gas_change_rate_decimals)
-gas_change_rate_decimals = 4
+  # Token economic parameter
+  [epoch_info.finance_params]
+    # Gas limit for transactions
+    gas_limit = 100000000
+    # Minimum gas price(e.g. 10000000axc; 1000gmol; 1000mol; 1000)
+    min_gas_price = '1000gmol'
 
-# Other parameter configurations
-[epoch_info.misc_params]
-# Maximum size of transactions
-tx_max_size = 131072
+  # Stake parameter
+  [epoch_info.stake_params]
+    # Whether to enable the stake module (currently cannot be disabled, this configuration is temporarily ineffective)
+    stake_enable = true
+    # The maximum ratio of tokens that can be added per epoch (maximum amount of stake added per epoch: max_add_stake_ratio/10000 * total ActiveStake of the previous epoch)
+    max_add_stake_ratio = 1000
+    # The maximum ratio of tokens that can be unlocked per epoch (maximum amount of stake unlocked per epoch: max_unlock_stake_ratio/10000 * total ActiveStake of the previous epoch)
+    max_unlock_stake_ratio = 1000
+    # The maximum number of unlocking records that can exist simultaneously for each lst token
+    max_unlocking_record_num = 5
+    # The lock-up period for unlocking tokens (in seconds, default is 3 days)
+    unlock_period = 259200
+    # The maximum ratio of validator nodes that can exit per epoch (maximum number of validator nodes exiting per epoch: max_pending_inactive_validator_ratio/10000 * total ActiveValidator count of the current epoch, rounded down)
+    max_pending_inactive_validator_ratio = 1000
+    # The minimum amount of stake required for delegated staking
+    min_delegate_stake = '100axc'
+    # The minimum amount of stake required for becoming a validator in the staking pool
+    min_validator_stake = '10000000axc'
+    # The maximum amount of stake allowed in the staking pool
+    max_validator_stake = '50000000axc'
 
-# Genesis candidate node list (candidate nodes only synchronize blocks and do not participate in consensus; they may be selected as validator nodes during epoch changes)
-[[genesis.epoch_info.candidate_set]]
-# Node ID, must be unique
-id = 5
-# Account address to receive gas fees, corresponds to the node's account.key address
-account_address = '0xd0091F6D0b39B9E9D2E9051fA46d13B63b8C7B18'
-# Node's P2P ID
-p2p_node_id = '16Uiu2HAm2HeK145KTfLaURhcoxBUMZ1PfhVnLRfnmE8qncvXWoZj'
-# Consensus voting weight (higher weight increases the probability of being selected as a validator node/primary node)
-consensus_voting_power = 100
+  # Other parameter configurations
+  [epoch_info.misc_params]
+    # Maximum size of transactions
+    tx_max_size = 131072
 
-# Genesis data node list (cannot be selected as consensus nodes, only synchronize blocks as data query nodes)
-[[genesis.epoch_info.data_syncer_set]]
-id = 6
-account_address = '0xFd19030f51719D5601Bb079e5c5Be1eD07E01de2'
-p2p_node_id = '16Uiu2HAm2CVtLveAtroaN7pcR8U2saBKjwYqRAikMSwxqdoYMxtv'
-consensus_voting_power = 0
+# Genesis node list (DataSyncer nodes only synchronize blocks and do not participate in consensus)
+[[nodes]]
+  # Consensus publickey(hex encode)
+  consensus_pubkey = '0xac9bb2675ab6b60b1c6d3ed60e95bdabb16517525458d8d50fa1065014184823556b0bd97922fab8c688788006e8b1030cd506d19101522e203769348ea10d21780e5c26a5c03c0cfcb8de23c7cf16d4d384140613bb953d446a26488fbaf6e0'
+  # P2P publickey(hex encode)
+  p2p_pubkey = '0xd4c0ac1567bcb2c855bb1692c09ab2a2e2c84c45376592674530ce95f1fda351'
+  # Operator address 
+  operator_address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
+  # Is DataSyncer flag(is true, stake_number must be zero)
+  is_data_syncer = false
+  # Initial funds for the node staking pool
+  stake_number = '10000000axc'
+  # Reward commission rate(0-10000)
+  commission_rate = 0
 
-# Genesis validator node list (consensus nodes)
-[[genesis.epoch_info.validator_set]]
-id = 1
-account_address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
-p2p_node_id = '16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF'
-consensus_voting_power = 1000
+  # Metadata
+  [nodes.metadata]
+    # Node name (unique, and cannot be empty)
+    name = 'node1'
+    # Node desc (can be empty)    
+    desc = 'node1'
+    # Node image url (can be empty)      
+    image_url = ''
+    # Node website url (can be empty) 
+    website_url = ''
 
-# Node alias list
-[[node_names]]
-# Node ID
-id = 1
-# Node alias, base64 encoded
-name = 'S2luZw=='
 ```
 
 # config.toml - Basic Configuration
@@ -143,6 +163,21 @@ ulimit = 65535
   pprof = 53121
   # Listening port for Prometheus metrics service
   monitor = 40011
+
+# Node Configuration
+[node]
+  # Incentive tx address
+  incentive_address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
+
+# Gas Price Oracle Configuration (Reference Go Ethereum)
+[gas_price_oracle]
+  blocks = 20
+  percentile = 60
+  max_header_history = 1024
+  max_block_history = 1024
+  default = '500gmol'
+  max_price = '10000gmol'
+  ignore_price = '2mol'
 
 # JSONRPC Configuration
 [jsonrpc]
@@ -185,13 +220,15 @@ ulimit = 65535
   send_timeout = '5s'
   # Timeout for reading messages via p2p stream
   read_timeout = '5s'
+  # Compression type (0: None; 1: Snappy; 2: Zstd)
+  compression_option = 1
+  # Enable metrics flag
+  enable_metrics = true
 
   # Pipe protocol configuration (abstraction for asynchronous communication)
   [p2p.pipe]
     # Size of the message cache (if not consumed in time, subsequently received messages will be discarded)
     receive_msg_cache_size = 10240
-    # Broadcast type: gossip; simple
-    broadcast_type = 'gossip'
     # Timeout for receiver to read messages in unicast
     unicast_read_timeout = '5s'
     # Number of retries for failed message sending in unicast
@@ -202,13 +239,6 @@ ulimit = 65535
     find_peer_timeout = '10s'
     # Timeout for connecting to peer nodes
     connect_timeout = '1s'
-
-    # Simple broadcast protocol configuration (not recommended, will be deprecated soon)
-    [p2p.pipe.simple_broadcast]
-      # Number of message caches for sending
-      worker_cache_size = 1024
-      # Concurrency limit for message sending
-      worker_concurrency_limit = 20
 
     # Gossip broadcast protocol configuration
     [p2p.pipe.gossipsub]
@@ -227,6 +257,8 @@ ulimit = 65535
 
 # Block Sync Configuration
 [sync]
+  # Wait state response timeout
+  wait_states_timeout = '30s'
   # Retry interval for block requester
   requester_retry_timeout = '30s'
   # If the number of timeouts for a node's block response exceeds this limit, the node will be removed and no longer requested for blocks
@@ -240,6 +272,8 @@ ulimit = 65535
   type = 'rbft'
   # Database type for consensus: minifile
   storage_type = 'minifile'
+  # Use bls consensus key as a signer key. If false, will use p2p key
+  use_bls_key = false
 
 # Storage
 [storage]
@@ -254,22 +288,29 @@ ulimit = 65535
 [ledger]
   # LRU cache size for ledger state
   chain_ledger_cache_size = 100
-  # Cache size limit for state ledger K-V pairs (in megabytes); larger values improve performance but increase memory usage
-  state_ledger_cache_megabytes_limit = 128
+  # Cache size limit for state ledger account trie cache (in megabytes); larger values improve performance but increase memory usage
+  state_ledger_account_trie_cache_megabytes_limit = 128
+  # Cache size limit for state ledger storage trie cache (in megabytes); larger values improve performance but increase memory usage
+  state_ledger_storage_trie_cache_megabytes_limit = 128
   # Cache size for account information in state ledger (number of accounts); caching account nonce, balance, code; larger values improve performance but increase memory usage
   state_ledger_account_cache_size = 1024
-  
+  # Enable prune
+  enable_prune = true
+  # If enable prue, state ledger reserved history block num
+  state_ledger_reserved_history_block_num = 256
+
+[snapshot]
+  # Cache size limit for account snapshot (in megabytes); larger values improve performance but increase memory usage
+  account_snapshot_cache_megabytes_limit = 128
+  # Cache size limit for contract snapshot (in megabytes); larger values improve performance but increase memory usage
+  contract_snapshot_cache_megabytes_limit = 128
+
 # Executor Configuration
 [executor]
   # Type: native (native mode); dev (development mode)
   type = 'native'
   # Whether to disable rollback functionality (when detecting that the height of at least quorum other nodes is higher than the local node, the node will roll back; if disabled, it will panic actively)
   disable_rollback = true
-
-  # EVM Configuration
-  [executor.evm]
-    # Disable EVM contract size limit
-    disable_max_code_size_limit = true
 
 # Golang pprof Configuration
 [pprof]
@@ -334,61 +375,70 @@ ulimit = 65535
 ```toml
 # Timed Block Generation Configuration
 [timed_gen_block]
-# Block generation interval
-no_tx_batch_timeout = '2s'
+  # Block generation interval
+  no_tx_batch_timeout = '2s'
 
 # Flow Control Limit for P2P Transaction Broadcasting Recipients (Token Bucket)
 [limit]
-# Enable or disable
-enable = false
-# Maximum number of tokens in the token bucket
-limit = 10000
-# Number of tokens restored per second
-burst = 10000
+  # Enable or disable
+  enable = false
+  # Maximum number of tokens in the token bucket
+  limit = 10000
+  # Number of tokens restored per second
+  burst = 10000
 
 # Transaction Pool Configuration
 [tx_pool]
-# Size of the transaction pool (stops accepting transactions after reaching the limit)
-pool_size = 50000
-# Interval for block creation when there are transactions
-batch_timeout = '500ms'
-# Interval for replaying transactions that have not been included in a block
-tolerance_time = '5m0s'
-# Time for removing transactions that have not been included in a block for a long time (after this duration, transactions will be deleted)
-tolerance_remove_time = '15m0s'
-# Maximum number of high-nonce transactions allowed for the same account
-tolerance_nonce_gap = 100
+  # Size of the transaction pool (stops accepting transactions after reaching the limit)
+  pool_size = 50000
+  # Interval for replaying transactions that have not been included in a block
+  tolerance_time = '5m0s'
+  # Time for removing transactions that have not been included in a block for a long time (after this duration, transactions will be deleted)
+  tolerance_remove_time = '15m0s'
+  # Time for cleaning empty accounts (has no txs) 
+  clean_empty_account_time = '10m0s'
+  # Maximum number of high-nonce transactions allowed for the same account
+  tolerance_nonce_gap = 1000
+  # Enable local persist (If enabled, no transactions will be lost on reboot)
+  enable_locals_persist = true
+  # Persist txs to local file interval
+  rotate_tx_locals_interval = '1h0m0s'
+  # TX min gas price
+  price_limit = '1000gmol'
+  # The higher gas price increase ratio required when the transaction is replaced
+  price_bump = 10
+  # Generate a batch type (fifo; price_priority)
+  generate_batch_type = 'fifo'
 
 # Transaction Cache Configuration (Responsible for Transaction Broadcasting)
 [tx_cache]
-# Number of transactions broadcasted each time
-set_size = 50
-# Broadcasting interval
-set_timeout = '100ms'
+  # Number of transactions broadcasted each time
+  set_size = 50
+  # Broadcasting interval
+  set_timeout = '100ms'
 
 # RBFT Configuration
 [rbft]
-# Whether to create a pipe for each type of consensus message
-enable_multi_pipes = false
-# Whether to enable metrics
-enable_metrics = true
-# Number of committed blocks cached
-committed_block_cache_number = 10
+  # Whether to enable metrics
+  enable_metrics = true
+  # Number of committed blocks cached
+  committed_block_cache_number = 10
 
 # Timeout Configuration
 [rbft.timeout]
-null_request = '3s'
-request = '2s'
-resend_viewchange = '10s'
-clean_viewchange = '1m0s'
-new_view = '8s'
-sync_state = '1s'
-sync_state_restart = '10m0s'
-fetch_checkpoint = '5s'
-fetch_view = '1s'
+  null_request = '3s'
+  request = '2s'
+  resend_viewchange = '10s'
+  clean_viewchange = '1m0s'
+  new_view = '8s'
+  sync_state = '1s'
+  sync_state_restart = '10m0s'
+  fetch_checkpoint = '5s'
+  fetch_view = '1s'
+  batch_timeout = '500ms'
 
 # Solo Configuration
 [solo]
-# Checkpoint interval
-checkpoint_period = 10
+  # Checkpoint interval
+  checkpoint_period = 10
 ```

@@ -9,7 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -21,7 +21,7 @@ import (
 // By using PruneCache, we also implement trie pruning schema, which reduces state storage size that a full node must hold.
 type PruneCache struct {
 	rep           *repo.Repo
-	ledgerStorage storage.Storage
+	ledgerStorage kv.Storage
 	states        *states
 
 	prunner *prunner
@@ -41,7 +41,7 @@ type diff struct {
 	accountDiff map[string]types.Node
 	storageDiff map[string]types.Node
 
-	ledgerStorage storage.Storage
+	ledgerStorage kv.Storage
 }
 
 const (
@@ -68,7 +68,7 @@ func (s *states) rebuildAllKeyMap() {
 	}
 }
 
-func NewPruneCache(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, logger logrus.FieldLogger) *PruneCache {
+func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, logger logrus.FieldLogger) *PruneCache {
 	tc := &PruneCache{
 		rep:           rep,
 		ledgerStorage: ledgerStorage,
@@ -84,7 +84,7 @@ func NewPruneCache(rep *repo.Repo, ledgerStorage storage.Storage, accountTrieCac
 	return tc
 }
 
-func (tc *PruneCache) addNewDiff(batch storage.Batch, height uint64, ledgerStorage storage.Storage, stateDelta *types.StateDelta, persist bool) {
+func (tc *PruneCache) addNewDiff(batch kv.Batch, height uint64, ledgerStorage kv.Storage, stateDelta *types.StateDelta, persist bool) {
 	l := &diff{
 		height:        height,
 		ledgerStorage: ledgerStorage,
@@ -94,7 +94,7 @@ func (tc *PruneCache) addNewDiff(batch storage.Batch, height uint64, ledgerStora
 	if persist {
 		batch.Put(utils.CompositeKey(utils.PruneJournalKey, height), stateDelta.Encode())
 		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
-		if height == 1 {
+		if height == 0 {
 			batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(height))
 		}
 	}
@@ -121,7 +121,7 @@ func (tc *PruneCache) addNewDiff(batch storage.Batch, height uint64, ledgerStora
 	tc.states.diffs = append(tc.states.diffs, l)
 }
 
-func (tc *PruneCache) Update(batch storage.Batch, height uint64, trieJournals *types.StateDelta) {
+func (tc *PruneCache) Update(batch kv.Batch, height uint64, trieJournals *types.StateDelta) {
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
@@ -168,16 +168,11 @@ func (tc *PruneCache) Rollback(height uint64) error {
 
 	tc.logger.Infof("[PruneCache-Rollback] minHeight=%v, maxHeight=%v, targetHeight=%v", minHeight, maxHeight, height)
 
-	// empty cache, no-op
-	if minHeight == 0 && maxHeight == 0 {
-		return nil
-	}
-
 	if maxHeight < height {
 		return ErrorRollbackToHigherNumber
 	}
 
-	if minHeight > height && !(minHeight == 1 && height == 0) {
+	if minHeight > height {
 		return ErrorRollbackTooMuch
 	}
 

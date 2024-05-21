@@ -3,9 +3,10 @@ package txpool
 import (
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	"github.com/sirupsen/logrus"
 )
 
 // Config defines the txpool config items.

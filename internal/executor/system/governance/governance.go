@@ -1,28 +1,22 @@
 package governance
 
 import (
-	_ "embed"
-	"encoding/binary"
 	"encoding/json"
-	"errors"
-	"fmt"
+	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance/solidity/governance_client"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-// TODO remove
 var (
-	ErrMethodName         = errors.New("no this method")
 	ErrVoteResult         = errors.New("vote result is invalid")
 	ErrProposalType       = errors.New("proposal type is invalid")
-	ErrUser               = errors.New("user is invalid")
 	ErrUseHasVoted        = errors.New("user has already voted")
 	ErrTitle              = errors.New("title is invalid")
 	ErrTooLongTitle       = errors.New("title is too long, max is 200 characters")
@@ -32,17 +26,30 @@ var (
 	ErrProposalFinished   = errors.New("proposal has already finished")
 	ErrBlockNumberOutDate = errors.New("block number is out of date")
 
-	ErrRepeatedRegister = errors.New("repeated register")
-	ErrNotFoundProposal = errors.New("not found proposal")
+	ErrRepeatedRegister = errors.New("repeated proposal handler register")
+	ErrNotFoundProposal = errors.New("not found")
 )
 
 const (
-	ProposeMethod             = "propose"
-	VoteMethod                = "vote"
+	nextProposalIDStorageKey       = "nextProposalID"
+	proposalsStorageKey            = "proposals"
+	notFinishedProposalsStorageKey = "notFinishedProposals"
+)
+
+const (
+	ProposeEvent              = "Propose"
+	VoteEvent                 = "Vote"
 	GetLatestProposalIDMethod = "getLatestProposalID"
-	ProposalKey               = "proposalKey"
 	MaxTitleLength            = 200
 	MaxDescLength             = 10000
+)
+
+type ProposalStatus uint8
+
+const (
+	Voting ProposalStatus = iota
+	Approved
+	Rejected
 )
 
 type ProposalType uint8
@@ -54,17 +61,17 @@ const (
 	// NodeUpgrade is a proposal for update or upgrade the node
 	NodeUpgrade
 
-	// NodeAdd is a proposal for adding a new node
-	NodeAdd
+	// NodeRegister is a proposal for adding a new node
+	NodeRegister
 
 	// NodeRemove is a proposal for removing a node
 	NodeRemove
 
-	// WhiteListProviderAdd is a proposal for adding a new white list provider
-	WhiteListProviderAdd
+	// WhitelistProviderAdd is a proposal for adding a new white list provider
+	WhitelistProviderAdd
 
-	// WhiteListProviderRemove is a proposal for removing a white list provider
-	WhiteListProviderRemove
+	// WhitelistProviderRemove is a proposal for removing a white list provider
+	WhitelistProviderRemove
 
 	// GasUpdate is a proposal for updating gas price
 	GasUpdate
@@ -73,6 +80,44 @@ const (
 	ChainParamUpgrade
 )
 
+type Proposal struct {
+	ID          uint64
+	Type        ProposalType
+	Strategy    ProposalStrategy
+	Proposer    string
+	Title       string
+	Desc        string
+	BlockNumber uint64
+
+	// totalVotes is total votes for this proposal
+	// attention: some users may not vote for this proposal
+	TotalVotes uint64
+
+	// passVotes record user address for passed vote
+	PassVotes []string
+
+	RejectVotes []string
+	Status      ProposalStatus
+
+	// Extra information for some special proposal
+	Extra []byte
+
+	// CreatedBlockNumber is block number when the proposal has be created
+	CreatedBlockNumber uint64
+
+	// EffectiveBlockNumber is block number when the proposal has be take effect
+	EffectiveBlockNumber uint64
+
+	ExecuteSuccess   bool
+	ExecuteFailedMsg string
+}
+
+type NotFinishedProposal struct {
+	ID                  uint64
+	DeadlineBlockNumber uint64
+	Type                ProposalType
+}
+
 type VoteResult uint8
 
 const (
@@ -80,158 +125,187 @@ const (
 	Reject
 )
 
-type IGovenance interface {
-	Propose(proposalType uint8, title, desc string, expiredBlockNumber uint64, extra []byte) error
-
-	Vote(proposalID uint64, voteResult uint8) error
-
-	Proposal(proposalID uint64) (*Proposal, error)
-
-	GetLatestProposalID() uint64
+var BuildConfig = &common.SystemContractBuildConfig[*Governance]{
+	Name:    "governance",
+	Address: common.GovernanceContractAddr,
+	AbiStr:  governance_client.BindingContractMetaData.ABI,
+	Constructor: func(systemContractBase common.SystemContractBase) *Governance {
+		gov := &Governance{
+			SystemContractBase: systemContractBase,
+		}
+		gov.Init()
+		return gov
+	},
 }
 
-type IExecutor interface {
-	ProposeCheck(proposalType ProposalType, extra []byte) error
-	Execute(proposal *Proposal) error
+type ProposalExecutor interface {
+	ProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error
+
+	VotePassExecute(proposal *Proposal) error
+}
+
+type ProposalPermissionManager interface {
+	ProposePermissionCheck(proposalType ProposalType, user ethcommon.Address) (has bool, err error)
+
+	TotalVotes(proposalType ProposalType) (uint64, error)
+
+	UpdateVoteStatus(proposal *Proposal) error
+
+	VotePermissionCheck(proposalType ProposalType, user ethcommon.Address) (has bool, err error)
+}
+
+type ProposalHandler interface {
+	GenesisInit(genesis *repo.GenesisConfig) error
+	SetContext(ctx *common.VMContext)
+	ProposalExecutor
+	ProposalPermissionManager
 }
 
 type Governance struct {
-	logger logrus.FieldLogger
+	common.SystemContractBase
 
-	// type2Executor is mapping proposal type to executor
-	type2Executor map[ProposalType]IExecutor
-	// governance records which executor implements IGovernance interface
-	// which instance in governance would call self overide method
-	governance map[ProposalType]IGovenance
+	// proposal type -> proposal handler
+	proposalHandlerMap map[ProposalType]ProposalHandler
 
-	account                ledger.IAccount
-	proposalID             *ProposalID
-	addr2NameSystem        *Addr2NameSystem
-	notFinishedProposalMgr *NotFinishedProposalMgr
-
-	currentUser   *ethcommon.Address
-	currentHeight uint64
-	currentLogs   *[]common.Log
-	stateLedger   ledger.StateLedger
+	council              *common.VMSlot[Council]
+	nextProposalID       *common.VMSlot[uint64]
+	proposals            *common.VMMap[uint64, Proposal]
+	notFinishedProposals *common.VMSlot[[]NotFinishedProposal]
 }
 
-func NewGov(cfg *common.SystemContractConfig) *Governance {
-	gov := &Governance{
-		logger:        loggers.Logger(loggers.Governance),
-		type2Executor: make(map[ProposalType]IExecutor),
-		governance:    make(map[ProposalType]IGovenance),
+func (g *Governance) GenesisInit(genesis *repo.GenesisConfig) error {
+	if err := g.nextProposalID.Put(1); err != nil {
+		return err
 	}
-
-	// register governance execute contract
-	councilManager := NewCouncilManager(gov)
-	if err := gov.Register(CouncilElect, councilManager); err != nil {
-		panic(err)
-	}
-
-	nodeManager := NewNodeManager(gov)
-	if err := gov.Register(NodeAdd, nodeManager); err != nil {
-		panic(err)
-	}
-	if err := gov.Register(NodeRemove, nodeManager); err != nil {
-		panic(err)
-	}
-	if err := gov.Register(NodeUpgrade, nodeManager); err != nil {
-		panic(err)
-	}
-
-	gasManager := NewGasManager(gov)
-	if err := gov.Register(GasUpdate, gasManager); err != nil {
-		panic(err)
-	}
-
-	chainParamManager := NewChainParamManager(gov)
-	if err := gov.Register(ChainParamUpgrade, chainParamManager); err != nil {
-		panic(err)
-	}
-
-	whiteListProviderManager := NewWhiteListProviderManager(gov)
-	if err := gov.Register(WhiteListProviderAdd, whiteListProviderManager); err != nil {
-		panic(err)
-	}
-	if err := gov.Register(WhiteListProviderRemove, whiteListProviderManager); err != nil {
-		panic(err)
-	}
-
-	return gov
-}
-
-func (g *Governance) Register(proposalType ProposalType, executor IExecutor) error {
-	if _, ok := g.type2Executor[proposalType]; ok {
-		return ErrRepeatedRegister
-	}
-	g.type2Executor[proposalType] = executor
-
-	// if executor also implements IGovenance interface, add it to governance
-	if gov, ok := executor.(IGovenance); ok {
-		g.governance[proposalType] = gov
+	for _, handler := range g.proposalHandlerMap {
+		if err := handler.GenesisInit(genesis); err != nil {
+			return errors.Wrapf(err, "failed to genesis init handler %d", handler)
+		}
 	}
 	return nil
 }
 
-func (g *Governance) SetContext(context *common.VMContext) {
-	g.currentUser = context.CurrentUser
-	g.currentHeight = context.CurrentHeight
-	g.currentLogs = context.CurrentLogs
-	g.stateLedger = context.StateLedger
+func (g *Governance) SetContext(ctx *common.VMContext) {
+	g.SystemContractBase.SetContext(ctx)
 
-	addr := types.NewAddressByStr(common.GovernanceContractAddr)
-	g.account = g.stateLedger.GetOrCreateAccount(addr)
-	g.proposalID = NewProposalID(g.stateLedger)
-	g.addr2NameSystem = NewAddr2NameSystem(g.stateLedger)
-	g.notFinishedProposalMgr = NewNotFinishedProposalMgr(g.stateLedger)
+	g.council = common.NewVMSlot[Council](g.StateAccount, councilStorageKey)
+	g.nextProposalID = common.NewVMSlot[uint64](g.StateAccount, nextProposalIDStorageKey)
+	g.proposals = common.NewVMMap[uint64, Proposal](g.StateAccount, proposalsStorageKey, func(key uint64) string {
+		return strconv.FormatUint(key, 10)
+	})
+	g.notFinishedProposals = common.NewVMSlot[[]NotFinishedProposal](g.StateAccount, notFinishedProposalsStorageKey)
+}
+
+func (g *Governance) Init() {
+	g.proposalHandlerMap = make(map[ProposalType]ProposalHandler)
+
+	// register governance proposal handler
+	councilManager := NewCouncilManager(g)
+	if err := g.registerHandler(CouncilElect, councilManager); err != nil {
+		panic(err)
+	}
+
+	nodeManager := NewNodeManager(g)
+	if err := g.registerHandler(NodeRegister, nodeManager); err != nil {
+		panic(err)
+	}
+	if err := g.registerHandler(NodeRemove, nodeManager); err != nil {
+		panic(err)
+	}
+	if err := g.registerHandler(NodeUpgrade, nodeManager); err != nil {
+		panic(err)
+	}
+
+	gasManager := NewGasManager(g)
+	if err := g.registerHandler(GasUpdate, gasManager); err != nil {
+		panic(err)
+	}
+
+	chainParamManager := NewChainParamManager(g)
+	if err := g.registerHandler(ChainParamUpgrade, chainParamManager); err != nil {
+		panic(err)
+	}
+
+	whiteListProviderManager := NewWhiteListProviderManager(g)
+	if err := g.registerHandler(WhitelistProviderAdd, whiteListProviderManager); err != nil {
+		panic(err)
+	}
+	if err := g.registerHandler(WhitelistProviderRemove, whiteListProviderManager); err != nil {
+		panic(err)
+	}
+}
+
+func (g *Governance) registerHandler(proposalType ProposalType, handler ProposalHandler) error {
+	if _, ok := g.proposalHandlerMap[proposalType]; ok {
+		return ErrRepeatedRegister
+	}
+	g.proposalHandlerMap[proposalType] = handler
+	return nil
+}
+
+func (g *Governance) getHandler(proposalType ProposalType) (ProposalHandler, error) {
+	handler, ok := g.proposalHandlerMap[proposalType]
+	if !ok {
+		return nil, ErrProposalType
+	}
+	handler.SetContext(g.Ctx)
+	return handler, nil
 }
 
 func (g *Governance) checkAndUpdateState(method string) error {
-	notFinishedProposals, err := g.notFinishedProposalMgr.GetProposals()
+	exist, notFinishedProposals, err := g.notFinishedProposals.Get()
 	if err != nil {
 		return err
 	}
+	if !exist {
+		return nil
+	}
 
 	for _, notFinishedProposal := range notFinishedProposals {
-		if notFinishedProposal.DeadlineBlockNumber <= g.currentHeight {
+		if notFinishedProposal.DeadlineBlockNumber <= g.Ctx.BlockNumber {
 			// update original proposal status
-			proposal, err := g.LoadProposal(notFinishedProposal.ID)
+			proposalExist, proposal, err := g.proposals.Get(notFinishedProposal.ID)
 			if err != nil {
 				return err
 			}
+			if !proposalExist {
+				return ErrNotFoundProposal
+			}
 
-			if proposal.GetStatus() == Approved || proposal.GetStatus() == Rejected {
+			if proposal.Status == Approved || proposal.Status == Rejected {
 				// proposal is finnished, no need update
 				continue
 			}
 
 			// means proposal is out of deadline,status change to rejected
-			proposal.SetStatus(Rejected)
+			proposal.Status = Rejected
 
-			err = g.SaveProposal(proposal)
-			if err != nil {
+			if err = g.proposals.Put(notFinishedProposal.ID, proposal); err != nil {
 				return err
 			}
 
 			// remove proposal from not finished proposals
-			if err = g.notFinishedProposalMgr.RemoveProposal(notFinishedProposal.ID); err != nil {
+			if err = g.removeNotFinishedProposal(notFinishedProposal.ID); err != nil {
 				return err
 			}
 
-			// post log
-			g.RecordLog(method, proposal)
+			// todo: refactor
+			switch method {
+			case ProposeEvent:
+				g.EmitProposeEvent(&proposal)
+			case VoteEvent:
+				g.EmitVoteEvent(&proposal)
+			default:
+				return errors.New("unknown method")
+			}
 		}
 	}
 
 	return nil
 }
 
-func (g *Governance) CheckProposeArgs(user *ethcommon.Address, proposalType ProposalType, title, desc string, expiredBlockNumber uint64, currentHeight uint64) error {
-	if user == nil {
-		return ErrUser
-	}
-
-	_, isVaildProposalType := g.type2Executor[proposalType]
+func (g *Governance) CheckProposeArgs(proposalType ProposalType, title, desc string, expiredBlockNumber uint64, currentHeight uint64) error {
+	_, isVaildProposalType := g.proposalHandlerMap[proposalType]
 	if !isVaildProposalType {
 		return ErrProposalType
 	}
@@ -264,75 +338,78 @@ func (g *Governance) CheckProposeArgs(user *ethcommon.Address, proposalType Prop
 
 func (g *Governance) Propose(pType uint8, title, desc string, blockNumber uint64, extra []byte) error {
 	proposalType := ProposalType(pType)
-	_, ok := g.type2Executor[proposalType]
-	if !ok {
-		return ErrProposalType
-	}
-
-	gov, ok := g.governance[proposalType]
-	if ok {
-		// call overide function
-		return gov.Propose(pType, title, desc, blockNumber, extra)
+	handler, err := g.getHandler(proposalType)
+	if err != nil {
+		return err
 	}
 
 	// check and update state
-	if err := g.checkAndUpdateState(ProposeMethod); err != nil {
+	if err := g.checkAndUpdateState(ProposeEvent); err != nil {
 		return err
 	}
 
-	if err := g.CheckProposeArgs(g.currentUser, proposalType, title, desc, blockNumber, g.currentHeight); err != nil {
+	if err := g.CheckProposeArgs(proposalType, title, desc, blockNumber, g.Ctx.BlockNumber); err != nil {
 		return err
 	}
 
-	executor, ok := g.type2Executor[proposalType]
-	if !ok {
-		return ErrProposalType
-	}
-	if err := executor.ProposeCheck(proposalType, extra); err != nil {
-		return err
+	if err := handler.ProposeArgsCheck(proposalType, title, desc, blockNumber, extra); err != nil {
+		return errors.Wrapf(err, "failed to check propose args for proposal type %d", pType)
 	}
 
-	// check proposer is council member
-	isCouncilMember, council := CheckInCouncil(g.account, g.currentUser.String())
-	if !isCouncilMember {
-		return ErrNotFoundCouncilMember
+	hasPermission, err := handler.ProposePermissionCheck(proposalType, g.Ctx.From)
+	if err != nil {
+		return errors.Wrapf(err, "failed to check propose permission for proposal type %d", pType)
+	}
+	if !hasPermission {
+		return errors.Errorf("no permission for propose proposal[%d]", pType)
 	}
 
-	return g.CreateProposal(council, proposalType, title, desc, blockNumber, extra, true)
+	totalVotes, err := handler.TotalVotes(proposalType)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get total votes for proposal type %d", pType)
+	}
+
+	proposerHasVotePermission, err := handler.VotePermissionCheck(proposalType, g.Ctx.From)
+	if err != nil {
+		return errors.Wrapf(err, "failed to check vote permission for proposal type %d", pType)
+	}
+
+	return g.createProposal(totalVotes, proposalType, title, desc, blockNumber, extra, proposerHasVotePermission)
 }
 
-func (g *Governance) CreateProposal(council *Council, proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte, includeUser bool) error {
+func (g *Governance) createProposal(totalVotes uint64, proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte, includeUser bool) error {
 	proposal := &Proposal{
 		Type:               proposalType,
 		Strategy:           NowProposalStrategy,
-		Proposer:           g.currentUser.String(),
+		Proposer:           g.Ctx.From.String(),
 		Title:              title,
 		Desc:               desc,
 		BlockNumber:        blockNumber,
 		Status:             Voting,
 		Extra:              extra,
-		CreatedBlockNumber: g.currentHeight,
+		CreatedBlockNumber: g.Ctx.BlockNumber,
 	}
 
-	id, err := g.proposalID.GetAndAddID()
+	id, err := g.nextProposalID.MustGet()
 	if err != nil {
 		return err
 	}
+	if err := g.nextProposalID.Put(id + 1); err != nil {
+		return err
+	}
 	proposal.ID = id
-	proposal.TotalVotes = lo.Sum[uint64](lo.Map[CouncilMember, uint64](council.Members, func(item CouncilMember, index int) uint64 {
-		return item.Weight
-	}))
+	proposal.TotalVotes = totalVotes
 	// proposer vote pass by default
 	if includeUser {
-		proposal.PassVotes = []string{g.currentUser.String()}
+		proposal.PassVotes = []string{proposal.Proposer}
 	}
 
-	if err := g.SaveProposal(proposal); err != nil {
+	if err = g.proposals.Put(proposal.ID, *proposal); err != nil {
 		return err
 	}
 
 	// propose generate not finished proposal
-	if err = g.notFinishedProposalMgr.SetProposal(&NotFinishedProposal{
+	if err = g.addNotFinishedProposal(&NotFinishedProposal{
 		ID:                  proposal.ID,
 		DeadlineBlockNumber: proposal.BlockNumber,
 		Type:                proposal.Type,
@@ -340,23 +417,18 @@ func (g *Governance) CreateProposal(council *Council, proposalType ProposalType,
 		return err
 	}
 
-	// record log
-	g.RecordLog(ProposeMethod, proposal)
+	g.EmitProposeEvent(proposal)
 
 	return nil
 }
 
-func (g *Governance) CheckBeforeVote(user *ethcommon.Address, proposal *Proposal, voteResult VoteResult) (bool, error) {
-	if user == nil {
-		return false, ErrUser
-	}
-
+func (g *Governance) checkBeforeVote(user ethcommon.Address, proposal *Proposal, voteResult VoteResult) (bool, error) {
 	if voteResult != Pass && voteResult != Reject {
 		return false, ErrVoteResult
 	}
 
 	// check if user has voted
-	if common.IsInSlice[string](user.String(), proposal.PassVotes) || common.IsInSlice[string](user.String(), proposal.RejectVotes) {
+	if lo.Contains(proposal.PassVotes, user.String()) || lo.Contains(proposal.RejectVotes, user.String()) {
 		return false, ErrUseHasVoted
 	}
 
@@ -371,132 +443,193 @@ func (g *Governance) CheckBeforeVote(user *ethcommon.Address, proposal *Proposal
 // Vote a proposal, return vote status
 func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 	voteResult := VoteResult(voteRes)
-	proposal, err := g.LoadProposal(proposalID)
+	proposalExist, proposal, err := g.proposals.Get(proposalID)
+	if err != nil {
+		return err
+	}
+	if !proposalExist {
+		return ErrNotFoundProposal
+	}
+
+	handler, err := g.getHandler(proposal.Type)
 	if err != nil {
 		return err
 	}
 
-	proposalType := proposal.Type
-	_, ok := g.type2Executor[proposalType]
-	if !ok {
-		return ErrProposalType
-	}
-
-	gov, ok := g.governance[proposalType]
-	if ok {
-		// call overide function
-		return gov.Vote(proposalID, voteRes)
-	}
-
 	// check and update state
-	if err := g.checkAndUpdateState(VoteMethod); err != nil {
+	if err := g.checkAndUpdateState(VoteEvent); err != nil {
 		return err
 	}
 
-	if _, err := g.CheckBeforeVote(g.currentUser, proposal, voteResult); err != nil {
+	if _, err := g.checkBeforeVote(g.Ctx.From, &proposal, voteResult); err != nil {
 		return err
 	}
 
-	// check user can vote
-	isExist, _ := CheckInCouncil(g.account, g.currentUser.String())
-	if !isExist {
-		return ErrNotFoundCouncilMember
+	hasPermission, err := handler.VotePermissionCheck(proposal.Type, g.Ctx.From)
+	if err != nil {
+		return errors.Wrapf(err, "failed to check vote permission for proposal type %d", proposal.Type)
+	}
+	if !hasPermission {
+		return errors.Errorf("no permission for vote proposal[%d]", proposal.Type)
 	}
 
 	switch voteResult {
 	case Pass:
-		proposal.PassVotes = append(proposal.PassVotes, g.currentUser.String())
+		proposal.PassVotes = append(proposal.PassVotes, g.Ctx.From.String())
 	case Reject:
-		proposal.RejectVotes = append(proposal.RejectVotes, g.currentUser.String())
+		proposal.RejectVotes = append(proposal.RejectVotes, g.Ctx.From.String())
 	}
-	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes)))
+	if err = handler.UpdateVoteStatus(&proposal); err != nil {
+		return errors.Wrapf(err, "failed to update vote status for proposal type %d", proposal.Type)
+	}
 
 	isProposalSaved := false
 	// update not finished proposal
 	if proposal.Status == Approved || proposal.Status == Rejected {
-		proposal.EffectiveBlockNumber = g.currentHeight
-		if err := g.SaveProposal(proposal); err != nil {
+		proposal.EffectiveBlockNumber = g.Ctx.BlockNumber
+		if err = g.proposals.Put(proposal.ID, proposal); err != nil {
 			return err
 		}
 		isProposalSaved = true
 
-		if err := g.notFinishedProposalMgr.RemoveProposal(proposal.ID); err != nil {
+		if err := g.removeNotFinishedProposal(proposal.ID); err != nil {
 			return err
 		}
 	}
 
 	if !isProposalSaved {
-		if err := g.SaveProposal(proposal); err != nil {
+		if err = g.proposals.Put(proposal.ID, proposal); err != nil {
 			return err
 		}
 	}
 
 	// if proposal approved, then execute
 	if proposal.Status == Approved {
-		executor, ok := g.type2Executor[proposal.Type]
-		if !ok {
-			return ErrProposalType
+		if err := handler.VotePassExecute(&proposal); err != nil {
+			proposal.ExecuteSuccess = false
+			proposal.ExecuteFailedMsg = err.Error()
+		} else {
+			proposal.ExecuteSuccess = true
 		}
-		if err := executor.Execute(proposal); err != nil {
+
+		if err = g.proposals.Put(proposal.ID, proposal); err != nil {
 			return err
 		}
 	}
 
-	g.RecordLog(VoteMethod, proposal)
+	g.EmitVoteEvent(&proposal)
 
 	return nil
 }
 
 // GetLatestProposalID return current proposal lastest id
-func (g *Governance) GetLatestProposalID() uint64 {
-	return g.proposalID.GetID() - 1
+func (g *Governance) GetLatestProposalID() (uint64, error) {
+	nextID, err := g.nextProposalID.MustGet()
+	if err != nil {
+		return 0, err
+	}
+
+	return nextID - 1, nil
 }
 
 func (g *Governance) Proposal(proposalID uint64) (*Proposal, error) {
-	return g.LoadProposal(proposalID)
+	proposalExist, proposal, err := g.proposals.Get(proposalID)
+	if err != nil {
+		return nil, err
+	}
+	if !proposalExist {
+		return nil, ErrNotFoundProposal
+	}
+	return &proposal, nil
 }
 
-func (g *Governance) SaveProposal(proposal *Proposal) error {
-	b, err := json.Marshal(proposal)
+func (g *Governance) checkFinishedAllProposal() (bool, error) {
+	exist, notFinishedProposals, err := g.notFinishedProposals.Get()
+	if err != nil {
+		return false, err
+	}
+	if !exist {
+		return true, nil
+	}
+
+	return len(notFinishedProposals) == 0, nil
+}
+
+func (g *Governance) isCouncilMember(user ethcommon.Address) (bool, error) {
+	council, err := g.council.MustGet()
+	if err != nil {
+		return false, err
+	}
+
+	return lo.ContainsBy(council.Members, func(item CouncilMember) bool {
+		return item.Address == user.String()
+	}), nil
+}
+
+func (g *Governance) EmitProposeEvent(proposal *Proposal) {
+	data, err := json.Marshal(proposal)
+	if err != nil {
+		panic(err)
+	}
+	g.EmitEvent(&governance.EventPropose{
+		ProposalID:   proposal.ID,
+		ProposalType: uint8(proposal.Type),
+		Proposer:     ethcommon.HexToAddress(proposal.Proposer),
+		Proposal:     data,
+	})
+}
+
+func (g *Governance) EmitVoteEvent(proposal *Proposal) {
+	data, err := json.Marshal(proposal)
+	if err != nil {
+		panic(err)
+	}
+	g.EmitEvent(&governance.EventVote{
+		ProposalID:   proposal.ID,
+		ProposalType: uint8(proposal.Type),
+		Proposer:     ethcommon.HexToAddress(proposal.Proposer),
+		Proposal:     data,
+	})
+}
+
+func (g *Governance) addNotFinishedProposal(proposal *NotFinishedProposal) error {
+	exist, proposals, err := g.notFinishedProposals.Get()
 	if err != nil {
 		return err
 	}
+	if !exist {
+		proposals = make([]NotFinishedProposal, 0)
+	}
 
-	g.account.SetState([]byte(fmt.Sprintf("%s%d", ProposalKey, proposal.GetID())), b)
+	proposals = lo.UniqBy(append(proposals, *proposal), func(item NotFinishedProposal) uint64 {
+		return item.ID
+	})
+
+	if err := g.notFinishedProposals.Put(proposals); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (g *Governance) LoadProposal(proposalID uint64) (*Proposal, error) {
-	isExist, b := g.account.GetState([]byte(fmt.Sprintf("%s%d", ProposalKey, proposalID)))
-	if !isExist {
-		return nil, ErrNotFoundProposal
+func (g *Governance) removeNotFinishedProposal(id uint64) error {
+	exist, proposals, err := g.notFinishedProposals.Get()
+	if err != nil {
+		return err
+	}
+	if !exist {
+		return ErrNotFoundProposal
 	}
 
-	proposal := &Proposal{}
-	if err := json.Unmarshal(b, proposal); err != nil {
-		return nil, err
+	newProposals := lo.Filter[NotFinishedProposal](proposals, func(item NotFinishedProposal, index int) bool {
+		return item.ID != id
+	})
+
+	if len(newProposals) == len(proposals) {
+		return ErrNotFoundProposal
 	}
-	return proposal, nil
-}
 
-// RecordLog record execution log for governance
-func (g *Governance) RecordLog(method string, proposal *Proposal) {
-	// set method signature, proposal id, proposal type, proposer as log topic for index
-	idhash := make([]byte, 8)
-	binary.BigEndian.PutUint64(idhash, proposal.ID)
-	typeHash := make([]byte, 2)
-	binary.BigEndian.PutUint16(typeHash, uint16(proposal.Type))
-
-	data, _ := json.Marshal(proposal)
-
-	currentLog := common.Log{
-		Address: types.NewAddressByStr(common.GovernanceContractAddr),
+	if err := g.notFinishedProposals.Put(proposals); err != nil {
+		return err
 	}
-	// topic add method signature, id, proposal type, proposer
-	currentLog.Topics = append(currentLog.Topics, types.NewHashByStr(method),
-		types.NewHash(idhash), types.NewHash(typeHash), types.NewHash([]byte(proposal.Proposer)))
-	currentLog.Data = data
-	currentLog.Removed = false
-
-	*g.currentLogs = append(*g.currentLogs, currentLog)
+	return nil
 }

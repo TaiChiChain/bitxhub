@@ -2,16 +2,17 @@ package txpool
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/eth"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
-
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -169,7 +170,7 @@ func (api *TxPoolAPI) ContentFrom(addr common.Address) (any, error) {
 	data := api.api.TxPool().GetAccountMeta(addr.String(), true)
 	accountMeta, ok := data.(*txpool.AccountMeta[types.Transaction, *types.Transaction])
 	if !ok {
-		err := fmt.Errorf("failed to get account meta")
+		err := errors.New("failed to get account meta")
 		api.logger.Error(err)
 		return nil, err
 	}
@@ -229,7 +230,7 @@ func (api *TxPoolAPI) Status() (any, error) {
 	data := api.api.TxPool().GetMeta(false)
 	meta, ok := data.(*txpool.Meta[types.Transaction, *types.Transaction])
 	if !ok {
-		err := fmt.Errorf("failed to get txpool meta")
+		err := errors.New("failed to get txpool meta")
 		api.logger.Error(err)
 		return nil, err
 	}

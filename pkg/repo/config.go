@@ -4,80 +4,38 @@ import (
 	"encoding/json"
 	"os"
 	"path"
-	"reflect"
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
+	"github.com/axiomesh/axiom-kit/types"
 	network "github.com/axiomesh/axiom-p2p"
 )
 
-type Duration time.Duration
-
-func (d *Duration) MarshalText() (text []byte, err error) {
-	return []byte(time.Duration(*d).String()), nil
-}
-
-func (d *Duration) UnmarshalText(b []byte) error {
-	x, err := time.ParseDuration(string(b))
-	if err != nil {
-		return err
-	}
-	*d = Duration(x)
-	return nil
-}
-
-func StringToTimeDurationHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any) (any, error) {
-		if f.Kind() != reflect.String {
-			return data, nil
-		}
-		if t != reflect.TypeOf(Duration(5)) {
-			return data, nil
-		}
-
-		d, err := time.ParseDuration(data.(string))
-		if err != nil {
-			return nil, err
-		}
-		return Duration(d), nil
-	}
-}
-
-func (d *Duration) ToDuration() time.Duration {
-	return time.Duration(*d)
-}
-
-func (d *Duration) String() string {
-	return time.Duration(*d).String()
-}
-
 type StartArgs struct {
-	ReadonlyMode bool `mapstructure:"readonly_mode" toml:"readonly_mode"`
-	SnapshotMode bool `mapstructure:"snapshot_mode" toml:"snapshot_mode"`
+	ReadonlyMode bool
+	SnapshotMode bool
 }
 
 type Config struct {
-	Ulimit    uint64    `mapstructure:"ulimit" toml:"ulimit"`
-	Port      Port      `mapstructure:"port" toml:"port"`
-	JsonRPC   JsonRPC   `mapstructure:"jsonrpc" toml:"jsonrpc"`
-	P2P       P2P       `mapstructure:"p2p" toml:"p2p"`
-	Sync      Sync      `mapstructure:"sync" toml:"sync"`
-	Consensus Consensus `mapstructure:"consensus" toml:"consensus"`
-	Storage   Storage   `mapstructure:"storage" toml:"storage"`
-	Ledger    Ledger    `mapstructure:"ledger" toml:"ledger"`
-	Snapshot  Snapshot  `mapstructure:"snapshot" toml:"snapshot"`
-	Executor  Executor  `mapstructure:"executor" toml:"executor"`
-	PProf     PProf     `mapstructure:"pprof" toml:"pprof"`
-	Monitor   Monitor   `mapstructure:"monitor" toml:"monitor"`
-	Log       Log       `mapstructure:"log" toml:"log"`
-	Access    Access    `mapstructure:"access" toml:"access"`
+	Ulimit         uint64         `mapstructure:"ulimit" toml:"ulimit"`
+	Port           Port           `mapstructure:"port" toml:"port"`
+	Node           Node           `mapstructure:"node" toml:"node"`
+	GasPriceOracle GasPriceOracle `mapstructure:"gas_price_oracle" toml:"gas_price_oracle"`
+	JsonRPC        JsonRPC        `mapstructure:"jsonrpc" toml:"jsonrpc"`
+	P2P            P2P            `mapstructure:"p2p" toml:"p2p"`
+	Sync           Sync           `mapstructure:"sync" toml:"sync"`
+	Consensus      Consensus      `mapstructure:"consensus" toml:"consensus"`
+	Storage        Storage        `mapstructure:"storage" toml:"storage"`
+	Ledger         Ledger         `mapstructure:"ledger" toml:"ledger"`
+	Snapshot       Snapshot       `mapstructure:"snapshot" toml:"snapshot"`
+	Executor       Executor       `mapstructure:"executor" toml:"executor"`
+	PProf          PProf          `mapstructure:"pprof" toml:"pprof"`
+	Monitor        Monitor        `mapstructure:"monitor" toml:"monitor"`
+	Log            Log            `mapstructure:"log" toml:"log"`
+	Access         Access         `mapstructure:"access" toml:"access"`
 }
 
 type Port struct {
@@ -86,6 +44,20 @@ type Port struct {
 	P2P       int64 `mapstructure:"p2p" toml:"p2p"`
 	PProf     int64 `mapstructure:"pprof" toml:"pprof"`
 	Monitor   int64 `mapstructure:"monitor" toml:"monitor"`
+}
+
+type Node struct {
+	IncentiveAddress string `mapstructure:"incentive_address" toml:"incentive_address"`
+}
+
+type GasPriceOracle struct {
+	Blocks           int               `mapstructure:"blocks" toml:"blocks"`
+	Percentile       int               `mapstructure:"percentile" toml:"percentile"`
+	MaxHeaderHistory uint64            `mapstructure:"max_header_history" toml:"max_header_history"`
+	MaxBlockHistory  uint64            `mapstructure:"max_block_history" toml:"max_block_history"`
+	Default          *types.CoinNumber `mapstructure:"default" toml:"default"`
+	MaxPrice         *types.CoinNumber `mapstructure:"max_price" toml:"max_price"`
+	IgnorePrice      *types.CoinNumber `mapstructure:"ignore_price" toml:"ignore_price"`
 }
 
 type JsonRPC struct {
@@ -116,15 +88,13 @@ type P2PPipeSimpleBroadcast struct {
 }
 
 type P2PPipe struct {
-	ReceiveMsgCacheSize      int                    `mapstructure:"receive_msg_cache_size" toml:"receive_msg_cache_size"`
-	BroadcastType            string                 `mapstructure:"broadcast_type" toml:"broadcast_type"`
-	SimpleBroadcast          P2PPipeSimpleBroadcast `mapstructure:"simple_broadcast" toml:"simple_broadcast"`
-	Gossipsub                P2PPipeGossipsub       `mapstructure:"gossipsub" toml:"gossipsub"`
-	UnicastReadTimeout       Duration               `mapstructure:"unicast_read_timeout" toml:"unicast_read_timeout"`
-	UnicastSendRetryNumber   int                    `mapstructure:"unicast_send_retry_number" toml:"unicast_send_retry_number"`
-	UnicastSendRetryBaseTime Duration               `mapstructure:"unicast_send_retry_base_time" toml:"unicast_send_retry_base_time"`
-	FindPeerTimeout          Duration               `mapstructure:"find_peer_timeout" toml:"find_peer_timeout"`
-	ConnectTimeout           Duration               `mapstructure:"connect_timeout" toml:"connect_timeout"`
+	ReceiveMsgCacheSize      int              `mapstructure:"receive_msg_cache_size" toml:"receive_msg_cache_size"`
+	Gossipsub                P2PPipeGossipsub `mapstructure:"gossipsub" toml:"gossipsub"`
+	UnicastReadTimeout       Duration         `mapstructure:"unicast_read_timeout" toml:"unicast_read_timeout"`
+	UnicastSendRetryNumber   int              `mapstructure:"unicast_send_retry_number" toml:"unicast_send_retry_number"`
+	UnicastSendRetryBaseTime Duration         `mapstructure:"unicast_send_retry_base_time" toml:"unicast_send_retry_base_time"`
+	FindPeerTimeout          Duration         `mapstructure:"find_peer_timeout" toml:"find_peer_timeout"`
+	ConnectTimeout           Duration         `mapstructure:"connect_timeout" toml:"connect_timeout"`
 }
 
 type P2P struct {
@@ -178,22 +148,18 @@ type LogModule struct {
 	P2P            string `mapstructure:"p2p" toml:"p2p"`
 	Consensus      string `mapstructure:"consensus" toml:"consensus"`
 	Executor       string `mapstructure:"executor" toml:"executor"`
-	Governance     string `mapstructure:"governance" toml:"governance"`
 	API            string `mapstructure:"api" toml:"api"`
-	APP            string `mapstructure:"app" toml:"app"`
 	CoreAPI        string `mapstructure:"coreapi" toml:"coreapi"`
 	Storage        string `mapstructure:"storage" toml:"storage"`
 	Profile        string `mapstructure:"profile" toml:"profile"`
 	Finance        string `mapstructure:"finance" toml:"finance"`
 	TxPool         string `mapstructure:"txpool" toml:"txpool"`
-	Access         string `mapstructure:"access" toml:"access"`
 	BlockSync      string `mapstructure:"blocksync" toml:"blocksync"`
-	Epoch          string `mapstructure:"epoch" toml:"epoch"`
 	SystemContract string `mapstructure:"system_contract" toml:"system_contract"`
 }
 
 type Access struct {
-	EnableWhiteList bool `mapstructure:"enable_white_list" toml:"enable_white_list"`
+	EnableWhitelist bool `mapstructure:"enable_whitelist" toml:"enable_whitelist"`
 }
 
 type Sync struct {
@@ -206,6 +172,7 @@ type Sync struct {
 type Consensus struct {
 	Type        string `mapstructure:"type" toml:"type"`
 	StorageType string `mapstructure:"storage_type" toml:"storage_type"`
+	UseBlsKey   bool   `mapstructure:"use_bls_key" toml:"use_bls_key"`
 }
 
 type Storage struct {
@@ -255,6 +222,10 @@ func DefaultConfig() *Config {
 	if testNetConfigBuilder, ok := TestNetConfigBuilderMap[BuildNet]; ok {
 		return testNetConfigBuilder()
 	}
+	return defaultConfig()
+}
+
+func defaultConfig() *Config {
 	return &Config{
 		Ulimit: 65535,
 		Port: Port{
@@ -263,6 +234,18 @@ func DefaultConfig() *Config {
 			P2P:       4001,
 			PProf:     53121,
 			Monitor:   40011,
+		},
+		Node: Node{
+			IncentiveAddress: "0x0000000000000000000000000000000000000000",
+		},
+		GasPriceOracle: GasPriceOracle{
+			Blocks:           20,
+			Percentile:       60,
+			MaxHeaderHistory: 1024,
+			MaxBlockHistory:  1024,
+			Default:          types.CoinNumberByGmol(500),
+			MaxPrice:         types.CoinNumberByGmol(10000),
+			IgnorePrice:      types.CoinNumberByMol(2),
 		},
 		JsonRPC: JsonRPC{
 			GasCap:     300000000,
@@ -285,18 +268,14 @@ func DefaultConfig() *Config {
 			},
 		},
 		P2P: P2P{
-			Security:        P2PSecurityTLS,
-			SendTimeout:     Duration(5 * time.Second),
-			ReadTimeout:     Duration(5 * time.Second),
-			CompressionAlgo: network.SnappyCompression,
-			EnableMetrics:   true,
+			BootstrapNodeAddresses: []string{},
+			Security:               P2PSecurityTLS,
+			SendTimeout:            Duration(5 * time.Second),
+			ReadTimeout:            Duration(5 * time.Second),
+			CompressionAlgo:        network.SnappyCompression,
+			EnableMetrics:          true,
 			Pipe: P2PPipe{
 				ReceiveMsgCacheSize: 10240,
-				BroadcastType:       P2PPipeBroadcastGossip,
-				SimpleBroadcast: P2PPipeSimpleBroadcast{
-					WorkerCacheSize:        1024,
-					WorkerConcurrencyLimit: 20,
-				},
 				Gossipsub: P2PPipeGossipsub{
 					SubBufferSize:          10240,
 					PeerOutboundBufferSize: 10240,
@@ -320,6 +299,7 @@ func DefaultConfig() *Config {
 		Consensus: Consensus{
 			Type:        ConsensusTypeRbft,
 			StorageType: ConsensusStorageTypeMinifile,
+			UseBlsKey:   false,
 		},
 		Storage: Storage{
 			KvType:      KVStorageTypePebble,
@@ -359,29 +339,25 @@ func DefaultConfig() *Config {
 			EnableCompress:   false,
 			EnableColor:      true,
 			DisableTimestamp: false,
-			MaxAge:           30,
+			MaxAge:           10,
 			MaxSize:          128,
 			RotationTime:     Duration(24 * time.Hour),
 			Module: LogModule{
 				P2P:            "info",
-				Consensus:      "info",
+				Consensus:      "debug",
 				Executor:       "info",
-				Governance:     "info",
 				API:            "info",
 				CoreAPI:        "info",
 				Storage:        "info",
 				Profile:        "info",
 				Finance:        "error",
 				BlockSync:      "info",
-				APP:            "info",
-				Access:         "info",
 				TxPool:         "info",
-				Epoch:          "info",
 				SystemContract: "info",
 			},
 		},
 		Access: Access{
-			EnableWhiteList: false,
+			EnableWhitelist: false,
 		},
 	}
 }
@@ -404,7 +380,7 @@ func LoadConfig(repoRoot string) (*Config, error) {
 			if err := CheckWritable(repoRoot); err != nil {
 				return nil, err
 			}
-			if err := readConfigFromFile(cfgPath, cfg); err != nil {
+			if err := ReadConfigFromFile(cfgPath, cfg); err != nil {
 				return nil, err
 			}
 		}

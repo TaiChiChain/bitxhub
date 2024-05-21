@@ -12,8 +12,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/jmt"
-	"github.com/axiomesh/axiom-kit/storage"
-	"github.com/axiomesh/axiom-kit/storage/leveldb"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
@@ -50,7 +49,7 @@ type SimpleAccount struct {
 	originCode []byte
 	dirtyCode  []byte
 
-	backend          storage.Storage
+	backend          kv.Storage
 	storageTrieCache *storagemgr.CacheWrapper
 	pruneCache       jmt.PruneCache
 	cache            *AccountCache
@@ -68,10 +67,7 @@ type SimpleAccount struct {
 }
 
 func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
-	ldb, err := leveldb.NewMemory()
-	if err != nil {
-		panic(err)
-	}
+	ldb := kv.NewMemory()
 
 	ac, err := NewAccountCache(0, true)
 	if err != nil {
@@ -87,13 +83,13 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		backend:          ldb,
 		storageTrieCache: storagemgr.NewCacheWrapper(32, false),
 		cache:            ac,
-		changer:          NewChanger(),
+		changer:          newChanger(),
 		selfDestructed:   false,
 		created:          false,
 	}
 }
 
-func NewAccount(blockHeight uint64, backend storage.Storage, storageTrieCache *storagemgr.CacheWrapper, pruneCache jmt.PruneCache, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
+func NewAccount(blockHeight uint64, backend kv.Storage, storageTrieCache *storagemgr.CacheWrapper, pruneCache jmt.PruneCache, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
 	return &SimpleAccount{
 		logger:           loggers.Logger(loggers.Storage),
 		Addr:             addr,
@@ -176,14 +172,14 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 	}
 
 	// todo opz here, consider api usage
-	//if o.snapshot != nil {
+	// if o.snapshot != nil {
 	//	if value, err := o.snapshot.Storage(o.Addr, key); err == nil {
 	//		o.originState[string(key)] = value
 	//		o.initStorageTrie()
 	//		o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
 	//		return value != nil, value
 	//	}
-	//}
+	// }
 
 	o.initStorageTrie()
 	start := time.Now()

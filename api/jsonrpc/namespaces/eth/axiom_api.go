@@ -3,7 +3,6 @@ package eth
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,8 +14,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-// AxiomAPI provides an API to get related info
-type AxiomAPI struct {
+// EthereumAPI provides an API to get related info
+type EthereumAPI struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	rep    *repo.Repo
@@ -24,46 +23,14 @@ type AxiomAPI struct {
 	logger logrus.FieldLogger
 }
 
-func NewAxiomAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) *AxiomAPI {
+func NewEthereumAPI(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) *EthereumAPI {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &AxiomAPI{ctx: ctx, cancel: cancel, rep: rep, api: api, logger: logger}
-}
-
-// GasPrice returns the current gas price based on dynamic adjustment strategy.
-func (api *AxiomAPI) GasPrice() *hexutil.Big {
-	defer func(start time.Time) {
-		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
-		queryTotalCounter.Inc()
-	}(time.Now())
-
-	api.logger.Debug("eth_gasPrice")
-	gasPrice, err := api.api.Gas().GetGasPrice()
-	if err != nil {
-		queryFailedCounter.Inc()
-		api.logger.Errorf("get gas price err: %v", err)
-	}
-	out := big.NewInt(int64(gasPrice))
-	return (*hexutil.Big)(out)
-}
-
-// MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic transactions.
-// todo Supplementary gas fee
-func (api *AxiomAPI) MaxPriorityFeePerGas(ctx context.Context) (ret *hexutil.Big, err error) {
-	defer func(start time.Time) {
-		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
-		queryTotalCounter.Inc()
-		if err != nil {
-			queryFailedCounter.Inc()
-		}
-	}(time.Now())
-
-	api.logger.Debug("eth_maxPriorityFeePerGas")
-	return (*hexutil.Big)(new(big.Int)), nil
+	return &EthereumAPI{ctx: ctx, cancel: cancel, rep: rep, api: api, logger: logger}
 }
 
 // Syncing returns whether the current node is syncing with other peers. Returns false if not, or a struct
 // outlining the state of the sync if it is.
-func (api *AxiomAPI) Syncing() (ret any, err error) {
+func (api *EthereumAPI) Syncing() (ret any, err error) {
 	defer func(start time.Time) {
 		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
 		queryTotalCounter.Inc()
@@ -88,7 +55,7 @@ func (api *AxiomAPI) Syncing() (ret any, err error) {
 	return syncBlock, nil
 }
 
-func (api *AxiomAPI) Accounts() (ret []common.Address, err error) {
+func (api *EthereumAPI) Accounts() (ret []common.Address, err error) {
 	defer func(start time.Time) {
 		invokeReadOnlyDuration.Observe(time.Since(start).Seconds())
 		queryTotalCounter.Inc()

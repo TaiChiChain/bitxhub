@@ -4,13 +4,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -37,7 +37,7 @@ type NodeDev struct {
 }
 
 func NewNode(config *common.Config) (*NodeDev, error) {
-	proposerAccount := crypto.PubkeyToAddress(config.PrivKey.PublicKey).Hex()
+	proposerAccount := syscommon.StakingManagerContractAddr
 
 	return &NodeDev{
 		config:          config,
@@ -64,10 +64,10 @@ func (n *NodeDev) Prepare(tx *types.Transaction) error {
 	defer n.mutex.Unlock()
 	block := &types.Block{
 		Header: &types.BlockHeader{
-			Epoch:           1,
-			Number:          n.lastExec + 1,
-			Timestamp:       time.Now().Unix(),
-			ProposerAccount: n.proposerAccount,
+			Epoch:          1,
+			Number:         n.lastExec + 1,
+			Timestamp:      time.Now().Unix(),
+			ProposerNodeID: 1,
 		},
 		Transactions: []*types.Transaction{tx},
 	}

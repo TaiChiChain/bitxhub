@@ -20,14 +20,15 @@ import (
 	"math/big"
 	"sync"
 
-	types2 "github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
-	"github.com/axiomesh/axiom-ledger/pkg/events"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	types2 "github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/axiomesh/axiom-ledger/pkg/events"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const sampleNumber = 3 // Number of transactions sampled in a block
@@ -37,6 +38,7 @@ var (
 	DefaultIgnorePrice = big.NewInt(2 * params.Wei)
 	DefaultChainID     = uint64(1356)
 	DefaultGasLimit    = uint64(50000000)
+	DefaultGasPrice    = big.NewInt(5 * params.GWei)
 )
 
 type Config struct {
@@ -80,9 +82,10 @@ func generateConfig(rep *repo.Repo) Config {
 		MaxHeaderHistory: 300,
 		MaxBlockHistory:  5,
 		MaxPrice:         DefaultMaxPrice,
+		Default:          DefaultGasPrice,
 		IgnorePrice:      DefaultIgnorePrice,
 	}
-	//config := oracle.Config{
+	// config := oracle.Config{
 	//	GasLimit:         rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
 	//	ChainID:          rep.GenesisConfig.ChainID,
 	//	Blocks:           20, // default traverse block nums
@@ -91,7 +94,7 @@ func generateConfig(rep *repo.Repo) Config {
 	//	MaxBlockHistory:  1024,
 	//	MaxPrice:         oracle.DefaultMaxPrice,
 	//	IgnorePrice:      oracle.DefaultIgnorePrice,
-	//}
+	// }
 	return config
 }
 
@@ -274,7 +277,7 @@ func (oracle *Oracle) getBlockValues(blockNum uint64, limit int, ignoreUnder *bi
 	block, err := oracle.api.Broker().GetBlockHeaderByNumber(blockNum)
 	if block == nil {
 		select {
-		case result <- results{nil, err}:
+		case result <- results{values: nil, err: err}:
 		case <-quit:
 		}
 		return
@@ -303,7 +306,7 @@ func (oracle *Oracle) getBlockValues(blockNum uint64, limit int, ignoreUnder *bi
 		}
 	}
 	select {
-	case result <- results{prices, nil}:
+	case result <- results{values: prices, err: nil}:
 	case <-quit:
 	}
 }

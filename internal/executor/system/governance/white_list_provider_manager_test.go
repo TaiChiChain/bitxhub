@@ -7,94 +7,42 @@ import (
 	"testing"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/mock_ledger"
-	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-const (
+var (
 	WhiteListProvider1 = "0x1000000000000000000000000000000000000001"
 	WhiteListProvider2 = "0x1000000000000000000000000000000000000002"
 )
 
-type TestWhiteListProviderProposal struct {
-	ID          uint64
-	Type        ProposalType
-	Proposer    string
-	TotalVotes  uint64
-	PassVotes   []string
-	RejectVotes []string
-	Status      ProposalStatus
-	Providers   []access.WhiteListProvider
-}
-
-func PrepareWhiteListProviderManager(t *testing.T) (*Governance, *mock_ledger.MockStateLedger) {
-	logger := logrus.New()
-	gov := NewGov(&common.SystemContractConfig{
-		Logger: logger,
-	})
-
-	mockCtl := gomock.NewController(t)
-	stateLedger := mock_ledger.NewMockStateLedger(mockCtl)
-
-	account := ledger.NewMockAccount(2, types.NewAddressByStr(common.GovernanceContractAddr))
-
-	stateLedger.EXPECT().GetOrCreateAccount(gomock.Any()).Return(account).AnyTimes()
-	stateLedger.EXPECT().AddLog(gomock.Any()).AnyTimes()
-	stateLedger.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
-
-	err := InitCouncilMembers(stateLedger, []*repo.Admin{
-		{
-			Address: admin1,
-			Weight:  1,
-			Name:    "111",
-		},
-		{
-			Address: admin2,
-			Weight:  1,
-			Name:    "222",
-		},
-		{
-			Address: admin3,
-			Weight:  1,
-			Name:    "333",
-		},
-		{
-			Address: admin4,
-			Weight:  1,
-			Name:    "444",
-		},
-	})
+func generateProviderProposeData(t *testing.T, extraArgs WhitelistProviderArgs) []byte {
+	data, err := json.Marshal(extraArgs)
 	assert.Nil(t, err)
 
-	return gov, stateLedger
+	return data
 }
 
 func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
-	gov, stateLedger := PrepareWhiteListProviderManager(t)
+	testNVM, gov := initGovernance(t)
 
 	testcases := []struct {
-		Caller string
+		Caller ethcommon.Address
 		Data   []byte
 		Err    error
 		HasErr bool
 	}{
 		{
-			Caller: WhiteListProvider1,
-			Data: generateProviderProposeData(t, access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+			Caller: ethcommon.HexToAddress(WhiteListProvider1),
+			Data: generateProviderProposeData(t, WhitelistProviderArgs{
+				Providers: []WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: WhiteListProvider1,
+						Addr: WhiteListProvider1,
 					},
 					{
-						WhiteListProviderAddr: WhiteListProvider2,
+						Addr: WhiteListProvider2,
 					},
 				},
 			}),
@@ -107,13 +55,13 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 		},
 		{
 			Caller: admin1,
-			Data: generateProviderProposeData(t, access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+			Data: generateProviderProposeData(t, WhitelistProviderArgs{
+				Providers: []WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: WhiteListProvider1,
+						Addr: WhiteListProvider1,
 					},
 					{
-						WhiteListProviderAddr: WhiteListProvider2,
+						Addr: WhiteListProvider2,
 					},
 				},
 			}),
@@ -121,138 +69,134 @@ func TestWhiteListProviderManager_RunForPropose(t *testing.T) {
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Propose(uint8(WhitelistProviderAdd), "test", "test desc", 100, test.Data)
+				if test.Err != nil {
+					assert.Contains(t, err.Error(), test.Err.Error())
+				} else {
+					if test.HasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
 		})
-
-		err := gov.Propose(uint8(WhiteListProviderAdd), "test", "test desc", 100, test.Data)
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
 	}
 }
 
 func TestWhiteListProviderManager_RunForVoteAdd(t *testing.T) {
-	gov, stateLedger := PrepareWhiteListProviderManager(t)
+	testNVM, gov := initGovernance(t)
 
-	addr := types.NewAddressByStr(admin1).ETHAddress()
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args, err := json.Marshal(WhitelistProviderArgs{
+			Providers: []WhitelistProviderInfo{
+				{
+					Addr: WhiteListProvider1,
+				},
+				{
+					Addr: WhiteListProvider2,
+				},
+			},
+		})
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(WhitelistProviderAdd), "test title", "test desc", 100, args)
+		assert.Nil(t, err)
+		return err
 	})
 
-	args, err := json.Marshal(access.WhiteListProviderArgs{
-		Providers: []access.WhiteListProvider{
-			{
-				WhiteListProviderAddr: WhiteListProvider1,
-			},
-			{
-				WhiteListProviderAddr: WhiteListProvider2,
-			},
-		},
+	var proposalID uint64
+	testNVM.Call(gov, admin1, func() {
+		var err error
+		proposalID, err = gov.GetLatestProposalID()
+		assert.Nil(t, err)
 	})
-	assert.Nil(t, err)
-
-	err = gov.Propose(uint8(WhiteListProviderAdd), "test title", "test desc", 100, args)
-	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller     string
+		Caller     ethcommon.Address
 		ProposalID uint64
 		Res        uint8
 		Err        error
 		HasErr     bool
 	}{
 		{
-			Caller:     "0xfff0000000000000000000000000000000000000",
-			ProposalID: gov.proposalID.GetID() - 1,
+			Caller:     ethcommon.HexToAddress("0xfff0000000000000000000000000000000000000"),
+			ProposalID: proposalID,
 			Res:        uint8(Pass),
 			Err:        ErrNotFoundCouncilMember,
 		},
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 		{
 			Caller:     admin3,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(test.ProposalID, test.Res)
+				if test.Err != nil {
+					assert.Contains(t, err.Error(), test.Err.Error())
+				} else {
+					if test.HasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
 		})
-
-		err := gov.Vote(test.ProposalID, test.Res)
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
 	}
 }
 
 func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
-	gov, stateLedger := PrepareWhiteListProviderManager(t)
+	testNVM, gov := initGovernance(t)
 
-	err := access.InitProvidersAndWhiteList(stateLedger, []string{WhiteListProvider1, WhiteListProvider2, admin1, admin2, admin3}, []string{WhiteListProvider1, WhiteListProvider2, admin1})
+	testNVM.Rep.GenesisConfig.WhitelistProviders = []string{WhiteListProvider1, WhiteListProvider2, admin1.String(), admin2.String(), admin3.String()}
+	whitelistContract := access.WhitelistBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	err := whitelistContract.GenesisInit(testNVM.Rep.GenesisConfig)
 	assert.Nil(t, err)
 
-	addr := types.NewAddressByStr(admin1).ETHAddress()
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args, err := json.Marshal(WhitelistProviderArgs{
+			Providers: []WhitelistProviderInfo{
+				{
+					Addr: WhiteListProvider1,
+				},
+				{
+					Addr: WhiteListProvider2,
+				},
+			},
+		})
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(WhitelistProviderRemove), "test title", "test desc", 100, args)
+		assert.Nil(t, err)
+		return err
 	})
 
-	args, err := json.Marshal(access.WhiteListProviderArgs{
-		Providers: []access.WhiteListProvider{
-			{
-				WhiteListProviderAddr: WhiteListProvider1,
-			},
-			{
-				WhiteListProviderAddr: WhiteListProvider2,
-			},
-		},
+	var proposalID uint64
+	testNVM.Call(gov, admin1, func() {
+		var err error
+		proposalID, err = gov.GetLatestProposalID()
+		assert.Nil(t, err)
 	})
-	assert.Nil(t, err)
-
-	err = gov.Propose(uint8(WhiteListProviderRemove), "test title", "test desc", 100, args)
-	assert.Nil(t, err)
 
 	testcases := []struct {
-		Caller     string
+		Caller     ethcommon.Address
 		ProposalID uint64
 		Res        uint8
 		Err        error
@@ -260,102 +204,93 @@ func TestWhiteListProviderManager_RunForVoteRemove(t *testing.T) {
 	}{
 		{
 			Caller:     admin2,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 		{
 			Caller:     admin3,
-			ProposalID: gov.proposalID.GetID() - 1,
+			ProposalID: proposalID,
 			Res:        uint8(Pass),
 			HasErr:     false,
 		},
 	}
 
-	for _, test := range testcases {
-		addr := types.NewAddressByStr(test.Caller).ETHAddress()
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			CurrentUser:   &addr,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(test.ProposalID, test.Res)
+				if test.Err != nil {
+					assert.Contains(t, err.Error(), test.Err.Error())
+				} else {
+					if test.HasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
 		})
-
-		err := gov.Vote(test.ProposalID, test.Res)
-		if test.Err != nil {
-			assert.Equal(t, test.Err, err)
-		} else {
-			if test.HasErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
-		}
 	}
 }
 
-func generateProviderProposeData(t *testing.T, extraArgs access.WhiteListProviderArgs) []byte {
-	data, err := json.Marshal(extraArgs)
-	assert.Nil(t, err)
-
-	return data
-}
-
 func TestWhiteListProviderManager_propose(t *testing.T) {
-	gov, stateLedger := PrepareWhiteListProviderManager(t)
+	testNVM, gov := initGovernance(t)
 
-	err := access.InitProvidersAndWhiteList(stateLedger, []string{admin1, admin2, admin3}, []string{admin1, admin2, admin3})
+	testNVM.Rep.GenesisConfig.WhitelistProviders = []string{admin1.String(), admin2.String(), admin3.String()}
+	whitelistContract := access.WhitelistBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	err := whitelistContract.GenesisInit(testNVM.Rep.GenesisConfig)
 	assert.Nil(t, err)
 
 	testcases := []struct {
 		from     ethcommon.Address
 		ptype    ProposalType
-		args     *access.WhiteListProviderArgs
+		args     *WhitelistProviderArgs
 		expected error
 	}{
 		{
-			from:  types.NewAddressByStr(admin1).ETHAddress(),
-			ptype: WhiteListProviderAdd,
-			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+			from:  admin1,
+			ptype: WhitelistProviderAdd,
+			args: &WhitelistProviderArgs{
+				Providers: []WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: admin1,
+						Addr: admin1.String(),
 					},
 				},
 			},
 			expected: fmt.Errorf("provider already exists, %s", admin1),
 		},
 		{
-			from:  types.NewAddressByStr(admin2).ETHAddress(),
-			ptype: WhiteListProviderRemove,
-			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+			from:  admin2,
+			ptype: WhitelistProviderRemove,
+			args: &WhitelistProviderArgs{
+				Providers: []WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: "0x0000000000000000000000000000000000000000",
+						Addr: "0x0000000000000000000000000000000000000000",
 					},
 				},
 			},
 			expected: fmt.Errorf("provider does not exist, %s", "0x0000000000000000000000000000000000000000"),
 		},
 		{
-			from:  types.NewAddressByStr(admin3).ETHAddress(),
-			ptype: WhiteListProviderAdd,
-			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{},
+			from:  admin3,
+			ptype: WhitelistProviderAdd,
+			args: &WhitelistProviderArgs{
+				Providers: []WhitelistProviderInfo{},
 			},
 			expected: errors.New("empty providers"),
 		},
 		{
-			from:  types.NewAddressByStr(admin3).ETHAddress(),
-			ptype: WhiteListProviderAdd,
-			args: &access.WhiteListProviderArgs{
-				Providers: []access.WhiteListProvider{
+			from:  admin3,
+			ptype: WhitelistProviderAdd,
+			args: &WhitelistProviderArgs{
+				Providers: []WhitelistProviderInfo{
 					{
-						WhiteListProviderAddr: "0x0000000000000000000000000000000000000000",
+						Addr: "0x0000000000000000000000000000000000000000",
 					},
 					{
-						WhiteListProviderAddr: "0x0000000000000000000000000000000000000000",
+						Addr: "0x0000000000000000000000000000000000000000",
 					},
 				},
 			},
@@ -364,42 +299,46 @@ func TestWhiteListProviderManager_propose(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
-		logs := make([]common.Log, 0)
-		gov.SetContext(&common.VMContext{
-			CurrentUser:   &testcase.from,
-			CurrentHeight: 1,
-			CurrentLogs:   &logs,
-			StateLedger:   stateLedger,
+		testNVM.RunSingleTX(gov, testcase.from, func() error {
+			data, err := json.Marshal(testcase.args)
+			assert.Nil(t, err)
+
+			err = gov.Propose(uint8(testcase.ptype), "test", "test desc", 100, data)
+			if testcase.expected == nil {
+				assert.Nil(t, err)
+			} else {
+				assert.Contains(t, err.Error(), testcase.expected.Error())
+			}
+			return err
 		})
-
-		data, err := json.Marshal(testcase.args)
-		assert.Nil(t, err)
-
-		err = gov.Propose(uint8(testcase.ptype), "test", "test desc", 100, data)
-		assert.Equal(t, testcase.expected, err)
 	}
 
 	// test unfinished proposal
-	addr := types.NewAddressByStr(admin1).ETHAddress()
-	logs := make([]common.Log, 0)
-	gov.SetContext(&common.VMContext{
-		CurrentUser:   &addr,
-		CurrentHeight: 1,
-		CurrentLogs:   &logs,
-		StateLedger:   stateLedger,
-	})
-
-	data, err := json.Marshal(access.WhiteListProviderArgs{
-		Providers: []access.WhiteListProvider{
-			{
-				WhiteListProviderAddr: WhiteListProvider1,
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		data, err := json.Marshal(WhitelistProviderArgs{
+			Providers: []WhitelistProviderInfo{
+				{
+					Addr: WhiteListProvider1,
+				},
 			},
-		},
+		})
+		assert.Nil(t, err)
+		err = gov.Propose(uint8(WhitelistProviderAdd), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
 	})
-	assert.Nil(t, err)
-	err = gov.Propose(uint8(WhiteListProviderAdd), "test", "test desc", 100, data)
-	assert.Nil(t, err)
 
-	err = gov.Propose(uint8(WhiteListProviderAdd), "test", "test desc", 100, data)
-	assert.Equal(t, ErrExistVotingProposal, err)
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		data, err := json.Marshal(WhitelistProviderArgs{
+			Providers: []WhitelistProviderInfo{
+				{
+					Addr: WhiteListProvider1,
+				},
+			},
+		})
+		assert.Nil(t, err)
+		err = gov.Propose(uint8(WhitelistProviderAdd), "test", "test desc", 100, data)
+		assert.ErrorContains(t, err, ErrExistVotingProposal.Error())
+		return err
+	})
 }

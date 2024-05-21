@@ -6,23 +6,34 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/pkg/errors"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ipaymaster_client"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 const (
 	VALID_TIMESTAMP_OFFSET = 20
 	SIGNATURE_OFFSET       = 84
 
-	verifyingPaymasterOwnerKey = "verifying_owner_key"
+	verifyingPaymasterOwner = "owner"
 )
 
 var _ interfaces.IPaymaster = (*VerifyingPaymaster)(nil)
+
+var VerifyingPaymasterBuildConfig = &common.SystemContractBuildConfig[*VerifyingPaymaster]{
+	Name:    "saccount_verifying_paymaster",
+	Address: common.VerifyingPaymasterContractAddr,
+	AbiStr:  ipaymaster_client.BindingContractMetaData.ABI,
+	Constructor: func(systemContractBase common.SystemContractBase) *VerifyingPaymaster {
+		return &VerifyingPaymaster{
+			SystemContractBase: systemContractBase,
+		}
+	},
+}
 
 /**
  * A sample paymaster that uses external service to decide whether to pay for the UserOp.
@@ -34,63 +45,48 @@ var _ interfaces.IPaymaster = (*VerifyingPaymaster)(nil)
  * - the account checks a signature to prove identity and account ownership.
  */
 type VerifyingPaymaster struct {
-	entryPoint interfaces.IEntryPoint
-	selfAddr   *types.Address
+	common.SystemContractBase
 
-	account ledger.IAccount
-	// context fields
-	currentUser *ethcommon.Address
-	currentLogs *[]common.Log
-	stateLedger ledger.StateLedger
-	currentEVM  *vm.EVM
+	owner *common.VMSlot[ethcommon.Address]
 }
 
-func NewVerifyingPaymaster(entryPoint interfaces.IEntryPoint) *VerifyingPaymaster {
-	return &VerifyingPaymaster{entryPoint: entryPoint, selfAddr: types.NewAddressByStr(common.VerifyingPaymasterContractAddr)}
-}
-
-func InitializeVerifyingPaymaster(stateLedger ledger.StateLedger, owner ethcommon.Address) {
-	account := stateLedger.GetOrCreateAccount(types.NewAddressByStr(common.VerifyingPaymasterContractAddr))
-	account.SetState([]byte(verifyingPaymasterOwnerKey), owner.Bytes())
-}
-
-func (vp *VerifyingPaymaster) SetOwner(owner ethcommon.Address) {
-	vp.account.SetState([]byte(verifyingPaymasterOwnerKey), owner.Bytes())
-}
-
-func (vp *VerifyingPaymaster) GetOwner() ethcommon.Address {
-	isExist, ownerBytes := vp.account.GetState([]byte(verifyingPaymasterOwnerKey))
-	if isExist {
-		return ethcommon.BytesToAddress(ownerBytes)
+func (vp *VerifyingPaymaster) GenesisInit(genesis *repo.GenesisConfig) error {
+	if !ethcommon.IsHexAddress(genesis.SmartAccountAdmin) {
+		return errors.New("invalid admin address")
 	}
-	return ethcommon.Address{}
+
+	if err := vp.owner.Put(ethcommon.HexToAddress(genesis.SmartAccountAdmin)); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (vp *VerifyingPaymaster) SetContext(context *common.VMContext) {
-	vp.currentUser = context.CurrentUser
-	vp.currentLogs = context.CurrentLogs
-	vp.stateLedger = context.StateLedger
-	vp.currentEVM = context.CurrentEVM
+func (vp *VerifyingPaymaster) SetContext(ctx *common.VMContext) {
+	vp.SystemContractBase.SetContext(ctx)
 
-	vp.account = vp.stateLedger.GetOrCreateAccount(vp.selfAddress())
+	vp.owner = common.NewVMSlot[ethcommon.Address](vp.StateAccount, verifyingPaymasterOwner)
 }
 
-func (vp *VerifyingPaymaster) selfAddress() *types.Address {
-	return vp.selfAddr
+func (vp *VerifyingPaymaster) SetOwner(owner ethcommon.Address) error {
+	return vp.owner.Put(owner)
+}
+
+func (vp *VerifyingPaymaster) GetOwner() (ethcommon.Address, error) {
+	return vp.owner.MustGet()
 }
 
 // PostOp implements interfaces.IPaymaster.
 func (vp *VerifyingPaymaster) PostOp(mode interfaces.PostOpMode, context []byte, actualGasCost *big.Int) error {
-	if vp.currentUser.Hex() != common.EntryPointContractAddr {
-		return common.NewRevertStringError("only entrypoint can call verifying paymaster post op")
+	if vp.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call verifying paymaster post op")
 	}
 	return nil
 }
 
 // ValidatePaymasterUserOp implements interfaces.IPaymaster.
-func (vp *VerifyingPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
-	if vp.currentUser.Hex() != common.EntryPointContractAddr {
-		return nil, nil, common.NewRevertStringError("only entrypoint can call validate paymaster user op")
+func (vp *VerifyingPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, maxCost *big.Int) (context []byte, validationData *big.Int, err error) {
+	if vp.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return nil, nil, errors.New("only entrypoint can call validate paymaster user op")
 	}
 
 	context, validation, err := vp.validatePaymasterUserOp(userOp, userOpHash, maxCost)
@@ -102,14 +98,14 @@ func (vp *VerifyingPaymaster) ValidatePaymasterUserOp(userOp interfaces.UserOper
 }
 
 // nolint
-func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash []byte, maxCost *big.Int) (context []byte, validationData *interfaces.Validation, err error) {
+func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOperation, userOpHash [32]byte, maxCost *big.Int) (context []byte, validationData *interfaces.Validation, err error) {
 	validUntil, validAfter, signature, err := parsePaymasterAndData(userOp.PaymasterAndData)
 	if err != nil {
-		return nil, nil, common.NewRevertStringError(fmt.Sprintf("validate paymaster user op failed: %s", err.Error()))
+		return nil, nil, fmt.Errorf("validate paymaster user op failed: %s", err.Error())
 	}
 
 	if len(signature) != 65 {
-		return nil, nil, common.NewRevertStringError("verifying paymaster: invalid signature length in paymasterAndData")
+		return nil, nil, errors.New("verifying paymaster: invalid signature length in paymasterAndData")
 	}
 
 	validationData = &interfaces.Validation{
@@ -119,29 +115,35 @@ func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOper
 	// paymaster validate hash is not the user op hash
 	addr, err := recoveryAddrFromSignature(vp.getHash(userOp, validUntil, validAfter), signature)
 	if err != nil {
-		return []byte(""), validationData, common.NewRevertStringError("paymaster validate user op signature error")
+		return []byte(""), validationData, errors.New("paymaster validate user op signature error")
 	}
-
-	if addr != vp.GetOwner() {
+	owner, err := vp.GetOwner()
+	if err != nil {
+		return []byte(""), validationData, errors.New("get owner error")
+	}
+	if addr != owner {
 		return []byte(""), validationData, nil
 	}
 	validationData.SigValidation = interfaces.SigValidationSucceeded
 	return []byte(""), validationData, nil
 }
 
-func (vp *VerifyingPaymaster) getHash(userOp interfaces.UserOperation, validUntil, validAfter *big.Int) []byte {
-	return crypto.Keccak256(
+func (vp *VerifyingPaymaster) getHash(userOp interfaces.UserOperation, validUntil, validAfter *big.Int) [32]byte {
+	bytes := crypto.Keccak256(
 		pack(userOp),
-		ethcommon.LeftPadBytes(vp.currentEVM.ChainConfig().ChainID.Bytes(), 32),
-		ethcommon.LeftPadBytes(vp.selfAddr.Bytes(), 32),
+		ethcommon.LeftPadBytes(vp.Ctx.CurrentEVM.ChainConfig().ChainID.Bytes(), 32),
+		ethcommon.LeftPadBytes(vp.Address.Bytes(), 32),
 		ethcommon.LeftPadBytes(validUntil.Bytes(), 32),
 		ethcommon.LeftPadBytes(validAfter.Bytes(), 32),
 	)
+	var bytes32 [32]byte
+	copy(bytes32[:], bytes)
+	return bytes32
 }
 
 func parsePaymasterAndData(paymasterAndData []byte) (validUntil, validAfter *big.Int, signature []byte, err error) {
 	if len(paymasterAndData) < SIGNATURE_OFFSET {
-		return nil, nil, nil, common.NewRevertStringError("parse paymasterAndData failed, length is too short")
+		return nil, nil, nil, errors.New("parse paymasterAndData failed, length is too short")
 	}
 
 	validTimeData := paymasterAndData[VALID_TIMESTAMP_OFFSET:SIGNATURE_OFFSET]
@@ -155,7 +157,7 @@ func parsePaymasterAndData(paymasterAndData []byte) (validUntil, validAfter *big
 		return nil, nil, nil, err
 	}
 	if len(validTime) != 2 {
-		return nil, nil, nil, common.NewRevertStringError("parse valid time failed from paymasterAndData")
+		return nil, nil, nil, errors.New("parse valid time failed from paymasterAndData")
 	}
 	validUntil = validTime[0].(*big.Int)
 	validAfter = validTime[1].(*big.Int)

@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/jmt"
-	"github.com/axiomesh/axiom-kit/storage"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 )
 
 var (
@@ -56,14 +56,14 @@ func ResetTriePreloaderMetrics() {
 // huge trie loading when commit state
 type triePreloader struct {
 	logger     logrus.FieldLogger
-	db         storage.Storage // load trie node would be cached in this db
+	db         kv.Storage // load trie node would be cached in this db
 	pruneCache jmt.PruneCache
 	rootHash   common.Hash
 
 	loaders map[string]*subPreloader
 }
 
-func newTriePreloader(logger logrus.FieldLogger, db storage.Storage, pruneCache jmt.PruneCache, rootHash common.Hash) *triePreloader {
+func newTriePreloader(logger logrus.FieldLogger, db kv.Storage, pruneCache jmt.PruneCache, rootHash common.Hash) *triePreloader {
 	return &triePreloader{
 		logger:     logger,
 		db:         db,
@@ -82,33 +82,35 @@ func (tp *triePreloader) close() {
 
 // preload schedules sub preloader to preload tries
 func (tp *triePreloader) preload(rootHash common.Hash, keys [][]byte) {
-	//if rootHash == (common.Hash{}) {
+	// if rootHash == (common.Hash{}) {
 	//	rootHash = tp.rootHash
-	//}
-	//trieKey := tp.trieKey(rootHash)
-	//if tp.loaders == nil {
+	// }
+	// trieKey := tp.trieKey(rootHash)
+	// if tp.loaders == nil {
 	//	tp.loaders = make(map[string]*subPreloader)
-	//}
-	//loader := tp.loaders[trieKey]
-	//if loader == nil {
+	// }
+	// loader := tp.loaders[trieKey]
+	// if loader == nil {
 	//	loader = newSubPreloader(tp.logger, tp.db, tp.pruneCache, rootHash)
 	//	tp.loaders[trieKey] = loader
-	//}
-	//loader.schedule(keys)
+	// }
+	// loader.schedule(keys)
 }
 
-//func (tp *triePreloader) trieKey(rootHash common.Hash) string {
+// func (tp *triePreloader) trieKey(rootHash common.Hash) string {
 //	return string(rootHash.Bytes())
-//}
+// }
 
 // subPreloader is a trie preload goroutinue for get a single trie.
 // The subPreloader would process all requests from the same trie.
 type subPreloader struct {
 	logger logrus.FieldLogger
-	db     storage.Storage
-	//pruneCache jmt.PruneCache
+	db     kv.Storage
+
+	// pruneCache jmt.PruneCache
 	rootHash common.Hash
-	trie     *jmt.JMT
+
+	trie *jmt.JMT
 
 	preloadKeys [][]byte
 	lock        sync.Mutex
@@ -120,7 +122,7 @@ type subPreloader struct {
 	cached map[string]struct{}
 }
 
-//func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.PruneCache, rootHash common.Hash) *subPreloader {
+// func newSubPreloader(logger logrus.FieldLogger, db storage.Storage, trieCache jmt.PruneCache, rootHash common.Hash) *subPreloader {
 //	sp := subPreloaderPool.Get().(*subPreloader)
 //	sp.logger = logger
 //	sp.db = db
@@ -134,21 +136,20 @@ type subPreloader struct {
 //
 //	go sp.loop()
 //	return sp
-//}
+// }
 
-//func (sp *subPreloader) schedule(keys [][]byte) {
-//	// append the preload keys to the current queue
-//	sp.lock.Lock()
-//	sp.preloadKeys = append(sp.preloadKeys, keys...)
-//	sp.lock.Unlock()
+//	func (sp *subPreloader) schedule(keys [][]byte) {
+//		// append the preload keys to the current queue
+//		sp.lock.Lock()
+//		sp.preloadKeys = append(sp.preloadKeys, keys...)
+//		sp.lock.Unlock()
 //
-//	// notify the preloader to load
-//	select {
-//	case sp.wake <- struct{}{}:
-//	default:
+//		// notify the preloader to load
+//		select {
+//		case sp.wake <- struct{}{}:
+//		default:
+//		}
 //	}
-//}
-
 func (sp *subPreloader) close() {
 	defer func() {
 		sp.reset()
@@ -176,7 +177,7 @@ func (sp *subPreloader) reset() {
 	sp.cached = make(map[string]struct{})
 }
 
-//func (sp *subPreloader) loop() {
+// func (sp *subPreloader) loop() {
 //	defer close(sp.term)
 //
 //	if sp.trie == nil {
@@ -224,4 +225,4 @@ func (sp *subPreloader) reset() {
 //			return
 //		}
 //	}
-//}
+// }

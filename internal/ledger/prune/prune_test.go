@@ -2,18 +2,15 @@ package prune
 
 import (
 	"crypto/rand"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/storage/pebble"
+	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -27,9 +24,7 @@ func makeLeafNode(str string) *types.LeafNode {
 
 func TestPruneCacheUpdate(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
 	pruneCache := NewPruneCache(createMockRepo(t), pStateStorage, accountTrieCache, storageTrieCache, logger)
@@ -125,14 +120,11 @@ func TestPruneCacheUpdate(t *testing.T) {
 	v, ok = pruneCache.Get(2, []byte("k5"))
 	require.True(t, ok)
 	require.Equal(t, v, makeLeafNode("v55"))
-
 }
 
 func TestPruneCacheRollback(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -195,7 +187,7 @@ func TestPruneCacheRollback(t *testing.T) {
 	batch.Commit()
 	batch.Reset()
 
-	err = tc.Rollback(1)
+	err := tc.Rollback(1)
 	require.Nil(t, err)
 
 	// verify version 1
@@ -266,14 +258,11 @@ func TestPruneCacheRollback(t *testing.T) {
 	v, ok = tc.Get(2, []byte("k5"))
 	require.True(t, ok)
 	require.Equal(t, v, makeLeafNode("v55"))
-
 }
 
 func TestPruningFlushByMaxBlockNum(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -323,14 +312,11 @@ func TestPruningFlushByMaxBlockNum(t *testing.T) {
 	require.Nil(t, v)
 	require.Equal(t, makeLeafNode("v1").Encode(), tc.ledgerStorage.Get([]byte("k1"))) // backend flushed
 	require.Equal(t, tc.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(tc.states.diffs))
-
 }
 
 func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -339,7 +325,7 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	batch := pStateStorage.NewBatch()
 
 	bigV := make([]byte, maxFlushBatchSizeThreshold)
-	rand.Read(bigV)
+	_, _ = rand.Read(bigV)
 	trieJournal := &types.StateDelta{
 		Journal: []*types.TrieJournal{
 			{
@@ -395,14 +381,11 @@ func TestPruningFlushByMaxBatchSize(t *testing.T) {
 	require.True(t, len(v1) > 0)
 	require.Equal(t, makeLeafNode(string(bigV)).Encode(), v1) // flushed
 	require.Equal(t, pruneCache.rep.Config.Ledger.StateLedgerReservedHistoryBlockNum, len(pruneCache.states.diffs))
-
 }
 
 func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	logger := log.NewWithModule("prune_test")
-	repoRoot := t.TempDir()
-	pStateStorage, err := pebble.New(filepath.Join(repoRoot, "pLedger"), nil, nil, logrus.New())
-	assert.Nil(t, err)
+	pStateStorage := kv.NewMemory()
 
 	accountTrieCache := storagemgr.NewCacheWrapper(32, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(32, true)
@@ -439,7 +422,6 @@ func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	require.True(t, len(v1) > 0)
 	require.Equal(t, makeLeafNode("v1").Encode(), v1) // flushed
 	require.Equal(t, 10, len(tc.states.diffs))
-
 }
 
 func TestName(t *testing.T) {
@@ -450,8 +432,8 @@ func TestName(t *testing.T) {
 }
 
 func createMockRepo(t *testing.T) *repo.Repo {
-	r, err := repo.Default(t.TempDir())
-	require.Nil(t, err)
+	r := repo.MockRepo(t)
+	r.Config.Ledger.EnablePrune = true
 	r.Config.Ledger.StateLedgerReservedHistoryBlockNum = 10
 	// speed up unit test
 	{

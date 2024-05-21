@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 CURRENT_PATH = $(shell pwd)
 APP_NAME = axiom-ledger
+AXM_GEN = axmgen
 export GODEBUG=x509ignoreCN=0
 
 GO_BIN = go
@@ -40,7 +41,7 @@ ifneq ($(net),)
 endif
 
 
-COVERAGE_TEST_PKGS := $(shell ${GO_BIN} list ./... | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd'| grep -v 'api')
+COVERAGE_TEST_PKGS := $(shell ${GO_BIN} list ./... | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd' | grep -v 'api' | grep -v 'solidity')
 INTEGRATION_COVERAGE_TEST_PKGS :=$(shell ${GO_BIN} list -f '{{if not .Standard}}{{.ImportPath}}{{end}}' -deps ./... |grep -E 'github.com/axiomesh/axiom-ledger|github.com/axiomesh/axiom-bft|github.com/axiomesh/axiom-kit|github.com/axiomesh/axiom-p2p|github.com/axiomesh/eth-kit' | grep -v 'syncer' | grep -v 'vm' | grep -v 'proof' | grep -v 'repo' | grep -v 'mock_*' | grep -v 'tester' | grep -v 'proto' | grep -v 'cmd'| paste -sd ",")
 INTEGRATION_COVERAGE_DIR = $(CURRENT_PATH)/integration
 
@@ -61,6 +62,8 @@ prepare:
 	${GO_BIN} install go.uber.org/mock/mockgen@main
 	${GO_BIN} install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.3
 	${GO_BIN} install github.com/fsgo/go_fmt/cmd/gorgeous@latest
+	${GO_BIN} install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
+	@type "solc" 2> /dev/null || echo 'Please install solc'
 
 ## make generate-mock: Run go generate
 generate-mock:
@@ -76,7 +79,7 @@ fmt:
 
 ## make test: Run go unittest
 test:
-	${GO_BIN} test -timeout 300s ./... -count=1
+	@time ${GO_BIN} test -timeout 300s ./... -count=1
 
 ## make test-coverage: Test project with cover
 test-coverage:
@@ -99,15 +102,20 @@ build-coverage:
 
 ## make build: Go build the project
 build:
-	@mkdir -p bin
+	@mkdir -p ./bin
+	@rm -f bin/${APP_NAME}
 	${GO_BIN} build -ldflags '${GOLDFLAGS}' ./cmd/${APP_NAME}
-	@cp -f ./${APP_NAME} bin
+	@cp -f ./${APP_NAME} ./bin
 	@printf "${GREEN}Build ${APP_NAME} successfully!${NC}\n"
 
 ## make install: Go install the project
 install:
 	${GO_BIN} install -ldflags '${GOLDFLAGS}' ./cmd/${APP_NAME}
 	@printf "${GREEN}Install ${APP_NAME} successfully!${NC}\n"
+
+axmgen:
+	${GO_BIN} install -ldflags '${GOLDFLAGS}' ./cmd/${AXM_GEN}
+	@printf "${GREEN}Install ${AXM_GEN} successfully!${NC}\n"
 
 ## make cluster: Run cluster including 4 nodes
 cluster:build
@@ -124,13 +132,27 @@ package:build
 ## make precommit: Check code like CI
 precommit: fmt test-coverage linter
 
-ABI_FOLDER := ./internal/executor/system/sol
-FILES := $(wildcard $(ABI_FOLDER)/*.abi)
-CONTRACT_NAMES := $(patsubst $(ABI_FOLDER)/%,%,$(basename $(FILES)))
-$(CONTRACT_NAMES):
-	@echo "Generating ${ABI_FOLDER}/$@.abi"
-	abigen --abi $(ABI_FOLDER)/$@.abi --pkg binding --type $@ --out $(ABI_FOLDER)/binding/$@.go;
-	@echo "Generated $(ABI_FOLDER)/binding/$@.go"
+SYSTEM_CONTRACTS_PATH = $(CURRENT_PATH)/internal/executor/system
+SYSTEM_CONTRACTS_DIRS = $(shell find $(SYSTEM_CONTRACTS_PATH) -maxdepth 10 -type d)
+SYSTEM_CONTRACTS = $(foreach d, $(SYSTEM_CONTRACTS_DIRS), $(wildcard $(d)/*.sys.sol))
+
+define generate-abi
+	echo "Generating abi for $(subst $(SYSTEM_CONTRACTS_PATH),,$(1))";
+	solc --abi --bin $(1) --pretty-json -o $(shell dirname $(1)) --overwrite;
+	echo "Generated abi for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+
+	echo "Generating binding for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+	mkdir -p $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')_client
+	abigen --abi $(patsubst %.sys.sol,%.abi,$(1)) --bin $(patsubst %.sys.sol,%.bin,$(1)) --pkg $(shell basename $(1) .sys.sol | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')_client --type BindingContract --out $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')_client/binding.go;
+	mkdir -p $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')
+	axmgen --abi $(patsubst %.sys.sol,%.abi,$(1)) --pkg $(shell basename $(1) .sys.sol | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]') --out $(shell echo "$(basename $(basename $(1)))" | sed 's/\([a-z0-9]\)\([A-Z]\)/\1_\2/g' | tr '[:upper:]' '[:lower:]')/binding.go;
+	echo "Generated binding for $(subst $(SYSTEM_CONTRACTS_PATH),.,$(1))";
+	echo "";
+endef
+
+axmgen-check:
+	@type "axmgen" 2> /dev/null || (echo 'axmgen is not installed, installing axmgen' && make axmgen)
 
 ## make generate-system-contracts-binding: Generate system contracts abi binding
-generate-system-contracts-binding: $(CONTRACT_NAMES)
+generate-system-contracts-binding: axmgen-check
+	@$(foreach contract, $(SYSTEM_CONTRACTS),$(call generate-abi, $(contract)))

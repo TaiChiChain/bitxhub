@@ -31,9 +31,9 @@ Generate configuration files and node keys (randomly generated)
 ./init.sh
 ```
 
-After execution, the node's account address and p2p-id will be printed. You can also view them again using `./axiom-ledger config node-info`.
+After execution, the node's consensus pubkey and p2p-id will be printed. You can also view them again using `./axiom-ledger config node-info`.
 
-The node's account address and p2p-id will be used in the genesis configuration.
+The node's consensus public-key and p2p public-key will be used in the genesis configuration.
 
 # Modifying Node Configuration
 
@@ -58,16 +58,36 @@ The ID is the node identifier, an integer type, and must not conflict between no
 Modify the validator node list to correspond to the configurations of multiple nodes generated earlier.
 
 ```toml
-[[genesis.epoch_info.validator_set]]
-    id = 1
-Account_address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
-    p2p_node_id = '16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF'
-    consensus_voting_power = 1000
+# Genesis node list (DataSyncer nodes only synchronize blocks and do not participate in consensus)
+[[nodes]]
+# Consensus publickey(hex encode)
+consensus_pubkey = '0xac9bb2675ab6b60b1c6d3ed60e95bdabb16517525458d8d50fa1065014184823556b0bd97922fab8c688788006e8b1030cd506d19101522e203769348ea10d21780e5c26a5c03c0cfcb8de23c7cf16d4d384140613bb953d446a26488fbaf6e0'
+# P2P publickey(hex encode)
+p2p_pubkey = '0xd4c0ac1567bcb2c855bb1692c09ab2a2e2c84c45376592674530ce95f1fda351'
+# Operator address 
+operator_address = '0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013'
+# Is DataSyncer flag(is true, stake_number must be zero)
+is_data_syncer = false
+# Initial funds for the node staking pool
+stake_number = '10000000axc'
+# Reward commission rate(0-10000)
+commission_rate = 0
+
+# Metadata
+[nodes.metadata]
+# Node name (unique, and cannot be empty)
+name = 'node1'
+# Node desc (can be empty)    
+desc = 'node1'
+# Node image url (can be empty)      
+image_url = ''
+# Node website url (can be empty) 
+website_url = ''
 ```
 
 3. Modify the p2p bootstrap node address list
 
-The configuration item is `genesis.epoch_info.p2p_bootstrap_node_addresses`.
+The configuration item is `config.p2p.bootstrap_node_addresses`.
 
 Change the addresses to the p2p addresses of the actual deployed nodes (modify IP, p2p port, and p2p-id).
 
@@ -170,7 +190,7 @@ Account #18: 0xdD2FD4581271e230360230F9337D5c0430Bf44C0
 Private Key: 0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0
     
 Account #19: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199
-Private Key: 0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656
+Private Key: 0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e
 ```
 
 # Starting All Nodes

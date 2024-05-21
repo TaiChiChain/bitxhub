@@ -6,9 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Rican7/retry"
-	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/archive"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -24,6 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/archive"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -41,7 +39,6 @@ func init() {
 }
 
 type Node struct {
-	archiveMode             func() bool
 	config                  *common.Config
 	txpool                  txpool.TxPool[types.Transaction, *types.Transaction]
 	n                       rbft.InboundNode
@@ -77,8 +74,8 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	var n rbft.InboundNode
-	if config.GetArchiveModeFunc() {
-		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.GetChainMetaFunc, config.TxPool, config.GenesisDigest, config.Logger)
+	if config.ChainState.IsDataSyncer {
+		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.ChainState, config.TxPool, config.Logger)
 	} else {
 		n, err = rbft.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.TxPool)
 	}
@@ -88,12 +85,11 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	var receiveMsgLimiter *rate.Limiter
-	if config.Config.Limit.Enable {
-		receiveMsgLimiter = rate.NewLimiter(rate.Limit(config.Config.Limit.Limit), int(config.Config.Limit.Burst))
+	if config.Repo.ConsensusConfig.Limit.Enable {
+		receiveMsgLimiter = rate.NewLimiter(rate.Limit(config.Repo.ConsensusConfig.Limit.Limit), int(config.Repo.ConsensusConfig.Limit.Burst))
 	}
 
 	return &Node{
-		archiveMode:       config.GetArchiveModeFunc,
 		config:            config,
 		n:                 n,
 		logger:            config.Logger,
@@ -101,7 +97,7 @@ func NewNode(config *common.Config) (*Node, error) {
 		receiveMsgLimiter: receiveMsgLimiter,
 		ctx:               ctx,
 		cancel:            cancel,
-		txCache:           txcache.NewTxCache(config.Config.TxCache.SetTimeout.ToDuration(), uint64(config.Config.TxCache.SetSize), config.Logger),
+		txCache:           txcache.NewTxCache(config.Repo.ConsensusConfig.TxCache.SetTimeout.ToDuration(), uint64(config.Repo.ConsensusConfig.TxCache.SetSize), config.Logger),
 		network:           config.Network,
 		txPreCheck:        precheck.NewTxPreCheckMgr(ctx, config),
 		txpool:            config.TxPool,
@@ -121,7 +117,7 @@ func (n *Node) initConsensusMsgPipes() error {
 
 	n.stack.SetMsgPipes(n.consensusMsgPipes)
 
-	if n.archiveMode() {
+	if n.config.ChainState.IsDataSyncer {
 		archivePipeIds := lo.FlatMap(common.ArchivePipeName, func(name string, _ int) []int32 {
 			return []int32{consensus.Type_value[name]}
 		})
@@ -155,18 +151,6 @@ func (n *Node) Start() error {
 		return err
 	}
 	n.txsBroadcastMsgPipe = txsBroadcastMsgPipe
-
-	if err := retry.Retry(func(attempt uint) error {
-		err = n.checkQuorum()
-		if err != nil {
-			return err
-		}
-		return nil
-	},
-		strategy.Wait(1*time.Second),
-	); err != nil {
-		n.logger.Error(err)
-	}
 
 	go n.txPreCheck.Start()
 	go n.txCache.ListenEvent()
@@ -209,7 +193,7 @@ func (n *Node) Start() error {
 	}
 
 	n.started.Store(true)
-	n.logger.Infof("=====Consensus started, Archive Mode: %v===========", n.archiveMode())
+	n.logger.Infof("=====Consensus started, Archive Mode: %v===========", n.config.ChainState.IsDataSyncer)
 	return nil
 }
 
@@ -276,11 +260,10 @@ func (n *Node) listenExecutedBlockToReport() {
 		case r := <-n.stack.ReadyC:
 			block := &types.Block{
 				Header: &types.BlockHeader{
-					Epoch:           n.stack.EpochInfo.Epoch,
-					Number:          r.Height,
-					Timestamp:       r.Timestamp / int64(time.Second),
-					ProposerAccount: r.ProposerAccount,
-					ProposerNodeID:  r.ProposerNodeID,
+					Epoch:          n.stack.EpochInfo.Epoch,
+					Number:         r.Height,
+					Timestamp:      r.Timestamp / int64(time.Second),
+					ProposerNodeID: r.ProposerNodeID,
 				},
 				Transactions: r.Txs,
 			}
@@ -303,9 +286,7 @@ func (n *Node) broadcastTxs(txSetData [][]byte) error {
 		return err
 	}
 
-	return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), lo.Map(lo.Flatten([][]rbft.NodeInfo{n.stack.EpochInfo.ValidatorSet, n.stack.EpochInfo.CandidateSet}), func(item rbft.NodeInfo, index int) string {
-		return item.P2PNodeID
-	}), data)
+	return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), nil, data)
 }
 
 func (n *Node) listenBatchMemTxsToBroadcast() {
@@ -400,7 +381,7 @@ func (n *Node) Step(msg []byte) error {
 		return err
 	}
 	if m.Type != consensus.Type_NULL_REQUEST {
-		n.logger.Infof("receive consensus message: %s", m.Type)
+		n.logger.Debugf("receive consensus message: %s", m.Type)
 	}
 	n.n.Step(context.Background(), m)
 
@@ -524,11 +505,6 @@ func (n *Node) Quorum(totalNum uint64) uint64 {
 }
 
 func (n *Node) checkQuorum() error {
-	totalNum := uint64(len(n.stack.EpochInfo.ValidatorSet))
-	n.logger.Infof("=======Quorum = %d, connected validators = %d", n.Quorum(totalNum), n.network.CountConnectedValidators()+1)
-	if n.network.CountConnectedValidators()+1 < n.Quorum(totalNum) {
-		return errors.New("the number of connected validators don't reach Quorum")
-	}
 	return nil
 }
 
@@ -538,8 +514,8 @@ func (n *Node) SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscr
 
 // not implemented yet
 func (n *Node) switchInBoundNode() error {
-	if n.n.ArchiveMode() != n.archiveMode() {
-		return fmt.Errorf("archive mode changed from %t to %t", n.n.ArchiveMode(), n.archiveMode())
+	if n.n.ArchiveMode() != n.config.ChainState.IsDataSyncer {
+		return fmt.Errorf("archive mode changed from %t to %t", n.n.ArchiveMode(), n.config.ChainState.IsDataSyncer)
 	}
 	return nil
 }

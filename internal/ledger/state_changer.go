@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"math/big"
-	"sync"
 
 	"github.com/axiomesh/axiom-kit/types"
 )
@@ -18,20 +17,15 @@ type stateChange interface {
 type stateChanger struct {
 	changes []stateChange
 	dirties map[types.Address]int // dirty address and the number of changes
-
-	lock sync.RWMutex
 }
 
-func NewChanger() *stateChanger {
+func newChanger() *stateChanger {
 	return &stateChanger{
 		dirties: make(map[types.Address]int),
 	}
 }
 
 func (s *stateChanger) append(change stateChange) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.changes = append(s.changes, change)
 	if addr := change.dirtied(); addr != nil {
 		s.dirties[*addr]++
@@ -39,9 +33,6 @@ func (s *stateChanger) append(change stateChange) {
 }
 
 func (s *stateChanger) revert(ledger *StateLedgerImpl, snapshot int) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	for i := len(s.changes) - 1; i >= snapshot; i-- {
 		s.changes[i].revert(ledger)
 
@@ -61,6 +52,11 @@ func (s *stateChanger) dirty(addr types.Address) {
 
 func (s *stateChanger) length() int {
 	return len(s.changes)
+}
+
+func (s *stateChanger) reset() {
+	s.changes = []stateChange{}
+	s.dirties = make(map[types.Address]int)
 }
 
 type (

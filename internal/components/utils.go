@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/core"
+
+	"github.com/axiomesh/axiom-kit/types"
 )
 
-func VerifyInsufficientBalance[T any, Constraint types.TXConstraint[T]](tx *T, chainGasPrice *big.Int, getBalanceFn func(address string) *big.Int) error {
+func VerifyInsufficientBalance[T any, Constraint types.TXConstraint[T]](tx *T, getBalanceFn func(address string) *big.Int) error {
 	// 1. account has enough balance to cover transaction fee(gaslimit * gasprice), gasprice is the chain's latest gas price
 	txGasLimit := Constraint(tx).RbftGetGasLimit()
-	txGasFeeCap := Constraint(tx).RbftGetGasFeeCap()
 	txValue := Constraint(tx).RbftGetValue()
 	txFrom := Constraint(tx).RbftGetFrom()
 	txTo := Constraint(tx).RbftGetTo()
@@ -19,14 +19,8 @@ func VerifyInsufficientBalance[T any, Constraint types.TXConstraint[T]](tx *T, c
 	txAccessList := Constraint(tx).RbftGetAccessList()
 
 	mgval := new(big.Int).SetUint64(txGasLimit)
-	mgval = mgval.Mul(mgval, chainGasPrice)
+	mgval = mgval.Mul(mgval, Constraint(tx).RbftGetGasPrice())
 	balanceCheck := mgval
-	// if tx.GasFeeCap is set and bigger than chainGasPrice, use it to replace chainGasPrice to calculate balance
-	if txGasFeeCap != nil && txGasFeeCap.Cmp(chainGasPrice) > 0 {
-		balanceCheck = new(big.Int).SetUint64(txGasLimit)
-		balanceCheck = balanceCheck.Mul(balanceCheck, txGasFeeCap)
-		balanceCheck.Add(balanceCheck, txValue)
-	}
 	balanceRemaining := new(big.Int).Set(getBalanceFn(txFrom))
 	if have, want := balanceRemaining, balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", core.ErrInsufficientFunds, txFrom, have, want)
@@ -44,7 +38,7 @@ func VerifyInsufficientBalance[T any, Constraint types.TXConstraint[T]](tx *T, c
 
 	// 2.1 the purchased gas is enough to cover intrinsic usage
 	// 2.2 there is no overflow when calculating intrinsic gas
-	gas, err := core.IntrinsicGas(txData, txAccessList, isContractCreation, true, true, true)
+	gas, err := core.IntrinsicGas(txData, txAccessList.ToEthAccessList(), isContractCreation, true, true, true)
 	if err != nil {
 		return err
 	}

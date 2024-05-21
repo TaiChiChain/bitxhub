@@ -10,13 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
+	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
@@ -24,73 +32,44 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common/mock_sync"
+	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	p2p "github.com/axiomesh/axiom-p2p"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func mockConfig(t *testing.T, ctrl *gomock.Controller) (map[int32]p2p.Pipe, *common.Config, map[uint64]map[string]p2p.Pipe) {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-	assert.Nil(t, err)
-	logger := log.NewWithModule("adaptor")
-	s, err := types.GenerateSigner()
-	assert.Nil(t, err)
+	rep := repo.MockRepoWithNodeID(t, 5, 5, repo.MockDefaultIsDataSyncers, repo.MockDefaultStakeNumbers)
 
-	fn := func() *types.ChainMeta {
-		return &types.ChainMeta{
-			Height:    1,
-			BlockHash: types.NewHashByStr(hex.EncodeToString([]byte("block1"))),
-		}
-	}
-	genesisEpochInfo := repo.GenesisEpochInfo(false)
-	rep := t.TempDir()
-
-	p2pID, err := repo.KeyToNodeID(s.Sk)
-	assert.Nil(t, err)
-	selfId := uint64(len(genesisEpochInfo.DataSyncerSet)+len(genesisEpochInfo.ValidatorSet)+len(genesisEpochInfo.CandidateSet)) + 1
-	genesisEpochInfo.DataSyncerSet = append(genesisEpochInfo.DataSyncerSet, rbft.NodeInfo{
-		ID:                   selfId,
-		P2PNodeID:            p2pID,
-		AccountAddress:       s.Addr.String(),
-		ConsensusVotingPower: 0,
-	})
-
-	epochStore, err := storagemgr.Open(repo.GetStoragePath(rep, storagemgr.Epoch))
+	epochStore, err := storagemgr.Open(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch))
 	require.Nil(t, err)
-	conf := &common.Config{
-		RepoRoot:             rep,
-		Config:               repo.DefaultConsensusConfig(),
-		Logger:               logger,
-		ConsensusType:        "",
-		ConsensusStorageType: repo.ConsensusStorageTypeMinifile,
-		PrivKey:              s.Sk,
-		GenesisEpochInfo:     genesisEpochInfo,
-		Applied:              0,
-		Digest:               "",
-		GenesisDigest:        "genesisDigest",
-		GetEpochInfoFromEpochMgrContractFunc: func(epoch uint64) (*rbft.EpochInfo, error) {
-			return genesisEpochInfo, nil
-		},
 
+	chainState := chainstate.NewMockChainStateWithNodeID(rep.GenesisConfig, map[uint64]*types.EpochInfo{
+		1: rep.GenesisConfig.EpochInfo.Clone(),
+		2: rep.GenesisConfig.EpochInfo.Clone(),
+	}, 5)
+	chainState.ChainMeta = &types.ChainMeta{
+		Height:    1,
+		BlockHash: types.NewHashByStr(hex.EncodeToString([]byte("block1"))),
+	}
+
+	conf := &common.Config{
+		Repo:               rep,
+		ChainState:         chainState,
+		Logger:             log.NewWithModule("adaptor"),
+		GenesisEpochInfo:   rep.GenesisConfig.EpochInfo,
+		Applied:            0,
+		Digest:             "",
+		GenesisDigest:      "genesisDigest",
+		GetBlockHeaderFunc: nil,
+		GetAccountBalance:  nil,
 		GetAccountNonce: func(address *types.Address) uint64 {
 			return 0
 		},
-		GetCurrentEpochInfoFromEpochMgrContractFunc: func() (*rbft.EpochInfo, error) {
-			return genesisEpochInfo, nil
-		},
-
-		GetChainMetaFunc: fn,
-
 		EpochStore: epochStore,
 	}
 
-	peers := getPeers(genesisEpochInfo)
-	manager := p2p.GenMockHostManager(peers)
-	mockNetwork, err := mock_network.NewMiniNetwork(selfId, p2pID, manager)
+	manager := p2p.GenMockHostManager(repo.MockP2PIDs)
+	mockNetwork, err := mock_network.NewMiniNetwork(5, rep.P2PKeystore.P2PID(), manager)
 	assert.Nil(t, err)
 
 	conf.Network = mockNetwork
@@ -108,11 +87,11 @@ func mockConfig(t *testing.T, ctrl *gomock.Controller) (map[int32]p2p.Pipe, *com
 		consensusMsgPipes[id] = msgPipe
 	}
 
-	pipes := prepareNetworks(manager, genesisEpochInfo, t)
+	pipes := prepareNetworks(manager, chainState, t)
 	archivePipeIds := lo.FlatMap(common.ArchivePipeName, func(name string, _ int) []int32 {
 		return []int32{consensus.Type_value[name]}
 	})
-	pipes[selfId] = lo.MapKeys(lo.PickByKeys(consensusMsgPipes, archivePipeIds), func(_ p2p.Pipe, val int32) string {
+	pipes[5] = lo.MapKeys(lo.PickByKeys(consensusMsgPipes, archivePipeIds), func(_ p2p.Pipe, val int32) string {
 		return consensus.Type_name[val]
 	})
 
@@ -133,11 +112,12 @@ func mockArchiveNode(consensusMsgPipes map[int32]p2p.Pipe, conf *common.Config, 
 	logger := log.NewWithModule("archive")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	rbftConfig := rbft.Config{
-		SelfP2PNodeID:           conf.GenesisEpochInfo.DataSyncerSet[0].P2PNodeID,
+		GenesisBlockDigest:      "genesisDigest",
+		SelfP2PNodeID:           conf.ChainState.SelfNodeInfo.P2PID,
 		SyncStateTimeout:        1 * time.Minute,
 		SyncStateRestartTimeout: 1 * time.Second,
 	}
-	node, err := NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, conf.GetChainMetaFunc, conf.TxPool, conf.GenesisDigest, logger)
+	node, err := NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, conf.ChainState, conf.TxPool, logger)
 	assert.Nil(t, err)
 
 	err = node.Init()
@@ -145,10 +125,12 @@ func mockArchiveNode(consensusMsgPipes map[int32]p2p.Pipe, conf *common.Config, 
 	return node
 }
 
-func prepareNetworks(manager *p2p.MockHostManager, epochInfo *rbft.EpochInfo, t *testing.T) map[uint64]map[string]p2p.Pipe {
+func prepareNetworks(manager *p2p.MockHostManager, chainState *chainstate.ChainState, t *testing.T) map[uint64]map[string]p2p.Pipe {
 	nets := make([]*mock_network.MiniNetwork, 0)
-	lo.ForEach(epochInfo.ValidatorSet, func(info rbft.NodeInfo, _ int) {
-		net, err := mock_network.NewMiniNetwork(info.ID, info.P2PNodeID, manager)
+	lo.ForEach(chainState.ValidatorSet, func(info chainstate.ValidatorInfo, _ int) {
+		nodeInfo, err := chainState.GetNodeInfo(info.ID)
+		assert.Nil(t, err)
+		net, err := mock_network.NewMiniNetwork(info.ID, nodeInfo.P2PID, manager)
 		assert.Nil(t, err)
 		err = net.Start()
 		assert.Nil(t, err)
@@ -169,16 +151,9 @@ func prepareNetworks(manager *p2p.MockHostManager, epochInfo *rbft.EpochInfo, t 
 	return netCache
 }
 
-func getPeers(epochInfo *rbft.EpochInfo) []string {
-	allNodes := append(epochInfo.ValidatorSet, epochInfo.CandidateSet...)
-	allNodes = append(allNodes, epochInfo.DataSyncerSet...)
-	return lo.FlatMap(allNodes, func(info rbft.NodeInfo, _ int) []string {
-		return []string{info.P2PNodeID}
-	})
-}
-
 func receiveMsg(t *testing.T, pipesM map[string]p2p.Pipe, selfId uint64, handler func(msg *consensus.ConsensusMessage, pipe p2p.Pipe, to string, id uint64) error) {
 	for _, pipe := range pipesM {
+		pipe := pipe
 		go func(pipe p2p.Pipe) {
 			for {
 				msg := pipe.Receive(context.Background())
@@ -192,7 +167,6 @@ func receiveMsg(t *testing.T, pipesM map[string]p2p.Pipe, selfId uint64, handler
 			}
 		}(pipe)
 	}
-
 }
 
 func getRespPipe(typ consensus.Type) string {
@@ -233,14 +207,11 @@ func generateSignedCheckpoint(t *testing.T, selfId, height uint64, blockHash, ba
 	}
 	checkpoint.ViewChange.Basis = vcBasis
 	signedCheckpoint.Checkpoint = checkpoint
-	key := repo.DefaultNodeKeys[int(selfId)-1]
-	sk, err := repo.ParseKey([]byte(key))
-	assert.Nil(t, err)
-	privKey, err := repo.Libp2pKeyFromECDSAKey(sk)
-	assert.Nil(t, err)
 
+	privateKey := &crypto.Ed25519PrivateKey{}
+	err := privateKey.Unmarshal(hexutil.Decode(repo.MockP2PKeys[int(selfId)-1]))
 	msg := checkpoint.Hash()
-	signature, err := privKey.Sign(msg)
+	signature, err := privateKey.Sign(msg)
 	assert.Nil(t, err)
 	signedCheckpoint.Signature = signature
 	return signedCheckpoint
@@ -261,7 +232,7 @@ func genQuorumSignCheckpoint(t *testing.T, height uint64, blockHash, batchDigest
 }
 
 func catchExpectLogOut(t *testing.T, log logrus.FieldLogger, expectResult string, taskDoneCh chan bool) {
-	ticker := time.NewTicker(100 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	// Setup log output capturing
 	lg := log.(*logrus.Entry).Logger
 	originalOutput := log.(*logrus.Entry).Logger.Out
@@ -290,12 +261,14 @@ func remoteProposal(t *testing.T, id uint64, broadcastNodes []string, pipes map[
 	var executePipe p2p.Pipe
 	for i, pipeM := range pipes {
 		if i == id {
-			pipe, ok := pipeM["PRE_PREPARE"]
-			assert.True(t, ok)
-			executePipe = pipe
+			executePipe = pipeM["PRE_PREPARE"]
+			break
 		}
 	}
-
+	if executePipe == nil {
+		assert.NotNil(t, executePipe)
+		return
+	}
 	hashBatch := &consensus.HashBatch{
 		RequestHashList: reqBatch.TxHashList,
 		Timestamp:       reqBatch.Timestamp,
@@ -328,12 +301,14 @@ func remoteReportCheckpoint(t *testing.T, id uint64, broadcastNodes []string, pi
 	var executePipe p2p.Pipe
 	for i, pipeM := range pipes {
 		if i == id {
-			pipe, ok := pipeM["SIGNED_CHECKPOINT"]
-			assert.True(t, ok)
-			executePipe = pipe
+			executePipe = pipeM["SIGNED_CHECKPOINT"]
+			break
 		}
 	}
-
+	if executePipe == nil {
+		assert.NotNil(t, executePipe)
+		return
+	}
 	block := testutil.ConstructBlock(fmt.Sprintf("block%d", seqNo), seqNo)
 	sckpt := generateSignedCheckpoint(t, id, seqNo, block.Hash().String(), batchDigest)
 	payload, err := sckpt.MarshalVT()
@@ -390,7 +365,7 @@ func mockSyncInStack(t *testing.T, node *Node[types.Transaction, *types.Transact
 	mockSync.EXPECT().Commit().Return(blockChan).AnyTimes()
 	cnf.BlockSync = mockSync
 
-	cnf.RepoRoot = filepath.Join(t.TempDir(), "repo")
+	cnf.Repo.RepoRoot = filepath.Join(t.TempDir(), "repo")
 	newStack, err := adaptor.NewRBFTAdaptor(cnf)
 	assert.Nil(t, err)
 

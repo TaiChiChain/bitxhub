@@ -13,9 +13,8 @@ import (
 	big "math/big"
 	reflect "reflect"
 
-	consensus "github.com/axiomesh/axiom-bft/common/consensus"
 	jmt "github.com/axiomesh/axiom-kit/jmt"
-	storage "github.com/axiomesh/axiom-kit/storage"
+	kv "github.com/axiomesh/axiom-kit/storage/kv"
 	types "github.com/axiomesh/axiom-kit/types"
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/ethereum/go-ethereum/common"
@@ -43,11 +42,6 @@ func NewMockChainLedger(ctrl *gomock.Controller) *MockChainLedger {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockChainLedger) EXPECT() *MockChainLedgerMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockChainLedger) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // BatchPersistExecutionResult mocks base method.
@@ -765,11 +759,6 @@ func (m *MockStateLedger) EXPECT() *MockStateLedgerMockRecorder {
 	return m.recorder
 }
 
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockStateLedger) ISGOMOCK() struct{} {
-	return struct{}{}
-}
-
 // AddAddressToAccessList mocks base method.
 func (m *MockStateLedger) AddAddressToAccessList(arg0 types.Address) {
 	m.ctrl.T.Helper()
@@ -1167,6 +1156,44 @@ func (c *MockStateLedgerCommitCall) Do(f func() (*types.Hash, error)) *MockState
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockStateLedgerCommitCall) DoAndReturn(f func() (*types.Hash, error)) *MockStateLedgerCommitCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// CurrentBlockHeight mocks base method.
+func (m *MockStateLedger) CurrentBlockHeight() uint64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CurrentBlockHeight")
+	ret0, _ := ret[0].(uint64)
+	return ret0
+}
+
+// CurrentBlockHeight indicates an expected call of CurrentBlockHeight.
+func (mr *MockStateLedgerMockRecorder) CurrentBlockHeight() *MockStateLedgerCurrentBlockHeightCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentBlockHeight", reflect.TypeOf((*MockStateLedger)(nil).CurrentBlockHeight))
+	return &MockStateLedgerCurrentBlockHeightCall{Call: call}
+}
+
+// MockStateLedgerCurrentBlockHeightCall wrap *gomock.Call
+type MockStateLedgerCurrentBlockHeightCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStateLedgerCurrentBlockHeightCall) Return(arg0 uint64) *MockStateLedgerCurrentBlockHeightCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStateLedgerCurrentBlockHeightCall) Do(f func() uint64) *MockStateLedgerCurrentBlockHeightCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStateLedgerCurrentBlockHeightCall) DoAndReturn(f func() uint64) *MockStateLedgerCurrentBlockHeightCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -1855,15 +1882,15 @@ func (c *MockStateLedgerHasSelfDestructedCall) DoAndReturn(f func(*types.Address
 }
 
 // IterateTrie mocks base method.
-func (m *MockStateLedger) IterateTrie(blockHeader *types.BlockHeader, nodesId *consensus.QuorumValidators, kv storage.Storage, errC chan error) {
+func (m *MockStateLedger) IterateTrie(snapshotMeta *ledger.SnapshotMeta, kv kv.Storage, errC chan error) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "IterateTrie", blockHeader, nodesId, kv, errC)
+	m.ctrl.Call(m, "IterateTrie", snapshotMeta, kv, errC)
 }
 
 // IterateTrie indicates an expected call of IterateTrie.
-func (mr *MockStateLedgerMockRecorder) IterateTrie(blockHeader, nodesId, kv, errC any) *MockStateLedgerIterateTrieCall {
+func (mr *MockStateLedgerMockRecorder) IterateTrie(snapshotMeta, kv, errC any) *MockStateLedgerIterateTrieCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), blockHeader, nodesId, kv, errC)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IterateTrie", reflect.TypeOf((*MockStateLedger)(nil).IterateTrie), snapshotMeta, kv, errC)
 	return &MockStateLedgerIterateTrieCall{Call: call}
 }
 
@@ -1879,13 +1906,13 @@ func (c *MockStateLedgerIterateTrieCall) Return() *MockStateLedgerIterateTrieCal
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockStateLedgerIterateTrieCall) Do(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) Do(f func(*ledger.SnapshotMeta, kv.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*types.BlockHeader, *consensus.QuorumValidators, storage.Storage, chan error)) *MockStateLedgerIterateTrieCall {
+func (c *MockStateLedgerIterateTrieCall) DoAndReturn(f func(*ledger.SnapshotMeta, kv.Storage, chan error)) *MockStateLedgerIterateTrieCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -2618,11 +2645,6 @@ func NewMockStateAccessor(ctrl *gomock.Controller) *MockStateAccessor {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStateAccessor) EXPECT() *MockStateAccessorMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockStateAccessor) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddAddressToAccessList mocks base method.
@@ -3873,11 +3895,6 @@ func NewMockIAccount(ctrl *gomock.Controller) *MockIAccount {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIAccount) EXPECT() *MockIAccountMockRecorder {
 	return m.recorder
-}
-
-// ISGOMOCK indicates that this struct is a gomock mock.
-func (m *MockIAccount) ISGOMOCK() struct{} {
-	return struct{}{}
 }
 
 // AddBalance mocks base method.

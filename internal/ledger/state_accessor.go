@@ -394,10 +394,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 }
 
 func (l *StateLedgerImpl) getJnlHeightSize() uint64 {
-	if l.repo.EpochInfo.ConsensusParams.CheckpointPeriod < MinJournalHeight {
-		return MinJournalHeight
-	}
-	return l.repo.EpochInfo.ConsensusParams.CheckpointPeriod
+	return MinJournalHeight
 }
 
 // Version returns the current version
@@ -409,7 +406,7 @@ func (l *StateLedgerImpl) Version() uint64 {
 // This manner will not affect the correctness of ledger,
 // todo but maybe need to optimize to free allocated space in KV.
 func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) error {
-	l.logger.Debugf("[RollbackState] rollback state to height=%v\n", height)
+	l.logger.Infof("[RollbackState] rollback state to height=%v\n", height)
 
 	// clean cache account
 	l.Clear()
@@ -423,12 +420,10 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 	}
 
 	// rollback world state trie
-	if height != 0 {
-		if err := l.pruneCache.Rollback(height); err != nil {
-			return err
-		}
-		l.refreshAccountTrie(stateRoot)
+	if err := l.pruneCache.Rollback(height); err != nil {
+		return err
 	}
+	l.refreshAccountTrie(stateRoot)
 
 	return nil
 }
@@ -502,10 +497,8 @@ func (l *StateLedgerImpl) RevertToSnapshot(revid int) {
 }
 
 func (l *StateLedgerImpl) ClearChangerAndRefund() {
-	if len(l.changer.changes) > 0 {
-		l.changer = NewChanger()
-		l.refund = 0
-	}
+	l.changer.reset()
+	l.refund = 0
 	l.validRevisions = l.validRevisions[:0]
 	l.nextRevisionId = 0
 }

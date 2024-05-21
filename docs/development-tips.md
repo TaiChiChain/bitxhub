@@ -22,115 +22,125 @@ Nodes started with make cluster and make solo, as well as nodes deployed manuall
 
 **Note: When upgrading the binary, it is essential to use the update_binary.sh script in the deployment path, as the axiom-ledger file in the deployment path is not the binary but a proxy script (automatically setting the repo path and loading environment variables from .env.sh). The actual node binary is located in tools/bin/axiom-ledger within the deployment path.**
 
-# Rapid Deployment of Multiple Nodes on a Single Machine (4 Nodes or 8 Nodes)
+# Rapid Deployment of Multiple Nodes
+AxiomLedger comes with a command line tool for multi-node configuration generation.
 
-You can quickly generate configuration files for 4/8 nodes using the following script (the script needs to be placed in the root directory of the axiom-ledger code repository, and make build should be executed beforehand).
+## Generate default 4 nodes config and keystore
+1. Export some common config(support use env to set other config)
+```shell
+export AXIOM_LEDGER_GENESIS_CHAINID=1111
+```
+2. Generate
+```shell
+./axiom-ledger cluster generate-default --target ./nodes --force
+```
+Nodes configurations and private keys will be generated under target dir.
 
-Create a .env.sh file to store the environment variables to be changed for all node configurations. When generating node configurations, the values corresponding to the environment variables will be used first.
+default info:
+```golang
+defaultAccountAddrs = []string{
+"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+"0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+"0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+"0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+"0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+"0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+"0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+"0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+"0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+"0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+"0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+"0xFABB0ac9d68B0B445fB7357272Ff202C5651694a",
+"0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec",
+"0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097",
+"0xcd3B766CCDd6AE721141F452C550Ca635964ce71",
+"0x2546BcD3c84621e976D8185a91A922aE77ECEc30",
+"0xbDA5747bFD65F08deb54cb465eB87D40e51B197E",
+"0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
+"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+}
 
-```bash
-#! /bin/bash
-set -e
+defaultCouncilMemberNames = []string{
+"S2luZw==", // base64 encode King
+"UmVk",     // base64 encode Red
+"QXBwbGU=", // base64 encode Apple
+"Q2F0",     // base64 encode Cat
+}
+
+defaultCouncilMemberKeys = []string{
+"b6477143e17f889263044f6cf463dc37177ac4526c4c39a7a344198457024a2f",
+"05c3708d30c2c72c4b36314a41f30073ab18ea226cf8c6b9f566720bfe2e8631",
+"85a94dd51403590d4f149f9230b6f5de3a08e58899dcaf0f77768efb1825e854",
+"72efcf4bb0e8a300d3e47e6a10f630bcd540de933f01ed5380897fc5e10dc95d",
+}
+
+defaultCouncilMemberAddrs = []string{
+"0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
+"0x79a1215469FaB6f9c63c1816b45183AD3624bE34",
+"0x97c8B516D19edBf575D72a172Af7F418BE498C37",
+"0xc0Ff2e0b3189132D815b8eb325bE17285AC898f8",
+}
+
+// nodes 
+
+defaultConsensusKeys = []string{
+"0x099383c2b41a282936fe9e656467b2ad6ecafd38753eefa080b5a699e3276372",
+"0x5d21b741bd16e05c3a883b09613d36ad152f1586393121d247bdcfef908cce8f",
+"0x42cc8e862b51a1c21a240bb2ae6f2dbad59668d86fe3c45b2e4710eebd2a63fd",
+"0x6e327c2d5a284b89f9c312a02b2714a90b38e721256f9a157f03ec15c1a386a6",
+}
+
+defaultP2PKeys = []string{
+"0xce374993d8867572a043e443355400ff4628662486d0d6ef9d76bc3c8b2aa8a8",
+"0x43dd946ade57013fd4e7d0f11d84b94e2fda4336829f154ae345be94b0b63616",
+"0x875e5ef34c34e49d35ff5a0f8a53003d8848fc6edd423582c00edc609a1e3239",
+"0xf0aac0c25791d0bd1b96b2ec3c9c25539045cf6cc5cc9ad0f3cb64453d1f38c0",
+}
+
+defaultOperatorAddrs = []string{
+"0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013",
+"0x79a1215469FaB6f9c63c1816b45183AD3624bE34",
+"0x97c8B516D19edBf575D72a172Af7F418BE498C37",
+"0xc0Ff2e0b3189132D815b8eb325bE17285AC898f8",
+}
 ```
 
-Create a generate_nodes.sh script (in the same directory as .env.sh script). You can modify the script to avoid port conflicts.
-
-```bash
-#!/usr/bin/env bash
-
-set -e
-
-CURRENT_PATH=$(
-  cd $(dirname ${BASH_SOURCE[0]})
-  pwd
-)
-source ${CURRENT_PATH}/.env.sh
-BUILD_PATH=${CURRENT_PATH}/nodes
-
-# 4 or 8, when it is 8, it includes 4 candidate nodes
-N=4
-
-echo "===> Generating $N nodes configuration on ${BUILD_PATH}"
-for ((i = 1; i < N + 1; i = i + 1)); do
-  root=${BUILD_PATH}/node${i}
-  echo ""
-  echo "generate node${i} config"
-  mkdir -p ${root}
-  rm -rf ${root}/*
-  rm -f ${root}/.env.sh
-  cp -rf ${CURRENT_PATH}/scripts/package/* ${root}/
-  cp -f ${CURRENT_PATH}/bin/axiom-ledger ${root}/tools/bin/
-  echo "export AXIOM_LEDGER_PORT_JSONRPC=888${i}" >>${root}/.env.sh
-  echo "export AXIOM_LEDGER_PORT_WEBSOCKET=999${i}" >>${root}/.env.sh
-  echo "export AXIOM_LEDGER_PORT_P2P=400${i}" >>${root}/.env.sh
-  echo "export AXIOM_LEDGER_PORT_PPROF=5312${i}" >>${root}/.env.sh
-  echo "export AXIOM_LEDGER_PORT_MONITOR=4001${i}" >>${root}/.env.sh
-  # For 8 nodes, epoch needs to be enabled
-  # ${root}/axiom-ledger config generate --default-node-index ${i} --epoch-enable
-  # For 4 nodes
-  ${root}/axiom-ledger config generate --default-node-index ${i}
-done
+## Quick generate nodes config and keystore by specifying the number of nodes
+1. Export some common config(support use env to set other config)
+```shell
+export AXIOM_LEDGER_GENESIS_CHAINID=1111
 ```
-
-Run generate_nodes.sh, which will generate the node deployment package in the nodes folder in the same directory as the script. Execute the start.sh script in each node's deployment package to start the nodes in the background.
-
-# Rapid Deployment of Multiple Nodes on Multiple Machines (4 Nodes or 8 Nodes)
-
-Refer to the rapid deployment of multiple nodes on a single machine, but add a list of seed node addresses to the .env.sh file and modify the IP to the actual IP of the deployed machines.
-
-For 4-node configuration:
-
-```bash
-export AXIOM_LEDGER_GENESIS_EPOCH_INFO_P2P_BOOTSTRAP_NODE_ADDRESSES="\
-/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF;\
-/ip4/127.0.0.1/tcp/4002/p2p/16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK;\
-/ip4/127.0.0.1/tcp/4003/p2p/16Uiu2HAmTwEET536QC9MZmYFp1NUshjRuaq5YSH1sLjW65WasvRk;\
-/ip4/127.0.0.1/tcp/4004/p2p/16Uiu2HAmQBFTnRr84M3xNhi3EcWmgZnnBsDgewk4sNtpA3smBsHJ;\
-"
+2. Generate
+```shell
+./axiom-ledger cluster quick-generate --node-number 8 --target ./nodes --force
 ```
+Nodes configurations and private keys will be generated under target dir.
+Each node Operator key is generated in operator.key
 
-For 8-node configuration:
-
-```bash
-export AXIOM_LEDGER_GENESIS_EPOCH_INFO_P2P_BOOTSTRAP_NODE_ADDRESSES="\
-/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAmJ38LwfY6pfgDWNvk3ypjcpEMSePNTE6Ma2NCLqjbZJSF;\
-/ip4/127.0.0.1/tcp/4002/p2p/16Uiu2HAmRypzJbdbUNYsCV2VVgv9UryYS5d7wejTJXT73mNLJ8AK;\
-/ip4/127.0.0.1/tcp/4003/p2p/16Uiu2HAmTwEET536QC9MZmYFp1NUshjRuaq5YSH1sLjW65WasvRk;\
-/ip4/127.0.0.1/tcp/4004/p2p/16Uiu2HAmQBFTnRr84M3xNhi3EcWmgZnnBsDgewk4sNtpA3smBsHJ;\
-/ip4/127.0.0.1/tcp/4005/p2p/16Uiu2HAm2HeK145KTfLaURhcoxBUMZ1PfhVnLRfnmE8qncvXWoZj;\
-/ip4/127.0.0.1/tcp/4006/p2p/16Uiu2HAm2CVtLveAtroaN7pcR8U2saBKjwYqRAikMSwxqdoYMxtv;\
-/ip4/127.0.0.1/tcp/4007/p2p/16Uiu2HAmQv3m5SSyYAoafKmYbTbGmXBaS4DXHXR9wxWKQ9xLzC3n;\
-/ip4/127.0.0.1/tcp/4008/p2p/16Uiu2HAkx1o5fzWLdAobanvE6vqbf1XSbDSgCnid3AoqDGQYFVxo;\
-"
+## Generate nodes config and keystore by generate config file
+1. Show generate config file template
+```shell
+./axiom-ledger cluster show-config-template
 ```
+2. Edit generate config file (default is cmd/axiom-ledger/cluster_generate_config_temp.toml)
+```toml
+# if true, node port will be auto increased based on the `default_port`
+enable_port_auto_increase = false
+```
+3. Export some common config(support use env to set other config)
+```shell
+export AXIOM_LEDGER_GENESIS_CHAINID=1111
+```
+4. Generate
+```shell
+./bin/axiom-ledger cluster generate-by-config --config-path ./generate_config.toml --target ./nodes --force
+```
+Nodes configurations and private keys will be generated under target dir.
+Each node Operator key is generated in operator.key
 
-Then run generate_nodes.sh, which will generate the node deployment package in the nodes folder in the same directory as the script. Upload the deployment package to the respective servers and execute the start.sh script in the deployment package to start the nodes.
 
 # Debugging Techniques
-
-## Ledger Debugging
-
-Currently, tools for rolling back and replaying blocks in the ledger are provided. Therefore, if there are inconsistencies in the ledger or other ledger-related bugs, these tools can be used along with the ledger logs for debugging.
-
-For instance, if there is a ledger fork bug and two nodes fork at block 1000:
-
-On each node's deployment path, perform the following actions:
-
-1. Roll back to the previous block height (this will not directly modify the original storage folder but will replay to the specified block height in a new folder named storage-rollback-${block_number})
-
-```bash
-./axiom-ledger ledger simple-rollback --target-block-number 999
-```
-
-The storage at block height 999 is located in the storage-rollback-999 folder within the deployment package.
-
-2. Replay the transactions of block 1000 on the storage at block height 999 (this command will output debug logs of the ledger for the repeated transactions to a file without timestamps)
-
-```bash
-export AXIOM_LEDGER_LOG_MODULE_STORAGE=debug && export AXIOM_LEDGER_LOG_DISABLE_TIMESTAMP=true && ./axiom-ledger ledger simple-sync --source-storage ./storage --target-storage ./storage-rollback-999 --target-block-number 1000 -f > ./block-1000.log
-```
-
-Finally, compare the ledger logs of the problematic block replayed on both nodes to identify any inconsistencies.
 
 ## Consensus Debugging
 

@@ -1,14 +1,15 @@
 package api
 
 import (
-	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
@@ -17,8 +18,8 @@ type CoreAPI interface {
 	Broker() BrokerAPI
 	Chain() ChainAPI
 	Feed() FeedAPI
-	Gas() GasAPI
 	TxPool() TxPoolAPI
+	ChainState() *chainstate.ChainState
 }
 
 type BrokerAPI interface {
@@ -60,11 +61,6 @@ type FeedAPI interface {
 	SubscribeNewTxEvent(chan<- []*types.Transaction) event.Subscription
 	SubscribeNewBlockEvent(chan<- events.ExecutedEvent) event.Subscription
 	BloomStatus() (uint64, uint64)
-}
-
-type GasAPI interface {
-	GetGasPrice() (uint64, error)
-	GetCurrentGasPrice(blockHeight uint64) (uint64, error)
 }
 
 type TxPoolAPI interface {

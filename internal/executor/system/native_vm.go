@@ -3,7 +3,6 @@ package system
 import (
 	"bytes"
 	_ "embed"
-	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -13,26 +12,25 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/samber/lo"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/access"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/base"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axc"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/token/axm"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/axiomesh/axiom-ledger/pkg/packer"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var (
 	ErrNotExistSystemContract         = errors.New("not exist this system contract")
 	ErrNotExistMethodName             = errors.New("not exist method name of this system contract")
-	ErrNotExistSystemContractABI      = errors.New("not exist this system contract abi")
 	ErrNotImplementFuncSystemContract = errors.New("not implement the function for this system contract")
 	ErrInvalidStateDB                 = errors.New("invalid statedb")
 )
@@ -41,29 +39,9 @@ const (
 	RunSystemContractGas = 50000
 )
 
-//go:embed sol/Governance.abi
-var governanceABI string
-
-//go:embed sol/WhiteList.abi
-var whiteListABI string
-
-//go:embed sol/EpochManager.abi
-var epochManagerABI string
-
-//go:embed sol/AxmManager.abi
-var axmManagerABI string
-
-//go:embed sol/AxcManager.abi
-var axcManagerABI string
-
-//go:embed sol/saccount/IEntryPoint.abi
-var entryPointABI string
-
-//go:embed sol/saccount/SmartAccountFactory.abi
-var smartAccountFactoryABI string
-
-//go:embed sol/saccount/IPaymaster.abi
-var paymasterABI string
+var (
+	errorType = reflect.TypeOf((*error)(nil)).Elem()
+)
 
 var _ common.VirtualMachine = (*NativeVM)(nil)
 
@@ -71,74 +49,72 @@ var _ common.VirtualMachine = (*NativeVM)(nil)
 type NativeVM struct {
 	logger logrus.FieldLogger
 
-	// contract address mapping to method signature
-	contract2MethodSig map[string]map[string][]byte
-	// contract address mapping to contract abi
-	contract2ABI map[string]abi.ABI
-	// contract address mapping to contact instance
-	contracts map[string]struct{}
+	// contract addr -> method id -> method name
+	contractMethodID2Name map[string]map[[4]byte]string
+
+	// contract addr -> contract cfg
+	contractBuildConfigMap map[string]*common.SystemContractStaticConfig
+
+	// priority -> contract addr
+	contractGenesisInitPriority []string
 }
 
-func New() common.VirtualMachine {
+func New() *NativeVM {
 	nvm := &NativeVM{
-		logger:             loggers.Logger(loggers.SystemContract),
-		contract2MethodSig: make(map[string]map[string][]byte),
-		contract2ABI:       make(map[string]abi.ABI),
-		contracts:          make(map[string]struct{}),
+		logger:                 loggers.Logger(loggers.SystemContract),
+		contractMethodID2Name:  make(map[string]map[[4]byte]string),
+		contractBuildConfigMap: make(map[string]*common.SystemContractStaticConfig),
 	}
 
 	// deploy all system contract
-	nvm.Deploy(common.GovernanceContractAddr, governanceABI)
-	nvm.Deploy(common.EpochManagerContractAddr, epochManagerABI)
-	nvm.Deploy(common.WhiteListContractAddr, whiteListABI)
-	nvm.Deploy(common.AXMContractAddr, axmManagerABI)
-	nvm.Deploy(common.AXCContractAddr, axcManagerABI)
-	nvm.Deploy(common.EntryPointContractAddr, entryPointABI)
-	nvm.Deploy(common.AccountFactoryContractAddr, smartAccountFactoryABI)
-	nvm.Deploy(common.VerifyingPaymasterContractAddr, paymasterABI)
-	nvm.Deploy(common.TokenPaymasterContractAddr, paymasterABI)
+	nvm.Deploy(token.AXCBuildConfig.StaticConfig())
+
+	nvm.Deploy(framework.EpochManagerBuildConfig.StaticConfig())
+	nvm.Deploy(framework.NodeManagerBuildConfig.StaticConfig())
+	nvm.Deploy(framework.LiquidStakingTokenBuildConfig.StaticConfig())
+	nvm.Deploy(framework.StakingManagerBuildConfig.StaticConfig())
+
+	nvm.Deploy(access.WhitelistBuildConfig.StaticConfig())
+	nvm.Deploy(governance.BuildConfig.StaticConfig())
+
+	nvm.Deploy(saccount.EntryPointBuildConfig.StaticConfig())
+	nvm.Deploy(saccount.VerifyingPaymasterBuildConfig.StaticConfig())
+	nvm.Deploy(saccount.TokenPaymasterBuildConfig.StaticConfig())
+	nvm.Deploy(saccount.SmartAccountFactoryBuildConfig.StaticConfig())
 
 	return nvm
 }
 
 func (nvm *NativeVM) View() common.VirtualMachine {
 	return &NativeVM{
-		logger:             nvm.logger,
-		contract2MethodSig: nvm.contract2MethodSig,
-		contract2ABI:       nvm.contract2ABI,
-		contracts:          nvm.contracts,
+		logger:                 nvm.logger,
+		contractMethodID2Name:  nvm.contractMethodID2Name,
+		contractBuildConfigMap: nvm.contractBuildConfigMap,
 	}
 }
 
-func (nvm *NativeVM) Deploy(addr string, abiFile string) {
+func (nvm *NativeVM) Deploy(cfg *common.SystemContractStaticConfig) {
 	// check system contract range
-	if addr < common.SystemContractStartAddr || addr > common.SystemContractEndAddr {
-		panic(fmt.Sprintf("this system contract %s is out of range", addr))
+	if cfg.Address < common.SystemContractStartAddr || cfg.Address > common.SystemContractEndAddr {
+		panic(fmt.Sprintf("this system contract %s is out of range", cfg.Address))
 	}
 
-	if _, ok := nvm.contracts[addr]; ok {
-		panic("deploy system contract repeated")
+	if _, ok := nvm.contractBuildConfigMap[cfg.Address]; ok {
+		panic(fmt.Sprintf("this system contract %s has been deployed", cfg.Address))
 	}
-	nvm.contracts[addr] = struct{}{}
+	nvm.contractBuildConfigMap[cfg.Address] = cfg
 
-	contractABI, err := abi.JSON(strings.NewReader(abiFile))
-	if err != nil {
-		panic(err)
+	id2Name := make(map[[4]byte]string)
+	for methodName, method := range cfg.GetAbi().Methods {
+		id2Name[[4]byte(method.ID)] = methodName
 	}
-	nvm.contract2ABI[addr] = contractABI
-
-	m2sig := make(map[string][]byte)
-	for methodName, method := range contractABI.Methods {
-		m2sig[methodName] = method.ID
-	}
-
-	nvm.contract2MethodSig[addr] = m2sig
-
-	nvm.setEVMPrecompiled(addr)
+	nvm.contractMethodID2Name[cfg.Address] = id2Name
+	nvm.contractGenesisInitPriority = append(nvm.contractGenesisInitPriority, cfg.Address)
+	nvm.setEVMPrecompiled(cfg.Address)
 }
 
 func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult []byte, execErr error) {
-	adaptor, ok := statefulArgs.StateDB.(*ledger.EvmStateDBAdaptor)
+	adaptor, ok := statefulArgs.EVM.StateDB.(*ledger.EvmStateDBAdaptor)
 	if !ok {
 		return nil, ErrInvalidStateDB
 	}
@@ -147,22 +123,11 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		return nil, ErrNotExistSystemContract
 	}
 	contractAddr := statefulArgs.To.Hex()
-	contractInstance := nvm.GetContractInstance(types.NewAddressByStr(contractAddr))
-	if contractInstance == nil {
+	contractBuildCfg := nvm.contractBuildConfigMap[contractAddr]
+	if contractBuildCfg == nil {
 		return nil, ErrNotExistSystemContract
 	}
-	currentLogs := make([]common.Log, 0)
-	vmContext := &common.VMContext{
-		// set context first
-		StateLedger:   adaptor.StateLedger,
-		CurrentHeight: statefulArgs.Height.Uint64(),
-		CurrentLogs:   &currentLogs,
-		CurrentUser:   &statefulArgs.From,
-		CurrentEVM:    statefulArgs.EVM,
-	}
-	contractInstance.SetContext(vmContext)
-
-	defer nvm.saveLogs(vmContext.StateLedger, vmContext.CurrentLogs)
+	contractInstance := contractBuildCfg.Build(common.NewVMContext(adaptor.StateLedger, statefulArgs.EVM, statefulArgs.From, statefulArgs.Value.ToBig(), statefulArgs.Output))
 	defer func() {
 		if err := recover(); err != nil {
 			nvm.logger.Error(err)
@@ -197,12 +162,6 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if err != nil {
 		return nil, err
 	}
-
-	// maybe transfer to system contract
-	if methodName == "" {
-		return nil, nil
-	}
-
 	// method name may be proposed, but we implement Propose
 	// capitalize the first letter of a function
 	funcName := methodName
@@ -214,7 +173,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	if !method.IsValid() {
 		return nil, ErrNotImplementFuncSystemContract
 	}
-	args, err := nvm.parseArgs(contractAddr, data, methodName)
+	args, err := nvm.parseArgs(contractBuildCfg, data, methodName)
 	if err != nil {
 		return nil, err
 	}
@@ -230,35 +189,33 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 
 	var returnRes []any
 	var returnErr error
-	for _, result := range results {
-		// basic type(such as bool, number, string, can't call isNil)
-		if result.CanInt() || result.CanFloat() || result.CanUint() || result.Kind() == reflect.Bool || result.Kind() == reflect.String || result.Kind() == reflect.Array || result.CanComplex() {
+	for i, result := range results {
+		if checkIsError(result.Type()) {
+			if i != len(results)-1 {
+				panic(fmt.Sprintf("contract[%s] call method[%s] return error: %s, but not the last return value", contractAddr, methodName, returnErr))
+			}
+			if !result.IsNil() {
+				returnErr = result.Interface().(error)
+			}
+		} else {
 			returnRes = append(returnRes, result.Interface())
-			continue
 		}
-
-		if result.IsNil() {
-			continue
-		}
-		if err, ok := result.Interface().(error); ok {
-			returnErr = err
-			break
-		}
-		returnRes = append(returnRes, result.Interface())
 	}
 
 	nvm.logger.Debugf("Contract addr: %s, method name: %s, return result: %+v, return error: %s", contractAddr, methodName, returnRes, returnErr)
 
 	if returnErr != nil {
 		// if err is execution reverted, get reason
-		if err, ok := returnErr.(*common.RevertError); ok {
-			return err.Data(), err.GetError()
+		var err *packer.RevertError
+		if errors.As(returnErr, &err) {
+			return err.Data, err.Err
 		}
-		return nil, returnErr
+		revertErr := common.NewRevertStringError(returnErr.Error())
+		return revertErr.Data, revertErr.Err
 	}
 
 	if returnRes != nil {
-		return nvm.PackOutputArgs(contractAddr, methodName, returnRes...)
+		return nvm.packOutputArgs(contractBuildCfg, methodName, returnRes...)
 	}
 	return nil, nil
 }
@@ -283,24 +240,22 @@ func (nvm *NativeVM) getMethodName(contractAddr string, data []byte) (string, er
 		return "", ErrNotExistMethodName
 	}
 
-	method2Sig, ok := nvm.contract2MethodSig[contractAddr]
+	methodID2Name, ok := nvm.contractMethodID2Name[contractAddr]
 	if !ok {
 		return "", ErrNotExistSystemContract
 	}
 
-	for methodName, methodSig := range method2Sig {
-		id := methodSig[:4]
-		if bytes.Equal(id, data[:4]) {
-			return methodName, nil
-		}
+	methodName, ok := methodID2Name[[4]byte(data[:4])]
+	if !ok {
+		nvm.logger.Errorf("system contract abi: could not locate method name, %x", data)
+		return "", ErrNotExistMethodName
 	}
 
-	nvm.logger.Errorf("system contract abi: could not locate method name, %x", data)
-	return "", ErrNotExistMethodName
+	return methodName, nil
 }
 
 // parseArgs parse the arguments to specified interface by method name
-func (nvm *NativeVM) parseArgs(contractAddr string, data []byte, methodName string) ([]any, error) {
+func (nvm *NativeVM) parseArgs(contractBuildCfg *common.SystemContractStaticConfig, data []byte, methodName string) ([]any, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("msg data length is not improperly formatted: %q - Bytes: %+v", data, data)
 	}
@@ -308,10 +263,7 @@ func (nvm *NativeVM) parseArgs(contractAddr string, data []byte, methodName stri
 	// dinvmard method id
 	msgData := data[4:]
 
-	contractABI, ok := nvm.contract2ABI[contractAddr]
-	if !ok {
-		return nil, ErrNotExistSystemContractABI
-	}
+	contractABI := contractBuildCfg.GetAbi()
 
 	var args abi.Arguments
 	if method, ok := contractABI.Methods[methodName]; ok {
@@ -332,12 +284,9 @@ func (nvm *NativeVM) parseArgs(contractAddr string, data []byte, methodName stri
 	return unpacked, nil
 }
 
-// PackOutputArgs pack the output arguments by method name
-func (nvm *NativeVM) PackOutputArgs(contractAddr, methodName string, outputArgs ...any) ([]byte, error) {
-	contractABI, ok := nvm.contract2ABI[contractAddr]
-	if !ok {
-		return nil, ErrNotExistSystemContractABI
-	}
+// packOutputArgs pack the output arguments by method name
+func (nvm *NativeVM) packOutputArgs(contractBuildCfg *common.SystemContractStaticConfig, methodName string, outputArgs ...any) ([]byte, error) {
+	contractABI := contractBuildCfg.GetAbi()
 
 	var args abi.Arguments
 	if method, ok := contractABI.Methods[methodName]; ok {
@@ -351,13 +300,9 @@ func (nvm *NativeVM) PackOutputArgs(contractAddr, methodName string, outputArgs 
 	return args.Pack(outputArgs...)
 }
 
-// UnpackOutputArgs unpack the output arguments by method name
-func (nvm *NativeVM) UnpackOutputArgs(contractAddr, methodName string, packed []byte) ([]any, error) {
-	contractABI, ok := nvm.contract2ABI[contractAddr]
-	if !ok {
-		return nil, ErrNotExistSystemContractABI
-	}
-
+// unpackOutputArgs unpack the output arguments by method name
+func (nvm *NativeVM) unpackOutputArgs(contractBuildCfg *common.SystemContractStaticConfig, methodName string, packed []byte) ([]any, error) {
+	contractABI := contractBuildCfg.GetAbi()
 	var args abi.Arguments
 	if method, ok := contractABI.Methods[methodName]; ok {
 		args = method.Outputs
@@ -370,22 +315,8 @@ func (nvm *NativeVM) UnpackOutputArgs(contractAddr, methodName string, packed []
 	return args.Unpack(packed)
 }
 
-// saveLogs save all logs during the system execution
-func (nvm *NativeVM) saveLogs(l ledger.StateLedger, currentLogs *[]common.Log) {
-	nvm.logger.Debugf("logs: %+v", currentLogs)
-
-	for _, currentLog := range *currentLogs {
-		l.AddLog(&types.EvmLog{
-			Address: currentLog.Address,
-			Topics:  currentLog.Topics,
-			Data:    currentLog.Data,
-			Removed: currentLog.Removed,
-		})
-	}
-}
-
 func (nvm *NativeVM) setEVMPrecompiled(addr string) {
-	// set system contracts into vm.precompiled
+	// set system contractConstructor into vm.precompiled
 	vm.PrecompiledAddressesByzantium = append(vm.PrecompiledAddressesByzantium, ethcommon.HexToAddress(addr))
 	vm.PrecompiledAddressesBerlin = append(vm.PrecompiledAddressesBerlin, ethcommon.HexToAddress(addr))
 	vm.PrecompiledAddressesHomestead = append(vm.PrecompiledAddressesHomestead, ethcommon.HexToAddress(addr))
@@ -399,87 +330,21 @@ func (nvm *NativeVM) setEVMPrecompiled(addr string) {
 	vm.PrecompiledContractsCancun[ethcommon.HexToAddress(addr)] = nvm
 }
 
-func (nvm *NativeVM) GetContractInstance(addr *types.Address) common.SystemContract {
-	cfg := &common.SystemContractConfig{
-		Logger: nvm.logger,
-	}
-	switch addr.String() {
-	case common.GovernanceContractAddr:
-		return governance.NewGov(cfg)
-	case common.EpochManagerContractAddr:
-		return base.NewEpochManager(cfg)
-	case common.WhiteListContractAddr:
-		return access.NewWhiteList(cfg)
-	case common.AXMContractAddr:
-		return axm.New(cfg)
-	case common.AXCContractAddr:
-		return axc.New(cfg)
-	case common.EntryPointContractAddr:
-		return saccount.NewEntryPoint(cfg)
-	case common.AccountFactoryContractAddr:
-		entryPoint := saccount.NewEntryPoint(cfg)
-		return saccount.NewSmartAccountFactory(cfg, entryPoint)
-	case common.VerifyingPaymasterContractAddr:
-		entryPoint := saccount.NewEntryPoint(cfg)
-		return saccount.NewVerifyingPaymaster(entryPoint)
-	case common.TokenPaymasterContractAddr:
-		entryPoint := saccount.NewEntryPoint(cfg)
-		return saccount.NewTokenPaymaster(entryPoint)
-	}
-	return nil
-}
+func (nvm *NativeVM) GenesisInit(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
+	nvm.initSystemContractCode(lg)
 
-func InitGenesisData(genesis *repo.GenesisConfig, lg ledger.StateLedger) error {
-	if err := base.InitEpochInfo(lg, genesis.EpochInfo.Clone()); err != nil {
-		return err
-	}
-	if err := governance.InitCouncilMembers(lg, genesis.Admins); err != nil {
-		return err
-	}
-	if err := governance.InitNodeMembers(lg, genesis.NodeNames, genesis.EpochInfo); err != nil {
-		return err
-	}
-	InitSystemContractCode(lg)
-
-	if err := saccount.Initialize(lg, genesis.SmartAccountAdmin); err != nil {
-		return err
+	for _, contractAddr := range nvm.contractGenesisInitPriority {
+		contractBuildCfg := nvm.contractBuildConfigMap[contractAddr]
+		if err := contractBuildCfg.Build(common.NewVMContextByExecutor(lg).DisableRecordLogToLedger()).GenesisInit(genesis); err != nil {
+			return err
+		}
 	}
 
-	axmConfig, err := axm.GenerateConfig(genesis)
-	if err != nil {
-		return err
-	}
-	if err = axm.Init(lg, axmConfig); err != nil {
-		return err
-	}
-
-	axcConfig, err := axc.GenerateConfig(genesis)
-	if err != nil {
-		return err
-	}
-	if err = axc.Init(lg, axcConfig); err != nil {
-		return err
-	}
-
-	admins := lo.Map[*repo.Admin, string](genesis.Admins, func(x *repo.Admin, _ int) string {
-		return x.Address
-	})
-	totalLength := len(admins) + len(genesis.InitWhiteListProviders) + len(genesis.Accounts)
-	combined := make([]string, 0, totalLength)
-	combined = append(combined, admins...)
-	combined = append(combined, genesis.InitWhiteListProviders...)
-	accountAddrs := lo.Map(genesis.Accounts, func(ac *repo.Account, _ int) string {
-		return ac.Address
-	})
-	combined = append(combined, accountAddrs...)
-	if err = access.InitProvidersAndWhiteList(lg, combined, genesis.InitWhiteListProviders); err != nil {
-		return err
-	}
 	return nil
 }
 
 // InitSystemContractCode init system contract code for compatible with ethereum abstract account
-func InitSystemContractCode(lg ledger.StateLedger) {
+func (nvm *NativeVM) initSystemContractCode(lg ledger.StateLedger) {
 	contractAddr := types.NewAddressByStr(common.SystemContractStartAddr)
 	contractAddrBig := contractAddr.ETHAddress().Big()
 	endContractAddrBig := types.NewAddressByStr(common.SystemContractEndAddr).ETHAddress().Big()
@@ -515,4 +380,8 @@ func convertInputArgs(method reflect.Value, inputArgs []reflect.Value) []reflect
 		}
 	}
 	return outputArgs
+}
+
+func checkIsError(tpe reflect.Type) bool {
+	return tpe.AssignableTo(errorType)
 }
