@@ -184,6 +184,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		inputs = append(inputs, reflect.ValueOf(arg))
 	}
 	// convert input args, if input args contains slice struct which is defined in abi, convert to dest slice struct which is defined in golang
+	// if input args contains struct, convert to dest struct which is defined in golang
 	inputs = convertInputArgs(method, inputs)
 
 	// maybe panic when inputs mismatch, but we recover
@@ -365,7 +366,8 @@ func convertInputArgs(method reflect.Value, inputArgs []reflect.Value) []reflect
 	rt := method.Type()
 	for i := 0; i < rt.NumIn(); i++ {
 		argType := rt.In(i)
-		if argType.Kind() == reflect.Slice && inputArgs[i].Type().Kind() == reflect.Slice {
+		// convert args, if arg is slice struct
+		if argType.Kind() == reflect.Slice && inputArgs[i].Kind() == reflect.Slice {
 			if argType.Elem().Kind() == reflect.Struct && inputArgs[i].Type().Elem().Kind() == reflect.Struct {
 				slice := reflect.MakeSlice(argType, inputArgs[i].Len(), inputArgs[i].Len())
 				for j := 0; j < inputArgs[i].Len(); j++ {

@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -20,10 +22,10 @@ import (
 )
 
 const (
-	ownerKey    = "owner"
 	oldOwnerKey = "old_owner"
 	guradianKey = "guardian"
 	sessionKey  = "session"
+	passkeyKey  = "passkey"
 	statusKey   = "status"
 
 	callInnerMethodGas = 1000
@@ -53,6 +55,8 @@ var (
 
 	transferSig = crypto.Keccak256([]byte("transfer(address,uint256)"))[:4]
 
+	setPasskeySig = crypto.Keccak256([]byte("setPasskey(bytes, uint8)"))[:4]
+
 	executeMethod = abi.Arguments{
 		{Name: "address", Type: common.AddressType},
 		{Name: "value", Type: common.BigIntType},
@@ -64,25 +68,13 @@ var (
 		{Name: "callFunc", Type: common.BytesSliceType},
 	}
 
+	setPasskeyMethod = abi.Arguments{
+		{Name: "publicKey", Type: common.BytesType},
+		{Name: "algo", Type: common.UInt8Type},
+	}
+
 	LockedTime = 24 * time.Hour
 )
-
-// Session is temporary key to control the smart account
-// Session has spending limit and valid time range
-type Session struct {
-	// used to check signature
-	Addr ethcommon.Address
-
-	// max limit for spending
-	SpendingLimit *big.Int
-
-	SpentAmount *big.Int
-
-	// valid time range
-	ValidUntil uint64
-
-	ValidAfter uint64
-}
 
 var _ interfaces.IAccount = (*SmartAccount)(nil)
 
@@ -92,7 +84,8 @@ type SmartAccount struct {
 	owner       *common.VMSlot[ethcommon.Address]
 	oldOwner    *common.VMSlot[ethcommon.Address]
 	guardian    *common.VMSlot[ethcommon.Address]
-	sessionSlot *common.VMSlot[Session]
+	sessionKeys *common.VMSlot[[]SessionKey]
+	passkeys    *common.VMSlot[[]Passkey]
 	status      *common.VMSlot[uint64]
 
 	// remaining gas
@@ -109,7 +102,8 @@ func (sa *SmartAccount) SetContext(context *common.VMContext) {
 	sa.owner = common.NewVMSlot[ethcommon.Address](sa.StateAccount, ownerKey)
 	sa.oldOwner = common.NewVMSlot[ethcommon.Address](sa.StateAccount, oldOwnerKey)
 	sa.guardian = common.NewVMSlot[ethcommon.Address](sa.StateAccount, guradianKey)
-	sa.sessionSlot = common.NewVMSlot[Session](sa.StateAccount, sessionKey)
+	sa.sessionKeys = common.NewVMSlot[[]SessionKey](sa.StateAccount, sessionKey)
+	sa.passkeys = common.NewVMSlot[[]Passkey](sa.StateAccount, passkeyKey)
 	sa.status = common.NewVMSlot[uint64](sa.StateAccount, statusKey)
 
 	sa.remainingGas = big.NewInt(MaxCallGasLimit)
@@ -234,12 +228,35 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 	validationData := &interfaces.Validation{
 		SigValidation: interfaces.SigValidationFailed,
 	}
-	// validate signature
-	addr, err := recoveryAddrFromSignature(userOpHash, userOp.Signature)
-	if err != nil {
-		sa.Logger.Warnf("validate user op failed: %v", err)
-		return validationData, nil
+
+	// first use validator to validate, if validator validate failed, use smart account to validate
+	validatorList := sa.getAllValidators()
+	for _, validator := range validatorList {
+		validation, err := validator.Validate(userOp, userOpHash)
+		if err != nil {
+			// validator validate failed, maybe other validator or owner validate successfully
+			sa.Logger.Warnf("smart account validator validate user op failed: %v", err)
+		}
+		if validation.SigValidation == interfaces.SigValidationSucceeded {
+			return validation, nil
+		}
+
+		if validation.RecoveryAddr != (ethcommon.Address{}) {
+			validationData.RecoveryAddr = validation.RecoveryAddr
+		}
 	}
+
+	// validate owner signature
+	addr := validationData.RecoveryAddr
+	var err error
+	if addr == (ethcommon.Address{}) {
+		addr, err = recoveryAddrFromSignature(userOpHash, userOp.Signature)
+		if err != nil {
+			sa.Logger.Warnf("validate user op failed: %v", err)
+			return validationData, nil
+		}
+	}
+
 	owner, err := sa.getOwner()
 	if err != nil {
 		sa.Logger.Warnf("get owner failed: %v", err)
@@ -248,26 +265,8 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 	sa.Logger.Debugf("validate user op, owner: %s, addr: %s, smart account addr: %s", owner.String(), addr.String(), sa.EthAddress.String())
 
 	if addr != owner {
-		session := sa.getSession()
-		if session == nil {
-			sa.Logger.Warnf("userOp signature is not from owner, owner: %s, recovery owner: %s", owner.String(), addr.String())
-			return validationData, nil
-		}
-
-		if session.Addr != addr {
-			sa.Logger.Warnf("userOp signature is not from session key, session key addr: %s, recovery addr: %s", session.Addr, addr.String())
-			return validationData, nil
-		}
-
-		sa.Logger.Infof("use session key to validate, session key addr: %s", session.Addr.String())
-
-		// if use session key
-		validationData.ValidAfter = session.ValidAfter
-		validationData.ValidUntil = session.ValidUntil
-		validationData.RemainingLimit = big.NewInt(0)
-		if session.SpentAmount.Cmp(session.SpendingLimit) < 0 {
-			validationData.RemainingLimit = new(big.Int).Sub(session.SpendingLimit, session.SpentAmount)
-		}
+		sa.Logger.Warnf("userOp signature is not from owner, owner: %s, recovery owner: %s", owner.String(), addr.String())
+		return validationData, nil
 	}
 	validationData.SigValidation = interfaces.SigValidationSucceeded
 
@@ -411,36 +410,74 @@ func (sa *SmartAccount) SetSession(addr ethcommon.Address, spendingLimit *big.In
 		return errors.New("session key validAfter must less than validUntil")
 	}
 
-	session := sa.getSession()
-	if session == nil {
-		session = &Session{
-			Addr:          addr,
-			SpendingLimit: spendingLimit,
-			SpentAmount:   big.NewInt(0),
-			ValidAfter:    validAfter,
-			ValidUntil:    validUntil,
-		}
-	} else {
-		session.Addr = addr
-		session.SpendingLimit = spendingLimit
-		session.SpentAmount = big.NewInt(0)
-		session.ValidAfter = validAfter
-		session.ValidUntil = validUntil
+	newSession := SessionKey{
+		Addr:          addr,
+		SpendingLimit: spendingLimit,
+		SpentAmount:   big.NewInt(0),
+		ValidAfter:    validAfter,
+		ValidUntil:    validUntil,
+	}
+	// reset session keys
+	return sa.sessionKeys.Put([]SessionKey{newSession})
+}
+
+// SetPasskey set passkey
+func (sa *SmartAccount) SetPasskey(publicKey []byte, algo uint8) error {
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call SetPasskey")
 	}
 
-	return sa.setSession(session)
+	var pk webauthncose.EC2PublicKeyData
+	if err := webauthncbor.Unmarshal(publicKey, &pk); err != nil {
+		return fmt.Errorf("invalid public key: %w", err)
+	}
+
+	newPasskey := Passkey{
+		PubKeyX: new(big.Int).SetBytes(pk.XCoord),
+		PubKeyY: new(big.Int).SetBytes(pk.YCoord),
+		Algo:    algo,
+	}
+	// reset passkeys
+	return sa.passkeys.Put([]Passkey{newPasskey})
 }
 
-func (sa *SmartAccount) setSession(session *Session) error {
-	return sa.sessionSlot.Put(*session)
-}
-
-func (sa *SmartAccount) getSession() *Session {
-	isExist, session, _ := sa.sessionSlot.Get()
+func (sa *SmartAccount) getAllValidators() []interfaces.IValidator {
+	var validatorList []interfaces.IValidator
+	isExist, sessionKeys, _ := sa.sessionKeys.Get()
 	if isExist {
-		return &session
+		for _, sessionKey := range sessionKeys {
+			validatorList = append(validatorList, &sessionKey)
+		}
 	}
 
+	isExist, passkeys, _ := sa.passkeys.Get()
+	if isExist {
+		for _, passkey := range passkeys {
+			validatorList = append(validatorList, &passkey)
+		}
+	}
+
+	return validatorList
+}
+
+func (sa *SmartAccount) updateAllValidators(validatorList []interfaces.IValidator) error {
+	sessionKeys := make([]SessionKey, 0)
+	passkeys := make([]Passkey, 0)
+	for _, validator := range validatorList {
+		switch v := validator.(type) {
+		case *SessionKey:
+			sessionKeys = append(sessionKeys, *v)
+		case *Passkey:
+			passkeys = append(passkeys, *v)
+		}
+	}
+
+	if err := sa.sessionKeys.Put(sessionKeys); err != nil {
+		return err
+	}
+	if err := sa.passkeys.Put(passkeys); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -470,34 +507,23 @@ func (sa *SmartAccount) getAxcOfTransferValue(token ethcommon.Address, callFunc 
 	return big.NewInt(0), nil
 }
 
-func (sa *SmartAccount) postUserOp(UseSessionKey bool, actualGasCost, totalValue *big.Int) error {
+func (sa *SmartAccount) postUserOp(validateData *interfaces.Validation, actualGasCost, totalValue *big.Int) error {
 	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
-		return errors.New("only entrypoint can call SetSession")
+		return errors.New("only entrypoint can call postUserOp")
 	}
 
-	sa.Logger.Infof("post user op, use session key: %v, actual gas cost: %s", UseSessionKey, actualGasCost.String())
+	sa.Logger.Infof("post user op, validate data: %v, actual gas cost: %s", validateData, actualGasCost.String())
 
-	// is not use session key, no need to update spent amount
-	if !UseSessionKey {
-		return nil
+	// call all validators PostUserOp
+	validatorList := sa.getAllValidators()
+	for _, validator := range validatorList {
+		if err := validator.PostUserOp(validateData, actualGasCost, totalValue); err != nil {
+			sa.Logger.Errorf("post user op failed, validator: %v, error: %v", validator, err)
+			return err
+		}
 	}
-
-	session := sa.getSession()
-	if session == nil {
-		sa.Logger.Infof("no session key, no need to update spent amount")
-		// no session, no need to update spent amount
-		return nil
-	}
-
-	spentAmout := new(big.Int).Add(session.SpentAmount, actualGasCost)
-	spentAmout.Add(spentAmout, totalValue)
-	sa.Logger.Infof("update session key spent amount, spent amount: %s, spend limit: %s", spentAmout.String(), session.SpendingLimit.String())
-	if spentAmout.Cmp(session.SpendingLimit) > 0 {
-		return errors.New("spent amount exceeds session spending limit")
-	}
-	session.SpentAmount = spentAmout
-
-	return sa.setSession(session)
+	// update validators
+	return sa.updateAllValidators(validatorList)
 }
 
 func recoveryAddrFromSignature(hash [32]byte, signature []byte) (ethcommon.Address, error) {
@@ -584,6 +610,19 @@ func JudgeOrCallInnerMethod(callData []byte, sa *SmartAccount) (bool, uint64, *b
 			new(big.Int).SetBytes(callData[68:100]).Uint64(),
 			new(big.Int).SetBytes(callData[100:132]).Uint64(),
 		)
+	case string(setPasskeySig):
+		if len(callData) < 68 {
+			return false, 0, nil, errors.New("call smart account set passkey, callData length is too short")
+		}
+		var res []any
+		res, err = setPasskeyMethod.Unpack(callData[4:])
+		if err != nil {
+			return false, 0, nil, fmt.Errorf("call smart account set passkey, unpack error: %v", err)
+		}
+		if len(res) != 2 {
+			return false, 0, nil, errors.New("call smart account setPasskey error, unpack result length is not 2")
+		}
+		err = sa.SetPasskey(res[0].([]byte), res[1].(uint8))
 	default:
 		return false, 0, nil, nil
 	}

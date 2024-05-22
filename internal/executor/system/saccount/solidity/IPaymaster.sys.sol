@@ -2,12 +2,13 @@
 pragma solidity ^0.8.12;
 
 import "./UserOperation.sol";
+import "./Ownable.sys.sol";
 
 /**
  * the interface exposed by a paymaster contract, who agrees to pay the gas for user's operations.
  * a paymaster must hold a stake to cover the required entrypoint stake and also the gas for the transaction.
  */
-interface IPaymaster {
+interface IPaymaster is Ownable {
 
     enum PostOpMode {
         opSucceeded, // user op succeeded

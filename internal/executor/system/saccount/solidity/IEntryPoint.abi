@@ -58,6 +58,30 @@
     [
       {
         "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
         "name": "sender",
         "type": "address"
       }
@@ -371,6 +395,26 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs":
+    [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "aggregator",
         "type": "address"
       }
@@ -657,6 +701,20 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getNoGasCalls",
+    "outputs":
+    [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs":
     [
       {
@@ -756,6 +814,16 @@
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "authData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "clientData",
+            "type": "bytes"
           }
         ],
         "internalType": "struct UserOperation",
@@ -837,6 +905,16 @@
               {
                 "internalType": "bytes",
                 "name": "signature",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "authData",
+                "type": "bytes"
+              },
+              {
+                "internalType": "bytes",
+                "name": "clientData",
                 "type": "bytes"
               }
             ],
@@ -930,6 +1008,16 @@
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "authData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "clientData",
+            "type": "bytes"
           }
         ],
         "internalType": "struct UserOperation[]",
@@ -957,6 +1045,34 @@
       }
     ],
     "name": "incrementNonce",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "bytes",
+        "name": "calls",
+        "type": "bytes"
+      }
+    ],
+    "name": "setNoGasCalls",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1020,6 +1136,16 @@
           {
             "internalType": "bytes",
             "name": "signature",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "authData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "clientData",
             "type": "bytes"
           }
         ],
@@ -1103,6 +1229,16 @@
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "authData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "clientData",
+            "type": "bytes"
           }
         ],
         "internalType": "struct UserOperation",
@@ -1111,6 +1247,20 @@
       }
     ],
     "name": "simulateValidation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

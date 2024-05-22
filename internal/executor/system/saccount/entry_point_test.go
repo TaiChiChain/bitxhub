@@ -35,7 +35,7 @@ func buildUserOp(t *testing.T, testNVM *common.TestNVM, entrypoint *EntryPoint, 
 	// replace owner
 	copy(initCode[20+4+(32-20):], owner.Bytes())
 
-	senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
+	senderAddr, _ := accountFactory.GetAddress(owner, big.NewInt(salt))
 	userOp := &interfaces.UserOperation{
 		Sender:               senderAddr,
 		Nonce:                big.NewInt(0),
@@ -432,7 +432,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// replace owner
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
-				userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
+				userOp.Sender, _ = accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
 
@@ -476,7 +476,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// replace owner
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
-				userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
+				userOp.Sender, _ = accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
 
@@ -499,7 +499,10 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 
 				// get session
 				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
-				session := sa.getSession()
+				isExist, sessionKeys, _ := sa.sessionKeys.Get()
+				assert.True(t, isExist)
+				session := sessionKeys[0]
+
 				t.Logf("after run, session: %v", session)
 				assert.NotNil(t, session)
 				assert.Equal(t, session.SpentAmount.Uint64(), uint64(0))
@@ -518,7 +521,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// append guardian
 				initCode = append(initCode, ethcommon.LeftPadBytes(guardian.Bytes(), 32)...)
 				userOp.InitCode = initCode
-				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
+				senderAddr, _ := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
@@ -541,7 +544,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// replace owner
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
-				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
+				senderAddr, _ := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
@@ -567,7 +570,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// replace owner
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
-				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
+				senderAddr, _ := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
@@ -592,7 +595,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// replace owner
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
-				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
+				senderAddr, _ := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
@@ -618,7 +621,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 				// replace owner
 				copy(initCode[20+4+(32-20):], owner.Bytes())
 				userOp.InitCode = initCode
-				senderAddr := accountFactory.GetAddress(owner, big.NewInt(salt))
+				senderAddr, _ := accountFactory.GetAddress(owner, big.NewInt(salt))
 				userOp.Sender = senderAddr
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
@@ -689,7 +692,7 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 	// replace owner
 	copy(initCode[20+4+(32-20):], owner.Bytes())
 	userOp.InitCode = initCode
-	userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
+	userOp.Sender, _ = accountFactory.GetAddress(owner, big.NewInt(salt))
 	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 	assert.Nil(t, err)
 
@@ -753,7 +756,9 @@ func TestEntryPoint_HandleOps_SessionKey(t *testing.T) {
 		return err
 	})
 
-	session := sa.getSession()
+	isExist, sessionKeys, _ := sa.sessionKeys.Get()
+	assert.True(t, isExist)
+	session := sessionKeys[0]
 	assert.Greater(t, session.SpentAmount.Uint64(), transferAmount.Uint64())
 	assert.EqualValues(t, sessionKeyLimit.Uint64(), session.SpendingLimit.Uint64())
 }
@@ -779,7 +784,7 @@ func TestEntryPoint_HandleOps_Recovery(t *testing.T) {
 	// replace owner
 	copy(initCode[20+4+(32-20):], owner.Bytes())
 	userOp.InitCode = initCode
-	userOp.Sender = accountFactory.GetAddress(owner, big.NewInt(salt))
+	userOp.Sender, _ = accountFactory.GetAddress(owner, big.NewInt(salt))
 	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 	assert.Nil(t, err)
 
@@ -995,6 +1000,95 @@ func TestEntryPoint_createSender(t *testing.T) {
 		addr2, _, err := entrypoint.createSender(big.NewInt(10000), initCode)
 		assert.Nil(t, err)
 		assert.Equal(t, addr, addr2)
+		return err
+	})
+}
+
+func TestEntryPoint_noGasCall(t *testing.T) {
+	// test setPasskey as no gas call
+	testNVM := common.NewTestNVM(t)
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	accountFactory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	tokenPaymaster := TokenPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
+
+	var err error
+	userOp, _ := buildUserOp(t, testNVM, entrypoint, accountFactory)
+	beneficiaryPriv, _ := crypto.GenerateKey()
+	beneficiary := crypto.PubkeyToAddress(beneficiaryPriv.PublicKey)
+
+	userOp.VerificationGasLimit = big.NewInt(90000)
+	sk, _ := crypto.GenerateKey()
+	owner := crypto.PubkeyToAddress(sk.PublicKey)
+	initCode := ethcommon.Hex2Bytes("00000000000000000000000000000000000010095fbfb9cf0000000000000000000000009965507d1a55bcc2695c58ba16fb37d819b0a4dc0000000000000000000000000000000000000000000000000000000000015b43")
+	// replace owner
+	copy(initCode[20+4+(32-20):], owner.Bytes())
+	userOp.InitCode = initCode
+	userOp.Sender, _ = accountFactory.GetAddress(owner, big.NewInt(salt))
+	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+	assert.Nil(t, err)
+
+	// set guardian
+	guardianPriv, _ := crypto.GenerateKey()
+	guardianOwner := crypto.PubkeyToAddress(guardianPriv.PublicKey)
+	userOp.CallData = append([]byte{}, setGuardianSig...)
+	userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(guardianOwner.Bytes(), 32)...)
+
+	userOpHash := entrypoint.GetUserOpHash(*userOp)
+	hash := accounts.TextHash(userOpHash.Bytes())
+	sig, err := crypto.Sign(hash, sk)
+	assert.Nil(t, err)
+	userOp.Signature = sig
+
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		balance := types.CoinNumberByAxc(3).ToBigInt()
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), balance)
+
+		err = entrypoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Nil(t, err)
+
+		ba := entrypoint.Ctx.StateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
+		// should sub sender balance
+		assert.Greater(t, balance.Uint64(), ba.Uint64())
+		return err
+	})
+
+	// call set passkey
+	userOp.InitCode = nil
+	userOp.CallData = append([]byte{}, setPasskeySig...)
+	pub := ethcommon.Hex2Bytes("a50102032620012158204eadb888de7877b5aa3ae108910d8176041b2966b78e01769ac99931f9e6f3ad225820412c67afa8bbab00e89a0ba9a67d29166d01afcef66027d418587b6c83a99fa7")
+
+	arg := abi.Arguments{
+		{Name: "pub", Type: common.BytesType},
+		{Name: "algo", Type: common.UInt8Type},
+	}
+	data, err := arg.Pack(pub, AlgoSecp256R1)
+	assert.Nil(t, err)
+	userOp.CallData = append(userOp.CallData, data...)
+	userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+
+	userOpHash = entrypoint.GetUserOpHash(*userOp)
+	hash = accounts.TextHash(userOpHash.Bytes())
+	sig, err = crypto.Sign(hash, sk)
+	assert.Nil(t, err)
+	userOp.Signature = sig
+
+	testNVM.RunSingleTX(entrypoint, ethcommon.Address{}, func() error {
+		balance := types.CoinNumberByAxc(3).ToBigInt()
+		entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(userOp.Sender.Bytes()), balance)
+		entrypoint.Ctx.StateLedger.SetBalance(entrypoint.Address, balance)
+
+		err = entrypoint.HandleOps([]interfaces.UserOperation{*userOp}, beneficiary)
+		assert.Nil(t, err)
+
+		ba := entrypoint.Ctx.StateLedger.GetBalance(types.NewAddress(userOp.Sender.Bytes()))
+		// should not sub sender balance
+		assert.Equal(t, balance, ba)
+		ba2 := entrypoint.Ctx.StateLedger.GetBalance(entrypoint.Address)
+		// should use entrypoint balance
+		assert.Greater(t, balance.Uint64(), ba2.Uint64())
+
 		return err
 	})
 }

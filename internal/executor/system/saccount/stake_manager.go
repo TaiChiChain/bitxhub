@@ -58,14 +58,17 @@ func (sm *StakeManager) AddStake(unstakeDelaySec uint32) {
 	// empty implementation
 }
 
-func (sm *StakeManager) UnlockStake() {
+func (sm *StakeManager) UnlockStake() error {
 	// empty implementation
+	return nil
 }
 
-func (sm *StakeManager) WithdrawStake(withdrawAddress ethcommon.Address) {
+func (sm *StakeManager) WithdrawStake(withdrawAddress ethcommon.Address) error {
 	// empty implementation
+	return nil
 }
 
-func (sm *StakeManager) WithdrawTo(withdrawAddress ethcommon.Address, withdrawAmount *big.Int) {
+func (sm *StakeManager) WithdrawTo(withdrawAddress ethcommon.Address, withdrawAmount *big.Int) error {
 	// empty implementation
+	return nil
 }

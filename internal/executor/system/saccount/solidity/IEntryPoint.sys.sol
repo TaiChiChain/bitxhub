@@ -13,8 +13,9 @@ import "./UserOperation.sol";
 import "./IStakeManager.sol";
 import "./IAggregator.sol";
 import "./INonceManager.sol";
+import "./Ownable.sys.sol";
 
-interface IEntryPoint is IStakeManager, INonceManager {
+interface IEntryPoint is IStakeManager, INonceManager, Ownable {
 
     /***
      * An event emitted after each successful request
@@ -201,5 +202,17 @@ interface IEntryPoint is IStakeManager, INonceManager {
      * @param targetCallData callData to pass to target address
      */
     function simulateHandleOp(UserOperation calldata op, address target, bytes calldata targetCallData) external;
+
+    /**
+     * get call method ids which is no gas cost
+     * @return calls the list of call method ids
+     */
+    function getNoGasCalls() external view returns (bytes memory);
+
+    /**
+     * set call method ids which is no gas cost
+     * @param calls the list of call method ids
+     */
+    function setNoGasCalls(bytes memory calls) external;
 }
 

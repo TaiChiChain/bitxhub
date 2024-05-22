@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -29,6 +30,9 @@ type Validation struct {
 
 	// remaining limit to spend
 	RemainingLimit *big.Int
+
+	// cache recovery address, avoid multiple calls
+	RecoveryAddr ethcommon.Address
 }
 
 type IAccount interface {

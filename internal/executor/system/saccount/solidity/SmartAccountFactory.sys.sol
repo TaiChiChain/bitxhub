@@ -2,6 +2,7 @@
 pragma solidity ^0.8.12;
 
 import "./SmartAccount.sys.sol";
+import "./Ownable.sys.sol";
 
 /**
  * A sample factory contract for SmartAccount
@@ -9,11 +10,8 @@ import "./SmartAccount.sys.sol";
  * The factory's createAccount returns the target account address even if it is already installed.
  * This way, the entryPoint.getSenderAddress() can be called either before or after the account is created.
  */
-contract SmartAccountFactory {
-    SmartAccount public immutable accountImplementation;
-
+abstract contract SmartAccountFactory is Ownable {
     constructor(IEntryPoint _entryPoint) {
-        accountImplementation = new SmartAccount(_entryPoint);
     }
 
     /**
@@ -29,5 +27,12 @@ contract SmartAccountFactory {
      * calculate the counterfactual address of this account as it would be returned by createAccount()
      */
     function getAddress(address owner,uint256 salt) public view returns (address) {
+    }
+
+    // set another account factory to get address
+    function setAccountFactory(address _factory) external {
+    }
+
+    function getAccountFactory() external view returns (address) {
     }
 }

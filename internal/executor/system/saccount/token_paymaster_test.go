@@ -41,7 +41,7 @@ func TestTokenPaymaster_ValidatePaymasterUserOp(t *testing.T) {
 	contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(anotherErc20Bytecode))
 
 	owner := ethcommon.HexToAddress(testNVM.Rep.GenesisConfig.SmartAccountAdmin)
-	accountAddr := factory.GetAddress(owner, big.NewInt(1))
+	accountAddr, _ := factory.GetAddress(owner, big.NewInt(1))
 	sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), accountAddr).SetRemainingGas(big.NewInt(MaxCallGasLimit))
 
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {

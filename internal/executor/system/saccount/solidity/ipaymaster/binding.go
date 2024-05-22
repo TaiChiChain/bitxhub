@@ -34,6 +34,8 @@ type UserOperation struct {
 	MaxPriorityFeePerGas *big.Int
 	PaymasterAndData     []byte
 	Signature            []byte
+	AuthData             []byte
+	ClientData           []byte
 }
 
 type Ipaymaster interface {
@@ -43,8 +45,46 @@ type Ipaymaster interface {
 	// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
 	PostOp(mode uint8, context []byte, actualGasCost *big.Int) error
 
-	// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0xf465c77e.
+	// TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
 	//
-	// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
+	// Solidity: function transferOwnership(address newOwner) returns()
+	TransferOwnership(newOwner common.Address) error
+
+	// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0x7ba19417.
+	//
+	// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
 	ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) ([]byte, *big.Int, error)
+
+	// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
+	//
+	// Solidity: function owner() view returns(address)
+	Owner() (common.Address, error)
+}
+
+// EventOwnershipTransferred represents a OwnershipTransferred event raised by the Ipaymaster contract.
+type EventOwnershipTransferred struct {
+	PreviousOwner common.Address
+	NewOwner      common.Address
+}
+
+func (_event *EventOwnershipTransferred) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["OwnershipTransferred"])
+}
+
+// ErrorOwnableInvalidOwner represents a OwnableInvalidOwner error raised by the Ipaymaster contract.
+type ErrorOwnableInvalidOwner struct {
+	Owner common.Address
+}
+
+func (_error *ErrorOwnableInvalidOwner) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["OwnableInvalidOwner"])
+}
+
+// ErrorOwnableUnauthorizedAccount represents a OwnableUnauthorizedAccount error raised by the Ipaymaster contract.
+type ErrorOwnableUnauthorizedAccount struct {
+	Account common.Address
+}
+
+func (_error *ErrorOwnableUnauthorizedAccount) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["OwnableUnauthorizedAccount"])
 }

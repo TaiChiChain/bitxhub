@@ -41,7 +41,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 		return err
 	})
 
-	accountAddr := factory.GetAddress(owner, big.NewInt(1))
+	accountAddr, _ := factory.GetAddress(owner, big.NewInt(1))
 	sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), accountAddr).SetRemainingGas(big.NewInt(MaxCallGasLimit))
 	entrypoint.Ctx.StateLedger.SetBalance(sa.Address, types.CoinNumberByAxc(3).ToBigInt())
 
@@ -118,7 +118,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 	// test smart account
 	sk2, _ := crypto.GenerateKey()
 	owner2 := crypto.PubkeyToAddress(sk2.PublicKey)
-	accountAddr2 := factory.GetAddress(owner2, big.NewInt(1))
+	accountAddr2, _ := factory.GetAddress(owner2, big.NewInt(1))
 
 	sa2 := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), accountAddr2).SetRemainingGas(big.NewInt(MaxCallGasLimit))
 	entrypoint.Ctx.StateLedger.SetBalance(sa2.Address, types.CoinNumberByAxc(3).ToBigInt())
