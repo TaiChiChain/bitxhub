@@ -161,13 +161,25 @@ func handleShutdown(node *app.AxiomLedger, wg *sync.WaitGroup) {
 	signal.Notify(stop, syscall.SIGTERM)
 	signal.Notify(stop, syscall.SIGINT)
 
-	go func() {
-		<-stop
-		fmt.Println("received interrupt signal, shutting down...")
-		if err := node.Stop(); err != nil {
+	stopNode := func(n *app.AxiomLedger) {
+		if err := n.Stop(); err != nil {
 			panic(err)
 		}
 		wg.Done()
 		os.Exit(0)
+	}
+
+	go func() {
+		for {
+			select {
+			case err := <-node.StopCh:
+				fmt.Println("received stop signal, shutting down...")
+				fmt.Println(err.Error())
+				stopNode(node)
+			case <-stop:
+				fmt.Println("received interrupt signal, shutting down...")
+				stopNode(node)
+			}
+		}
 	}()
 }

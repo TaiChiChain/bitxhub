@@ -21,7 +21,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/archive"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/data_syncer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -75,7 +75,7 @@ func NewNode(config *common.Config) (*Node, error) {
 
 	var n rbft.InboundNode
 	if config.ChainState.IsDataSyncer {
-		n, err = archive.NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.ChainState, config.TxPool, config.Logger)
+		n, err = data_syncer.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.ChainState, config.TxPool, config.Logger)
 	} else {
 		n, err = rbft.NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, config.TxPool)
 	}
@@ -118,10 +118,10 @@ func (n *Node) initConsensusMsgPipes() error {
 	n.stack.SetMsgPipes(n.consensusMsgPipes)
 
 	if n.config.ChainState.IsDataSyncer {
-		archivePipeIds := lo.FlatMap(common.ArchivePipeName, func(name string, _ int) []int32 {
+		dataSyncerPipeIds := lo.FlatMap(common.DataSyncerPipeName, func(name string, _ int) []int32 {
 			return []int32{consensus.Type_value[name]}
 		})
-		n.listenConsensusMsgPipes = lo.PickByKeys(n.consensusMsgPipes, archivePipeIds)
+		n.listenConsensusMsgPipes = lo.PickByKeys(n.consensusMsgPipes, dataSyncerPipeIds)
 	} else {
 		n.listenConsensusMsgPipes = n.consensusMsgPipes
 	}
@@ -142,7 +142,7 @@ func (n *Node) Start() error {
 		Epoch: n.stack.EpochInfo.Epoch,
 	})
 
-	if err := n.initConsensusMsgPipes(); err != nil {
+	if err = n.initConsensusMsgPipes(); err != nil {
 		return err
 	}
 
@@ -403,17 +403,29 @@ func (n *Node) GetLowWatermark() uint64 {
 
 func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint, needRemoveTxs bool) {
 	n.logger.Infof("Receive report state: height = %d, blockHash = %s, ckp = %v, needRemoveTxs = %v", height, blockHash, ckp, needRemoveTxs)
+
+	var err error
+	if n.switchInBoundNode() {
+		if n.config.ChainState.IsDataSyncer {
+			err = fmt.Errorf("not support switch candidate/validator to data syncer")
+		} else {
+			err = fmt.Errorf(`
+			+=================================================================+
+			|                                                                 |
+			|       switch inbound node from data syncer to candidate,        |
+			|                the node should restart!!!                       |
+			|                                                                 |
+			+=================================================================+
+			`)
+		}
+		n.config.NotifyStop(err)
+		return
+	}
+
 	// need update cached epoch info, old epochInfo
 	epochInfo := n.stack.EpochInfo
 	epochChanged := false
 	if common.NeedChangeEpoch(height, epochInfo) {
-		// not support which automatic switch archive mode to miner
-		// todo: modify it when stake supported
-		if err := n.switchInBoundNode(); err != nil {
-			n.logger.Error(err)
-			panic(err)
-		}
-
 		err := n.stack.UpdateEpoch()
 		if err != nil {
 			panic(err)
@@ -513,11 +525,8 @@ func (n *Node) SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscr
 }
 
 // not implemented yet
-func (n *Node) switchInBoundNode() error {
-	if n.n.ArchiveMode() != n.config.ChainState.IsDataSyncer {
-		return fmt.Errorf("archive mode changed from %t to %t", n.n.ArchiveMode(), n.config.ChainState.IsDataSyncer)
-	}
-	return nil
+func (n *Node) switchInBoundNode() bool {
+	return n.n.ArchiveMode() != n.config.ChainState.IsDataSyncer
 }
 
 // status2String returns a long description of SystemStatus

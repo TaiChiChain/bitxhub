@@ -1,4 +1,4 @@
-package archive
+package data_syncer
 
 import (
 	"sync"
@@ -60,14 +60,13 @@ var eventTypes = map[int]string{
 	eventType_consensusMessage: "consensusMessage",
 }
 
-type archiveEvent struct {
+type localEvent struct {
 	EventType int
 	Event     any
 }
 
 type chainConfig struct {
 	epochInfo *types.EpochInfo
-	view      uint64
 	H         uint64       // Low watermark block number.
 	lock      sync.RWMutex // mutex to set value
 }
@@ -96,3 +95,13 @@ type stateUpdateTarget struct {
 	// path of epoch changes from epoch-change-proof
 	epochChanges []*consensus.EpochChange
 }
+
+// nodeState records every node's consensus status(view) and
+// ledger status(chain height, digest)
+type nodeState struct {
+	height uint64
+	digest string
+}
+
+// wholeStates maps checkpoint to nodeState
+type wholeStates map[*consensus.SignedCheckpoint]nodeState

@@ -52,6 +52,7 @@ type AxiomLedger struct {
 
 	epochStore kv.Storage
 	snapMeta   *snapMeta
+	StopCh     chan error
 }
 
 func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFunc) (*AxiomLedger, error) {
@@ -136,6 +137,9 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			}),
 			common.WithBlockSync(axm.Sync),
 			common.WithEpochStore(axm.epochStore),
+			common.WithNotifyStopCh(func(err error) {
+				axm.StopCh <- err
+			}),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("initialize consensus failed: %w", err)
@@ -266,6 +270,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 
 		snapMeta:   snap,
 		epochStore: epochStore,
+		StopCh:     make(chan error, 1),
 	}
 
 	// start p2p network

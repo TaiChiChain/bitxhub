@@ -1,4 +1,4 @@
-package archive
+package data_syncer
 
 import (
 	"bytes"
@@ -88,10 +88,10 @@ func mockConfig(t *testing.T, ctrl *gomock.Controller) (map[int32]p2p.Pipe, *com
 	}
 
 	pipes := prepareNetworks(manager, chainState, t)
-	archivePipeIds := lo.FlatMap(common.ArchivePipeName, func(name string, _ int) []int32 {
+	dataSyncerPipeIds := lo.FlatMap(common.DataSyncerPipeName, func(name string, _ int) []int32 {
 		return []int32{consensus.Type_value[name]}
 	})
-	pipes[5] = lo.MapKeys(lo.PickByKeys(consensusMsgPipes, archivePipeIds), func(_ p2p.Pipe, val int32) string {
+	pipes[5] = lo.MapKeys(lo.PickByKeys(consensusMsgPipes, dataSyncerPipeIds), func(_ p2p.Pipe, val int32) string {
 		return consensus.Type_name[val]
 	})
 
@@ -100,7 +100,7 @@ func mockConfig(t *testing.T, ctrl *gomock.Controller) (map[int32]p2p.Pipe, *com
 	return consensusMsgPipes, conf, pipes
 }
 
-func mockArchiveNode(consensusMsgPipes map[int32]p2p.Pipe, conf *common.Config, t *testing.T) *Node[types.Transaction, *types.Transaction] {
+func mockDataSyncerNode(consensusMsgPipes map[int32]p2p.Pipe, conf *common.Config, t *testing.T) *Node[types.Transaction, *types.Transaction] {
 	rbftAdaptor, err := adaptor.NewRBFTAdaptor(conf)
 	assert.Nil(t, err)
 
@@ -109,7 +109,7 @@ func mockArchiveNode(consensusMsgPipes map[int32]p2p.Pipe, conf *common.Config, 
 	err = rbftAdaptor.UpdateEpoch()
 	assert.Nil(t, err)
 
-	logger := log.NewWithModule("archive")
+	logger := log.NewWithModule("data_syncer")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	rbftConfig := rbft.Config{
 		GenesisBlockDigest:      "genesisDigest",
@@ -117,7 +117,7 @@ func mockArchiveNode(consensusMsgPipes map[int32]p2p.Pipe, conf *common.Config, 
 		SyncStateTimeout:        1 * time.Minute,
 		SyncStateRestartTimeout: 1 * time.Second,
 	}
-	node, err := NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, conf.ChainState, conf.TxPool, logger)
+	node, err := NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, conf.ChainState, conf.TxPool, logger)
 	assert.Nil(t, err)
 
 	err = node.Init()

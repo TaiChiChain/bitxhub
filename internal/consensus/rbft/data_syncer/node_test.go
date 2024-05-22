@@ -1,4 +1,4 @@
-package archive
+package data_syncer
 
 import (
 	"context"
@@ -30,11 +30,11 @@ import (
 	p2p "github.com/axiomesh/axiom-p2p"
 )
 
-func TestNewArchiveNode(t *testing.T) {
+func TestNewNode(t *testing.T) {
 	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
 	assert.Nil(t, err)
 	ctrl := gomock.NewController(t)
-	logger := log.NewWithModule("archive")
+	logger := log.NewWithModule("data_syncer")
 	logger.Logger.SetLevel(logrus.DebugLevel)
 	consensusConf, pool := testutil.MockConsensusConfig(logger, ctrl, t)
 	rbftConfig := rbft.Config{
@@ -46,7 +46,7 @@ func TestNewArchiveNode(t *testing.T) {
 	rbftAdaptor, err := adaptor.NewRBFTAdaptor(consensusConf)
 	assert.Nil(t, err)
 
-	_, err = NewArchiveNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, nil, pool, logger)
+	_, err = NewNode[types.Transaction, *types.Transaction](rbftConfig, rbftAdaptor, nil, pool, logger)
 	assert.Nil(t, err)
 }
 
@@ -360,14 +360,14 @@ func TestNode_Start(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			stack, cnf, pipes := mockConfig(t, ctrl)
-			node := mockArchiveNode(stack, cnf, t)
+			node := mockDataSyncerNode(stack, cnf, t)
 			tc.setupMocks(node, stack, cnf, ctrl)
 
 			// Start receiving messages on pipes
 			for id, pipesM := range pipes {
 				id := id
 				pipesM := pipesM
-				if id == node.selfID {
+				if id == node.chainState.SelfNodeInfo.ID {
 					for _, pipe := range pipesM {
 						pipe := pipe
 						go func(pipe p2p.Pipe) {
@@ -398,7 +398,7 @@ func TestNode_Start(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 
 			for id := range pipes {
-				if id != node.selfID {
+				if id != node.chainState.SelfNodeInfo.ID {
 					remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 				}
 			}
@@ -487,7 +487,7 @@ func TestNode_Step(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			stack, cnf, _ := mockConfig(t, ctrl)
-			node := mockArchiveNode(stack, cnf, t)
+			node := mockDataSyncerNode(stack, cnf, t)
 			tc.setupMocks(node)
 			taskDoneCh := make(chan bool, 1)
 			catchExpectLogOut(t, node.logger, tc.expectResult.(string), taskDoneCh)
@@ -501,14 +501,14 @@ func TestNode_Step(t *testing.T) {
 func TestNode_ArchiveMode(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	consensusMsgPipes, cnf, _ := mockConfig(t, ctrl)
-	node := mockArchiveNode(consensusMsgPipes, cnf, t)
+	node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 	assert.True(t, node.ArchiveMode())
 }
 
 func TestNode_Stop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	stack, cnf, _ := mockConfig(t, ctrl)
-	node := mockArchiveNode(stack, cnf, t)
+	node := mockDataSyncerNode(stack, cnf, t)
 	err := node.Start()
 	assert.Nil(t, err)
 
@@ -600,7 +600,7 @@ func TestNode_Status(t *testing.T) {
 
 				// Start receiving messages on pipes
 				for id, pipesM := range pipes {
-					if id == node.selfID {
+					if id == node.chainState.SelfNodeInfo.ID {
 						for _, pipe := range pipesM {
 							go func(pipe p2p.Pipe) {
 								for {
@@ -662,7 +662,7 @@ func TestNode_Status(t *testing.T) {
 
 				// Start receiving messages on pipes
 				for id, pipesM := range pipes {
-					if id == node.selfID {
+					if id == node.chainState.SelfNodeInfo.ID {
 						for _, pipe := range pipesM {
 							go func(pipe p2p.Pipe) {
 								for {
@@ -747,7 +747,7 @@ func TestNode_Status(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
-			node := mockArchiveNode(consensusMsgPipes, cnf, t)
+			node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 			tc.setupMocks(node, pipes, consensusMsgPipes, cnf, ctrl)
 			status := node.Status()
 			assert.Equal(t, tc.expectResult, status.Status)
@@ -761,7 +761,7 @@ func TestNode_Status(t *testing.T) {
 func TestNode_GetLowWatermark(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	consensusMsgPipes, cnf, _ := mockConfig(t, ctrl)
-	node := mockArchiveNode(consensusMsgPipes, cnf, t)
+	node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 	assert.Equal(t, uint64(0), node.GetLowWatermark())
 
 	taskDoneCh := make(chan bool, 1)
@@ -771,7 +771,7 @@ func TestNode_GetLowWatermark(t *testing.T) {
 	assert.Nil(t, err)
 
 	block := testutil.ConstructBlock("block", uint64(12))
-	node.checkpointCache.insert(generateSignedCheckpoint(t, node.selfID, block.Height(), block.Hash().String(), "batchDigest"))
+	node.checkpointCache.insert(generateSignedCheckpoint(t, node.chainState.SelfNodeInfo.ID, block.Height(), block.Hash().String(), "batchDigest"))
 	node.highStateTarget = &stateUpdateTarget{
 		metaState: &rbfttypes.MetaState{
 			Height: block.Height(),
@@ -849,7 +849,7 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 
 				for id := range pipes {
-					if id != node.selfID {
+					if id != node.chainState.SelfNodeInfo.ID {
 						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
@@ -920,7 +920,7 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 
 				node.statusMgr.On(InSyncState)
 				for id := range pipes {
-					if id != node.selfID {
+					if id != node.chainState.SelfNodeInfo.ID {
 						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
@@ -969,7 +969,7 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				})
 
 				for id := range pipes {
-					if id != node.selfID {
+					if id != node.chainState.SelfNodeInfo.ID {
 						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
@@ -1063,7 +1063,7 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 
 				for id := range pipes {
-					if id != node.selfID {
+					if id != node.chainState.SelfNodeInfo.ID {
 						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
@@ -1163,7 +1163,7 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 
 				for id := range pipes {
-					if id != node.selfID {
+					if id != node.chainState.SelfNodeInfo.ID {
 						remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 					}
 				}
@@ -1191,10 +1191,10 @@ func TestNode_HandleCheckpoint(t *testing.T) {
 		t.Log(tc.name)
 		ctrl := gomock.NewController(t)
 		consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
+		node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 		// Start receiving messages on pipes
 		for id, pipesM := range pipes {
-			if id == node.selfID {
+			if id == node.chainState.SelfNodeInfo.ID {
 				for name, pipe := range pipesM {
 					go func(pipe p2p.Pipe, name string) {
 						for {
@@ -1231,14 +1231,14 @@ func TestNode_Notify(t *testing.T) {
 	t.Run("notifyGenerateBatch", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		consensusMsgPipes, cnf, _ := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
+		node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 		node.notifyGenerateBatch(1)
 	})
 
 	t.Run("notifyFindNextBatch", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		consensusMsgPipes, cnf, _ := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
+		node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 		node.notifyFindNextBatch()
 	})
 }
@@ -1274,7 +1274,7 @@ func TestNode_HandleTimeout(t *testing.T) {
 				})
 				node.missingBatchesInFetching = &wrapFetchMissingRequest{
 					request: &consensus.FetchMissingRequest{
-						ReplicaId:            node.selfID,
+						ReplicaId:            node.chainState.SelfNodeInfo.ID,
 						View:                 2,
 						SequenceNumber:       2,
 						BatchDigest:          batch.BatchHash,
@@ -1304,7 +1304,7 @@ func TestNode_HandleTimeout(t *testing.T) {
 				})
 				node.missingBatchesInFetching = &wrapFetchMissingRequest{
 					request: &consensus.FetchMissingRequest{
-						ReplicaId:            node.selfID,
+						ReplicaId:            node.chainState.SelfNodeInfo.ID,
 						View:                 2,
 						SequenceNumber:       2,
 						BatchDigest:          batch.BatchHash,
@@ -1329,7 +1329,7 @@ func TestNode_HandleTimeout(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
-			node := mockArchiveNode(consensusMsgPipes, cnf, t)
+			node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 			tc.setupMocks(node, consensusMsgPipes, pipes, cnf, ctrl)
 			taskDoneCh := make(chan bool, 1)
 			catchExpectLogOut(t, node.logger, tc.expectResult, taskDoneCh)
@@ -1447,7 +1447,7 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 		t.Log(tc.name)
 		ctrl := gomock.NewController(t)
 		consensusMsgPipes, cnf, pipes := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
+		node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 		remoteHandler := func(msg *consensus.ConsensusMessage, pipe p2p.Pipe, to string, id uint64) error {
 			var respMsg *consensus.ConsensusMessage
 
@@ -1495,7 +1495,7 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 
 		// Start receiving messages on pipes
 		for id, pipesM := range pipes {
-			if id == node.selfID {
+			if id == node.chainState.SelfNodeInfo.ID {
 				for name, pipe := range pipesM {
 					go func(pipe p2p.Pipe, name string) {
 						for {
@@ -1525,7 +1525,7 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 
 		for id := range pipes {
-			if id != node.selfID {
+			if id != node.chainState.SelfNodeInfo.ID {
 				remoteReportCheckpoint(t, id, repo.MockP2PIDs, pipes, poolBatch.BatchHash, 2)
 			}
 		}
@@ -1545,13 +1545,13 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 func TestNode_ProcessEvent(t *testing.T) {
 	testCases := []struct {
 		name         string
-		input        *archiveEvent
+		input        *localEvent
 		setupMocks   func(node *Node[types.Transaction, *types.Transaction])
 		expectResult string
 	}{
 		{
 			name: "wrong consensus msg event",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_consensusMessage,
 				Event:     "wrong event",
 			},
@@ -1561,7 +1561,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 		},
 		{
 			name: "wrong checkpoint event",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_syncBlock,
 				Event:     "wrong event",
 			},
@@ -1571,7 +1571,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 		},
 		{
 			name: "wrong sync state event",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_epochSync,
 				Event:     "wrong event",
 			},
@@ -1581,7 +1581,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 		},
 		{
 			name: "wrong state updated event",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_stateUpdated,
 				Event:     "wrong event",
 			},
@@ -1591,7 +1591,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 		},
 		{
 			name: "wrong executed event",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_executed,
 				Event:     "wrong event",
 			},
@@ -1601,7 +1601,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 		},
 		{
 			name: "handle null request",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_consensusMessage,
 				Event: &consensus.ConsensusMessage{
 					Type:  consensus.Type_NULL_REQUEST,
@@ -1615,7 +1615,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 
 		{
 			name: "handle null request",
-			input: &archiveEvent{
+			input: &localEvent{
 				EventType: eventType_consensusMessage,
 				Event: &consensus.ConsensusMessage{
 					Type:  consensus.Type_NULL_REQUEST,
@@ -1633,7 +1633,7 @@ func TestNode_ProcessEvent(t *testing.T) {
 		t.Log(tc.name)
 		ctrl := gomock.NewController(t)
 		consensusMsgPipes, cnf, _ := mockConfig(t, ctrl)
-		node := mockArchiveNode(consensusMsgPipes, cnf, t)
+		node := mockDataSyncerNode(consensusMsgPipes, cnf, t)
 		tc.setupMocks(node)
 		// Setup log output capturing
 		taskDoneCh := make(chan bool, 1)

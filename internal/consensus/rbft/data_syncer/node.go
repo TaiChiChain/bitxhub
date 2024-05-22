@@ -1,4 +1,4 @@
-package archive
+package data_syncer
 
 import (
 	"context"
@@ -27,7 +27,6 @@ import (
 )
 
 type Node[T any, Constraint types.TXConstraint[T]] struct {
-	selfID                   uint64
 	selfP2PNodeID            string
 	config                   rbft.Config
 	chainState               *chainstate.ChainState
@@ -55,7 +54,7 @@ type Node[T any, Constraint types.TXConstraint[T]] struct {
 
 	statusMgr *status.StatusMgr
 
-	recvCh chan *archiveEvent
+	recvCh chan *localEvent
 
 	checkpointCache *checkpointStore
 
@@ -67,7 +66,7 @@ type Node[T any, Constraint types.TXConstraint[T]] struct {
 	wg      sync.WaitGroup
 }
 
-func NewArchiveNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, stack rbft.ExternalStack[T, Constraint], chainState *chainstate.ChainState, pool txpool.TxPool[T, Constraint], log logrus.FieldLogger) (*Node[T, Constraint], error) {
+func NewNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, stack rbft.ExternalStack[T, Constraint], chainState *chainstate.ChainState, pool txpool.TxPool[T, Constraint], log logrus.FieldLogger) (*Node[T, Constraint], error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	node := &Node[T, Constraint]{
 		config:            rbftConfig,
@@ -88,7 +87,7 @@ func NewArchiveNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Con
 			epochInfo: &types.EpochInfo{},
 		},
 		consensusHandlers: make(map[consensus.Type]func(msg *consensus.ConsensusMessage) error),
-		recvCh:            make(chan *archiveEvent, 1024),
+		recvCh:            make(chan *localEvent, 1024),
 		statusMgr:         status.NewStatusMgr(),
 		timeMgr:           timer.NewTimerManager(log),
 
@@ -96,7 +95,7 @@ func NewArchiveNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Con
 		cancel: cancel,
 	}
 
-	lo.ForEach(common.ArchiveRequestName, func(name string, _ int) {
+	lo.ForEach(common.DataSyncerRequestName, func(name string, _ int) {
 		node.updateMsgNonce(consensus.Type(consensus.Type_value[name]))
 	})
 
@@ -104,7 +103,7 @@ func NewArchiveNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Con
 		return nil, err
 	}
 
-	node.logger.Infof("new archive node: %s", rbftConfig.SelfP2PNodeID)
+	node.logger.Infof("new data_syncer node: %s", rbftConfig.SelfP2PNodeID)
 	return node, nil
 }
 
@@ -131,7 +130,6 @@ func (n *Node[T, Constraint]) moveWatermark(height uint64, newEpoch bool) error 
 		return errors.New("no checkpoint to remove")
 	}
 
-	lastView := sckptList[0].GetCheckpoint().GetViewChange().GetBasis().GetView()
 	removeDigests := n.checkpointCache.moveWatermarks(height)
 	n.removeFromBatchCache(removeDigests)
 	n.txpool.RemoveBatches(removeDigests)
@@ -146,13 +144,12 @@ func (n *Node[T, Constraint]) moveWatermark(height uint64, newEpoch bool) error 
 		n.updateEpochConfig(newEpochInfo)
 	}
 	n.chainConfig.H = height
-	n.chainConfig.view = lastView + 1
 
 	return nil
 }
 
 func (n *Node[T, Constraint]) notifyGenerateBatch(_ int) {
-	// do nothing, because we can not generate batch in archive mode
+	// do nothing, because we can not generate batch in data_syncer mode
 }
 
 func (n *Node[T, Constraint]) notifyFindNextBatch(_ ...string) {
@@ -166,7 +163,6 @@ func (n *Node[T, Constraint]) Init() error {
 	}
 	n.updateEpochConfig(epochInfo)
 	n.setCommitHeight(n.chainState.ChainMeta.Height)
-	n.selfID = n.chainState.SelfNodeInfo.ID
 	n.txpool.Init(txpool.ConsensusConfig{
 		NotifyGenerateBatchFn: n.notifyGenerateBatch,
 		NotifyFindNextBatchFn: n.notifyFindNextBatch,
@@ -189,12 +185,11 @@ func (n *Node[T, Constraint]) Start() error {
 }
 
 func (n *Node[T, Constraint]) Step(_ context.Context, msg *consensus.ConsensusMessage) {
-	// n.logger.Debugf("receive consensus message: %s", msg.Type)
 	if n.statusMgr.In(InEpochSyncing) {
-		n.logger.Debugf("Replica %d is in epoch syncing status, reject consensus messages", n.selfID)
+		n.logger.Debugf("Replica %d is in epoch syncing status, reject consensus messages", n.chainState.SelfNodeInfo.ID)
 		return
 	}
-	n.postEvent(&archiveEvent{EventType: eventType_consensusMessage, Event: msg})
+	n.postEvent(&localEvent{EventType: eventType_consensusMessage, Event: msg})
 }
 
 func (n *Node[T, Constraint]) ArchiveMode() bool {
@@ -205,7 +200,7 @@ func (n *Node[T, Constraint]) Stop() {
 	n.timeMgr.Stop()
 	n.cancel()
 	n.wg.Wait()
-	n.logger.Info("archive node stopped")
+	n.logger.Info("data_syncer node stopped")
 }
 
 func (n *Node[T, Constraint]) Status() (status rbft.NodeStatus) {
@@ -214,7 +209,6 @@ func (n *Node[T, Constraint]) Status() (status rbft.NodeStatus) {
 	}
 	n.chainConfig.lock.RLock()
 	defer n.chainConfig.lock.RUnlock()
-	status.View = n.chainConfig.view
 	status.H = n.chainConfig.H
 	status.EpochInfo = n.chainConfig.epochInfo.Clone()
 	switch {
@@ -260,7 +254,7 @@ func (n *Node[T, Constraint]) listenEvent() {
 			n.logger.Info("txpool stopped")
 			return
 		case next := <-n.recvCh:
-			nexts := make([]*archiveEvent, 0)
+			nexts := make([]*localEvent, 0)
 			for {
 				select {
 				case <-n.ctx.Done():
@@ -291,8 +285,8 @@ func (n *Node[T, Constraint]) isConsensusMsgWhiteList(msg *consensus.ConsensusMe
 	}
 }
 
-func (n *Node[T, Constraint]) consensusMessageFilter(msg *consensus.ConsensusMessage) *archiveEvent {
-	if valid := lo.ContainsBy(common.ArchivePipeName, func(item string) bool {
+func (n *Node[T, Constraint]) consensusMessageFilter(msg *consensus.ConsensusMessage) *localEvent {
+	if valid := lo.ContainsBy(common.DataSyncerPipeName, func(item string) bool {
 		val, ok := consensus.Type_name[int32(msg.Type)]
 		if !ok {
 			return false
@@ -316,7 +310,7 @@ func (n *Node[T, Constraint]) consensusMessageFilter(msg *consensus.ConsensusMes
 // normal status and there are no requests in process.
 func (n *Node[T, Constraint]) trySyncState() {
 	if !n.statusMgr.In(NeedSyncState) {
-		n.logger.Infof("Replica %d need to start sync state progress after %v", n.selfID, n.config.SyncStateRestartTimeout)
+		n.logger.Infof("Replica %d need to start sync state progress after %v", n.chainState.SelfNodeInfo.ID, n.config.SyncStateRestartTimeout)
 		if err := n.timeMgr.RestartTimer(syncStateRestart); err != nil {
 			n.logger.Errorf("failed to restart timer: %s", err)
 			return
@@ -330,7 +324,7 @@ func (n *Node[T, Constraint]) existSyncState() {
 	n.timeMgr.StopTimer(syncStateRestart)
 }
 
-func (n *Node[T, Constraint]) dispatchConsensusMsg(msg *consensus.ConsensusMessage) *archiveEvent {
+func (n *Node[T, Constraint]) dispatchConsensusMsg(msg *consensus.ConsensusMessage) *localEvent {
 	var err error
 	defer func() {
 		if err != nil {
@@ -340,7 +334,7 @@ func (n *Node[T, Constraint]) dispatchConsensusMsg(msg *consensus.ConsensusMessa
 	switch msg.Type {
 	case consensus.Type_NULL_REQUEST:
 		if n.statusMgr.InOne(StateTransferring, InSyncState) {
-			n.logger.Debugf("Replica %d is in syncing status, ignore it...", n.selfID)
+			n.logger.Debugf("Replica %d is in syncing status, ignore it...", n.chainState.SelfNodeInfo.ID)
 			return nil
 		}
 		n.trySyncState()
@@ -373,15 +367,17 @@ func (n *Node[T, Constraint]) dispatchConsensusMsg(msg *consensus.ConsensusMessa
 	return nil
 }
 
-func (n *Node[T, Constraint]) processEvent(event *archiveEvent) []*archiveEvent {
-	nextEvent := make([]*archiveEvent, 0)
+func (n *Node[T, Constraint]) processEvent(event *localEvent) []*localEvent {
+	nextEvent := make([]*localEvent, 0)
 	start := time.Now()
 	if event.EventType != eventType_consensusMessage {
 		n.logger.Debugf("receive event: %s", eventTypes[event.EventType])
 	}
 	defer func() {
 		traceProcessEvent(eventTypes[event.EventType], time.Since(start))
-		n.logger.Debugf("process event: %s, cost: %s", eventTypes[event.EventType], time.Since(start))
+		if event.EventType != eventType_consensusMessage {
+			n.logger.Debugf("process event: %s, cost: %s", eventTypes[event.EventType], time.Since(start))
+		}
 	}()
 	switch event.EventType {
 	case eventType_consensusMessage:
@@ -390,12 +386,12 @@ func (n *Node[T, Constraint]) processEvent(event *archiveEvent) []*archiveEvent 
 			n.logger.Errorf("invalid event type: %v", event.Event)
 			return nil
 		}
-		if ev.Type != consensus.Type_NULL_REQUEST {
-			n.logger.Debugf("receive consensus message: %s from %d", consensus.Type_name[int32(ev.Type)], ev.From)
-		}
 		next := n.consensusMessageFilter(ev)
 		if next != nil {
 			nextEvent = append(nextEvent, next)
+		}
+		if ev.Type != consensus.Type_NULL_REQUEST {
+			n.logger.Debugf("process consensus message: %s from %d, cost: %s", consensus.Type_name[int32(ev.Type)], ev.From, time.Since(start))
 		}
 	case eventType_commitToExecutor:
 		if n.statusMgr.InOne(StateTransferring, InSyncState, InCommit) {
@@ -408,7 +404,7 @@ func (n *Node[T, Constraint]) processEvent(event *archiveEvent) []*archiveEvent 
 			missing := n.missingBatchesInFetching
 			n.missingTxsInFetchingLock.RUnlock()
 			if missing != nil {
-				n.logger.Infof("Replica %d is in fetching missing txs, ignore commit event", n.selfID)
+				n.logger.Infof("Replica %d is in fetching missing txs, ignore commit event", n.chainState.SelfNodeInfo.ID)
 				return nil
 			}
 			n.statusMgr.Off(NeedFetchMissingTxs)
@@ -429,6 +425,8 @@ func (n *Node[T, Constraint]) processEvent(event *archiveEvent) []*archiveEvent 
 			n.logger.Debugf("commit height: %d, proposer %d", next.height, next.proposer)
 			n.stack.Execute(next.txs, next.localList, next.height, next.timestamp, next.proposer)
 			n.increaseCommitHeight()
+		} else {
+			n.statusMgr.Off(InCommit)
 		}
 
 		n.missingTxsInFetchingLock.RLock()
@@ -437,7 +435,6 @@ func (n *Node[T, Constraint]) processEvent(event *archiveEvent) []*archiveEvent 
 			n.statusMgr.On(NeedFetchMissingTxs)
 		}
 		n.missingTxsInFetchingLock.RUnlock()
-		n.statusMgr.Off(InCommit)
 
 	case eventType_syncBlock:
 		ckptList, ok := event.Event.([]*consensus.SignedCheckpoint)
@@ -510,20 +507,20 @@ func (n *Node[T, Constraint]) processEvent(event *archiveEvent) []*archiveEvent 
 	return nextEvent
 }
 
-func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSyncState) *archiveEvent {
+func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSyncState) *localEvent {
 	if !n.statusMgr.In(StateTransferring) {
 		n.logger.Errorf("node is not in state transferring, ignore state updated event")
 		return nil
 	}
 
 	if n.highStateTarget == nil {
-		n.logger.Errorf("Replica %d has no state targets, cannot resume tryStateTransfer yet", n.selfID)
+		n.logger.Errorf("Replica %d has no state targets, cannot resume tryStateTransfer yet", n.chainState.SelfNodeInfo.ID)
 		return nil
 	}
 
 	if state.MetaState.Height > n.highStateTarget.metaState.Height {
 		n.logger.Errorf("Replica %d recovered to seqNo %d which is higher than high-target %d",
-			n.selfID, state.MetaState.Height, n.highStateTarget.metaState.Height)
+			n.chainState.SelfNodeInfo.ID, state.MetaState.Height, n.highStateTarget.metaState.Height)
 		return nil
 	}
 
@@ -542,10 +539,10 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 		if !state.EpochChanged {
 			// If state transfer did not complete successfully, or if it did not reach the highest target, try again.
 			n.logger.Warningf("Replica %d recovered to seqNo %d but our high-target has moved to %d, "+
-				"keep on state transferring", n.selfID, state.MetaState.Height, n.highStateTarget.metaState.Height)
+				"keep on state transferring", n.chainState.SelfNodeInfo.ID, state.MetaState.Height, n.highStateTarget.metaState.Height)
 			n.setCommitHeight(n.highStateTarget.metaState.Height)
 		} else {
-			n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d, accept epoch proof for %d", n.selfID, n.lastCommitHeight, state.MetaState.Height, state.Epoch-1)
+			n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d, accept epoch proof for %d", n.chainState.SelfNodeInfo.ID, n.lastCommitHeight, state.MetaState.Height, state.Epoch-1)
 			if ec, ok := n.epochProofCache[state.Epoch-1]; ok {
 				n.persistEpochQuorumCheckpoint(ec.GetCheckpoint())
 			}
@@ -553,17 +550,17 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 		return nil
 	}
 
-	n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d", n.selfID, n.lastCommitHeight, state.MetaState.Height)
+	n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d", n.chainState.SelfNodeInfo.ID, n.lastCommitHeight, state.MetaState.Height)
 	epochChanged := state.Epoch != n.chainConfig.epochInfo.Epoch
 	if state.EpochChanged || epochChanged {
-		n.logger.Debugf("Replica %d accept epoch proof for %d", n.selfID, state.Epoch-1)
+		n.logger.Debugf("Replica %d accept epoch proof for %d", n.chainState.SelfNodeInfo.ID, state.Epoch-1)
 		if ec, ok := n.epochProofCache[state.Epoch-1]; ok {
 			n.persistEpochQuorumCheckpoint(ec.GetCheckpoint())
 		}
 	}
 
 	// finished state update
-	n.logger.Infof("======== Replica %d finished stateUpdate, height: %d", n.selfID, state.MetaState.Height)
+	n.logger.Infof("======== Replica %d finished stateUpdate, height: %d", n.chainState.SelfNodeInfo.ID, state.MetaState.Height)
 	n.setCommitHeight(state.MetaState.Height)
 	n.missingTxsInFetchingLock.Lock()
 	n.missingBatchesInFetching = nil
@@ -580,7 +577,7 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 		n.logger.Infof("epoch changed to %d", state.Epoch)
 		newEpoch, err := n.stack.GetCurrentEpochInfo()
 		if err != nil {
-			n.logger.Errorf("Replica %d failed to get current epoch from ledger: %v", n.selfID, err)
+			n.logger.Errorf("Replica %d failed to get current epoch from ledger: %v", n.chainState.SelfNodeInfo.ID, err)
 			return nil
 		}
 
@@ -619,12 +616,12 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 	return nil
 }
 
-func (n *Node[T, Constraint]) checkEpoch(msg *consensus.ConsensusMessage) *archiveEvent {
+func (n *Node[T, Constraint]) checkEpoch(msg *consensus.ConsensusMessage) *localEvent {
 	currentEpoch := n.chainConfig.epochInfo.Epoch
 	remoteEpoch := msg.Epoch
 	if remoteEpoch > currentEpoch {
 		n.logger.Debugf("Replica %d received message type %s from %d with larger epoch, "+
-			"current epoch %d, remote epoch %d", n.selfID, consensus.Type_name[int32(msg.Type)], msg.From, currentEpoch, remoteEpoch)
+			"current epoch %d, remote epoch %d", n.chainState.SelfNodeInfo.ID, consensus.Type_name[int32(msg.Type)], msg.From, currentEpoch, remoteEpoch)
 		// first process epoch sync response with higher epoch.
 		if msg.Type == consensus.Type_EPOCH_CHANGE_PROOF {
 			proof := &consensus.EpochChangeProof{}
@@ -636,7 +633,7 @@ func (n *Node[T, Constraint]) checkEpoch(msg *consensus.ConsensusMessage) *archi
 			return n.processEpochChangeProof(proof)
 		}
 		req := &consensus.EpochChangeRequest{
-			Author:          n.selfID,
+			Author:          n.chainState.SelfNodeInfo.ID,
 			StartEpoch:      currentEpoch,
 			TargetEpoch:     remoteEpoch,
 			AuthorP2PNodeId: n.selfP2PNodeID,
@@ -646,14 +643,14 @@ func (n *Node[T, Constraint]) checkEpoch(msg *consensus.ConsensusMessage) *archi
 			return nil
 		}
 	} else {
-		n.logger.WithFields(logrus.Fields{"msgType": consensus.Type_name[int32(msg.Type)], "from": msg.From, ",currentEpoch": currentEpoch, "remoteEpoch": remoteEpoch}).Debugf("Replica %d received message with lower epoch, just ignore it...", n.selfID)
+		n.logger.WithFields(logrus.Fields{"msgType": consensus.Type_name[int32(msg.Type)], "from": msg.From, ",currentEpoch": currentEpoch, "remoteEpoch": remoteEpoch}).Debugf("Replica %d received message with lower epoch, just ignore it...", n.chainState.SelfNodeInfo.ID)
 	}
 
 	return nil
 }
 
-func (n *Node[T, Constraint]) processEpochChangeProof(proof *consensus.EpochChangeProof) *archiveEvent {
-	n.logger.Debugf("Replica %d received epoch change proof from %d", n.selfID, proof.Author)
+func (n *Node[T, Constraint]) processEpochChangeProof(proof *consensus.EpochChangeProof) *localEvent {
+	n.logger.Debugf("Replica %d received epoch change proof from %d", n.chainState.SelfNodeInfo.ID, proof.Author)
 
 	if changeTo := proof.NextEpoch(); changeTo <= n.chainConfig.epochInfo.Epoch {
 		// ignore proof old epoch which we have already started
@@ -663,7 +660,7 @@ func (n *Node[T, Constraint]) processEpochChangeProof(proof *consensus.EpochChan
 
 	if proof.GenesisBlockDigest != n.config.GenesisBlockDigest {
 		n.logger.Warningf("Replica %d reject epoch change proof, because self genesis chainConfig is not consistent with most nodes, expected genesis block hash: %s, self genesis block hash: %s",
-			n.selfID, proof.GenesisBlockDigest, n.config.GenesisBlockDigest)
+			n.chainState.SelfNodeInfo.ID, proof.GenesisBlockDigest, n.config.GenesisBlockDigest)
 		return nil
 	}
 
@@ -674,7 +671,7 @@ func (n *Node[T, Constraint]) processEpochChangeProof(proof *consensus.EpochChan
 		return nil
 	}
 
-	return &archiveEvent{EventType: eventType_epochSync, Event: proof}
+	return &localEvent{EventType: eventType_epochSync, Event: proof}
 }
 
 // ReportExecuted reports to RBFT core that application service has finished height one batch with
@@ -682,7 +679,7 @@ func (n *Node[T, Constraint]) processEpochChangeProof(proof *consensus.EpochChan
 // Users can report any necessary extra field optionally.
 // NOTE. Users should ReportExecuted directly after start node to help track the initial state.
 func (n *Node[T, Constraint]) ReportExecuted(state *rbfttypes.ServiceState) {
-	ev := &archiveEvent{
+	ev := &localEvent{
 		EventType: eventType_executed,
 		Event:     state,
 	}
@@ -694,7 +691,7 @@ func (n *Node[T, Constraint]) ReportExecuted(state *rbfttypes.ServiceState) {
 // Users must ReportStateUpdated after RBFT core invoked StateUpdate request no matter this request was
 // finished successfully or not, otherwise, RBFT core will enter abnormal status infinitely.
 func (n *Node[T, Constraint]) ReportStateUpdated(state *rbfttypes.ServiceSyncState) {
-	ev := &archiveEvent{
+	ev := &localEvent{
 		EventType: eventType_stateUpdated,
 		Event:     state,
 	}
@@ -703,12 +700,12 @@ func (n *Node[T, Constraint]) ReportStateUpdated(state *rbfttypes.ServiceSyncSta
 
 func (n *Node[T, Constraint]) initSyncState() error {
 	if n.statusMgr.In(InSyncState) {
-		n.logger.Warningf("Replica %d try to send syncStateRestart, but it's already in sync state", n.selfID)
+		n.logger.Warningf("Replica %d try to send syncStateRestart, but it's already in sync state", n.chainState.SelfNodeInfo.ID)
 		return nil
 	}
 	n.statusMgr.On(InSyncState)
 
-	n.logger.Infof("Replica %d now init sync state", n.selfID)
+	n.logger.Infof("Replica %d now init sync state", n.chainState.SelfNodeInfo.ID)
 
 	if err := n.fetchSyncState(); err != nil {
 		return err
@@ -717,10 +714,10 @@ func (n *Node[T, Constraint]) initSyncState() error {
 }
 
 func (n *Node[T, Constraint]) fetchSyncState() error {
-	n.logger.Infof("Replica %d start fetch sync state", n.selfID)
+	n.logger.Infof("Replica %d start fetch sync state", n.chainState.SelfNodeInfo.ID)
 	// broadcast sync state message to others.
 	syncStateMsg := &consensus.SyncState{
-		ReplicaId: n.selfID,
+		AuthorP2PNodeId: n.chainState.SelfNodeInfo.P2PID,
 	}
 	payload, err := syncStateMsg.MarshalVTStrict()
 	if err != nil {
@@ -730,7 +727,7 @@ func (n *Node[T, Constraint]) fetchSyncState() error {
 	msgNonce := n.getMsgNonce(consensus.Type_SYNC_STATE)
 	msg := &consensus.ConsensusMessage{
 		Type:    consensus.Type_SYNC_STATE,
-		From:    n.selfID,
+		From:    n.chainState.SelfNodeInfo.ID,
 		Epoch:   n.chainConfig.epochInfo.Epoch,
 		Payload: payload,
 		Nonce:   msgNonce,
@@ -743,25 +740,25 @@ func (n *Node[T, Constraint]) fetchSyncState() error {
 	return nil
 }
 
-func (n *Node[T, Constraint]) recvSyncStateResponse(resp *consensus.SyncStateResponse) *archiveEvent {
+func (n *Node[T, Constraint]) recvSyncStateResponse(resp *consensus.SyncStateResponse) *localEvent {
 	if !n.statusMgr.In(InSyncState) {
-		n.logger.Debugf("Replica %d is not in sync state, ignore it...", n.selfID)
+		n.logger.Debugf("Replica %d is not in sync state, ignore it...", n.chainState.SelfNodeInfo.ID)
 		return nil
 	}
 
 	if resp.GetSignedCheckpoint() == nil || resp.GetSignedCheckpoint().GetCheckpoint() == nil {
-		n.logger.Errorf("Replica %d reject sync state response with nil checkpoint info", n.selfID)
+		n.logger.Errorf("Replica %d reject sync state response with nil checkpoint info", n.chainState.SelfNodeInfo.ID)
 		return nil
 	}
 
 	// verify signature of remote checkpoint.
 	if err := n.verifySignedCheckpoint(resp.GetSignedCheckpoint()); err != nil {
-		n.logger.Errorf("Replica %d verify signature of checkpoint from %d error: %s", n.selfID, resp.ReplicaId, err)
+		n.logger.Errorf("Replica %d verify signature of checkpoint from %d error: %s", n.chainState.SelfNodeInfo.ID, resp.ReplicaId, err)
 		return nil
 	}
 
 	n.logger.Debugf("Replica %d now received sync state response from replica %d: view=%d, checkpoint=%s",
-		n.selfID, resp.ReplicaId, resp.View, resp.GetSignedCheckpoint().GetCheckpoint().Pretty())
+		n.chainState.SelfNodeInfo.ID, resp.ReplicaId, resp.View, resp.GetSignedCheckpoint().GetCheckpoint().Pretty())
 
 	if oldRsp, ok := n.syncRespStore[resp.ReplicaId]; ok {
 		if oldRsp.GetSignedCheckpoint().GetCheckpoint().Height() > resp.GetSignedCheckpoint().Height() {
@@ -771,46 +768,62 @@ func (n *Node[T, Constraint]) recvSyncStateResponse(resp *consensus.SyncStateRes
 		}
 	}
 	n.syncRespStore[resp.ReplicaId] = resp
+	var (
+		findQuorum  bool
+		sckptList   []*consensus.SignedCheckpoint
+		quorumState nodeState
+	)
 
 	if n.reachQuorum(len(n.syncRespStore)) {
-		n.timeMgr.StopTimer(syncStateResp)
-		n.statusMgr.Off(InSyncState)
-		if err := n.timeMgr.RestartTimer(syncStateRestart); err != nil {
-			n.logger.Errorf("restart sync state timer failed: %s", err)
+		states := make(wholeStates)
+		for _, response := range n.syncRespStore {
+			states[response.GetSignedCheckpoint()] = nodeState{
+				height: response.GetSignedCheckpoint().GetCheckpoint().Height(),
+				digest: response.GetSignedCheckpoint().GetCheckpoint().Digest(),
+			}
+			quorumState, sckptList, findQuorum = n.compareWholeStates(states)
+			if findQuorum {
+				break
+			}
+
+		}
+
+		if !findQuorum {
 			return nil
 		}
 
-		defer func() {
-			// clean sync state response
-			n.syncRespStore = make(map[uint64]*consensus.SyncStateResponse)
-		}()
-
 		// if remote checkpoint is higher than local, generate sync block event
-		if resp.GetSignedCheckpoint().GetCheckpoint().Height() > n.lastCommitHeight {
-			sckptList := make([]*consensus.SignedCheckpoint, 0)
-			for _, syncResp := range n.syncRespStore {
-				sckptList = append(sckptList, syncResp.GetSignedCheckpoint())
-				n.checkpointCache.insert(syncResp.GetSignedCheckpoint())
-			}
-
+		if quorumState.height > n.lastCommitHeight {
+			n.finishQuorumStateResp()
 			return n.genSyncBlockEvent(sckptList)
 		}
 
-		if meta := n.chainState.ChainMeta; meta.Height == resp.GetSignedCheckpoint().GetCheckpoint().Height() {
-			if meta.BlockHash.String() != resp.GetSignedCheckpoint().GetCheckpoint().GetExecuteState().GetDigest() {
-				panic(fmt.Errorf("local block[height:%d] hash %s not equal to checkpoint digest %s", meta.Height, meta.BlockHash.String(), resp.GetSignedCheckpoint().GetCheckpoint().GetExecuteState().GetDigest()))
+		if meta := n.chainState.ChainMeta; meta.Height == quorumState.height {
+			if meta.BlockHash.String() != quorumState.digest {
+				panic(fmt.Errorf("local block[height:%d] hash %s not equal to checkpoint digest %s", meta.Height, meta.BlockHash.String(), quorumState.digest))
 			}
 		}
 
 		if !n.statusMgr.In(Normal) {
 			n.statusMgr.On(Normal)
 		}
-		n.logger.Infof("Replica %d has reached state", n.selfID)
+		n.finishQuorumStateResp()
+		n.logger.Infof("Replica %d has reached state", n.chainState.SelfNodeInfo.ID)
 		if !n.statusMgr.In(InCommit) && n.checkpointCache.ready.Len() > 0 {
 			return n.genCommitEvent()
 		}
 	}
 	return nil
+}
+
+func (n *Node[T, Constraint]) finishQuorumStateResp() {
+	n.timeMgr.StopTimer(syncStateResp)
+	n.statusMgr.Off(InSyncState)
+	if err := n.timeMgr.RestartTimer(syncStateRestart); err != nil {
+		n.logger.Errorf("restart sync state timer failed: %s", err)
+	}
+	// clean sync state response
+	n.syncRespStore = make(map[uint64]*consensus.SyncStateResponse)
 }
 
 func (n *Node[T, Constraint]) fetchMissingTxs(fetch *consensus.FetchMissingRequest, proposer uint64) error {
@@ -825,11 +838,11 @@ func (n *Node[T, Constraint]) fetchMissingTxs(fetch *consensus.FetchMissingReque
 		Payload: payload,
 		Epoch:   n.chainConfig.epochInfo.Epoch,
 		Nonce:   msgNonce,
-		From:    n.selfID,
+		From:    n.chainState.SelfNodeInfo.ID,
 	}
 	n.missingTxsInFetchingLock.Lock()
 	if n.missingBatchesInFetching == nil {
-		n.logger.Debugf("Replica %d send fetchMissingRequest to %d", n.selfID, proposer)
+		n.logger.Debugf("Replica %d send fetchMissingRequest to %d", n.chainState.SelfNodeInfo.ID, proposer)
 		n.missingBatchesInFetching = &wrapFetchMissingRequest{
 			request:  fetch,
 			proposer: proposer,
@@ -848,7 +861,7 @@ func (n *Node[T, Constraint]) fetchMissingTxs(fetch *consensus.FetchMissingReque
 	return nil
 }
 
-func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMissingResponse) *archiveEvent {
+func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMissingResponse) *localEvent {
 	n.timeMgr.StopTimer(fetchMissingTxsResp)
 	defer func() {
 		n.missingTxsInFetchingLock.Lock()
@@ -860,12 +873,12 @@ func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMiss
 	request := n.missingBatchesInFetching
 	n.missingTxsInFetchingLock.RUnlock()
 	if request == nil {
-		n.logger.Debugf("Replica %d ignore fetchMissingResponse with batch hash %s", n.selfID, resp.BatchDigest)
+		n.logger.Debugf("Replica %d ignore fetchMissingResponse with batch hash %s", n.chainState.SelfNodeInfo.ID, resp.BatchDigest)
 		return nil
 	}
 	requests, err := n.checkFetchMissingResponse(resp, request)
 	if err != nil {
-		n.logger.Warningf("Replica %d fetchMissingResponse from node %d failed, need sync state, err: %v", n.selfID, request.proposer, err)
+		n.logger.Warningf("Replica %d fetchMissingResponse from node %d failed, need sync state, err: %v", n.chainState.SelfNodeInfo.ID, request.proposer, err)
 		if err = n.initSyncState(); err != nil {
 			n.logger.Errorf("init sync state failed: %s", err)
 			return nil
@@ -874,7 +887,7 @@ func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMiss
 	}
 
 	if err = n.txpool.ReceiveMissingRequests(resp.BatchDigest, requests); err != nil {
-		n.logger.Warningf("Replica %d find something wrong with fetchMissingResponse, error: %v", n.selfID, err)
+		n.logger.Warningf("Replica %d find something wrong with fetchMissingResponse, error: %v", n.chainState.SelfNodeInfo.ID, err)
 		// there is something wrong with primary for it propose a transaction with mismatched hash,
 		// so that we should send sync state request directly to expect the new checkpoint.
 		err = n.initSyncState()
@@ -885,26 +898,26 @@ func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMiss
 		return nil
 	}
 
-	n.logger.Infof("Replica %d received fetchMissingResponse for view=%d/seqNo=%d/digest=%s", n.selfID, resp.View, resp.SequenceNumber, resp.BatchDigest)
+	n.logger.Infof("Replica %d received fetchMissingResponse for view=%d/seqNo=%d/digest=%s", n.chainState.SelfNodeInfo.ID, resp.View, resp.SequenceNumber, resp.BatchDigest)
 	return n.genCommitEvent()
 }
 
 func (n *Node[T, Constraint]) checkFetchMissingResponse(resp *consensus.FetchMissingResponse, request *wrapFetchMissingRequest) (map[uint64]*T, error) {
 	if resp.GetStatus() != consensus.FetchMissingResponse_Success {
-		return nil, fmt.Errorf("replica %d received fetchMissingResponse with failed status", n.selfID)
+		return nil, fmt.Errorf("replica %d received fetchMissingResponse with failed status", n.chainState.SelfNodeInfo.ID)
 	}
 
 	if resp.ReplicaId != request.proposer {
 		return nil, fmt.Errorf("replica %d received fetchMissingResponse from replica %d which is not "+
-			"primary, ignore it", n.selfID, resp.ReplicaId)
+			"primary, ignore it", n.chainState.SelfNodeInfo.ID, resp.ReplicaId)
 	}
 	if resp.SequenceNumber <= n.lastCommitHeight {
 		return nil, fmt.Errorf("replica %d ignore fetchMissingResponse with lower seqNo %d than "+
-			"lastCommitHeight %d", n.selfID, resp.SequenceNumber, n.lastCommitHeight)
+			"lastCommitHeight %d", n.chainState.SelfNodeInfo.ID, resp.SequenceNumber, n.lastCommitHeight)
 	}
 
 	if len(resp.MissingRequests) != len(resp.MissingRequestHashes) {
-		return nil, fmt.Errorf("replica %d received mismatch length fetchMissingResponse %v", n.selfID, resp)
+		return nil, fmt.Errorf("replica %d received mismatch length fetchMissingResponse %v", n.chainState.SelfNodeInfo.ID, resp)
 	}
 
 	requests := make(map[uint64]*T)
@@ -919,7 +932,7 @@ func (n *Node[T, Constraint]) checkFetchMissingResponse(resp *consensus.FetchMis
 }
 
 func (n *Node[T, Constraint]) fetchEpochChangeProof(req *consensus.EpochChangeRequest, remoteId uint64) error {
-	n.logger.Infof("Replica %d request epoch changes %d to %d from %d", n.selfID, req.StartEpoch, req.TargetEpoch, req.Author)
+	n.logger.Infof("Replica %d request epoch changes %d to %d from %d", n.chainState.SelfNodeInfo.ID, req.StartEpoch, req.TargetEpoch, req.Author)
 
 	payload, mErr := req.MarshalVTStrict()
 	if mErr != nil {
@@ -933,7 +946,7 @@ func (n *Node[T, Constraint]) fetchEpochChangeProof(req *consensus.EpochChangeRe
 		Payload: payload,
 		Epoch:   n.chainConfig.epochInfo.Epoch,
 		Nonce:   msgNonce,
-		From:    n.selfID,
+		From:    n.chainState.SelfNodeInfo.ID,
 	}
 
 	to, err := n.chainState.GetNodeInfo(remoteId)
@@ -951,7 +964,7 @@ func (n *Node[T, Constraint]) fetchEpochChangeProof(req *consensus.EpochChangeRe
 func (n *Node[T, Constraint]) verifyEpochChangeProof(proof *consensus.EpochChangeProof) error {
 	if changeTo := proof.NextEpoch(); changeTo <= n.chainConfig.epochInfo.Epoch {
 		// ignore proof old epoch which we have already started
-		return fmt.Errorf("replica %d ignore old epoch proof %d", n.selfID, changeTo)
+		return fmt.Errorf("replica %d ignore old epoch proof %d", n.chainState.SelfNodeInfo.ID, changeTo)
 	}
 	// Skip any stale checkpoints in the proof prefix. Note that with
 	// the assertion above, we are guaranteed there is at least one
@@ -1007,7 +1020,7 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 			Author:     id,
 		}
 		if err := n.verifySignedCheckpoint(signedCheckpoint); err != nil {
-			n.logger.Errorf("Replica %d verify checkpoint error: %s", n.selfID, err)
+			n.logger.Errorf("Replica %d verify checkpoint error: %s", n.chainState.SelfNodeInfo.ID, err)
 			return
 		}
 		checkpointSet = append(checkpointSet, signedCheckpoint)
@@ -1017,7 +1030,7 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 	for _, ec := range proof.GetEpochChanges() {
 		n.epochProofCache[ec.Checkpoint.Epoch()] = ec
 	}
-	n.logger.Infof("Replica %d try epoch sync to height %d, epoch %d", n.selfID,
+	n.logger.Infof("Replica %d try epoch sync to height %d, epoch %d", n.chainState.SelfNodeInfo.ID,
 		quorumCheckpoint.Height(), quorumCheckpoint.NextEpoch())
 
 	target := &rbfttypes.MetaState{
@@ -1031,29 +1044,29 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 func (n *Node[T, Constraint]) tryStateTransfer() {
 	if n.statusMgr.In(StateTransferring) {
 		n.logger.Debugf("Replica %d is currently mid tryStateTransfer, it must wait for this "+
-			"tryStateTransfer to complete before initiating a new one", n.selfID)
+			"tryStateTransfer to complete before initiating a new one", n.chainState.SelfNodeInfo.ID)
 		return
 	}
 	// if high state target is nil, we could not state update
 	if n.highStateTarget == nil {
-		n.logger.Debugf("Replica %d has no targets to attempt tryStateTransfer to, delaying", n.selfID)
+		n.logger.Debugf("Replica %d has no targets to attempt tryStateTransfer to, delaying", n.chainState.SelfNodeInfo.ID)
 		return
 	}
 	n.statusMgr.On(StateTransferring)
 	target := n.highStateTarget
-	n.logger.Infof("Replica %d try state update to %d", n.selfID, target.metaState.Height)
+	n.logger.Infof("Replica %d try state update to %d", n.chainState.SelfNodeInfo.ID, target.metaState.Height)
 	go n.stack.StateUpdate(n.checkpointCache.lastPersistedHeight, target.metaState.Height, target.metaState.Digest, target.checkpointSet, target.epochChanges...)
 }
 
-func (n *Node[T, Constraint]) genSyncBlockEvent(sckptList []*consensus.SignedCheckpoint) *archiveEvent {
-	return &archiveEvent{
+func (n *Node[T, Constraint]) genSyncBlockEvent(sckptList []*consensus.SignedCheckpoint) *localEvent {
+	return &localEvent{
 		EventType: eventType_syncBlock,
 		Event:     sckptList,
 	}
 }
 
-func (n *Node[T, Constraint]) genCommitEvent() *archiveEvent {
-	return &archiveEvent{
+func (n *Node[T, Constraint]) genCommitEvent() *localEvent {
+	return &localEvent{
 		EventType: eventType_commitToExecutor,
 	}
 }
@@ -1073,7 +1086,7 @@ func (n *Node[T, Constraint]) verifySignedCheckpoint(sckpt *consensus.SignedChec
 	return n.stack.Verify(sckpt.GetAuthor(), sckpt.GetSignature(), sckpt.GetCheckpoint().Hash())
 }
 
-func (n *Node[T, Constraint]) handleSignedCheckpoint(sckpt *consensus.SignedCheckpoint, remoteEpoch uint64) *archiveEvent {
+func (n *Node[T, Constraint]) handleSignedCheckpoint(sckpt *consensus.SignedCheckpoint, remoteEpoch uint64) *localEvent {
 	// 1. verify checkpoint
 	if err := n.verifySignedCheckpoint(sckpt); err != nil {
 		n.logger.Errorf("checkpoint verify failed: %v", err)
@@ -1108,7 +1121,7 @@ func (n *Node[T, Constraint]) findNextCommit() (*readyExecute[T, Constraint], []
 	defer n.chainConfig.lock.RUnlock()
 	if common.NeedChangeEpoch(height-1, n.chainConfig.epochInfo) {
 		n.checkpointCache.insertReady(height)
-		n.logger.Warningf("replica %d not reach next epoch: %d, ignore commit height: %d", n.selfID, n.chainConfig.epochInfo.Epoch+1, height)
+		n.logger.Warningf("replica %d not reach next epoch: %d, ignore commit height: %d", n.chainState.SelfNodeInfo.ID, n.chainConfig.epochInfo.Epoch+1, height)
 		return nil, nil, nil
 	}
 	sckptList := n.checkpointCache.getItems(height)
@@ -1132,7 +1145,7 @@ func (n *Node[T, Constraint]) findNextCommit() (*readyExecute[T, Constraint], []
 	// if missing txs, start fetch missing txs from proposer
 	txList, localList, missingTxs, err := n.txpool.GetRequestsByHashList(batchDigest, timeStamp, txHashList, []string{})
 	if err != nil {
-		n.logger.Warningf("DataSync node %d get error when get txList, err: %v", n.selfID, err)
+		n.logger.Warningf("DataSync node %d get error when get txList, err: %v", n.chainState.SelfNodeInfo.ID, err)
 		return nil, sckptList, err
 	}
 	if missingTxs != nil {
@@ -1143,16 +1156,16 @@ func (n *Node[T, Constraint]) findNextCommit() (*readyExecute[T, Constraint], []
 			SequenceNumber:       height,
 			BatchDigest:          batchDigest,
 			MissingRequestHashes: missingTxs,
-			ReplicaId:            n.selfID,
+			ReplicaId:            n.chainState.SelfNodeInfo.ID,
 		}
 		if err = n.fetchMissingTxs(fetch, proposer); err != nil {
-			n.logger.Warningf("Data node %d fetch missing txs error: %v", n.selfID, err)
+			n.logger.Warningf("Data node %d fetch missing txs error: %v", n.chainState.SelfNodeInfo.ID, err)
 			return nil, sckptList, err
 		}
 
 		err = n.timeMgr.StartTimer(fetchMissingTxsResp)
 		if err != nil {
-			panic(fmt.Errorf("DataSync node %d start timer error: %v", n.selfID, err))
+			panic(fmt.Errorf("DataSync node %d start timer error: %v", n.chainState.SelfNodeInfo.ID, err))
 		}
 		return nil, nil, nil
 	}
@@ -1168,7 +1181,7 @@ func (n *Node[T, Constraint]) findNextCommit() (*readyExecute[T, Constraint], []
 	return readyCommit, sckptList, nil
 }
 
-func (n *Node[T, Constraint]) postEvent(event *archiveEvent) {
+func (n *Node[T, Constraint]) postEvent(event *localEvent) {
 	n.recvCh <- event
 }
 
@@ -1233,21 +1246,21 @@ func (n *Node[T, Constraint]) updateMsgNonce(typ consensus.Type) {
 
 func (n *Node[T, Constraint]) updateHighStateTarget(target *rbfttypes.MetaState, checkpointSet []*consensus.SignedCheckpoint, epochChanges ...*consensus.EpochChange) {
 	if target == nil {
-		n.logger.Warningf("Replica %d received a nil target", n.selfID)
+		n.logger.Warningf("Replica %d received a nil target", n.chainState.SelfNodeInfo.ID)
 		return
 	}
 
 	if n.highStateTarget != nil && n.highStateTarget.metaState.Height >= target.Height {
 		n.logger.Infof("Replica %d not updating state target to seqNo %d, has target for seqNo %d",
-			n.selfID, target.Height, n.highStateTarget.metaState.Height)
+			n.chainState.SelfNodeInfo.ID, target.Height, n.highStateTarget.metaState.Height)
 		return
 	}
 
 	if n.statusMgr.In(StateTransferring) {
 		n.logger.Infof("Replica %d has found high-target expired while transferring, "+
-			"update target to %d", n.selfID, target.Height)
+			"update target to %d", n.chainState.SelfNodeInfo.ID, target.Height)
 	} else {
-		n.logger.Infof("Replica %d updating state target to seqNo %d digest %s", n.selfID,
+		n.logger.Infof("Replica %d updating state target to seqNo %d digest %s", n.chainState.SelfNodeInfo.ID,
 			target.Height, target.Digest)
 	}
 
@@ -1285,4 +1298,34 @@ func (n *Node[T, Constraint]) persistEpochQuorumCheckpoint(c *consensus.QuorumCh
 	if err = n.stack.StoreEpochState(indexKey, data); err != nil {
 		n.logger.Errorf("Persist epoch index %d failed with err: %s ", c.Checkpoint.Epoch, err)
 	}
+}
+
+// compareWholeStates compares whole networks' current status during sync state
+// including :
+// 1. view: current view of bft network
+// 2. height: current latest blockChain height
+// 3. digest: current latest blockChain hash
+func (n *Node[T, Constraint]) compareWholeStates(states wholeStates) (nodeState, []*consensus.SignedCheckpoint, bool) {
+	// track all replica with same state used to find quorum consistent state
+	sameRespRecord := make(map[nodeState][]*consensus.SignedCheckpoint)
+
+	// check if we can find quorum nodeState who have the same view, height and digest, if we can
+	// find, which means quorum nodes agree to same state, save to quorumRsp, set canFind to true
+	// and update view if needed
+	sckptList := make([]*consensus.SignedCheckpoint, 0)
+	var quorumState nodeState
+	canFind := false
+
+	// find the quorum nodeState
+	for key, state := range states {
+		sameRespRecord[state] = append(sameRespRecord[state], key)
+		if n.reachQuorum(len(sameRespRecord[state])) {
+			n.logger.Debugf("Replica %d find quorum states, try to process", n.chainState.SelfNodeInfo.ID)
+			quorumState = state
+			sckptList = sameRespRecord[state]
+			canFind = true
+			break
+		}
+	}
+	return quorumState, sckptList, canFind
 }
