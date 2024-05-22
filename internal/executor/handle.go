@@ -21,6 +21,7 @@ import (
 	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	sys_common "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -298,6 +299,9 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
+
+	// test: initialize system contract code
+	system.InitSystemContractCode(statedb)
 
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())

@@ -79,8 +79,6 @@ func New(rep *repo.Repo, ledger *ledger.Ledger) (*BlockExecutor, error) {
 
 	// initialize native vm
 	blockExecutor.nvm = system.New()
-	// test: initialize system contract code
-	system.InitSystemContractCode(ledger.StateLedger)
 
 	var err error
 	blockExecutor.incentive, err = finance.NewIncentive(rep.GenesisConfig, blockExecutor.nvm)
