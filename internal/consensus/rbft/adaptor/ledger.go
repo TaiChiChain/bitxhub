@@ -10,5 +10,6 @@ func (a *RBFTAdaptor) GetBlockMeta(num uint64) (*rbfttypes.BlockMeta, error) {
 	return &rbfttypes.BlockMeta{
 		ProcessorNodeID: blockHeader.ProposerNodeID,
 		BlockNum:        blockHeader.Number,
+		BlockHash:       blockHeader.Hash().String(),
 	}, nil
 }

@@ -25,8 +25,8 @@ github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef h1:2JGTg6JapxP9/R33ZaagQtAM4EkkSYnIAlOG5EI8gkM=
 github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef/go.mod h1:JS7hed4L1fj0hXcyEejnW57/7LCetXggd+vwrRnYeII=
-github.com/axiomesh/axiom-bft v0.0.3-0.20240522011710-725c4c4cc05c h1:3PtEEnoyyLeTg1X1FXg2sWQ3BmBwiNNPgVbL9R0LYlY=
-github.com/axiomesh/axiom-bft v0.0.3-0.20240522011710-725c4c4cc05c/go.mod h1:7ybaheUrTTmTJI1GSbkOFTeoOlNR4WLOUBSLtzFVVqU=
+github.com/axiomesh/axiom-bft v0.0.3-0.20240522081401-c6697b1e0475 h1:7nk7itzmI/kmxac5ETepc9B94vAbnb4J+xcfyggKnqE=
+github.com/axiomesh/axiom-bft v0.0.3-0.20240522081401-c6697b1e0475/go.mod h1:7ybaheUrTTmTJI1GSbkOFTeoOlNR4WLOUBSLtzFVVqU=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240518131128-ec6aa9d1c97a h1:/UsIRptbNwfazwugc2qiIn8Xww1wdlNEEzqZkl/8EaM=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240518131128-ec6aa9d1c97a/go.mod h1:ujmn/qH4rbZRyUORO/seayrpYMjIIWA82hwHQlZMw/A=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20240519143502-86fe8e7c5625 h1:OfRggtTmGKMzqQMJCaJnz3jxocqe4ElGJLQxfgFqC0s=
