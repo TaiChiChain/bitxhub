@@ -322,11 +322,15 @@ func TestLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	testutil.ResetMockBlockLedger()
-	testutil.SetMockBlockLedger(testutil.ConstructBlock("block1", uint64(1)), true)
+	block := testutil.ConstructBlock("block1", uint64(1))
+	testutil.SetMockBlockLedger(block, true)
 	adaptor := mockAdaptor(ctrl, t)
 	meta, err := adaptor.GetBlockMeta(1)
 	ast.Nil(err)
 	ast.NotNil(meta)
+	ast.EqualValues(block.Height(), meta.BlockNum)
+	ast.EqualValues(block.Hash().String(), meta.BlockHash)
+	ast.EqualValues(block.Header.ProposerNodeID, meta.ProcessorNodeID)
 
 	_, err = adaptor.GetBlockMeta(2)
 	ast.Error(err)
