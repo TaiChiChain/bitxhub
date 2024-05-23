@@ -257,8 +257,11 @@ func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *types.Snapsh
 
 // Commit the state, and get account trie root hash
 func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
-	l.logger.Debugf("==================[Commit-Prepare]==================")
+	l.logger.Debugf("==================[Commit-Start]==================")
 	defer l.logger.Debugf("==================[Commit-End]==================")
+
+	// wait for trie preload tasks to finish
+	l.triePreloader.wait()
 
 	storagemgr.ExportCachedStorageMetrics()
 	defer func() {
@@ -614,7 +617,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 
 		trie, _ := jmt.New(rootHash, l.backend, l.accountTrieCache, l.pruneCache, l.logger)
 		l.accountTrie = trie
-		l.triePreloader = newTriePreloader(l.logger, l.backend, l.pruneCache, rootHash)
+		l.triePreloader = newTriePreloaderManager(l.logger, l.backend, l.storageTrieCache, l.pruneCache)
 		return
 	}
 
@@ -628,7 +631,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		return
 	}
 	l.accountTrie = trie
-	l.triePreloader = newTriePreloader(l.logger, l.backend, l.pruneCache, lastStateRoot.ETHHash())
+	l.triePreloader = newTriePreloaderManager(l.logger, l.backend, l.storageTrieCache, l.pruneCache)
 }
 
 func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {

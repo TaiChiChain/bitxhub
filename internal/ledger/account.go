@@ -485,12 +485,12 @@ func (o *SimpleAccount) SelfDestructed() bool {
 	return o.selfDestructed
 }
 
-func (o *SimpleAccount) GetStorageRootHash() common.Hash {
-	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
-		return common.BytesToHash(o.Addr.ETHAddress().Bytes())
-	}
-	return o.originAccount.StorageRoot
-}
+//func (o *SimpleAccount) GetStorageRootHash() common.Hash {
+//	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
+//		return common.BytesToHash(o.Addr.ETHAddress().Bytes())
+//	}
+//	return o.originAccount.StorageRoot
+//}
 
 func (o *SimpleAccount) GetStorageRoot() common.Hash {
 	if o.originAccount == nil {

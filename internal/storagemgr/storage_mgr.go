@@ -26,11 +26,6 @@ const (
 	Epoch      = "epoch"
 	TxPool     = "txpool"
 	Sync       = "sync"
-
-	// for block journal
-	BlockJournal             = "blockjournal"
-	BlockJournalTrieName     = "trie"
-	BlockJournalSnapshotName = "snapshot"
 )
 
 var globalStorageMgr = &storageMgr{

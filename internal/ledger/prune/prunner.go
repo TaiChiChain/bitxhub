@@ -1,16 +1,14 @@
 package prune
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage/blockjournal"
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
-	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -36,7 +34,7 @@ var (
 )
 
 func NewPrunner(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, states *states, logger logrus.FieldLogger) *prunner {
-	p := &prunner{
+	return &prunner{
 		rep:                  rep,
 		ledgerStorageBackend: ledgerStorage,
 		accountTrieCache:     accountTrieCache,

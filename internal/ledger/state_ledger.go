@@ -47,7 +47,7 @@ type StateLedgerImpl struct {
 	accountTrieCache *storagemgr.CacheWrapper
 	storageTrieCache *storagemgr.CacheWrapper
 
-	triePreloader *triePreloader
+	triePreloader *triePreloaderManager
 	accounts      map[string]IAccount
 	repo          *repo.Repo
 	blockHeight   uint64
@@ -214,11 +214,8 @@ func (l *StateLedgerImpl) Finalise() {
 	for _, account := range l.accounts {
 		keys := account.Finalise()
 
-		if l.triePreloader != nil {
-			l.triePreloader.preload(common.Hash{}, [][]byte{utils.CompositeAccountKey(account.GetAddress())})
-			if len(keys) > 0 {
-				l.triePreloader.preload(account.GetStorageRootHash(), keys)
-			}
+		if l.triePreloader != nil && len(keys) > 0 {
+			l.triePreloader.preload(account.GetStorageRoot(), keys)
 		}
 		account.SetCreated(false)
 	}

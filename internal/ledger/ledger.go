@@ -249,7 +249,7 @@ type IAccount interface {
 
 	SetEnableExpensiveMetric(bool)
 
-	GetStorageRootHash() common.Hash
+	//GetStorageRootHash() common.Hash
 
 	GetStorageRoot() common.Hash
 
