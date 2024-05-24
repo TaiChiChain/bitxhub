@@ -83,7 +83,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 			CheckpointPeriod:              1,
 			HighWatermarkCheckpointPeriod: 10,
 			MinValidatorNum:               4,
-			MaxValidatorNum:               4,
+			MaxValidatorNum:               10,
 			BlockMaxTxNum:                 500,
 			EnableTimedGenEmptyBlock:      false,
 			NotActiveWeight:               1,
@@ -98,7 +98,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 		},
 		StakeParams: types.StakeParams{
 			StakeEnable:           true,
-			MaxAddStakeRatio:      1000,
+			MaxAddStakeRatio:      10000,
 			MaxUnlockStakeRatio:   1000,
 			MaxUnlockingRecordNum: 5,
 			// 3 days
