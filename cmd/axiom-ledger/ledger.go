@@ -217,7 +217,7 @@ func importAccounts(ctx *cli.Context) error {
 		return err
 	}
 	// check genesis block
-	if rwLdg.ChainLedger.GetChainMeta().Height < 1 {
+	if _, err = rwLdg.ChainLedger.GetBlock(0); err != nil {
 		return errors.New("genesis block is needed before importing accounts from file")
 	}
 
