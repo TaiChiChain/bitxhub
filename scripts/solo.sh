@@ -6,6 +6,7 @@ CURRENT_PATH=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
 source ${CURRENT_PATH}/x.sh
 PROJECT_PATH=$(dirname "${CURRENT_PATH}")
 BUILD_PATH=${CURRENT_PATH}/build_solo
+BUILD_PATH_TEMP=${BUILD_PATH}/temp
 
 BLUE='\033[0;34m'
 RED='\033[0;31m'
@@ -21,10 +22,15 @@ function print_red() {
 
 function start() {
   print_blue "===> Start solo axiom-ledger"
-  rm -rf "${BUILD_PATH}" && mkdir ${BUILD_PATH}
-  cp -rf ${CURRENT_PATH}/package/* ${BUILD_PATH}/
+  rm -rf "${BUILD_PATH}" && mkdir ${BUILD_PATH} && mkdir ${BUILD_PATH_TEMP}
+  export AXIOM_LEDGER_CONSENSUS_TYPE=solo
+  ${PROJECT_PATH}/bin/axiom-ledger cluster generate-default --target ${BUILD_PATH_TEMP} --force
+  cp -rf ${BUILD_PATH_TEMP}/node1/* ${BUILD_PATH}/
+  cp -r ${CURRENT_PATH}/package/* ${BUILD_PATH}/
   cp -f ${PROJECT_PATH}/bin/axiom-ledger ${BUILD_PATH}/tools/bin/
-  ${BUILD_PATH}/axiom-ledger config generate --solo --default-node-index 1
+  rm -rf cp -rf ${BUILD_PATH_TEMP}
+  echo "AXIOM_LEDGER_KEYSTORE_PASSWORD=2023@axiomesh" >> ${BUILD_PATH}/.env
+  cat "${CURRENT_PATH}/package/.env" >> ${BUILD_PATH}/.env
   ${BUILD_PATH}/axiom-ledger start
 }
 

@@ -100,6 +100,5 @@ func loadEnvFile() {
 			fmt.Printf("load env file %s failed: %s\n", envFile, err)
 			return
 		}
-		fmt.Printf("load env file %s\n", envFile)
 	}
 }

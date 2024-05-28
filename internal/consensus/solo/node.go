@@ -413,8 +413,9 @@ func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *
 
 	block := &types.Block{
 		Header: &types.BlockHeader{
-			Number:    nextBlock,
-			Timestamp: batch.Timestamp / int64(time.Second),
+			Number:         nextBlock,
+			Timestamp:      batch.Timestamp / int64(time.Second),
+			ProposerNodeID: 1,
 		},
 		Transactions: batch.TxList,
 	}
