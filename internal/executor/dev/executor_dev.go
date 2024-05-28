@@ -92,6 +92,10 @@ func (exec *ExecutorDev) AsyncExecuteBlock(commitEvent *common.CommitEvent) {
 	exec.blockC <- commitEvent
 }
 
+func (exec *ExecutorDev) CurrentHeader() *types.BlockHeader {
+	return nil
+}
+
 func (exec *ExecutorDev) SubscribeBlockEvent(ch chan<- events.ExecutedEvent) event.Subscription {
 	return exec.blockFeed.Subscribe(ch)
 }

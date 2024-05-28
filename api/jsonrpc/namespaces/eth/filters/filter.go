@@ -25,6 +25,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
+	"github.com/ethereum/go-ethereum/core/bloombits"
 )
 
 // Filter can be used to retrieve and filter logs.
@@ -36,6 +37,7 @@ type Filter struct {
 	begin           int64
 	end             int64 // Range interval if filtering multiple blocks
 	blockRangeLimit uint64
+	matcher         *bloombits.Matcher
 }
 
 type bytesBacked interface {
@@ -45,9 +47,30 @@ type bytesBacked interface {
 // NewRangeFilter creates a new filter which uses a bloom filter on blocks to
 // figure out whether a particular block is interesting or not.
 func NewRangeFilter(api api.CoreAPI, begin, end int64, addresses []types.Address, topics [][]types.Hash, blockRangeLimit uint64) *Filter {
+	// Flatten the address and topic filter clauses into a single bloombits filter
+	// system. Since the bloombits are not positional, nil topics are permitted,
+	// which get flattened into a nil byte slice.
+	var filters [][][]byte
+	if len(addresses) > 0 {
+		filter := make([][]byte, len(addresses))
+		for i, address := range addresses {
+			filter[i] = address.Bytes()
+		}
+		filters = append(filters, filter)
+	}
+	for _, topicList := range topics {
+		filter := make([][]byte, len(topicList))
+		for i, topic := range topicList {
+			filter[i] = topic.Bytes()
+		}
+		filters = append(filters, filter)
+	}
+	size, _ := api.Feed().BloomStatus()
+
 	// Create a generic filter and convert it into a range filter
 	filter := newFilter(api, addresses, topics)
 
+	filter.matcher = bloombits.NewMatcher(size, filters)
 	filter.begin = begin
 	filter.end = end
 	filter.blockRangeLimit = blockRangeLimit
@@ -106,8 +129,71 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 	if int64(end)-f.begin >= int64(f.blockRangeLimit) {
 		return nil, fmt.Errorf("query block range needs to be less than or equal to %d", f.blockRangeLimit)
 	}
+	var logs []*types.EvmLog
+	size, sections := f.api.Feed().BloomStatus()
+	fmt.Println("=============================")
+	fmt.Println(sections)
+	fmt.Println("=============================")
+
+	if indexed := sections * size; indexed > uint64(f.begin) {
+		if indexed > end {
+			logs, err = f.indexedLogs(ctx, end)
+		} else {
+			logs, err = f.indexedLogs(ctx, indexed-1)
+		}
+		if err != nil {
+			return logs, err
+		}
+	}
 
 	return f.unindexedLogs(ctx, end)
+}
+
+// indexedLogs returns the logs matching the filter criteria based on the bloom
+// bits indexed available locally or via the network.
+func (f *Filter) indexedLogs(ctx context.Context, end uint64) ([]*types.EvmLog, error) {
+	// Create a matcher session and request servicing from the backend
+	matches := make(chan uint64, 64)
+
+	session, err := f.matcher.Start(ctx, uint64(f.begin), end, matches)
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	f.api.Feed().ServiceFilter(session)
+
+	// Iterate over the matches until exhausted or context closed
+	var logs []*types.EvmLog
+
+	for {
+		select {
+		case number, ok := <-matches:
+			// Abort if all matches have been fulfilled
+			if !ok {
+				err := session.Error()
+				if err == nil {
+					f.begin = int64(end) + 1
+				}
+				return logs, err
+			}
+			f.begin = int64(number) + 1
+
+			// Retrieve the suggested block and pull any truly matching logs
+			header, err := f.api.Broker().GetBlockHeaderByNumber(number)
+			if header == nil || err != nil {
+				return logs, err
+			}
+			found, err := f.checkMatches(ctx, number)
+			if err != nil {
+				return logs, err
+			}
+			logs = append(logs, found...)
+
+		case <-ctx.Done():
+			return logs, ctx.Err()
+		}
+	}
 }
 
 // unindexedLogs returns the logs matching the filter criteria based on raw block

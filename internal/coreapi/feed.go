@@ -1,11 +1,21 @@
+/*
+ * @Date: 2024-03-14 14:18:23
+ * @LastEditors: levi9311 790890362@qq.com
+ * @LastEditTime: 2024-05-28 14:43:09
+ * @FilePath: /axiom-ledger/internal/coreapi/feed.go
+ */
 package coreapi
 
 import (
+	"time"
+
+	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 type FeedAPI CoreAPI
@@ -32,5 +42,33 @@ func (api *FeedAPI) SubscribeLogsEvent(ch chan<- []*types.EvmLog) event.Subscrip
 
 // TODO: check it
 func (api *FeedAPI) BloomStatus() (uint64, uint64) {
-	return 4096, 0
+	if !api.axiomLedger.Repo.Config.Ledger.EnableIndexer {
+		return repo.BloomBitsBlocks, 0
+	}
+	sections, _, _ := api.axiomLedger.Indexer.Sections()
+	return repo.BloomBitsBlocks, sections
+}
+
+const (
+	// bloomServiceThreads is the number of goroutines used globally by an Ethereum
+	// instance to service bloombits lookups for all running filters.
+	// bloomServiceThreads = 16
+
+	// bloomFilterThreads is the number of goroutines used locally per filter to
+	// multiplex requests onto the global servicing goroutines.
+	bloomFilterThreads = 3
+
+	// bloomRetrievalBatch is the maximum number of bloom bit retrievals to service
+	// in a single batch.
+	bloomRetrievalBatch = 16
+
+	// bloomRetrievalWait is the maximum time to wait for enough bloom bit requests
+	// to accumulate request an entire batch (avoiding hysteresis).
+	bloomRetrievalWait = time.Duration(0)
+)
+
+func (api *FeedAPI) ServiceFilter(session *bloombits.MatcherSession) {
+	for i := 0; i < bloomFilterThreads; i++ {
+		go session.Multiplex(bloomRetrievalBatch, bloomRetrievalWait, api.axiomLedger.BloomRequests)
+	}
 }

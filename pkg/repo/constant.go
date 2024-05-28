@@ -1,3 +1,9 @@
+/*
+ * @Date: 2024-05-27 09:49:49
+ * @LastEditors: levi9311 790890362@qq.com
+ * @LastEditTime: 2024-05-28 13:46:51
+ * @FilePath: /axiom-ledger/pkg/repo/constant.go
+ */
 package repo
 
 import "github.com/axiomesh/axiom-kit/types"
@@ -73,4 +79,18 @@ var (
 	DefaultAccountBalance = types.CoinNumberByAxc(10000000)   // 10 million AXC
 
 	DefaultMinGasPrice = types.CoinNumberByGmol(1000)
+)
+
+const (
+	// BloomBitsBlocks is the number of blocks a single bloom bit section vector
+	// contains on the server side.
+	BloomBitsBlocks uint64 = 4096
+
+	// BloomBitsBlocksClient is the number of blocks a single bloom bit section vector
+	// contains on the light client side
+	BloomBitsBlocksClient uint64 = 32768
+
+	// BloomConfirms is the number of confirmation blocks before a bloom section is
+	// considered probably final and its rotated bits are calculated.
+	BloomConfirms = 1
 )

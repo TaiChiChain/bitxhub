@@ -122,6 +122,21 @@ func (exec *BlockExecutor) AsyncExecuteBlock(block *common.CommitEvent) {
 	exec.blockC <- block
 }
 
+func (exec *BlockExecutor) CurrentHeader() *types.BlockHeader {
+	header, _ := exec.ledger.ChainLedger.GetBlockHeader(exec.currentHeight)
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println(exec.currentHeight)
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	exec.logger.Println("----------------------------------------------")
+	return header
+}
+
 // SubscribeBlockEvent registers a subscription of ExecutedEvent.
 func (exec *BlockExecutor) SubscribeBlockEvent(ch chan<- events.ExecutedEvent) event.Subscription {
 	return exec.blockFeed.Subscribe(ch)

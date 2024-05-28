@@ -16,6 +16,7 @@ const (
 	P2P            = "p2p"
 	Consensus      = "consensus"
 	Executor       = "executor"
+	Indexer        = "indexer"
 	App            = "app"
 	API            = "api"
 	CoreAPI        = "coreapi"
@@ -32,6 +33,7 @@ var w = &LoggerWrapper{
 		P2P:            kitlog.NewWithModule(P2P),
 		Consensus:      kitlog.NewWithModule(Consensus),
 		Executor:       kitlog.NewWithModule(Executor),
+		Indexer:        kitlog.NewWithModule(Indexer),
 		App:            kitlog.NewWithModule(App),
 		API:            kitlog.NewWithModule(API),
 		CoreAPI:        kitlog.NewWithModule(CoreAPI),
@@ -81,6 +83,8 @@ func Initialize(ctx context.Context, rep *repo.Repo, persist bool) error {
 	m[Consensus].Logger.SetLevel(kitlog.ParseLevel(config.Log.Module.Consensus))
 	m[Executor] = kitlog.NewWithModule(Executor)
 	m[Executor].Logger.SetLevel(kitlog.ParseLevel(config.Log.Module.Executor))
+	m[Indexer] = kitlog.NewWithModule(Indexer)
+	m[Indexer].Logger.SetLevel(kitlog.ParseLevel(config.Log.Module.Indexer))
 	m[App] = kitlog.NewWithModule(App)
 	m[App].Logger.SetLevel(kitlog.ParseLevel(config.Log.Level))
 	m[API] = kitlog.NewWithModule(API)

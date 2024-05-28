@@ -1,7 +1,14 @@
+/*
+ * @Date: 2024-05-27 09:49:49
+ * @LastEditors: levi9311 790890362@qq.com
+ * @LastEditTime: 2024-05-27 14:58:38
+ * @FilePath: /axiom-ledger/internal/coreapi/api/api.go
+ */
 package api
 
 import (
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -61,6 +68,7 @@ type FeedAPI interface {
 	SubscribeNewTxEvent(chan<- []*types.Transaction) event.Subscription
 	SubscribeNewBlockEvent(chan<- events.ExecutedEvent) event.Subscription
 	BloomStatus() (uint64, uint64)
+	ServiceFilter(session *bloombits.MatcherSession)
 }
 
 type TxPoolAPI interface {
