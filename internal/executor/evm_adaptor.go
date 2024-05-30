@@ -104,6 +104,19 @@ func TransactionToMessage(tx *types.Transaction) *core.Message {
 		isFake = true
 	}
 
+	var data []byte
+	if tx.GetPayload() != nil {
+		// copy data to keep transaction safety
+		data = make([]byte, len(tx.GetPayload()))
+		copy(data, tx.GetPayload())
+	}
+
+	var accessList ethtypes.AccessList
+	if tx.GetInner().GetAccessList() != nil {
+		accessList = make(ethtypes.AccessList, len(tx.GetInner().GetAccessList()))
+		copy(accessList, tx.GetInner().GetAccessList())
+	}
+
 	msg := &core.Message{
 		Nonce:             tx.GetNonce(),
 		GasLimit:          tx.GetGas(),
@@ -112,9 +125,9 @@ func TransactionToMessage(tx *types.Transaction) *core.Message {
 		GasTipCap:         new(big.Int).Set(tx.GetGasTipCap()),
 		From:              from,
 		To:                to,
-		Value:             tx.GetValue(),
-		Data:              tx.GetPayload(),
-		AccessList:        tx.GetInner().GetAccessList(),
+		Value:             new(big.Int).Set(tx.GetValue()),
+		Data:              data,
+		AccessList:        accessList,
 		SkipAccountChecks: isFake,
 	}
 	return msg

@@ -534,11 +534,13 @@ func recoveryAddrFromSignature(hash, signature []byte) (ethcommon.Address, error
 	ethHash := accounts.TextHash(hash)
 	// ethers js return r|s|v, v only 1 byte
 	// golang return rid, v = rid +27
-	if signature[64] >= 27 {
-		signature[64] -= 27
+	sig := make([]byte, len(signature))
+	copy(sig, signature)
+	if sig[64] >= 27 {
+		sig[64] -= 27
 	}
 
-	recoveredPub, err := crypto.Ecrecover(ethHash, signature)
+	recoveredPub, err := crypto.Ecrecover(ethHash, sig)
 	if err != nil {
 		return ethcommon.Address{}, err
 	}
