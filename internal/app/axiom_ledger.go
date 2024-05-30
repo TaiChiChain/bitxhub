@@ -9,6 +9,7 @@ import (
 
 	"github.com/common-nighthawk/go-figure"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
+	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -27,6 +28,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/internal/genesis"
+	"github.com/axiomesh/axiom-ledger/internal/indexer"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -49,6 +51,8 @@ type AxiomLedger struct {
 	TxPool        txpool.TxPool[types.Transaction, *types.Transaction]
 	Network       network.Network
 	Sync          synccomm.Sync
+	BloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
+	Indexer       *indexer.ChainIndexer
 
 	epochStore kv.Storage
 	snapMeta   *snapMeta
@@ -350,6 +354,16 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 	axm.BlockExecutor = txExec
 
+	if rep.Config.Ledger.EnableIndexer {
+		indexLg, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Indexer), storagemgr.Indexer)
+		if err != nil {
+			return nil, err
+		}
+		indexCachedStorage := storagemgr.NewCachedStorage(indexLg, 128).(*storagemgr.CachedStorage)
+		axm.BloomRequests = make(chan chan *bloombits.Retrieval)
+		axm.Indexer = indexer.NewBloomIndexer(rwLdg, indexCachedStorage, repo.BloomBitsBlocks, repo.BloomConfirms)
+	}
+
 	if rwLdg.ChainLedger.GetChainMeta().Height != 0 {
 		genesisCfg, err := genesis.GetGenesisConfig(rwLdg.NewViewWithoutCache().StateLedger)
 		if err != nil {
@@ -378,6 +392,9 @@ func (axm *AxiomLedger) Start() error {
 		if err := axm.Consensus.Start(); err != nil {
 			return fmt.Errorf("consensus start: %w", err)
 		}
+	}
+	if axm.Repo.Config.Ledger.EnableIndexer {
+		axm.Indexer.Start(axm.BlockExecutor)
 	}
 
 	axm.start()

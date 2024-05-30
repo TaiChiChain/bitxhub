@@ -19,6 +19,8 @@ type Executor interface {
 
 	ExecuteBlock(commitEvent *common.CommitEvent)
 
+	CurrentHeader() *types.BlockHeader
+
 	SubscribeBlockEvent(chan<- events.ExecutedEvent) event.Subscription
 
 	SubscribeBlockEventForRemote(chan<- events.ExecutedEvent) event.Subscription

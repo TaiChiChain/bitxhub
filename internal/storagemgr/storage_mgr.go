@@ -19,6 +19,7 @@ import (
 const (
 	BlockChain = "blockchain"
 	Ledger     = "ledger"
+	Indexer    = "indexer"
 	Snapshot   = "snapshot"
 	Blockfile  = "blockfile"
 	Consensus  = "consensus"

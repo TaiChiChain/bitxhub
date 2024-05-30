@@ -53,11 +53,11 @@ function install_tmux(){
           sudo $PM_NAME install -y tmux
         fi
       fi
-    else
-      if [ "$(tmux -V)" != "tmux 3.4" ]; then
-        print_blue "===> Tmux version requires 3.4"
-        exit 1
-      fi
+    # else
+    #   # if [ "$(tmux -V)" != "tmux 3.4" ]; then
+    #   #   print_blue "===> Tmux version requires 3.4"
+    #   #   exit 1
+    #   # fi
     fi
 }
 

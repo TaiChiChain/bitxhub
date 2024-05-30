@@ -148,6 +148,7 @@ type LogModule struct {
 	P2P            string `mapstructure:"p2p" toml:"p2p"`
 	Consensus      string `mapstructure:"consensus" toml:"consensus"`
 	Executor       string `mapstructure:"executor" toml:"executor"`
+	Indexer        string `mapstructure:"indexer" toml:"indexer"`
 	API            string `mapstructure:"api" toml:"api"`
 	CoreAPI        string `mapstructure:"coreapi" toml:"coreapi"`
 	Storage        string `mapstructure:"storage" toml:"storage"`
@@ -187,6 +188,7 @@ type Ledger struct {
 	StateLedgerStorageTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_storage_trie_cache_megabytes_limit" toml:"state_ledger_storage_trie_cache_megabytes_limit"`
 	StateLedgerAccountCacheSize               int  `mapstructure:"state_ledger_account_cache_size" toml:"state_ledger_account_cache_size"`
 	EnablePrune                               bool `mapstructure:"enable_prune" toml:"enable_prune"`
+	EnableIndexer                             bool `mapstructure:"enable_indexer" toml:"enable_indexer"`
 	StateLedgerReservedHistoryBlockNum        int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
 }
 
@@ -312,6 +314,7 @@ func defaultConfig() *Config {
 			StateLedgerStorageTrieCacheMegabytesLimit: 128,
 			StateLedgerAccountCacheSize:               1024,
 			EnablePrune:                               true,
+			EnableIndexer:                             false,
 			StateLedgerReservedHistoryBlockNum:        256,
 		},
 		Snapshot: Snapshot{
@@ -346,6 +349,7 @@ func defaultConfig() *Config {
 				P2P:            "info",
 				Consensus:      "debug",
 				Executor:       "info",
+				Indexer:        "info",
 				API:            "info",
 				CoreAPI:        "info",
 				Storage:        "info",
