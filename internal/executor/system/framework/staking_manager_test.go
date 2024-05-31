@@ -85,6 +85,26 @@ func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 	}, common.TestNVMRunOptionCallFromSystem())
 }
 
+func TestStakingManager_GenesisInit(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+
+	axcContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcContract, epochManagerContract, nodeManagerContract, liquidStakingTokenContract)
+
+	stakingManagerContract.SetContext(common.NewVMContextByExecutor(testNVM.StateLedger).DisableRecordLogToLedger())
+	testNVM.Rep.GenesisConfig.Nodes[0].CommissionRate = 1000000000
+	err := stakingManagerContract.GenesisInit(testNVM.Rep.GenesisConfig)
+	assert.ErrorContains(t, err, "invalid commission rate")
+
+	genesis := repo.DefaultGenesisConfig()
+	err = stakingManagerContract.GenesisInit(genesis)
+	assert.Nil(t, err)
+}
+
 func TestStakingManager_LifeCycle(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
 	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
@@ -224,4 +244,44 @@ func TestStakingManager_LifeCycle(t *testing.T) {
 
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
+}
+
+func TestStakingManager_TurnIntoNewEpoch(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
+
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcContract, epochManagerContract, liquidStakingTokenContract, nodeManagerContract, stakingManagerContract)
+
+	epoch := testNVM.Rep.GenesisConfig.EpochInfo
+	err := stakingManagerContract.TurnIntoNewEpoch(epoch, epoch)
+	assert.Nil(t, err)
+}
+
+func TestStakingManager_UpdatePoolCommissionRate(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
+
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcContract, epochManagerContract, liquidStakingTokenContract, nodeManagerContract, stakingManagerContract)
+
+	err := stakingManagerContract.UpdatePoolCommissionRate(10, 1)
+	assert.EqualError(t, err, "node not found")
+
+	err = stakingManagerContract.UpdatePoolCommissionRate(1, 1)
+	assert.EqualError(t, err, "no permission")
+
+	info, err := nodeManagerContract.GetInfo(1)
+	assert.Nil(t, err)
+	newStakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, info.Operator))
+	err = newStakingManagerContract.UpdatePoolCommissionRate(1, 1)
+	assert.Nil(t, err)
 }
