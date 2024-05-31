@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -445,6 +446,9 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 
 		isInnerMethod, callGas, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
 		if err != nil {
+			if !strings.Contains(err.Error(), "execute smart account callWithValue failed") {
+				return nil, interfaces.FailedOp(opIndex, err.Error())
+			}
 			ep.emitUserOperationRevertReason(opInfo.UserOpHash, mUserOp.Sender, mUserOp.Nonce, []byte(err.Error()))
 			mode = interfaces.OpReverted
 		}
