@@ -136,14 +136,6 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 		return err
 	}
 	for _, poolID := range pools {
-		exists, cnt, err := s.proposeBlockCountTable.Get(poolID)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return errors.Errorf("reward record of %d not found", poolID)
-		}
-
 		exists, rewardPerBlock, err := s.rewardPerBlock.Get()
 		if err != nil {
 			return err
@@ -152,12 +144,17 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 			return errors.New("reward per block not found")
 		}
 
+		_, cnt, err := s.proposeBlockCountTable.Get(poolID)
+		if err != nil {
+			return err
+		}
+
 		exists, gasReward, err := s.gasRewardTable.Get(poolID)
 		if err != nil {
 			return err
 		}
 		if !exists {
-			return errors.Errorf("gas reward of %d not found", poolID)
+			gasReward = big.NewInt(0)
 		}
 
 		reward := new(big.Int).Mul(new(big.Int).SetUint64(cnt), rewardPerBlock)
@@ -210,7 +207,7 @@ func (s *StakingManager) DisablePool(poolID uint64) error {
 }
 
 func (s *StakingManager) RecordReward(poolID uint64, gasReward *big.Int) (stakeReword *big.Int, err error) {
-	poolReward, err := s.proposeBlockCountTable.MustGet(poolID)
+	_, poolReward, err := s.proposeBlockCountTable.Get(poolID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,9 +217,12 @@ func (s *StakingManager) RecordReward(poolID uint64, gasReward *big.Int) (stakeR
 	}
 
 	// record gas reward
-	oldGasReward, err := s.gasRewardTable.MustGet(poolID)
+	exist, oldGasReward, err := s.gasRewardTable.Get(poolID)
 	if err != nil {
 		return nil, err
+	}
+	if !exist {
+		oldGasReward = big.NewInt(0)
 	}
 	newGasReward := new(big.Int).Add(oldGasReward, gasReward)
 	if err = s.gasRewardTable.Put(poolID, newGasReward); err != nil {
