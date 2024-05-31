@@ -2,6 +2,7 @@ package framework
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -13,6 +14,73 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/token"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
+
+func resetGenesis(t *testing.T) *repo.GenesisConfig {
+	genesis := repo.MockRepo(t).GenesisConfig
+	genesis.EpochInfo.StakeParams.MaxPendingInactiveValidatorRatio = 10000
+	return genesis
+}
+
+func TestNodeManager_GenesisInit(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MaxPendingInactiveValidatorRatio = 10000
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+
+	// a data syncer with error stake number
+	testNVM.Rep.GenesisConfig.Nodes[0].IsDataSyncer = true
+	errNum := types.CoinNumber(*big.NewInt(-1))
+	testNVM.Rep.GenesisConfig.Nodes[0].StakeNumber = &errNum
+	err := nodeManagerContract.GenesisInit(testNVM.Rep.GenesisConfig)
+	assert.ErrorContains(t, err, "invalid stake number")
+
+	// a node with error address format
+	genesis := resetGenesis(t)
+	genesis.Nodes[0].OperatorAddress = "123"
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "invalid operator address")
+
+	// a node with error commission rate
+	genesis = resetGenesis(t)
+	genesis.Nodes[0].CommissionRate = CommissionRateDenominator + 1
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "invalid commission rate")
+
+	// stake number is larger than maximum
+	genesis = resetGenesis(t)
+	errNum = types.CoinNumber(*new(big.Int).Add(genesis.EpochInfo.StakeParams.MaxValidatorStake.ToBigInt(), big.NewInt(1)))
+	genesis.Nodes[0].StakeNumber = &errNum
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "invalid stake number")
+
+	// err consensus key
+	genesis = resetGenesis(t)
+	genesis.Nodes[0].ConsensusPubKey += "123"
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "failed to unmarshal consensus public key")
+
+	// err p2p key
+	genesis = resetGenesis(t)
+	genesis.Nodes[0].P2PPubKey += "123"
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "failed to unmarshal p2p public key")
+
+	// repeat consensus key
+	genesis = resetGenesis(t)
+	genesis.Nodes[1].ConsensusPubKey = genesis.Nodes[0].ConsensusPubKey
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "failed to register node")
+
+	genesis.Nodes[0].IsDataSyncer = true
+	genesis.Nodes[0].StakeNumber = types.CoinNumberByAxc(0)
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "failed to register node")
+
+	genesis = resetGenesis(t)
+	genesis.Nodes[1].ConsensusPubKey = genesis.Nodes[0].ConsensusPubKey
+	genesis.EpochInfo.ConsensusParams.MaxValidatorNum = 1
+	err = nodeManagerContract.GenesisInit(genesis)
+	assert.ErrorContains(t, err, "failed to register node")
+}
 
 func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
@@ -56,24 +124,22 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 	operatorAddress := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013")
 
 	// error repeat register
-	for i := 0; i < 4; i++ {
-		testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-			_, err = nodeManagerContract.Register(node_manager.NodeInfo{
-				ConsensusPubKey: consensusKeystore.PublicKey.String(),
-				P2PPubKey:       p2pKeystore.PublicKey.String(),
-				P2PID:           nodes[i].P2PID,
-				Operator:        operatorAddress,
-				MetaData: node_manager.NodeMetaData{
-					Name:       "mockName",
-					Desc:       "mockDesc",
-					ImageURL:   "https://example.com/image.png",
-					WebsiteURL: "https://example.com/",
-				},
-			})
-			assert.ErrorContains(t, err, "is already in use")
-			return err
-		}, common.TestNVMRunOptionCallFromSystem())
-	}
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		_, err = nodeManagerContract.Register(node_manager.NodeInfo{
+			ConsensusPubKey: consensusKeystore.PublicKey.String(),
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           p2pKeystore.P2PID(),
+			Operator:        operatorAddress,
+			MetaData: node_manager.NodeMetaData{
+				Name:       "node1",
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.ErrorContains(t, err, "is already in use")
+		return err
+	}, common.TestNVMRunOptionCallFromSystem())
 
 	// register a node success
 	var node5ID uint64
@@ -383,4 +449,29 @@ func TestCheckNodeInfo(t *testing.T) {
 			assert.EqualValues(t, i+1, nodes[i].ID)
 		}
 	})
+}
+
+func TestNodeManager_TurnIntoNewEpoch(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerBuildContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcManagerContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManagerContract, epochManagerContract, nodeManagerContract, stakingManagerBuildContract)
+
+	newEpoch := repo.GenesisEpochInfo()
+	err := nodeManagerContract.TurnIntoNewEpoch(nil, newEpoch)
+	assert.ErrorContains(t, err, "not enough validators")
+
+	newEpoch.ConsensusParams.MaxValidatorNum = 3
+	newEpoch.StakeParams.MinValidatorStake = types.CoinNumberByAxc(1)
+	err = nodeManagerContract.TurnIntoNewEpoch(nil, newEpoch)
+	assert.ErrorContains(t, err, "not enough validators")
+
+	newEpoch.ConsensusParams.MinValidatorNum = 3
+	err = nodeManagerContract.TurnIntoNewEpoch(nil, newEpoch)
+	assert.Nil(t, err)
+	nodes, _, err := nodeManagerContract.GetActiveValidatorSet()
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(nodes))
 }
