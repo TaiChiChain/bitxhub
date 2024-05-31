@@ -2,9 +2,11 @@ package sync
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/components"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -37,6 +41,8 @@ const (
 	latencyTypeSendState
 )
 
+const waitCaseTimeout = 10 * time.Second
+
 const (
 	epochPrefix = "epoch." + rbft.EpochStatePrefix
 	epochPeriod = 100
@@ -57,8 +63,9 @@ func genReceipts(block *types.Block) []*types.Receipt {
 	receipts := make([]*types.Receipt, 0)
 	for _, tx := range block.Transactions {
 		receipts = append(receipts, &types.Receipt{
-			Status: types.ReceiptSUCCESS,
-			TxHash: tx.GetHash(),
+			Status:            types.ReceiptSUCCESS,
+			TxHash:            tx.GetHash(),
+			EffectiveGasPrice: &big.Int{},
 		})
 	}
 	return receipts
@@ -133,7 +140,17 @@ func newMockMinLedger(t *testing.T, genesisBlock *types.Block) *mockLedger {
 	return mockLg
 }
 
-func ConstructBlock(height uint64, parentHash *types.Hash) *types.Block {
+func generateHash(blockHashStr string) *types.Hash {
+	from := make([]byte, 0)
+	strLen := len(blockHashStr)
+	for i := 0; i < 32; i++ {
+		from = append(from, blockHashStr[i%strLen])
+	}
+	fromStr := hex.EncodeToString(from)
+	return types.NewHashByStr(fromStr)
+}
+
+func ConstructBlock(height uint64, parentHash *types.Hash, txs ...*types.Transaction) *types.Block {
 	blockHashStr := "block" + strconv.FormatUint(height, 10)
 	from := make([]byte, 0)
 	strLen := len(blockHashStr)
@@ -146,9 +163,19 @@ func ConstructBlock(height uint64, parentHash *types.Hash) *types.Block {
 		Timestamp:  time.Now().Unix(),
 		Epoch:      ((height - 1) / epochPeriod) + 1,
 	}
+	if len(txs) == 0 {
+		txs = make([]*types.Transaction, 0)
+		header.TxRoot = &types.Hash{}
+	} else {
+		root, err := components.CalcTxsMerkleRoot(txs)
+		if err != nil {
+			panic(err)
+		}
+		header.TxRoot = root
+	}
 	return &types.Block{
 		Header:       header,
-		Transactions: []*types.Transaction{},
+		Transactions: txs,
 		Extra:        &types.BlockExtra{}}
 }
 
@@ -575,7 +602,7 @@ func stopSyncs(syncs []*SyncManager) {
 	}
 }
 
-func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange, []*common.Node) {
+func prepareBlockSyncs(t *testing.T, epochInterval int, local, count, txCount int, begin, end uint64) ([]*SyncManager, []*consensus.EpochChange, []*common.Node) {
 	syncs := make([]*SyncManager, count)
 	var (
 		epochChanges       []*consensus.EpochChange
@@ -593,9 +620,12 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 
 	beforeBeginBlocks := make([]*types.Block, 0)
 	parent := genesis.Hash()
+	s, err := types.GenerateSigner()
+	require.Nil(t, err)
+	txs := testutil.ConstructTxs(s, int(txCount))
 	if begin > 1 {
 		for j := 2; j < int(begin); j++ {
-			b := ConstructBlock(uint64(j), parent)
+			b := ConstructBlock(uint64(j), parent, txs...)
 			beforeBeginBlocks = append(beforeBeginBlocks, b)
 			parent = b.Hash()
 		}
@@ -607,7 +637,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		parentHash = beforeBeginBlocks[len(beforeBeginBlocks)-1].Hash()
 	}
 	for j := begin; j <= end; j++ {
-		block := ConstructBlock(j, parentHash)
+		block := ConstructBlock(j, parentHash, txs...)
 		blockCache = append(blockCache, block)
 		parentHash = block.Hash()
 	}
@@ -638,7 +668,6 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		}
 		ledgers[localId] = lg
 	}
-	// nets := newMockMiniNetworks(count)
 
 	nets := make(map[string]*mock_network.MiniNetwork)
 	peers := make([]*common.Node, count)
@@ -664,6 +693,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 		lg := ledgers[localId]
 		fmt.Printf("%s: %T", localId, lg)
 		logger := log.NewWithModule("sync" + localId)
+		// dismiss log print
 		discard := io.Discard
 		logger.Logger.SetOutput(discard)
 		getChainMetaFn := func() *types.ChainMeta {
@@ -690,6 +720,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count int, begin,
 			TimeoutCountLimit:     5,
 			ConcurrencyLimit:      100,
 			WaitStatesTimeout:     repo.Duration(30 * time.Second),
+			FullValidation:        true,
 		}
 
 		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
@@ -738,5 +769,29 @@ func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string
 			err := lg.PersistExecutionResult(block, genReceipts(block))
 			require.Nil(t, err)
 		})
+	}
+}
+
+func waitSyncTaskDone(ch chan error) error {
+	for {
+		select {
+		case <-time.After(waitCaseTimeout):
+			return errors.New("sync task Done timeout")
+		case err := <-ch:
+			return err
+		}
+	}
+}
+
+func waitCommitData(t *testing.T, ch chan any, handler func(*testing.T, any)) {
+	for {
+		select {
+		case <-time.After(waitCaseTimeout):
+			t.Errorf("commit data timeout")
+			return
+		case data := <-ch:
+			handler(t, data)
+			return
+		}
 	}
 }

@@ -9,7 +9,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.12.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240522081401-c6697b1e0475
 	github.com/axiomesh/axiom-kit v0.0.3-0.20240606173511-7f06d29d19e1
-	github.com/axiomesh/axiom-p2p v0.0.3-0.20240524073654-6d9502df459f
+	github.com/axiomesh/axiom-p2p v0.0.3-0.20240601010407-4172c3880c30
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
