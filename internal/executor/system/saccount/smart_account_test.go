@@ -78,7 +78,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 
 	// mint erc20
 	// 0x40c10f190000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b66500000000000000000000000000000000000000000000000000000000000002710
-	callData = ethcommon.Hex2Bytes("40c10f190000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b66500000000000000000000000000000000000000000000000000000000000002710")
+	callData = ethcommon.Hex2Bytes("40c10f190000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b66500fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	_, _, err = sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 	assert.Nil(t, err)
 
@@ -96,6 +96,14 @@ func TestSmartAccount_Execute(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, isExist)
 	assert.Equal(t, uint64(7), totalUsedValue.Uint64())
+
+	// transfer max erc20
+	callData = ethcommon.Hex2Bytes("b61d27f600000000000000000000000082c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044a9059cbb00000000000000000000000079b698e9499a9d6d80c5d8ae180cd23386a7c26d0000000000000000000000000000001d6329f1c35ca4d4d85b977bb4fac0031cv")
+	// replace caller to smart account address
+	sa.selfAddr.SetBytes(ethcommon.Hex2Bytes("1cd68912e00c5a02ea0b8b2d972a9c13906b6650"))
+	sa.remainingGas = big.NewInt(MaxCallGasLimit)
+	isExist, _, totalUsedValue, err = JudgeOrCallInnerMethod(callData, sa)
+	assert.ErrorContains(t, err, "transfer value exceeds 128 bits, would cause overflow")
 
 	// test smart account
 	sa2 := NewSmartAccount(entrypoint.logger, entrypoint)
