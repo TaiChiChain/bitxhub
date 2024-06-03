@@ -1186,7 +1186,7 @@ func (n *Node[T, Constraint]) postEvent(event *localEvent) {
 }
 
 func (n *Node[T, Constraint]) reachQuorum(count int) bool {
-	return uint64(count) == adaptor.CalQuorum(uint64(len(n.chainState.ValidatorSet)))
+	return uint64(count) >= adaptor.CalQuorum(uint64(len(n.chainState.ValidatorSet)))
 }
 
 // setBatchCache stores a batch digest and its corresponding batch.
