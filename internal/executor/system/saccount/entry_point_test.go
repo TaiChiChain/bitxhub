@@ -212,6 +212,43 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 			},
 			ErrMsg: "not enough token balance",
 		},
+		{
+			// session key validAfter > validUntil
+			BeforeRun: func(userOp *interfaces.UserOperation) {
+				userOp.VerificationGasLimit = big.NewInt(90000)
+				userOp.InitCode = nil
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
+
+				sessionPriv, _ := crypto.GenerateKey()
+				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
+				userOp.CallData = append([]byte{}, setSessionSig...)
+				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(owner.Bytes(), 32)...)
+				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(3000000000000000000).Bytes(), 32)...)
+				validUntil := big.NewInt(time.Now().Add(-time.Second).Unix())
+				validAfter := big.NewInt(time.Now().Add(-time.Second).Unix())
+				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validAfter.Bytes(), 32)...)
+				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validUntil.Bytes(), 32)...)
+			},
+			ErrMsg: "session key validAfter must less than validUntil",
+		},
+		{
+			// execute batch error
+			BeforeRun: func(userOp *interfaces.UserOperation) {
+				userOp.VerificationGasLimit = big.NewInt(90000)
+				userOp.InitCode = nil
+				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				assert.Nil(t, err)
+				sessionPriv, _ := crypto.GenerateKey()
+				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
+				userOp.CallData = append([]byte{}, executeBatchSig...)
+				// error arguments
+				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(owner.Bytes(), 32)...)
+				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
+				userOp.CallGasLimit = big.NewInt(499923)
+			},
+			ErrMsg: "unpack error",
+		},
 	}
 
 	for i, testcase := range testcases {
@@ -262,40 +299,28 @@ func TestEntryPoint_HandleOp_UserOperationRevert(t *testing.T) {
 		ErrMsg    string
 	}{
 		{
-			// session key validAfter > validUntil
+			// call erc20 with account failed
 			BeforeRun: func(userOp *interfaces.UserOperation) {
+				// deploy erc20
+				erc20ContractAddr := ethcommon.HexToAddress("0x82C6D3ed4cD33d8EC1E51d0B5Cc1d822Eaa0c3dC")
+				contractAccount := testNVM.StateLedger.GetOrCreateAccount(types.NewAddress(erc20ContractAddr.Bytes()))
+				contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(erc20bytecode))
+
 				userOp.VerificationGasLimit = big.NewInt(90000)
 				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
 				assert.Nil(t, err)
 
-				sessionPriv, _ := crypto.GenerateKey()
-				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
-				userOp.CallData = append([]byte{}, setSessionSig...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(owner.Bytes(), 32)...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(3000000000000000000).Bytes(), 32)...)
-				validUntil := big.NewInt(time.Now().Add(-time.Second).Unix())
-				validAfter := big.NewInt(time.Now().Add(-time.Second).Unix())
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validAfter.Bytes(), 32)...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(validUntil.Bytes(), 32)...)
-			},
-			ErrMsg: "session key validAfter must less than validUntil",
-		},
-		{
-			// execute batch error
-			BeforeRun: func(userOp *interfaces.UserOperation) {
-				userOp.VerificationGasLimit = big.NewInt(90000)
-				userOp.InitCode = nil
-				userOp.Nonce, err = entrypoint.GetNonce(userOp.Sender, big.NewInt(salt))
+				// call erc20
+				userOp.CallData = append([]byte{}, executeSig...)
+				// transfer erc20 to smart account
+				transferData := append([]byte{}, transferSig...)
+				transferData = append(transferData, ethcommon.LeftPadBytes(entrypoint.EthAddress.Bytes(), 32)...)
+				transferData = append(transferData, ethcommon.LeftPadBytes(big.NewInt(100).Bytes(), 32)...)
+				data, err := executeMethod.Pack(erc20ContractAddr, big.NewInt(0), transferData)
 				assert.Nil(t, err)
-				sessionPriv, _ := crypto.GenerateKey()
-				owner := crypto.PubkeyToAddress(sessionPriv.PublicKey)
-				userOp.CallData = append([]byte{}, executeBatchSig...)
-				// error arguments
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(owner.Bytes(), 32)...)
-				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
-				userOp.CallGasLimit = big.NewInt(499923)
+				userOp.CallData = append(userOp.CallData, data...)
 			},
-			ErrMsg: "unpack error",
+			ErrMsg: "execute smart account callWithValue failed",
 		},
 	}
 
@@ -356,10 +381,26 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 	verifyingPaymaster := VerifyingPaymasterBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	testNVM.GenesisInit(tokenPaymaster, verifyingPaymaster, accountFactory, entrypoint)
 
+	// deploy oracle
+	oracleContractAddr := ethcommon.HexToAddress("0x3EBD66861C1d8F298c20ED56506b063206103227")
+	contractAccount := testNVM.StateLedger.GetOrCreateAccount(types.NewAddress(oracleContractAddr.Bytes()))
+	contractAccount.SetCodeAndHash(ethcommon.Hex2Bytes(oracleBytecode))
+
+	owner := ethcommon.HexToAddress(testNVM.Rep.GenesisConfig.SmartAccountAdmin)
+	entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(owner.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
 	paymasterPriv, err := crypto.HexToECDSA(repo.MockOperatorKeys[0])
 	assert.Nil(t, err)
 
 	userOp, sk := buildUserOp(t, testNVM, entrypoint, accountFactory)
+
+	// erc20 contract address: 0xed17543171C1459714cdC6519b58fFcC29A3C3c9
+	// set oracle
+	testNVM.RunSingleTX(tokenPaymaster, owner, func() error {
+		err := tokenPaymaster.AddToken(ethcommon.HexToAddress("0xed17543171C1459714cdC6519b58fFcC29A3C3c9"), oracleContractAddr)
+		assert.Nil(t, err)
+		return err
+	})
 
 	guardianPriv, _ := crypto.GenerateKey()
 	guardian := crypto.PubkeyToAddress(guardianPriv.PublicKey)
