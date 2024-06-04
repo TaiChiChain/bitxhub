@@ -94,6 +94,15 @@ func TestTransactionToMessage(t *testing.T) {
 					To:        &addrTo,
 					Data:      []byte(data),
 					Value:     big.NewInt(10000),
+					AccessList: ethtypes.AccessList{
+						ethtypes.AccessTuple{
+							Address: addrTo,
+							StorageKeys: []ethcommon.Hash{
+								ethcommon.BytesToHash([]byte("key1")),
+								ethcommon.BytesToHash([]byte("key2")),
+							},
+						},
+					},
 				},
 			},
 			SkipAccountChecks: true,
@@ -112,6 +121,38 @@ func TestTransactionToMessage(t *testing.T) {
 		assert.Equal(t, test.SkipAccountChecks, message.SkipAccountChecks)
 		assert.Equal(t, test.tx.Inner.GetNonce(), message.Nonce)
 		assert.Equal(t, test.tx.Inner.GetTo(), message.To)
+		assert.Equal(t, test.tx.Inner.GetValue(), message.Value)
+		assert.Equal(t, test.tx.Inner.GetData(), message.Data)
+		assert.Equal(t, test.tx.GetFrom().ETHAddress(), message.From)
+		assert.Equal(t, test.tx.Inner.GetAccessList(), message.AccessList)
+
+		// check strcut field address is not equals
+		value := test.tx.Inner.GetValue()
+		data := test.tx.Inner.GetData()
+		accessList := test.tx.Inner.GetAccessList()
+		if value == message.Value {
+			assert.Fail(t, "address of value is equals")
+		}
+
+		if &data[0] == &message.Data[0] {
+			assert.Fail(t, "address of data is equals")
+		}
+
+		if accessList != nil {
+			if &accessList == &message.AccessList {
+				assert.Fail(t, "address of accessList is equals")
+			}
+
+			if &accessList[0].Address == &message.AccessList[0].Address {
+				assert.Fail(t, "address of accessList.Address is equals")
+
+			}
+
+			if &accessList[0].StorageKeys == &message.AccessList[0].StorageKeys {
+				assert.Fail(t, "address of accessList.StorageKeys is equals")
+			}
+		}
+
 	}
 }
 

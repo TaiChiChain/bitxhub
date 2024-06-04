@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 
@@ -431,6 +432,12 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, callData []byte, opInfo *U
 		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.CallGasLimit)
 		isInnerMethod, callGas, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
 		if err != nil {
+			if !strings.Contains(err.Error(), "execute smart account callWithValue failed") {
+				return nil, ep.Revert(&ientry_point.ErrorFailedOp{
+					OpIndex: opIndex,
+					Reason:  err.Error(),
+				})
+			}
 			ep.EmitEvent(&ientry_point.EventUserOperationRevertReason{
 				UserOpHash:   opInfo.UserOpHash,
 				Sender:       mUserOp.Sender,
