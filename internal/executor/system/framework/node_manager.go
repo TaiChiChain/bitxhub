@@ -579,12 +579,9 @@ func (n *NodeManager) Exit(nodeID uint64) error {
 	switch types.NodeStatus(nodeInfo.Status) {
 	case types.NodeStatusActive:
 		// get active set
-		isExist, activeSet, err := n.getStatusSet(types.NodeStatusActive).Get()
+		activeSet, err := n.getStatusSet(types.NodeStatusActive).MustGet()
 		if err != nil {
 			return err
-		}
-		if !isExist {
-			return errors.New("active set is empty")
 		}
 		// get pending inactive set
 		isExist, pendingInactiveSet, err := n.getStatusSet(types.NodeStatusPendingInactive).Get()
@@ -817,13 +814,9 @@ func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo
 	}
 	// get from status set, e.g. candidate
 	fromSlot := n.getStatusSet(from)
-	isExist, fromSets, err := fromSlot.Get()
+	fromSets, err := fromSlot.MustGet()
 	if err != nil {
 		return err
-	}
-	// from status set cannot be empty
-	if !isExist {
-		return ErrStatusSetNotFound
 	}
 	// find node from the set and remove the node
 	index := -1
@@ -854,7 +847,8 @@ func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo
 		return err
 	}
 
-	if to == types.NodeStatusExited {
+	// if transfer status from active and candidate state, should disable the pool first
+	if to == types.NodeStatusExited && (from == types.NodeStatusActive || from == types.NodeStatusCandidate) {
 		// get staking manager
 		stakingManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
 		return stakingManager.DisablePool(nodeInfo.ID)

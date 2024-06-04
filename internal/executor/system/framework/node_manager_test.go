@@ -177,6 +177,31 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.Equal(t, []node_manager.NodeInfo{nodes[4]}, dataSyncerSet)
 	})
 
+	// exit request from arbitrary account will revert
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		err = nodeManagerContract.Exit(node5ID)
+		assert.ErrorContains(t, err, "no permission")
+	})
+
+	testNVM.Call(nodeManagerContract, operatorAddress, func() {
+		node, err := nodeManagerContract.GetInfo(node5ID)
+		assert.Nil(t, err)
+		node.Status = uint8(types.NodeStatusExited)
+		err = nodeManagerContract.nodeRegistry.Put(node5ID, node)
+		assert.Nil(t, err)
+		err = nodeManagerContract.Exit(node5ID)
+		assert.ErrorContains(t, err, "IncorrectStatus")
+	})
+
+	testNVM.Call(nodeManagerContract, operatorAddress, func() {
+		err = nodeManagerContract.Exit(node5ID)
+		assert.Nil(t, err)
+		exitedSet, err := nodeManagerContract.GetExitedSet()
+		assert.Nil(t, err)
+		assert.Equal(t, nodes[4].ID, exitedSet[0].ID)
+		assert.Equal(t, 1, len(exitedSet))
+	})
+
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
 		err = nodeManagerContract.JoinCandidateSet(node5ID, 0)
 		assert.ErrorContains(t, err, "no permission")
@@ -256,6 +281,18 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 				ConsensusVotingPower: 100,
 			},
 		}, returnVotingPowers)
+	})
+
+	testNVM.Call(nodeManagerContract, operatorAddress, func() {
+		curEpoch, err := epochManagerContract.CurrentEpoch()
+		assert.Nil(t, err)
+		curEpoch.StakeParams.MaxPendingInactiveValidatorRatio = 0
+		err = epochManagerContract.UpdateNextEpoch(curEpoch)
+		assert.Nil(t, err)
+		_, err = epochManagerContract.TurnIntoNewEpoch()
+		assert.Nil(t, err)
+		err = nodeManagerContract.Exit(node5ID)
+		assert.ErrorContains(t, err, "PendingInactiveSetIsFull")
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, operatorAddress, func() error {
