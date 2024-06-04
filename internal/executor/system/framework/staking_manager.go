@@ -136,15 +136,12 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 		return err
 	}
 	for _, poolID := range pools {
-		exists, rewardPerBlock, err := s.rewardPerBlock.Get()
+		rewardPerBlock, err := s.rewardPerBlock.MustGet()
 		if err != nil {
 			return err
 		}
-		if !exists {
-			return errors.New("reward per block not found")
-		}
 
-		_, cnt, err := s.proposeBlockCountTable.Get(poolID)
+		cnt, err := s.proposeBlockCountTable.MustGet(poolID)
 		if err != nil {
 			return err
 		}
@@ -207,7 +204,7 @@ func (s *StakingManager) DisablePool(poolID uint64) error {
 }
 
 func (s *StakingManager) RecordReward(poolID uint64, gasReward *big.Int) (stakeReword *big.Int, err error) {
-	_, poolReward, err := s.proposeBlockCountTable.Get(poolID)
+	poolReward, err := s.proposeBlockCountTable.MustGet(poolID)
 	if err != nil {
 		return nil, err
 	}

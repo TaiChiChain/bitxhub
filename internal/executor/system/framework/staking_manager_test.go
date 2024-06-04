@@ -155,6 +155,33 @@ func TestStakingManager_LifeCycle(t *testing.T) {
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
 
+	testNVM.Call(stakingManagerContract, operatorAddr.ETHAddress(), func() {
+		err = stakingManagerContract.DisablePool(6)
+		assert.ErrorContains(t, err, "pool not exists")
+		err = stakingManagerContract.DisablePool(5)
+		assert.Nil(t, err)
+		err = stakingManagerContract.DisablePool(5)
+		assert.ErrorContains(t, err, "not available")
+	})
+
+	testNVM.Call(stakingManagerContract, operatorAddr.ETHAddress(), func() {
+		stakingManagerContract.Ctx.Value = big.NewInt(200)
+		stakingManagerContract.StateAccount.AddBalance(big.NewInt(200))
+
+		curEpoch, err := epochManagerContract.CurrentEpoch()
+		assert.Nil(t, err)
+		curEpoch.StakeParams.MinDelegateStake = big.NewInt(100)
+		curEpoch.StakeParams.MaxAddStakeRatio = 0
+		err = epochManagerContract.UpdateNextEpoch(curEpoch)
+		assert.Nil(t, err)
+		_, err = epochManagerContract.TurnIntoNewEpoch()
+		assert.Nil(t, err)
+		err = stakingManagerContract.AddStake(5, operatorAddr.ETHAddress(), big.NewInt(1))
+		assert.ErrorContains(t, err, "less than min stake")
+		err = stakingManagerContract.AddStake(5, operatorAddr.ETHAddress(), big.NewInt(200))
+		assert.ErrorContains(t, err, "reach epoch limit")
+	})
+
 	// add some stake
 	testNVM.RunSingleTX(stakingManagerContract, operatorAddr.ETHAddress(), func() error {
 		before, err := stakingManagerContract.totalStake.MustGet()
