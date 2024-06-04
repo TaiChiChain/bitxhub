@@ -35,6 +35,11 @@ var StakingCMDWithdrawArgs = struct {
 	Amount    string
 }{}
 
+var StakingCMDUpdatePoolCommissionRateArgs = struct {
+	PoolID            uint64
+	NewCommissionRate uint64
+}{}
+
 var StakingCMDPoolInfoArgs = struct {
 	PoolID uint64
 }{}
@@ -110,6 +115,25 @@ var StakingCMD = &cli.Command{
 				&cli.StringFlag{
 					Name:        "amount",
 					Destination: &StakingCMDWithdrawArgs.Amount,
+					Required:    true,
+				},
+				senderFlag,
+			},
+		},
+		{
+			Name:   "update-pool-commission-rate",
+			Usage:  "Update pool commission rate(must be called by node operator)",
+			Action: StakingActions{}.updatePoolCommissionRate,
+			Flags: []cli.Flag{
+				&cli.Uint64Flag{
+					Name:        "pool-id",
+					Destination: &StakingCMDUpdatePoolCommissionRateArgs.PoolID,
+					Required:    true,
+				},
+				&cli.Uint64Flag{
+					Name:        "new-commission-rate",
+					Usage:       "new commission rate, range: 0-10000",
+					Destination: &StakingCMDUpdatePoolCommissionRateArgs.NewCommissionRate,
 					Required:    true,
 				},
 				senderFlag,
@@ -273,6 +297,17 @@ func (a StakingActions) withdraw(ctx *cli.Context) error {
 			recipient = opts.From
 		}
 		return stakingManager.Withdraw(opts, lstID, recipient, amountBigInt)
+	}, nil)
+}
+
+func (a StakingActions) updatePoolCommissionRate(ctx *cli.Context) error {
+	stakingManager, client, err := a.bindingContract(ctx)
+	if err != nil {
+		return err
+	}
+
+	return SendAndWaitTx(ctx, client, func(client *ethclient.Client, opts *bind.TransactOpts) (*ethtypes.Transaction, error) {
+		return stakingManager.UpdatePoolCommissionRate(opts, StakingCMDUpdatePoolCommissionRateArgs.PoolID, StakingCMDUpdatePoolCommissionRateArgs.NewCommissionRate)
 	}, nil)
 }
 

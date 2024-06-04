@@ -67,6 +67,11 @@ type StakingManager interface {
 	// Solidity: function unlock(uint256 liquidStakingTokenID, uint256 amount) returns()
 	Unlock(liquidStakingTokenID *big.Int, amount *big.Int) error
 
+	// UpdatePoolCommissionRate is a paid mutator transaction binding the contract method 0xe1d7afb3.
+	//
+	// Solidity: function updatePoolCommissionRate(uint64 poolID, uint64 newCommissionRate) returns()
+	UpdatePoolCommissionRate(poolID uint64, newCommissionRate uint64) error
+
 	// Withdraw is a paid mutator transaction binding the contract method 0xe63697c8.
 	//
 	// Solidity: function withdraw(uint256 liquidStakingTokenID, address recipient, uint256 amount) returns()
