@@ -18,6 +18,7 @@ import (
 
 func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	stakingManagerBuildContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -87,7 +88,7 @@ func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 
 func TestStakingManager_GenesisInit(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
-
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	axcContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -107,6 +108,7 @@ func TestStakingManager_GenesisInit(t *testing.T) {
 
 func TestStakingManager_LifeCycle(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
 
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -248,6 +250,7 @@ func TestStakingManager_LifeCycle(t *testing.T) {
 
 func TestStakingManager_TurnIntoNewEpoch(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
 
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -264,6 +267,7 @@ func TestStakingManager_TurnIntoNewEpoch(t *testing.T) {
 
 func TestStakingManager_UpdatePoolCommissionRate(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
 
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))

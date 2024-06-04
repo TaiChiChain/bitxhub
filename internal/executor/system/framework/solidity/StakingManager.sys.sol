@@ -37,6 +37,10 @@ interface StakingManager {
 
     function withdraw(uint256 liquidStakingTokenID, address recipient, uint256 amount) external;
 
+    function batchUnlock(uint256[] memory liquidStakingTokenIDs, uint256[] memory amounts) external;
+
+    function batchWithdraw(uint256[] memory liquidStakingTokenIDs, address recipient, uint256[] memory amounts) external;
+
     function getPoolInfo(uint64 poolID) external view returns (PoolInfo memory poolInfo);
 
     function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) external view returns (LiquidStakingTokenRate memory poolHistoryLiquidStakingTokenRate);

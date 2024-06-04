@@ -238,6 +238,9 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 	if pendingInactiveStakeWithdraw.Cmp(amount) < 0 {
 		return errors.Errorf("amount is not enough, pendingInactiveStakeWithdraw: %s, amount: %s", pendingInactiveStakeWithdraw.String(), amount.String())
 	}
+	if !currentEpoch.StakeParams.EnablePartialUnlock && pendingInactiveStakeWithdraw.Cmp(amount) > 0 {
+		return errors.Errorf("not enable partial unlock, pendingInactiveStakeWithdraw: %s, amount: %s", pendingInactiveStakeWithdraw.String(), amount.String())
+	}
 
 	info.PendingInactiveStake = new(big.Int).Add(info.PendingInactiveStake, pendingInactiveStakeWithdraw)
 	info.PendingInactiveLiquidStakingTokenAmount = new(big.Int).Add(info.PendingInactiveLiquidStakingTokenAmount, pendingInactiveLiquidStakingTokenAmount)

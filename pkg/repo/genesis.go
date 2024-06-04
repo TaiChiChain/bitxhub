@@ -107,6 +107,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 			MinDelegateStake:                 types.CoinNumberByAxc(100),
 			MinValidatorStake:                types.CoinNumberByAxc(10000000),
 			MaxValidatorStake:                types.CoinNumberByAxc(50000000),
+			EnablePartialUnlock:              false,
 		},
 		MiscParams: types.MiscParams{
 			TxMaxSize: DefaultTxMaxSize,

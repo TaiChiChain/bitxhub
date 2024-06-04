@@ -168,6 +168,11 @@
                 "internalType": "uint256",
                 "name": "MaxValidatorStake",
                 "type": "uint256"
+              },
+              {
+                "internalType": "bool",
+                "name": "EnablePartialUnlock",
+                "type": "bool"
               }
             ],
             "internalType": "struct StakeParams",
@@ -359,6 +364,11 @@
                 "internalType": "uint256",
                 "name": "MaxValidatorStake",
                 "type": "uint256"
+              },
+              {
+                "internalType": "bool",
+                "name": "EnablePartialUnlock",
+                "type": "bool"
               }
             ],
             "internalType": "struct StakeParams",
@@ -543,6 +553,11 @@
                 "internalType": "uint256",
                 "name": "MaxValidatorStake",
                 "type": "uint256"
+              },
+              {
+                "internalType": "bool",
+                "name": "EnablePartialUnlock",
+                "type": "bool"
               }
             ],
             "internalType": "struct StakeParams",

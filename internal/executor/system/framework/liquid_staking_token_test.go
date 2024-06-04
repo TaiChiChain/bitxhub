@@ -16,6 +16,7 @@ import (
 
 func TestLiquidStakingToken_stakeInfo(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	testNVM.Rep.GenesisConfig.Nodes[0].IsDataSyncer = false
 	testNVM.Rep.GenesisConfig.Nodes[0].StakeNumber = types.CoinNumberByMol(10000)
 	testNVM.Rep.GenesisConfig.Nodes[0].CommissionRate = 10000
@@ -169,6 +170,7 @@ func TestLiquidStakingToken_erc721(t *testing.T) {
 	user2 := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D012")
 	user3 := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013")
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	testNVM.GenesisInit(epochManagerContract, liquidStakingTokenContract)

@@ -32,6 +32,7 @@ pragma solidity >=0.7.0 <0.9.0;
         uint256 MinDelegateStake;
         uint256 MinValidatorStake;
         uint256 MaxValidatorStake;
+        bool EnablePartialUnlock;
     }
 
     struct MiscParams {
