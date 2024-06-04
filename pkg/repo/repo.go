@@ -32,6 +32,7 @@ type Repo struct {
 func (r *Repo) PrintNodeInfo(writer func(c string)) {
 	writer(fmt.Sprintf("Repo-root: %s", r.RepoRoot))
 	writer(fmt.Sprintf("consensus-pubkey: %s", r.ConsensusKeystore.PublicKey.String()))
+	writer(fmt.Sprintf("p2p-pubkey: %s", r.P2PKeystore.PublicKey.String()))
 	writer(fmt.Sprintf("p2p-id: %s", r.P2PKeystore.P2PID()))
 
 	localIP, err := getLocalIP()

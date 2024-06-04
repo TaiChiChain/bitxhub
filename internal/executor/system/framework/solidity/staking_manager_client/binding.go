@@ -55,7 +55,7 @@ type PoolInfo struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"}],\"name\":\"AddStake\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"unlockTimestamp\",\"type\":\"uint64\"}],\"name\":\"Unlock\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"addStake\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"}],\"name\":\"getPoolHistoryLiquidStakingTokenRate\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"StakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LiquidStakingTokenAmount\",\"type\":\"uint256\"}],\"internalType\":\"structLiquidStakingTokenRate\",\"name\":\"poolHistoryLiquidStakingTokenRate\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"}],\"name\":\"getPoolInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"IsActive\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"ActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"TotalLiquidStakingToken\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveLiquidStakingTokenAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"CommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"NextEpochCommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"OperatorLiquidStakingTokenID\",\"type\":\"uint256\"}],\"internalType\":\"structPoolInfo\",\"name\":\"poolInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"}],\"name\":\"AddStake\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"unlockTimestamp\",\"type\":\"uint64\"}],\"name\":\"Unlock\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"addStake\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"liquidStakingTokenIDs\",\"type\":\"uint256[]\"},{\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"batchUnlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"liquidStakingTokenIDs\",\"type\":\"uint256[]\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"batchWithdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"}],\"name\":\"getPoolHistoryLiquidStakingTokenRate\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"StakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LiquidStakingTokenAmount\",\"type\":\"uint256\"}],\"internalType\":\"structLiquidStakingTokenRate\",\"name\":\"poolHistoryLiquidStakingTokenRate\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"}],\"name\":\"getPoolInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"IsActive\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"ActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"TotalLiquidStakingToken\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveLiquidStakingTokenAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"CommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"NextEpochCommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"OperatorLiquidStakingTokenID\",\"type\":\"uint256\"}],\"internalType\":\"structPoolInfo\",\"name\":\"poolInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"newCommissionRate\",\"type\":\"uint64\"}],\"name\":\"updatePoolCommissionRate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -287,6 +287,48 @@ func (_BindingContract *BindingContractTransactorSession) AddStake(poolID uint64
 	return _BindingContract.Contract.AddStake(&_BindingContract.TransactOpts, poolID, owner, amount)
 }
 
+// BatchUnlock is a paid mutator transaction binding the contract method 0x49e091fa.
+//
+// Solidity: function batchUnlock(uint256[] liquidStakingTokenIDs, uint256[] amounts) returns()
+func (_BindingContract *BindingContractTransactor) BatchUnlock(opts *bind.TransactOpts, liquidStakingTokenIDs []*big.Int, amounts []*big.Int) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "batchUnlock", liquidStakingTokenIDs, amounts)
+}
+
+// BatchUnlock is a paid mutator transaction binding the contract method 0x49e091fa.
+//
+// Solidity: function batchUnlock(uint256[] liquidStakingTokenIDs, uint256[] amounts) returns()
+func (_BindingContract *BindingContractSession) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts []*big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.BatchUnlock(&_BindingContract.TransactOpts, liquidStakingTokenIDs, amounts)
+}
+
+// BatchUnlock is a paid mutator transaction binding the contract method 0x49e091fa.
+//
+// Solidity: function batchUnlock(uint256[] liquidStakingTokenIDs, uint256[] amounts) returns()
+func (_BindingContract *BindingContractTransactorSession) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts []*big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.BatchUnlock(&_BindingContract.TransactOpts, liquidStakingTokenIDs, amounts)
+}
+
+// BatchWithdraw is a paid mutator transaction binding the contract method 0x024b762c.
+//
+// Solidity: function batchWithdraw(uint256[] liquidStakingTokenIDs, address recipient, uint256[] amounts) returns()
+func (_BindingContract *BindingContractTransactor) BatchWithdraw(opts *bind.TransactOpts, liquidStakingTokenIDs []*big.Int, recipient common.Address, amounts []*big.Int) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "batchWithdraw", liquidStakingTokenIDs, recipient, amounts)
+}
+
+// BatchWithdraw is a paid mutator transaction binding the contract method 0x024b762c.
+//
+// Solidity: function batchWithdraw(uint256[] liquidStakingTokenIDs, address recipient, uint256[] amounts) returns()
+func (_BindingContract *BindingContractSession) BatchWithdraw(liquidStakingTokenIDs []*big.Int, recipient common.Address, amounts []*big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.BatchWithdraw(&_BindingContract.TransactOpts, liquidStakingTokenIDs, recipient, amounts)
+}
+
+// BatchWithdraw is a paid mutator transaction binding the contract method 0x024b762c.
+//
+// Solidity: function batchWithdraw(uint256[] liquidStakingTokenIDs, address recipient, uint256[] amounts) returns()
+func (_BindingContract *BindingContractTransactorSession) BatchWithdraw(liquidStakingTokenIDs []*big.Int, recipient common.Address, amounts []*big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.BatchWithdraw(&_BindingContract.TransactOpts, liquidStakingTokenIDs, recipient, amounts)
+}
+
 // Unlock is a paid mutator transaction binding the contract method 0x5bfadb24.
 //
 // Solidity: function unlock(uint256 liquidStakingTokenID, uint256 amount) returns()
@@ -306,6 +348,27 @@ func (_BindingContract *BindingContractSession) Unlock(liquidStakingTokenID *big
 // Solidity: function unlock(uint256 liquidStakingTokenID, uint256 amount) returns()
 func (_BindingContract *BindingContractTransactorSession) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) (*types.Transaction, error) {
 	return _BindingContract.Contract.Unlock(&_BindingContract.TransactOpts, liquidStakingTokenID, amount)
+}
+
+// UpdatePoolCommissionRate is a paid mutator transaction binding the contract method 0xe1d7afb3.
+//
+// Solidity: function updatePoolCommissionRate(uint64 poolID, uint64 newCommissionRate) returns()
+func (_BindingContract *BindingContractTransactor) UpdatePoolCommissionRate(opts *bind.TransactOpts, poolID uint64, newCommissionRate uint64) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "updatePoolCommissionRate", poolID, newCommissionRate)
+}
+
+// UpdatePoolCommissionRate is a paid mutator transaction binding the contract method 0xe1d7afb3.
+//
+// Solidity: function updatePoolCommissionRate(uint64 poolID, uint64 newCommissionRate) returns()
+func (_BindingContract *BindingContractSession) UpdatePoolCommissionRate(poolID uint64, newCommissionRate uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.UpdatePoolCommissionRate(&_BindingContract.TransactOpts, poolID, newCommissionRate)
+}
+
+// UpdatePoolCommissionRate is a paid mutator transaction binding the contract method 0xe1d7afb3.
+//
+// Solidity: function updatePoolCommissionRate(uint64 poolID, uint64 newCommissionRate) returns()
+func (_BindingContract *BindingContractTransactorSession) UpdatePoolCommissionRate(poolID uint64, newCommissionRate uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.UpdatePoolCommissionRate(&_BindingContract.TransactOpts, poolID, newCommissionRate)
 }
 
 // Withdraw is a paid mutator transaction binding the contract method 0xe63697c8.

@@ -52,10 +52,25 @@ type StakingManager interface {
 	// Solidity: function addStake(uint64 poolID, address owner, uint256 amount) payable returns()
 	AddStake(poolID uint64, owner common.Address, amount *big.Int) error
 
+	// BatchUnlock is a paid mutator transaction binding the contract method 0x49e091fa.
+	//
+	// Solidity: function batchUnlock(uint256[] liquidStakingTokenIDs, uint256[] amounts) returns()
+	BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts []*big.Int) error
+
+	// BatchWithdraw is a paid mutator transaction binding the contract method 0x024b762c.
+	//
+	// Solidity: function batchWithdraw(uint256[] liquidStakingTokenIDs, address recipient, uint256[] amounts) returns()
+	BatchWithdraw(liquidStakingTokenIDs []*big.Int, recipient common.Address, amounts []*big.Int) error
+
 	// Unlock is a paid mutator transaction binding the contract method 0x5bfadb24.
 	//
 	// Solidity: function unlock(uint256 liquidStakingTokenID, uint256 amount) returns()
 	Unlock(liquidStakingTokenID *big.Int, amount *big.Int) error
+
+	// UpdatePoolCommissionRate is a paid mutator transaction binding the contract method 0xe1d7afb3.
+	//
+	// Solidity: function updatePoolCommissionRate(uint64 poolID, uint64 newCommissionRate) returns()
+	UpdatePoolCommissionRate(poolID uint64, newCommissionRate uint64) error
 
 	// Withdraw is a paid mutator transaction binding the contract method 0xe63697c8.
 	//

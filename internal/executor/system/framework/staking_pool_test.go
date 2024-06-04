@@ -3,6 +3,7 @@ package framework
 import (
 	"math/big"
 	"testing"
+	"time"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ import (
 )
 
 func setEpochParam(nvm *common.TestNVM) {
+	nvm.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	nvm.Rep.GenesisConfig.EpochInfo.StakeParams.MinDelegateStake = types.CoinNumberByMol(1)
 	nvm.Rep.GenesisConfig.EpochInfo.StakeParams.MinValidatorStake = types.CoinNumberByMol(1)
 }
@@ -119,6 +121,202 @@ func TestStakingPool_ManageInfo(t *testing.T) {
 		assert.EqualValues(t, CommissionRateDenominator-1, newInfo.NextEpochCommissionRate)
 
 		return err
+	})
+}
+
+func TestStakingPool_StakeByUser(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+	setEpochParam(testNVM)
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = false
+	testNVM.Rep.GenesisConfig.Nodes[0].IsDataSyncer = false
+	testNVM.Rep.GenesisConfig.Nodes[0].StakeNumber = types.CoinNumberByMol(10000)
+	testNVM.Rep.GenesisConfig.Nodes[0].CommissionRate = 4000
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcContract, epochManagerContract, nodeManagerContract, stakingManagerContract)
+
+	operator := ethcommon.HexToAddress("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013")
+
+	userA := ethcommon.HexToAddress("0xA000000000000000000000000000000000000000")
+	userB := ethcommon.HexToAddress("0xB000000000000000000000000000000000000000")
+	// add stake
+	addStake := func(user ethcommon.Address, amount int64) *big.Int {
+		var lstTokenID *big.Int
+		testNVM.RunSingleTX(stakingManagerContract, operator, func() error {
+			epochManagerContract.SetContext(stakingManagerContract.Ctx)
+			liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+
+			stakingManagerContract.Ctx.From = user
+			stakingManagerContract.Ctx.Value = big.NewInt(amount)
+			err := stakingManagerContract.AddStake(1, user, big.NewInt(amount))
+			assert.Nil(t, err)
+			lstTokenID = stakingManagerContract.Ctx.TestLogs[0].(*staking_manager.EventAddStake).LiquidStakingTokenID
+			return err
+		})
+		return lstTokenID
+	}
+	turnIntoNewEpoch := func() {
+		testNVM.RunSingleTX(stakingManagerContract, operator, func() error {
+			epochManagerContract.SetContext(stakingManagerContract.Ctx)
+			liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+			pool := stakingManagerContract.LoadPool(1)
+
+			oldEpoch, err := epochManagerContract.CurrentEpoch()
+			assert.Nil(t, err)
+			// turn into new epoch
+			newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
+			assert.Nil(t, err)
+			err = pool.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch(), big.NewInt(10000))
+			assert.Nil(t, err)
+			return err
+		})
+	}
+
+	batchUnlock := func(user ethcommon.Address, liquidStakingTokenIDs []*big.Int) {
+		testNVM.RunSingleTX(stakingManagerContract, operator, func() error {
+			epochManagerContract.SetContext(stakingManagerContract.Ctx)
+			liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+
+			stakingManagerContract.Ctx.From = user
+			amounts := make([]*big.Int, len(liquidStakingTokenIDs))
+			var err error
+			for i := range liquidStakingTokenIDs {
+				amounts[i], err = liquidStakingTokenContract.GetTotalCoin(liquidStakingTokenIDs[i])
+				assert.Nil(t, err)
+			}
+			err = stakingManagerContract.BatchUnlock(liquidStakingTokenIDs, amounts)
+			assert.Nil(t, err)
+
+			for i := range liquidStakingTokenIDs {
+				lockedCoin, err := liquidStakingTokenContract.GetLockedCoin(liquidStakingTokenIDs[i])
+				assert.Nil(t, err)
+				assert.EqualValues(t, 0, lockedCoin.Int64())
+				unlockingCoin, err := liquidStakingTokenContract.GetUnlockingCoin(liquidStakingTokenIDs[i])
+				assert.Nil(t, err)
+				assert.EqualValues(t, amounts[i].Int64(), unlockingCoin.Int64())
+			}
+			return err
+		})
+	}
+	checkEmptyLockedCoin := func(liquidStakingTokenIDs []*big.Int) {
+		testNVM.Call(stakingManagerContract, operator, func() {
+			epochManagerContract.SetContext(stakingManagerContract.Ctx)
+			liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+
+			for i := range liquidStakingTokenIDs {
+				lockedCoin, err := liquidStakingTokenContract.GetLockedCoin(liquidStakingTokenIDs[i])
+				assert.Nil(t, err)
+				assert.EqualValues(t, 0, lockedCoin.Int64())
+			}
+		})
+	}
+
+	userALSTTokenID1 := addStake(userA, 30000)
+	userALSTTokenID2 := addStake(userA, 30000)
+	userALSTTokenID3 := addStake(userA, 30000)
+
+	userBLSTTokenID1 := addStake(userB, 30000)
+	userBLSTTokenID2 := addStake(userB, 30000)
+
+	turnIntoNewEpoch()
+
+	userALSTTokenID4 := addStake(userA, 30000)
+	turnIntoNewEpoch()
+
+	userALSTTokenID5 := addStake(userA, 30000)
+	turnIntoNewEpoch()
+
+	userALSTTokenID6 := addStake(userA, 30000)
+	userALSTTokenID7 := addStake(userA, 30000)
+
+	userBLSTTokenID3 := addStake(userB, 30000)
+	turnIntoNewEpoch()
+
+	turnIntoNewEpoch()
+	turnIntoNewEpoch()
+
+	turnIntoNewEpoch()
+
+	batchUnlock(userA, []*big.Int{userALSTTokenID1, userALSTTokenID2, userALSTTokenID4})
+	batchUnlock(userB, []*big.Int{userBLSTTokenID1, userBLSTTokenID3})
+	turnIntoNewEpoch()
+	checkEmptyLockedCoin([]*big.Int{userALSTTokenID1, userALSTTokenID2, userALSTTokenID4})
+	checkEmptyLockedCoin([]*big.Int{userBLSTTokenID1, userBLSTTokenID3})
+
+	batchUnlock(userA, []*big.Int{userALSTTokenID3, userALSTTokenID5, userALSTTokenID6})
+	turnIntoNewEpoch()
+	checkEmptyLockedCoin([]*big.Int{userALSTTokenID3, userALSTTokenID5, userALSTTokenID6})
+
+	testNVM.Call(stakingManagerContract, userA, func() {
+		epochManagerContract.SetContext(stakingManagerContract.Ctx)
+		liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+
+		liquidStakingTokenIDs := []*big.Int{userBLSTTokenID2, userALSTTokenID7}
+		stakingManagerContract.Ctx.From = userA
+		amounts := make([]*big.Int, len(liquidStakingTokenIDs))
+		var err error
+		for i := range liquidStakingTokenIDs {
+			amounts[i], err = liquidStakingTokenContract.GetTotalCoin(liquidStakingTokenIDs[i])
+			assert.Nil(t, err)
+		}
+		err = stakingManagerContract.BatchUnlock(liquidStakingTokenIDs, amounts)
+		assert.ErrorContains(t, err, "no permission")
+	})
+
+	testNVM.Call(stakingManagerContract, userA, func() {
+		epochManagerContract.SetContext(stakingManagerContract.Ctx)
+		liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+
+		liquidStakingTokenIDs := []*big.Int{userALSTTokenID7}
+		stakingManagerContract.Ctx.From = userA
+		amounts := make([]*big.Int, len(liquidStakingTokenIDs))
+		var err error
+		for i := range liquidStakingTokenIDs {
+			amounts[i] = big.NewInt(1)
+		}
+		err = stakingManagerContract.BatchUnlock(liquidStakingTokenIDs, amounts)
+		assert.ErrorContains(t, err, "not enable partial unlock")
+	})
+
+	turnIntoNewEpoch()
+
+	batchUnlock(userA, []*big.Int{userALSTTokenID7})
+	batchUnlock(userB, []*big.Int{userBLSTTokenID2})
+	turnIntoNewEpoch()
+	checkEmptyLockedCoin([]*big.Int{userALSTTokenID7, userBLSTTokenID2})
+
+	turnIntoNewEpoch()
+	turnIntoNewEpoch()
+	checkEmptyLockedCoin([]*big.Int{userALSTTokenID1, userALSTTokenID2, userALSTTokenID3, userALSTTokenID4, userALSTTokenID5, userALSTTokenID6, userALSTTokenID7, userBLSTTokenID1, userBLSTTokenID2, userBLSTTokenID3})
+
+	testNVM.RunSingleTX(stakingManagerContract, userA, func() error {
+		epochManagerContract.SetContext(stakingManagerContract.Ctx)
+		liquidStakingTokenContract.SetContext(stakingManagerContract.Ctx)
+
+		beforeBalance := stakingManagerContract.Ctx.StateLedger.GetBalance(types.NewAddress(userA.Bytes()))
+		liquidStakingTokenIDs := []*big.Int{userALSTTokenID1, userALSTTokenID2, userALSTTokenID3, userALSTTokenID4, userALSTTokenID5, userALSTTokenID6, userALSTTokenID7}
+		amounts := make([]*big.Int, len(liquidStakingTokenIDs))
+		totalAmount := big.NewInt(0)
+		var err error
+		for i := range liquidStakingTokenIDs {
+			amounts[i], err = liquidStakingTokenContract.GetUnlockedCoin(liquidStakingTokenIDs[i])
+			assert.Nil(t, err)
+			assert.NotEqualValues(t, 0, amounts[i])
+			totalAmount = totalAmount.Add(totalAmount, amounts[i])
+		}
+		assert.NotEqualValues(t, 0, totalAmount.Uint64())
+
+		err = stakingManagerContract.BatchWithdraw(liquidStakingTokenIDs, userA, amounts)
+		assert.Nil(t, err)
+
+		afterBalance := stakingManagerContract.Ctx.StateLedger.GetBalance(types.NewAddress(userA.Bytes()))
+		assert.Equal(t, totalAmount.Uint64(), new(big.Int).Sub(afterBalance, beforeBalance).Uint64())
+		return err
+	}, func(ctx *common.VMContext) {
+		ctx.CurrentEVM.Context.Time = uint64(time.Now().Unix()) + testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.UnlockPeriod
 	})
 }
 

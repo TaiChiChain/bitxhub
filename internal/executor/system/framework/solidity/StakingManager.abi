@@ -111,6 +111,49 @@
     "inputs":
     [
       {
+        "internalType": "uint256[]",
+        "name": "liquidStakingTokenIDs",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "amounts",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "batchUnlock",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "uint256[]",
+        "name": "liquidStakingTokenIDs",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "amounts",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "batchWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
         "internalType": "uint64",
         "name": "poolID",
         "type": "uint64"
@@ -255,6 +298,25 @@
       }
     ],
     "name": "unlock",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "uint64",
+        "name": "poolID",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "newCommissionRate",
+        "type": "uint64"
+      }
+    ],
+    "name": "updatePoolCommissionRate",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

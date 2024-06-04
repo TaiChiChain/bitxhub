@@ -363,9 +363,16 @@ func (s *StakingManager) checkPoolPermission(poolID uint64) error {
 }
 
 func (s *StakingManager) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) error {
-	liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
-	if err != nil {
-		return err
+	return s.BatchUnlock([]*big.Int{liquidStakingTokenID}, []*big.Int{amount})
+}
+
+func (s *StakingManager) Withdraw(liquidStakingTokenID *big.Int, recipient ethcommon.Address, amount *big.Int) error {
+	return s.BatchWithdraw([]*big.Int{liquidStakingTokenID}, recipient, []*big.Int{amount})
+}
+
+func (s *StakingManager) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts []*big.Int) error {
+	if len(liquidStakingTokenIDs) != len(amounts) || len(liquidStakingTokenIDs) == 0 {
+		return errors.New("invalid args")
 	}
 
 	// check add stake limit
@@ -377,7 +384,12 @@ func (s *StakingManager) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) 
 	if err != nil {
 		return err
 	}
-	currentEpochTotalUnlockStake = new(big.Int).Add(currentEpochTotalUnlockStake, amount)
+
+	totalAmount := big.NewInt(0)
+	for _, amount := range amounts {
+		totalAmount = new(big.Int).Add(totalAmount, amount)
+	}
+	currentEpochTotalUnlockStake = new(big.Int).Add(currentEpochTotalUnlockStake, totalAmount)
 	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
 	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
@@ -389,13 +401,20 @@ func (s *StakingManager) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) 
 		return errors.Errorf("unlock stake reach epoch limit %s", limit.String())
 	}
 
-	if err := s.updateTotalStake(false, amount); err != nil {
+	for i, liquidStakingTokenID := range liquidStakingTokenIDs {
+		liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
+		if err != nil {
+			return err
+		}
+		if err := s.LoadPool(liquidStakingTokenInfo.PoolID).UnlockStake(liquidStakingTokenID, liquidStakingTokenInfo, amounts[i]); err != nil {
+			return err
+		}
+	}
+
+	if err := s.updateTotalStake(false, totalAmount); err != nil {
 		return err
 	}
 
-	if err := s.LoadPool(liquidStakingTokenInfo.PoolID).UnlockStake(liquidStakingTokenID, liquidStakingTokenInfo, amount); err != nil {
-		return err
-	}
 	if err := s.currentEpochTotalUnlockStake.Put(currentEpochTotalUnlockStake); err != nil {
 		return err
 	}
@@ -403,16 +422,24 @@ func (s *StakingManager) Unlock(liquidStakingTokenID *big.Int, amount *big.Int) 
 	return nil
 }
 
-func (s *StakingManager) Withdraw(liquidStakingTokenID *big.Int, recipient ethcommon.Address, amount *big.Int) error {
-	liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
-	if err != nil {
-		return err
+func (s *StakingManager) BatchWithdraw(liquidStakingTokenIDs []*big.Int, recipient ethcommon.Address, amounts []*big.Int) error {
+	if len(liquidStakingTokenIDs) != len(amounts) || len(liquidStakingTokenIDs) == 0 {
+		return errors.New("invalid args")
 	}
-	principalWithdraw, err := s.LoadPool(liquidStakingTokenInfo.PoolID).WithdrawStake(liquidStakingTokenID, liquidStakingTokenInfo, recipient, amount)
-	if err != nil {
-		return err
+
+	totalPrincipalWithdraw := big.NewInt(0)
+	for i, liquidStakingTokenID := range liquidStakingTokenIDs {
+		liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
+		if err != nil {
+			return err
+		}
+		principalWithdraw, err := s.LoadPool(liquidStakingTokenInfo.PoolID).WithdrawStake(liquidStakingTokenID, liquidStakingTokenInfo, recipient, amounts[i])
+		if err != nil {
+			return err
+		}
+		totalPrincipalWithdraw = totalPrincipalWithdraw.Add(totalPrincipalWithdraw, principalWithdraw)
 	}
-	if err := s.updateTotalStake(false, principalWithdraw); err != nil {
+	if err := s.updateTotalStake(false, totalPrincipalWithdraw); err != nil {
 		return err
 	}
 	return nil

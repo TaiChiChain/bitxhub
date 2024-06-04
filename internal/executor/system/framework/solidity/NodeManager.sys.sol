@@ -3,11 +3,11 @@
 pragma solidity ^0.8.20;
 
     enum Status {
-        StatusSyncing,
-        StatusCandidate,
-        StatusActive,
-        StatusPendingInactive,
-        StatusExited
+        DataSyncer,       // 0
+        Candidate,        // 1
+        Active,           // 2
+        PendingInactive,  // 3
+        Exited            // 4
     }
 
     struct NodeMetaData {

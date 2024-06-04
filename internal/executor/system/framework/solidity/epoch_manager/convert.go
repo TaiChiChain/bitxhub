@@ -37,6 +37,7 @@ func (e *EpochInfo) ToTypesEpoch() *types.EpochInfo {
 			MinDelegateStake:                 types.CoinNumberByBigInt(e.StakeParams.MinDelegateStake),
 			MinValidatorStake:                types.CoinNumberByBigInt(e.StakeParams.MinValidatorStake),
 			MaxValidatorStake:                types.CoinNumberByBigInt(e.StakeParams.MaxValidatorStake),
+			EnablePartialUnlock:              e.StakeParams.EnablePartialUnlock,
 		},
 		MiscParams: types.MiscParams{
 			TxMaxSize: e.MiscParams.TxMaxSize,
@@ -77,6 +78,7 @@ func FromTypesEpoch(e types.EpochInfo) EpochInfo {
 			MinDelegateStake:                 e.StakeParams.MinDelegateStake.ToBigInt(),
 			MinValidatorStake:                e.StakeParams.MinValidatorStake.ToBigInt(),
 			MaxValidatorStake:                e.StakeParams.MaxValidatorStake.ToBigInt(),
+			EnablePartialUnlock:              e.StakeParams.EnablePartialUnlock,
 		},
 		MiscParams: MiscParams{
 			TxMaxSize: e.MiscParams.TxMaxSize,

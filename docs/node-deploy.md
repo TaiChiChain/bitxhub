@@ -31,7 +31,7 @@ Generate configuration files and node keys (randomly generated)
 ./init.sh
 ```
 
-After execution, the node's consensus pubkey and p2p-id will be printed. You can also view them again using `./axiom-ledger config node-info`.
+After execution, the node's consensus public-key and p2p public-key will be printed. You can also view them again using `./axiom-ledger config node-info`.
 
 The node's consensus public-key and p2p public-key will be used in the genesis configuration.
 
