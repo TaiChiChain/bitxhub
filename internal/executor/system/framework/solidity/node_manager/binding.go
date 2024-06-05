@@ -58,10 +58,10 @@ type NodeManager interface {
 	// Solidity: function joinCandidateSet(uint64 nodeID, uint64 commissionRate) returns()
 	JoinCandidateSet(nodeID uint64, commissionRate uint64) error
 
-	// UpdateMetaData is a paid mutator transaction binding the contract method 0xee99437a.
+	// UpdateMetaData is a paid mutator transaction binding the contract method 0x37aa97c4.
 	//
-	// Solidity: function updateMetaData(uint64 nodeID, (string,string,string,string) metaData) returns()
-	UpdateMetaData(nodeID uint64, metaData NodeMetaData) error
+	// Solidity: function updateMetaData(uint64 nodeID, string name, string desc, string imageURL, string websiteURL) returns()
+	UpdateMetaData(nodeID uint64, name string, desc string, imageURL string, websiteURL string) error
 
 	// UpdateOperator is a paid mutator transaction binding the contract method 0xb016e7d6.
 	//

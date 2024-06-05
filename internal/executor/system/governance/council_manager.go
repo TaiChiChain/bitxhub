@@ -127,3 +127,7 @@ func (cm *CouncilManager) VotePassExecute(proposal *Proposal) error {
 	}
 	return nil
 }
+
+func (cm *CouncilManager) CleanProposal(proposal *Proposal) error {
+	return nil
+}

@@ -228,7 +228,7 @@ func (a GovernanceActions) doPropose(ctx *cli.Context, proposalType uint8, extra
 		if len(receipt.Logs) == 0 {
 			return errors.New("no log")
 		}
-		proposeEvent, err := gov.ParsePropose(*receipt.Logs[0])
+		proposeEvent, err := gov.ParsePropose(*receipt.Logs[len(receipt.Logs)-1])
 		if err != nil {
 			return errors.Wrap(err, "parse propose failed")
 		}

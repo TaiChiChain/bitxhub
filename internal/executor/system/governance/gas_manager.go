@@ -109,3 +109,7 @@ func (gm *GasManager) getGasProposalExtraArgs(extra []byte) (*GasExtraArgs, erro
 
 	return extraArgs, nil
 }
+
+func (gm *GasManager) CleanProposal(proposal *Proposal) error {
+	return nil
+}

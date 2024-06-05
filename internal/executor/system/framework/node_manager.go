@@ -582,7 +582,13 @@ func (n *NodeManager) Exit(nodeID uint64) error {
 	}
 }
 
-func (n *NodeManager) UpdateMetaData(nodeID uint64, metaData node_manager.NodeMetaData) error {
+func (n *NodeManager) UpdateMetaData(nodeID uint64, name string, desc string, imageURL string, websiteURL string) error {
+	metaData := node_manager.NodeMetaData{
+		Name:       name,
+		Desc:       desc,
+		ImageURL:   imageURL,
+		WebsiteURL: websiteURL,
+	}
 	nodeInfo, err := n.checkPermission(nodeID)
 	if err != nil {
 		return err

@@ -324,6 +324,7 @@ func (s *SystemContractBase) EmitEvent(packer packer.Event) {
 	if err != nil {
 		panic(errors.Wrap(err, "emit event error"))
 	}
+	log.Address = s.Address
 	s.Ctx.StateLedger.AddLog(log)
 	if s.isTest() {
 		s.Ctx.TestLogs = append(s.Ctx.TestLogs, packer)

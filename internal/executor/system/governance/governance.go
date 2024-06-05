@@ -142,6 +142,8 @@ type ProposalExecutor interface {
 	ProposeArgsCheck(proposalType ProposalType, title, desc string, blockNumber uint64, extra []byte) error
 
 	VotePassExecute(proposal *Proposal) error
+
+	CleanProposal(proposal *Proposal) error
 }
 
 type ProposalPermissionManager interface {
@@ -287,6 +289,14 @@ func (g *Governance) checkAndUpdateState(method string) error {
 			// remove proposal from not finished proposals
 			if err = g.removeNotFinishedProposal(notFinishedProposal.ID); err != nil {
 				return err
+			}
+
+			handler, err := g.getHandler(proposal.Type)
+			if err != nil {
+				return err
+			}
+			if err = handler.CleanProposal(&proposal); err != nil {
+				return errors.Wrapf(err, "failed to clean proposal, id: %d, type: %d", proposal.ID, proposal.Type)
 			}
 
 			// todo: refactor
@@ -514,6 +524,10 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 
 		if err = g.proposals.Put(proposal.ID, proposal); err != nil {
 			return err
+		}
+	} else {
+		if err = handler.CleanProposal(&proposal); err != nil {
+			return errors.Wrapf(err, "failed to clean proposal, id: %d, type: %d", proposal.ID, proposal.Type)
 		}
 	}
 

@@ -373,31 +373,25 @@ func TestNodeManager_UpdateInfo(t *testing.T) {
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.HexToAddress(operatorAddress), func() error {
-		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{})
+		err = nodeManagerContract.UpdateMetaData(node5ID, "", "", "", "")
 		assert.ErrorContains(t, err, "no permission")
 		return err
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, newOperator, func() error {
-		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
-			Name: "",
-		})
+		err = nodeManagerContract.UpdateMetaData(node5ID, "", "", "", "")
 		assert.ErrorContains(t, err, "name cannot be empty")
 		return err
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, newOperator, func() error {
-		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
-			Name: "node1",
-		})
+		err = nodeManagerContract.UpdateMetaData(node5ID, "node1", "", "", "")
 		assert.ErrorContains(t, err, "already in use")
 		return err
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, newOperator, func() error {
-		err = nodeManagerContract.UpdateMetaData(node5ID, node_manager.NodeMetaData{
-			Name: "newName",
-		})
+		err = nodeManagerContract.UpdateMetaData(node5ID, "newName", "", "", "")
 		assert.Nil(t, err)
 		return err
 	})

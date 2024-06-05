@@ -2,6 +2,7 @@ package governance
 
 import (
 	"encoding/json"
+	"fmt"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -13,6 +14,14 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
+)
+
+const (
+	nodeManagerNamespace = "nodeManager"
+
+	pendingNameIndexStorageKey            = "pendingNameIndex"
+	pendingP2PIDIndexStorageKey           = "pendingP2PIDIndex"
+	pendingConsensusPubKeyIndexStorageKey = "pendingConsensusPubKeyIndex"
 )
 
 var _ ProposalHandler = (*NodeManager)(nil)
@@ -43,6 +52,10 @@ type NodeUpgradeExtraArgs struct {
 type NodeManager struct {
 	gov *Governance
 	DefaultProposalPermissionManager
+
+	pendingNameIndex            *common.VMMap[string, struct{}]
+	pendingP2PIDIndex           *common.VMMap[string, struct{}]
+	pendingConsensusPubKeyIndex *common.VMMap[string, struct{}]
 }
 
 func NewNodeManager(gov *Governance) *NodeManager {
@@ -56,7 +69,17 @@ func (nm *NodeManager) GenesisInit(genesis *repo.GenesisConfig) error {
 	return nil
 }
 
-func (nm *NodeManager) SetContext(ctx *common.VMContext) {}
+func (nm *NodeManager) SetContext(ctx *common.VMContext) {
+	nm.pendingNameIndex = common.NewVMMap[string, struct{}](nm.gov.StateAccount, fmt.Sprintf("%s_%s", nodeManagerNamespace, pendingNameIndexStorageKey), func(key string) string {
+		return key
+	})
+	nm.pendingP2PIDIndex = common.NewVMMap[string, struct{}](nm.gov.StateAccount, fmt.Sprintf("%s_%s", nodeManagerNamespace, pendingP2PIDIndexStorageKey), func(key string) string {
+		return key
+	})
+	nm.pendingConsensusPubKeyIndex = common.NewVMMap[string, struct{}](nm.gov.StateAccount, fmt.Sprintf("%s_%s", nodeManagerNamespace, pendingConsensusPubKeyIndexStorageKey), func(key string) string {
+		return key
+	})
+}
 
 func (nm *NodeManager) ProposePermissionCheck(proposalType ProposalType, user ethcommon.Address) (has bool, err error) {
 	switch proposalType {
@@ -110,6 +133,9 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 		Operator:        nm.gov.Ctx.From,
 		MetaData:        nodeExtraArgs.MetaData,
 	})
+	if err != nil {
+		return errors.Wrap(err, "check node info error")
+	}
 
 	// verify signature
 	nodeRegisterExtraArgsSignStruct := &NodeRegisterExtraArgsSignStruct{
@@ -140,6 +166,27 @@ func (nm *NodeManager) registerProposeArgsCheck(proposalType ProposalType, title
 	}
 	if nodeManagerContract.ExistNodeByName(nodeExtraArgs.MetaData.Name) {
 		return errors.Errorf("name already registered: %s", nodeExtraArgs.ConsensusPubKey)
+	}
+
+	if nm.pendingNameIndex.Has(nodeExtraArgs.MetaData.Name) {
+		return errors.Errorf("name already registered: %s", nodeExtraArgs.MetaData.Name)
+	}
+	if nm.pendingP2PIDIndex.Has(p2pID) {
+		return errors.Errorf("p2p public key already registered: %s", nodeExtraArgs.P2PPubKey)
+	}
+	if nm.pendingConsensusPubKeyIndex.Has(nodeExtraArgs.ConsensusPubKey) {
+		return errors.Errorf("consensus public key already registered: %s", nodeExtraArgs.ConsensusPubKey)
+	}
+
+	// add pending index
+	if err := nm.pendingNameIndex.Put(nodeExtraArgs.MetaData.Name, struct{}{}); err != nil {
+		return err
+	}
+	if err := nm.pendingP2PIDIndex.Put(p2pID, struct{}{}); err != nil {
+		return err
+	}
+	if err := nm.pendingConsensusPubKeyIndex.Put(nodeExtraArgs.ConsensusPubKey, struct{}{}); err != nil {
+		return err
 	}
 
 	// 10axc / 1000gmol
@@ -210,6 +257,16 @@ func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 		return err
 	}
 
+	// clean pending index
+	if err := nm.pendingNameIndex.Delete(nodeExtraArgs.MetaData.Name); err != nil {
+		return err
+	}
+	if err := nm.pendingP2PIDIndex.Delete(p2pID); err != nil {
+		return err
+	}
+	if err := nm.pendingConsensusPubKeyIndex.Delete(nodeExtraArgs.ConsensusPubKey); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -228,5 +285,37 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 }
 
 func (nm *NodeManager) executeUpgrade(proposal *Proposal) error {
+	return nil
+}
+
+func (nm *NodeManager) CleanProposal(proposal *Proposal) error {
+	switch proposal.Type {
+	case NodeRegister:
+		nodeExtraArgs := &NodeRegisterExtraArgs{}
+		if err := json.Unmarshal(proposal.Extra, nodeExtraArgs); err != nil {
+			return errors.Wrap(err, "unmarshal node register extra arguments error")
+		}
+		_, _, p2pID, err := framework.CheckNodeInfo(node_manager.NodeInfo{
+			ConsensusPubKey: nodeExtraArgs.ConsensusPubKey,
+			P2PPubKey:       nodeExtraArgs.P2PPubKey,
+			Operator:        nm.gov.Ctx.From,
+			MetaData:        nodeExtraArgs.MetaData,
+		})
+		if err != nil {
+			return errors.Wrap(err, "check node info error")
+		}
+		// clean pending index
+		if err := nm.pendingNameIndex.Delete(nodeExtraArgs.MetaData.Name); err != nil {
+			return err
+		}
+		if err := nm.pendingP2PIDIndex.Delete(p2pID); err != nil {
+			return err
+		}
+		if err := nm.pendingConsensusPubKeyIndex.Delete(nodeExtraArgs.ConsensusPubKey); err != nil {
+			return err
+		}
+	default:
+		return nil
+	}
 	return nil
 }

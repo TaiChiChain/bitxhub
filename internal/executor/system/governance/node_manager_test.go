@@ -334,6 +334,58 @@ func TestNodeManager_RunForRegisterVote(t *testing.T) {
 	}
 }
 
+func TestNodeManager_RunForRegisterClean(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
+
+	// propose
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args := generateNodeRegisterExtraArgs(t, "", "", node_manager.NodeMetaData{Name: "node5"})
+
+		data, err := json.Marshal(args)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	proposalID, err := gov.GetLatestProposalID()
+	assert.Nil(t, err)
+
+	// re propose used same data after before
+	testNVM.Call(gov, admin1, func() {
+		proposal, err := gov.Proposal(proposalID)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, proposal.Extra)
+		assert.ErrorContains(t, err, "already registered")
+	})
+
+	// clean proposal, delete pending indexes
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		handler, err := gov.getHandler(NodeRegister)
+		assert.Nil(t, err)
+		proposal, err := gov.Proposal(proposalID)
+		assert.Nil(t, err)
+		err = handler.CleanProposal(proposal)
+		assert.Nil(t, err)
+		return err
+	})
+
+	// re propose used same data after clean
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		proposal, err := gov.Proposal(proposalID)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRegister), "test", "test desc", 100, proposal.Extra)
+		assert.Nil(t, err)
+		return err
+	})
+}
+
 func TestNodeManager_RunForRegisterVote_Approved(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
