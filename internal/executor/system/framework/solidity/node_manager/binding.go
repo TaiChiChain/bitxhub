@@ -167,6 +167,16 @@ func (_error *ErrorIncorrectStatus) Pack(abi abi.ABI) error {
 	return packer.PackError(_error, abi.Errors["IncorrectStatus"])
 }
 
+// ErrorNotEnoughValidator represents a NotEnoughValidator error raised by the NodeManager contract.
+type ErrorNotEnoughValidator struct {
+	CurNum *big.Int
+	MinNum *big.Int
+}
+
+func (_error *ErrorNotEnoughValidator) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["NotEnoughValidator"])
+}
+
 // ErrorPendingInactiveSetIsFull represents a PendingInactiveSetIsFull error raised by the NodeManager contract.
 type ErrorPendingInactiveSetIsFull struct {
 }

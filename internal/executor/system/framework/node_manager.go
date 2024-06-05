@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"math"
 	"math/big"
 	"sort"
 	"strconv"
@@ -488,56 +489,6 @@ func (n *NodeManager) getConsensusCandidateNodeIDs() ([]uint64, error) {
 	return nodeIDs, nil
 }
 
-// TODO: remove it
-func (n *NodeManager) updateActiveValidatorSet(ActiveValidatorVotingPowers []node_manager.ConsensusVotingPower) error {
-	allValidaNodes, err := n.getConsensusCandidateNodeIDs()
-	if err != nil {
-		return err
-	}
-	validatorMap := make(map[uint64]struct{}, len(ActiveValidatorVotingPowers))
-	validators := make([]uint64, 0, len(ActiveValidatorVotingPowers))
-	candidates := make([]uint64, 0, len(allValidaNodes)-len(ActiveValidatorVotingPowers))
-	for _, votingPower := range ActiveValidatorVotingPowers {
-		nodeId := votingPower.NodeID
-		nodeInfo, err := n.GetInfo(nodeId)
-		if err != nil {
-			return err
-		}
-		nodeInfo.Status = uint8(types.NodeStatusActive)
-		if err = n.nodeRegistry.Put(nodeId, nodeInfo); err != nil {
-			return err
-		}
-		if _, ok := validatorMap[nodeId]; ok {
-			return errors.New("duplicated node id")
-		}
-		validatorMap[nodeId] = struct{}{}
-		validators = append(validators, nodeId)
-	}
-	for _, nodeID := range allValidaNodes {
-		if _, ok := validatorMap[nodeID]; !ok {
-			nodeInfo, err := n.GetInfo(nodeID)
-			if err != nil {
-				return err
-			}
-			nodeInfo.Status = uint8(types.NodeStatusCandidate)
-			if err = n.nodeRegistry.Put(nodeID, nodeInfo); err != nil {
-				return err
-			}
-
-			candidates = append(candidates, nodeID)
-		}
-	}
-
-	if err = n.getStatusSet(types.NodeStatusCandidate).Put(candidates); err != nil {
-		return err
-	}
-	if err = n.getStatusSet(types.NodeStatusActive).Put(validators); err != nil {
-		return err
-	}
-
-	return n.activeValidatorVotingPowers.Put(ActiveValidatorVotingPowers)
-}
-
 func (n *NodeManager) checkPermission(nodeID uint64) (*node_manager.NodeInfo, error) {
 	nodeInfo, err := n.GetInfo(nodeID)
 	if err != nil {
@@ -597,10 +548,22 @@ func (n *NodeManager) Exit(nodeID uint64) error {
 			return err
 		}
 		// calculate the max pending inactive number
-		maxPendingInactiveNumber := uint64(len(activeSet)) * epochInfo.StakeParams.MaxPendingInactiveValidatorRatio / CommissionRateDenominator
+		maxPendingInactiveNumberFloat, _ := new(big.Float).Mul(
+			big.NewFloat(float64(len(activeSet))),
+			new(big.Float).Quo(
+				new(big.Float).SetUint64(epochInfo.StakeParams.MaxPendingInactiveValidatorRatio),
+				big.NewFloat(CommissionRateDenominator),
+			)).Float64()
+		maxPendingInactiveNumber := uint64(math.Ceil(maxPendingInactiveNumberFloat))
 		// check if the pending inactive set still has sparse space to leave
 		if uint64(len(pendingInactiveSet)) >= maxPendingInactiveNumber {
 			return n.Revert(&node_manager.ErrorPendingInactiveSetIsFull{})
+		}
+		if uint64(len(activeSet))-1 < epochInfo.ConsensusParams.MinValidatorNum {
+			return n.Revert(&node_manager.ErrorNotEnoughValidator{
+				CurNum: big.NewInt(int64(len(activeSet))),
+				MinNum: big.NewInt(int64(epochInfo.ConsensusParams.MinValidatorNum)),
+			})
 		}
 		// transfer the status
 		if err = n.operatorTransferStatus(types.NodeStatusActive, types.NodeStatusPendingInactive, nodeInfo); err != nil {
@@ -848,7 +811,7 @@ func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo
 	}
 
 	// if transfer status from active and candidate state, should disable the pool first
-	if to == types.NodeStatusExited && (from == types.NodeStatusActive || from == types.NodeStatusCandidate) {
+	if to == types.NodeStatusExited && (from == types.NodeStatusPendingInactive || from == types.NodeStatusCandidate) {
 		// get staking manager
 		stakingManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
 		return stakingManager.DisablePool(nodeInfo.ID)

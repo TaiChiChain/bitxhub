@@ -115,6 +115,13 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 				ConsensusVotingPower: 1000,
 			}, votingPowers[i])
 		}
+
+		candidates, err := nodeManagerContract.getConsensusCandidateNodeIDs()
+		assert.Nil(t, err)
+		assert.Equal(t, 4, len(candidates))
+		for i := 0; i < 4; i++ {
+			assert.EqualValues(t, nodes[i].ID, candidates[i])
+		}
 	})
 
 	p2pKeystore, err := repo.GenerateP2PKeystore(testNVM.Rep.RepoRoot, "", "")
@@ -158,6 +165,10 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		})
 		assert.Nil(t, err)
 		assert.EqualValues(t, 5, node5ID)
+
+		powers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
+		assert.Nil(t, err)
+		assert.Equal(t, 4, len(powers))
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
 
@@ -193,12 +204,31 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.ErrorContains(t, err, "IncorrectStatus")
 	})
 
-	testNVM.Call(nodeManagerContract, operatorAddress, func() {
-		err = nodeManagerContract.Exit(node5ID)
+	testNVM.Call(nodeManagerContract, nodes[1].Operator, func() {
+		curEpoch, err := epochManagerContract.CurrentEpoch()
 		assert.Nil(t, err)
-		exitedSet, err := nodeManagerContract.GetExitedSet()
+		curEpoch.StakeParams.MaxPendingInactiveValidatorRatio = 1000
+		err = epochManagerContract.UpdateNextEpoch(curEpoch)
 		assert.Nil(t, err)
-		assert.Equal(t, nodes[4].ID, exitedSet[0].ID)
+		_, err = epochManagerContract.TurnIntoNewEpoch()
+		assert.Nil(t, err)
+		err = nodeManagerContract.Exit(nodes[1].ID)
+		assert.ErrorContains(t, err, "NotEnoughValidator")
+	})
+
+	testNVM.Call(nodeManagerContract, nodes[1].Operator, func() {
+		curEpoch, err := epochManagerContract.CurrentEpoch()
+		assert.Nil(t, err)
+		curEpoch.ConsensusParams.MinValidatorNum = 3
+		err = epochManagerContract.UpdateNextEpoch(curEpoch)
+		assert.Nil(t, err)
+		_, err = epochManagerContract.TurnIntoNewEpoch()
+		assert.Nil(t, err)
+		err = nodeManagerContract.Exit(nodes[1].ID)
+		assert.Nil(t, err)
+		exitedSet, err := nodeManagerContract.GetPendingInactiveSet()
+		assert.Nil(t, err)
+		assert.Equal(t, nodes[1].ID, exitedSet[0].ID)
 		assert.Equal(t, 1, len(exitedSet))
 	})
 
@@ -229,59 +259,28 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.Equal(t, []uint64{1, 2, 3, 4, 5}, candidates)
 	})
 
-	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
-		err = nodeManagerContract.updateActiveValidatorSet([]node_manager.ConsensusVotingPower{
-			{
-				NodeID:               1,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               2,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               3,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               5,
-				ConsensusVotingPower: 100,
-			},
-		})
+	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
+		curEpoch := repo.GenesisEpochInfo()
+		*curEpoch.StakeParams.MinValidatorStake = types.CoinNumber(*new(big.Int).SetUint64(10))
+		err = nodeManagerContract.TurnIntoNewEpoch(nil, curEpoch)
 		assert.Nil(t, err)
+		powers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
+		assert.Nil(t, err)
+		assert.Equal(t, 4, len(powers))
+	})
+
+	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
+		curEpoch := repo.GenesisEpochInfo()
+		*curEpoch.StakeParams.MinValidatorStake = types.CoinNumber(*new(big.Int).SetUint64(0))
+		err = nodeManagerContract.TurnIntoNewEpoch(nil, curEpoch)
+		assert.Nil(t, err)
+		powers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
+		assert.Nil(t, err)
+		assert.Equal(t, 5, len(powers))
+		// since there's no stake, so vote power should be zero
+		assert.Equal(t, int64(0), powers[4].ConsensusVotingPower)
 		return err
 	}, common.TestNVMRunOptionCallFromSystem())
-
-	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		nodes[4].Status = uint8(types.NodeStatusActive)
-		nodes[3].Status = uint8(types.NodeStatusCandidate)
-
-		candidateSet, err := nodeManagerContract.GetCandidateSet()
-		assert.Nil(t, err)
-		assert.Equal(t, []node_manager.NodeInfo{nodes[3]}, candidateSet)
-
-		activeSet, returnVotingPowers, err := nodeManagerContract.GetActiveValidatorSet()
-		assert.Nil(t, err)
-		assert.Equal(t, []node_manager.NodeInfo{nodes[0], nodes[1], nodes[2], nodes[4]}, activeSet)
-		assert.Equal(t, []node_manager.ConsensusVotingPower{
-			{
-				NodeID:               1,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               2,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               3,
-				ConsensusVotingPower: 100,
-			},
-			{
-				NodeID:               5,
-				ConsensusVotingPower: 100,
-			},
-		}, returnVotingPowers)
-	})
 
 	testNVM.Call(nodeManagerContract, operatorAddress, func() {
 		curEpoch, err := epochManagerContract.CurrentEpoch()
@@ -295,43 +294,26 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.ErrorContains(t, err, "PendingInactiveSetIsFull")
 	})
 
-	testNVM.RunSingleTX(nodeManagerContract, operatorAddress, func() error {
-		err = nodeManagerContract.Exit(node5ID)
+	testNVM.RunSingleTX(nodeManagerContract, nodes[4].Operator, func() error {
+		err = nodeManagerContract.Exit(nodes[4].ID)
 		assert.Nil(t, err)
+		pending, err := nodeManagerContract.GetPendingInactiveSet()
+		assert.Nil(t, err)
+		assert.Equal(t, nodes[4].ID, pending[0].ID)
+		assert.Equal(t, 1, len(pending))
 		return err
-	})
-
-	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		nodes[4].Status = uint8(types.NodeStatusPendingInactive)
-		activeSet, _, err := nodeManagerContract.GetActiveValidatorSet()
-		assert.Nil(t, err)
-		assert.Equal(t, []node_manager.NodeInfo{nodes[0], nodes[1], nodes[2], nodes[4]}, activeSet)
-
-		pendingInactiveSet, err := nodeManagerContract.GetPendingInactiveSet()
-		assert.Nil(t, err)
-		assert.Equal(t, []node_manager.NodeInfo{nodes[4]}, pendingInactiveSet)
 	})
 
 	testNVM.RunSingleTX(nodeManagerContract, ethcommon.Address{}, func() error {
 		exitedIDs, err := nodeManagerContract.processNodeLeave()
 		assert.Nil(t, err)
 		assert.EqualValues(t, []uint64{5}, exitedIDs)
-		return err
-	}, common.TestNVMRunOptionCallFromSystem())
-
-	testNVM.Call(nodeManagerContract, ethcommon.Address{}, func() {
-		pendingInactiveSet, err := nodeManagerContract.GetPendingInactiveSet()
-		assert.Nil(t, err)
-		assert.Equal(t, []node_manager.NodeInfo{}, pendingInactiveSet)
-		exitedSet, err := nodeManagerContract.GetExitedSet()
-		assert.Nil(t, err)
-		nodes[4].Status = uint8(types.NodeStatusExited)
-		assert.EqualValues(t, []node_manager.NodeInfo{nodes[4]}, exitedSet)
 
 		totalNodesNum, err := nodeManagerContract.GetTotalCount()
 		assert.Nil(t, err)
 		assert.EqualValues(t, 5, totalNodesNum)
-	})
+		return err
+	}, common.TestNVMRunOptionCallFromSystem())
 }
 
 func TestNodeManager_UpdateInfo(t *testing.T) {

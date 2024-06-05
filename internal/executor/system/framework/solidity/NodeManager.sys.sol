@@ -35,6 +35,7 @@ pragma solidity ^0.8.20;
 interface NodeManager {
     error IncorrectStatus(uint8 status);
     error PendingInactiveSetIsFull();
+    error NotEnoughValidator(uint256 curNum, uint256 minNum);
 
     event Register(uint64 indexed nodeID, NodeInfo info);
     event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate);
