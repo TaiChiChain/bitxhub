@@ -123,3 +123,7 @@ func (c *ChainParamManager) checkNotFinishedProposal() error {
 
 	return nil
 }
+
+func (c *ChainParamManager) CleanProposal(proposal *Proposal) error {
+	return nil
+}

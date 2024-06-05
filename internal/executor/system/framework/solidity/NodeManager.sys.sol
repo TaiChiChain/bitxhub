@@ -47,7 +47,7 @@ interface NodeManager {
 
     function exit(uint64 nodeID) external;
 
-    function updateMetaData(uint64 nodeID, NodeMetaData memory metaData) external;
+    function updateMetaData(uint64 nodeID, string memory name, string memory desc, string memory imageURL, string memory websiteURL) external;
 
     function updateOperator(uint64 nodeID, address newOperator) external;
 

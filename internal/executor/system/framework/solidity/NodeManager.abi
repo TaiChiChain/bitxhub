@@ -824,32 +824,24 @@
         "type": "uint64"
       },
       {
-        "components":
-        [
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "desc",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "imageURL",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "websiteURL",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct NodeMetaData",
-        "name": "metaData",
-        "type": "tuple"
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "desc",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "imageURL",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "websiteURL",
+        "type": "string"
       }
     ],
     "name": "updateMetaData",

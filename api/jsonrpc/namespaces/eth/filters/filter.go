@@ -22,10 +22,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/core/bloombits"
+
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
-	"github.com/ethereum/go-ethereum/core/bloombits"
 )
 
 // Filter can be used to retrieve and filter logs.
@@ -131,9 +132,6 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.EvmLog, error) {
 	}
 	var logs []*types.EvmLog
 	size, sections := f.api.Feed().BloomStatus()
-	fmt.Println("=============================")
-	fmt.Println(sections)
-	fmt.Println("=============================")
 
 	if indexed := sections * size; indexed > uint64(f.begin) {
 		if indexed > end {

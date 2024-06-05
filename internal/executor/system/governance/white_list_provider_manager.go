@@ -131,3 +131,7 @@ func (m *WhitelistProviderManager) checkFinishedProposal() error {
 
 	return nil
 }
+
+func (m *WhitelistProviderManager) CleanProposal(proposal *Proposal) error {
+	return nil
+}

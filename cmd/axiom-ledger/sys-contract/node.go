@@ -83,7 +83,7 @@ var NodeCMD = &cli.Command{
 				&cli.StringFlag{
 					Name:        "node-desc",
 					Destination: &NodeCMDProposeNodeRegisterArgs.Desc,
-					Required:    true,
+					Required:    false,
 				},
 				&cli.StringFlag{
 					Name:        "node-image-url",
@@ -378,7 +378,7 @@ func (a NodeActions) updateMetaData(ctx *cli.Context) error {
 	}
 
 	return SendAndWaitTx(ctx, client, func(client *ethclient.Client, opts *bind.TransactOpts) (*types.Transaction, error) {
-		return nodeManager.UpdateMetaData(opts, NodeCMDUpdateMetaDataArgs.NodeID, metaData)
+		return nodeManager.UpdateMetaData(opts, NodeCMDUpdateMetaDataArgs.NodeID, metaData.Name, metaData.Desc, metaData.ImageURL, metaData.WebsiteURL)
 	}, nil)
 }
 
