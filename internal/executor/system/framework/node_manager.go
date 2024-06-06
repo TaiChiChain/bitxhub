@@ -20,6 +20,8 @@ import (
 )
 
 const (
+	maxMetaDataLength = 256
+
 	nextNodeIDStorageKey        = "nextNodeID"
 	nodeRegistry                = "nodeRegistry"
 	nodeP2PIDIndex              = "nodeP2PIDIndex"
@@ -510,13 +512,15 @@ func (n *NodeManager) JoinCandidateSet(nodeID uint64, commissionRate uint64) err
 		return err
 	}
 
-	if err := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext()).CreatePool(nodeID, commissionRate); err != nil {
+	lstID, err := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext()).CreatePool(nodeID, commissionRate)
+	if err != nil {
 		return errors.Wrapf(err, "failed to create staking pool for node %d", nodeID)
 	}
 
 	n.EmitEvent(&node_manager.EventJoinedCandidateSet{
-		NodeID:         nodeID,
-		CommissionRate: commissionRate,
+		NodeID:                       nodeID,
+		CommissionRate:               commissionRate,
+		OperatorLiquidStakingTokenID: lstID,
 	})
 
 	return nil
@@ -716,45 +720,33 @@ func (n *NodeManager) GetActiveValidatorSet() (infos []node_manager.NodeInfo, vo
 }
 
 func (n *NodeManager) GetDataSyncerSet() (infos []node_manager.NodeInfo, err error) {
-	isExists, nodes, err := n.getStatusSet(types.NodeStatusDataSyncer).Get()
+	nodes, err := n.GetDataSyncerIDSet()
 	if err != nil {
 		return nil, err
-	}
-	if !isExists {
-		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetCandidateSet() (infos []node_manager.NodeInfo, err error) {
-	isExists, nodes, err := n.getStatusSet(types.NodeStatusCandidate).Get()
+	nodes, err := n.GetCandidateIDSet()
 	if err != nil {
 		return nil, err
-	}
-	if !isExists {
-		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetPendingInactiveSet() (infos []node_manager.NodeInfo, err error) {
-	isExists, nodes, err := n.getStatusSet(types.NodeStatusPendingInactive).Get()
+	nodes, err := n.GetPendingInactiveIDSet()
 	if err != nil {
 		return nil, err
-	}
-	if !isExists {
-		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetInfos(nodes)
 }
 
 func (n *NodeManager) GetExitedSet() (infos []node_manager.NodeInfo, err error) {
-	isExists, nodes, err := n.getStatusSet(types.NodeStatusExited).Get()
+	nodes, err := n.GetExitedIDSet()
 	if err != nil {
 		return nil, err
-	}
-	if !isExists {
-		return []node_manager.NodeInfo{}, nil
 	}
 	return n.GetInfos(nodes)
 }
@@ -765,6 +757,61 @@ func (n *NodeManager) GetActiveValidatorVotingPowers() (votingPowers []node_mana
 		return nil, err
 	}
 	return votingPowers, nil
+}
+
+func (n *NodeManager) GetActiveValidatorIDSet() ([]uint64, error) {
+	isExists, innerVotingPowers, err := n.activeValidatorVotingPowers.Get()
+	if err != nil {
+		return nil, err
+	}
+	if !isExists {
+		return []uint64{}, nil
+	}
+	return lo.Map(innerVotingPowers, func(item node_manager.ConsensusVotingPower, index int) uint64 { return item.NodeID }), nil
+}
+
+func (n *NodeManager) GetCandidateIDSet() ([]uint64, error) {
+	isExists, nodes, err := n.getStatusSet(types.NodeStatusCandidate).Get()
+	if err != nil {
+		return nil, err
+	}
+	if !isExists {
+		return []uint64{}, nil
+	}
+	return nodes, nil
+}
+
+func (n *NodeManager) GetDataSyncerIDSet() ([]uint64, error) {
+	isExists, nodes, err := n.getStatusSet(types.NodeStatusDataSyncer).Get()
+	if err != nil {
+		return nil, err
+	}
+	if !isExists {
+		return []uint64{}, nil
+	}
+	return nodes, nil
+}
+
+func (n *NodeManager) GetExitedIDSet() ([]uint64, error) {
+	isExists, nodes, err := n.getStatusSet(types.NodeStatusExited).Get()
+	if err != nil {
+		return nil, err
+	}
+	if !isExists {
+		return []uint64{}, nil
+	}
+	return nodes, nil
+}
+
+func (n *NodeManager) GetPendingInactiveIDSet() ([]uint64, error) {
+	isExists, nodes, err := n.getStatusSet(types.NodeStatusPendingInactive).Get()
+	if err != nil {
+		return nil, err
+	}
+	if !isExists {
+		return []uint64{}, nil
+	}
+	return nodes, nil
 }
 
 func (n *NodeManager) operatorTransferStatus(from, to types.NodeStatus, nodeInfo *node_manager.NodeInfo) error {
@@ -851,6 +898,19 @@ func StandardizationNodeInfo(info node_manager.NodeInfo) node_manager.NodeInfo {
 }
 
 func CheckNodeInfo(nodeInfo node_manager.NodeInfo) (consensusPubKey *crypto.Bls12381PublicKey, p2pPubKey *crypto.Ed25519PublicKey, p2pID string, err error) {
+	if len(nodeInfo.MetaData.Name) > maxMetaDataLength {
+		return nil, nil, "", errors.Errorf("name length %d exceeds max length %d", len(nodeInfo.MetaData.Name), maxMetaDataLength)
+	}
+	if len(nodeInfo.MetaData.Desc) > maxMetaDataLength {
+		return nil, nil, "", errors.Errorf("desc length %d exceeds max length %d", len(nodeInfo.MetaData.Desc), maxMetaDataLength)
+	}
+	if len(nodeInfo.MetaData.ImageURL) > maxMetaDataLength {
+		return nil, nil, "", errors.Errorf("image_url length %d exceeds max length %d", len(nodeInfo.MetaData.ImageURL), maxMetaDataLength)
+	}
+	if len(nodeInfo.MetaData.WebsiteURL) > maxMetaDataLength {
+		return nil, nil, "", errors.Errorf("website_url length %d exceeds max length %d", len(nodeInfo.MetaData.WebsiteURL), maxMetaDataLength)
+	}
+
 	if nodeInfo.MetaData.Name == "" {
 		return nil, nil, "", errors.New("name cannot be empty")
 	}

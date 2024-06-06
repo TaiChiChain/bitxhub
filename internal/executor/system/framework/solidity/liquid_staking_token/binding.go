@@ -78,6 +78,11 @@ type LiquidStakingToken interface {
 	// Solidity: function getInfo(uint256 _tokenId) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[]) info)
 	GetInfo(_tokenId *big.Int) (LiquidStakingTokenInfo, error)
 
+	// GetInfos is a free data retrieval call binding the contract method 0xb8944000.
+	//
+	// Solidity: function getInfos(uint256[] _tokenIds) view returns((uint64,uint256,uint256,uint64,(uint256,uint64)[])[] infos)
+	GetInfos(_tokenIds []*big.Int) ([]LiquidStakingTokenInfo, error)
+
 	// GetLockedCoin is a free data retrieval call binding the contract method 0xd5691067.
 	//
 	// Solidity: function getLockedCoin(uint256 _tokenId) view returns(uint256)

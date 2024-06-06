@@ -69,7 +69,7 @@ func (s *StakingManager) GenesisInit(genesis *repo.GenesisConfig) error {
 		if !nodeCfg.IsDataSyncer {
 			nodeID := uint64(i + 1)
 			stakeNumber := nodeCfg.StakeNumber.ToBigInt()
-			if err := s.CreatePoolWithStake(nodeID, nodeCfg.CommissionRate, stakeNumber, true); err != nil {
+			if _, err := s.CreatePoolWithStake(nodeID, nodeCfg.CommissionRate, stakeNumber, true); err != nil {
 				return errors.Wrapf(err, "failed to create staking pool for node %d", nodeID)
 			}
 			if err := s.LoadPool(nodeID).GenesisInit(genesis); err != nil {
@@ -257,40 +257,41 @@ func (s *StakingManager) UpdateStakeRewardPerBlock() error {
 	return s.rewardPerBlock.Put(multipliedInt)
 }
 
-func (s *StakingManager) CreatePool(poolID uint64, commissionRate uint64) (err error) {
+func (s *StakingManager) CreatePool(poolID uint64, commissionRate uint64) (lstID *big.Int, err error) {
 	return s.CreatePoolWithStake(poolID, commissionRate, big.NewInt(0), false)
 }
 
-func (s *StakingManager) CreatePoolWithStake(poolID uint64, commissionRate uint64, stake *big.Int, isGenesisInit bool) (err error) {
+func (s *StakingManager) CreatePoolWithStake(poolID uint64, commissionRate uint64, stake *big.Int, isGenesisInit bool) (lstID *big.Int, err error) {
 	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
 	nodeManagerContract := NodeManagerBuildConfig.Build(s.CrossCallSystemContractContext())
 
 	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	nodeInfo, err := nodeManagerContract.GetInfo(poolID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := s.LoadPool(poolID).Create(nodeInfo.Operator, currentEpoch.Epoch, commissionRate, stake); err != nil {
-		return err
+	lstID, err = s.LoadPool(poolID).Create(nodeInfo.Operator, currentEpoch.Epoch, commissionRate, stake)
+	if err != nil {
+		return nil, err
 	}
 
 	if !isGenesisInit {
 		if err := s.addAvailableStakingPool(poolID); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if err = s.proposeBlockCountTable.Put(poolID, 0); err != nil {
-		return err
+		return nil, err
 	}
 	if err = s.gasRewardTable.Put(poolID, big.NewInt(0)); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return lstID, nil
 }
 
 func (s *StakingManager) AddStake(poolID uint64, owner ethcommon.Address, amount *big.Int) error {
@@ -387,7 +388,7 @@ func (s *StakingManager) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts [
 
 	totalAmount := big.NewInt(0)
 	for _, amount := range amounts {
-		totalAmount = new(big.Int).Add(totalAmount, amount)
+		totalAmount = totalAmount.Add(totalAmount, amount)
 	}
 	currentEpochTotalUnlockStake = new(big.Int).Add(currentEpochTotalUnlockStake, totalAmount)
 	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
@@ -464,8 +465,32 @@ func (s *StakingManager) GetPoolInfo(poolID uint64) (staking_manager.PoolInfo, e
 	return s.LoadPool(poolID).Info()
 }
 
+func (s *StakingManager) GetPoolInfos(poolIDs []uint64) ([]staking_manager.PoolInfo, error) {
+	infos := make([]staking_manager.PoolInfo, len(poolIDs))
+	for i, poolID := range poolIDs {
+		info, err := s.GetPoolInfo(poolID)
+		if err != nil {
+			return nil, err
+		}
+		infos[i] = info
+	}
+	return infos, nil
+}
+
 func (s *StakingManager) GetPoolHistoryLiquidStakingTokenRate(poolID uint64, epoch uint64) (staking_manager.LiquidStakingTokenRate, error) {
 	return s.LoadPool(poolID).HistoryLiquidStakingTokenRate(epoch)
+}
+
+func (s *StakingManager) GetPoolHistoryLiquidStakingTokenRates(poolIDs []uint64, epoch uint64) ([]staking_manager.LiquidStakingTokenRate, error) {
+	rates := make([]staking_manager.LiquidStakingTokenRate, len(poolIDs))
+	for i, poolID := range poolIDs {
+		info, err := s.LoadPool(poolID).HistoryLiquidStakingTokenRate(epoch)
+		if err != nil {
+			return nil, err
+		}
+		rates[i] = info
+	}
+	return rates, nil
 }
 
 func (s *StakingManager) updateTotalStake(isAdd bool, amount *big.Int) error {

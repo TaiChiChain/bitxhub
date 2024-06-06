@@ -161,11 +161,6 @@ func (bn *BlockNumber) UnmarshalJSON(data []byte) error {
 		return errors.New("blocknumber too high")
 	}
 
-	// get FirstBlock
-	if blckNum == 0 {
-		blckNum = 1
-	}
-
 	*bn = BlockNumber(blckNum)
 	return nil
 }

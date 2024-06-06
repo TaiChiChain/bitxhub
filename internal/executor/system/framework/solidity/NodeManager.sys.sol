@@ -38,7 +38,7 @@ interface NodeManager {
     error NotEnoughValidator(uint256 curNum, uint256 minNum);
 
     event Register(uint64 indexed nodeID, NodeInfo info);
-    event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate);
+    event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate, uint256 operatorLiquidStakingTokenID);
     event Exit(uint64 indexed nodeID);
     event UpdateMetaData(uint64 indexed nodeID, NodeMetaData metaData);
     event UpdateOperator(uint64 indexed nodeID, address newOperator);
@@ -66,4 +66,14 @@ interface NodeManager {
     function getPendingInactiveSet() external view returns (NodeInfo[] memory infos);
 
     function getExitedSet() external view returns (NodeInfo[] memory infos);
+
+    function getActiveValidatorIDSet() external view returns (uint64[] memory ids);
+
+    function getDataSyncerIDSet() external view returns (uint64[] memory ids);
+
+    function getCandidateIDSet() external view returns (uint64[] memory ids);
+
+    function getPendingInactiveIDSet() external view returns (uint64[] memory ids);
+
+    function getExitedIDSet() external view returns (uint64[] memory ids);
 }

@@ -47,7 +47,7 @@ func TestStakingPool_ManageInfo(t *testing.T) {
 	// create without value
 	testNVM.RunSingleTX(stakingManagerContract, operator, func() error {
 		pool := stakingManagerContract.LoadPool(5)
-		err := pool.Create(operator, 1, 5000, big.NewInt(0))
+		_, err := pool.Create(operator, 1, 5000, big.NewInt(0))
 		assert.Nil(t, err)
 
 		// transfer coin to staking pool manager
@@ -73,7 +73,7 @@ func TestStakingPool_ManageInfo(t *testing.T) {
 	// create with value
 	testNVM.RunSingleTX(stakingManagerContract, operator, func() error {
 		pool := stakingManagerContract.LoadPool(6)
-		err := pool.Create(operator, 1, 5000, big.NewInt(100))
+		_, err := pool.Create(operator, 1, 5000, big.NewInt(100))
 		assert.Nil(t, err)
 
 		// transfer coin to staking pool manager

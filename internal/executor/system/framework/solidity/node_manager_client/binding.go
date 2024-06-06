@@ -56,7 +56,7 @@ type NodeMetaData struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"IncorrectStatus\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"curNum\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"minNum\",\"type\":\"uint256\"}],\"name\":\"NotEnoughValidator\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"PendingInactiveSetIsFull\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"Exit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"commissionRate\",\"type\":\"uint64\"}],\"name\":\"JoinedCandidateSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"indexed\":false,\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"name\":\"Register\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"indexed\":false,\"internalType\":\"structNodeMetaData\",\"name\":\"metaData\",\"type\":\"tuple\"}],\"name\":\"UpdateMetaData\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"newOperator\",\"type\":\"address\"}],\"name\":\"UpdateOperator\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"exit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getActiveValidatorSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"NodeID\",\"type\":\"uint64\"},{\"internalType\":\"int64\",\"name\":\"ConsensusVotingPower\",\"type\":\"int64\"}],\"internalType\":\"structConsensusVotingPower[]\",\"name\":\"votingPowers\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCandidateSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getDataSyncerSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getExitedSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"getInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"nodeIDs\",\"type\":\"uint64[]\"}],\"name\":\"getInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getPendingInactiveSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getTotalCount\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"commissionRate\",\"type\":\"uint64\"}],\"name\":\"joinCandidateSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"name\":\"updateMetaData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"newOperator\",\"type\":\"address\"}],\"name\":\"updateOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"IncorrectStatus\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"curNum\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"minNum\",\"type\":\"uint256\"}],\"name\":\"NotEnoughValidator\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"PendingInactiveSetIsFull\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"Exit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"commissionRate\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"operatorLiquidStakingTokenID\",\"type\":\"uint256\"}],\"name\":\"JoinedCandidateSet\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"indexed\":false,\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"name\":\"Register\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"indexed\":false,\"internalType\":\"structNodeMetaData\",\"name\":\"metaData\",\"type\":\"tuple\"}],\"name\":\"UpdateMetaData\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"newOperator\",\"type\":\"address\"}],\"name\":\"UpdateOperator\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"exit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getActiveValidatorIDSet\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"ids\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getActiveValidatorSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"NodeID\",\"type\":\"uint64\"},{\"internalType\":\"int64\",\"name\":\"ConsensusVotingPower\",\"type\":\"int64\"}],\"internalType\":\"structConsensusVotingPower[]\",\"name\":\"votingPowers\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCandidateIDSet\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"ids\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCandidateSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getDataSyncerIDSet\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"ids\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getDataSyncerSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getExitedIDSet\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"ids\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getExitedSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"}],\"name\":\"getInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo\",\"name\":\"info\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"nodeIDs\",\"type\":\"uint64[]\"}],\"name\":\"getInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"info\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getPendingInactiveIDSet\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"ids\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getPendingInactiveSet\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"ConsensusPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PPubKey\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"P2PID\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"Operator\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"internalType\":\"structNodeMetaData\",\"name\":\"MetaData\",\"type\":\"tuple\"},{\"internalType\":\"enumStatus\",\"name\":\"Status\",\"type\":\"uint8\"}],\"internalType\":\"structNodeInfo[]\",\"name\":\"infos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getTotalCount\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"commissionRate\",\"type\":\"uint64\"}],\"name\":\"joinCandidateSet\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"imageURL\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"websiteURL\",\"type\":\"string\"}],\"name\":\"updateMetaData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"nodeID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"newOperator\",\"type\":\"address\"}],\"name\":\"updateOperator\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -205,6 +205,37 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
+// GetActiveValidatorIDSet is a free data retrieval call binding the contract method 0xe4eee358.
+//
+// Solidity: function getActiveValidatorIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCaller) GetActiveValidatorIDSet(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getActiveValidatorIDSet")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetActiveValidatorIDSet is a free data retrieval call binding the contract method 0xe4eee358.
+//
+// Solidity: function getActiveValidatorIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractSession) GetActiveValidatorIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetActiveValidatorIDSet(&_BindingContract.CallOpts)
+}
+
+// GetActiveValidatorIDSet is a free data retrieval call binding the contract method 0xe4eee358.
+//
+// Solidity: function getActiveValidatorIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCallerSession) GetActiveValidatorIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetActiveValidatorIDSet(&_BindingContract.CallOpts)
+}
+
 // GetActiveValidatorSet is a free data retrieval call binding the contract method 0x24408a68.
 //
 // Solidity: function getActiveValidatorSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
@@ -250,6 +281,37 @@ func (_BindingContract *BindingContractCallerSession) GetActiveValidatorSet() (s
 	return _BindingContract.Contract.GetActiveValidatorSet(&_BindingContract.CallOpts)
 }
 
+// GetCandidateIDSet is a free data retrieval call binding the contract method 0x3817e9e7.
+//
+// Solidity: function getCandidateIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCaller) GetCandidateIDSet(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getCandidateIDSet")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetCandidateIDSet is a free data retrieval call binding the contract method 0x3817e9e7.
+//
+// Solidity: function getCandidateIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractSession) GetCandidateIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetCandidateIDSet(&_BindingContract.CallOpts)
+}
+
+// GetCandidateIDSet is a free data retrieval call binding the contract method 0x3817e9e7.
+//
+// Solidity: function getCandidateIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCallerSession) GetCandidateIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetCandidateIDSet(&_BindingContract.CallOpts)
+}
+
 // GetCandidateSet is a free data retrieval call binding the contract method 0x9c137646.
 //
 // Solidity: function getCandidateSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
@@ -281,6 +343,37 @@ func (_BindingContract *BindingContractCallerSession) GetCandidateSet() ([]NodeI
 	return _BindingContract.Contract.GetCandidateSet(&_BindingContract.CallOpts)
 }
 
+// GetDataSyncerIDSet is a free data retrieval call binding the contract method 0xee299445.
+//
+// Solidity: function getDataSyncerIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCaller) GetDataSyncerIDSet(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getDataSyncerIDSet")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetDataSyncerIDSet is a free data retrieval call binding the contract method 0xee299445.
+//
+// Solidity: function getDataSyncerIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractSession) GetDataSyncerIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetDataSyncerIDSet(&_BindingContract.CallOpts)
+}
+
+// GetDataSyncerIDSet is a free data retrieval call binding the contract method 0xee299445.
+//
+// Solidity: function getDataSyncerIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCallerSession) GetDataSyncerIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetDataSyncerIDSet(&_BindingContract.CallOpts)
+}
+
 // GetDataSyncerSet is a free data retrieval call binding the contract method 0x39937e75.
 //
 // Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
@@ -310,6 +403,37 @@ func (_BindingContract *BindingContractSession) GetDataSyncerSet() ([]NodeInfo, 
 // Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 func (_BindingContract *BindingContractCallerSession) GetDataSyncerSet() ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetDataSyncerSet(&_BindingContract.CallOpts)
+}
+
+// GetExitedIDSet is a free data retrieval call binding the contract method 0x711049f1.
+//
+// Solidity: function getExitedIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCaller) GetExitedIDSet(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getExitedIDSet")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetExitedIDSet is a free data retrieval call binding the contract method 0x711049f1.
+//
+// Solidity: function getExitedIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractSession) GetExitedIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetExitedIDSet(&_BindingContract.CallOpts)
+}
+
+// GetExitedIDSet is a free data retrieval call binding the contract method 0x711049f1.
+//
+// Solidity: function getExitedIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCallerSession) GetExitedIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetExitedIDSet(&_BindingContract.CallOpts)
 }
 
 // GetExitedSet is a free data retrieval call binding the contract method 0x4c434612.
@@ -403,6 +527,37 @@ func (_BindingContract *BindingContractSession) GetInfos(nodeIDs []uint64) ([]No
 // Solidity: function getInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
 func (_BindingContract *BindingContractCallerSession) GetInfos(nodeIDs []uint64) ([]NodeInfo, error) {
 	return _BindingContract.Contract.GetInfos(&_BindingContract.CallOpts, nodeIDs)
+}
+
+// GetPendingInactiveIDSet is a free data retrieval call binding the contract method 0x23bed95e.
+//
+// Solidity: function getPendingInactiveIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCaller) GetPendingInactiveIDSet(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getPendingInactiveIDSet")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetPendingInactiveIDSet is a free data retrieval call binding the contract method 0x23bed95e.
+//
+// Solidity: function getPendingInactiveIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractSession) GetPendingInactiveIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetPendingInactiveIDSet(&_BindingContract.CallOpts)
+}
+
+// GetPendingInactiveIDSet is a free data retrieval call binding the contract method 0x23bed95e.
+//
+// Solidity: function getPendingInactiveIDSet() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCallerSession) GetPendingInactiveIDSet() ([]uint64, error) {
+	return _BindingContract.Contract.GetPendingInactiveIDSet(&_BindingContract.CallOpts)
 }
 
 // GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
@@ -764,14 +919,15 @@ func (it *BindingContractJoinedCandidateSetIterator) Close() error {
 
 // BindingContractJoinedCandidateSet represents a JoinedCandidateSet event raised by the BindingContract contract.
 type BindingContractJoinedCandidateSet struct {
-	NodeID         uint64
-	CommissionRate uint64
-	Raw            types.Log // Blockchain specific contextual infos
+	NodeID                       uint64
+	CommissionRate               uint64
+	OperatorLiquidStakingTokenID *big.Int
+	Raw                          types.Log // Blockchain specific contextual infos
 }
 
-// FilterJoinedCandidateSet is a free log retrieval operation binding the contract event 0xd38aefdfb586af92bec5776b9e9c9226693cfaf2f21c8c11100904d8e1db7a9f.
+// FilterJoinedCandidateSet is a free log retrieval operation binding the contract event 0xb780ea5f0172f0d1e42f012be8f3f29f10bbacc69fdb43a64e41336e8320bd81.
 //
-// Solidity: event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate)
+// Solidity: event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate, uint256 operatorLiquidStakingTokenID)
 func (_BindingContract *BindingContractFilterer) FilterJoinedCandidateSet(opts *bind.FilterOpts, nodeID []uint64) (*BindingContractJoinedCandidateSetIterator, error) {
 
 	var nodeIDRule []interface{}
@@ -786,9 +942,9 @@ func (_BindingContract *BindingContractFilterer) FilterJoinedCandidateSet(opts *
 	return &BindingContractJoinedCandidateSetIterator{contract: _BindingContract.contract, event: "JoinedCandidateSet", logs: logs, sub: sub}, nil
 }
 
-// WatchJoinedCandidateSet is a free log subscription operation binding the contract event 0xd38aefdfb586af92bec5776b9e9c9226693cfaf2f21c8c11100904d8e1db7a9f.
+// WatchJoinedCandidateSet is a free log subscription operation binding the contract event 0xb780ea5f0172f0d1e42f012be8f3f29f10bbacc69fdb43a64e41336e8320bd81.
 //
-// Solidity: event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate)
+// Solidity: event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate, uint256 operatorLiquidStakingTokenID)
 func (_BindingContract *BindingContractFilterer) WatchJoinedCandidateSet(opts *bind.WatchOpts, sink chan<- *BindingContractJoinedCandidateSet, nodeID []uint64) (event.Subscription, error) {
 
 	var nodeIDRule []interface{}
@@ -828,9 +984,9 @@ func (_BindingContract *BindingContractFilterer) WatchJoinedCandidateSet(opts *b
 	}), nil
 }
 
-// ParseJoinedCandidateSet is a log parse operation binding the contract event 0xd38aefdfb586af92bec5776b9e9c9226693cfaf2f21c8c11100904d8e1db7a9f.
+// ParseJoinedCandidateSet is a log parse operation binding the contract event 0xb780ea5f0172f0d1e42f012be8f3f29f10bbacc69fdb43a64e41336e8320bd81.
 //
-// Solidity: event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate)
+// Solidity: event JoinedCandidateSet(uint64 indexed nodeID, uint64 commissionRate, uint256 operatorLiquidStakingTokenID)
 func (_BindingContract *BindingContractFilterer) ParseJoinedCandidateSet(log types.Log) (*BindingContractJoinedCandidateSet, error) {
 	event := new(BindingContractJoinedCandidateSet)
 	if err := _BindingContract.contract.UnpackLog(event, "JoinedCandidateSet", log); err != nil {

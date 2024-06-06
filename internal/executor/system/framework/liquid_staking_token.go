@@ -107,6 +107,18 @@ func (lst *LiquidStakingToken) GetInfo(tokenID *big.Int) (info liquid_staking_to
 	return info, nil
 }
 
+func (lst *LiquidStakingToken) GetInfos(_tokenIds []*big.Int) ([]liquid_staking_token.LiquidStakingTokenInfo, error) {
+	var infos []liquid_staking_token.LiquidStakingTokenInfo
+	for _, tokenID := range _tokenIds {
+		info, err := lst.infoMap.MustGet(tokenID)
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, info)
+	}
+	return infos, nil
+}
+
 func (lst *LiquidStakingToken) lockedReward(info liquid_staking_token.LiquidStakingTokenInfo) (*big.Int, error) {
 	stakingManager := StakingManagerBuildConfig.Build(lst.CrossCallSystemContractContext())
 	currentEpoch, err := EpochManagerBuildConfig.Build(lst.CrossCallSystemContractContext()).CurrentEpoch()
@@ -566,7 +578,7 @@ func (lst *LiquidStakingToken) mustGetInfo(tokenID *big.Int) (*liquid_staking_to
 func updateLiquidStakingTokenUnlockingRecords(blockTimestamp uint64, info *liquid_staking_token.LiquidStakingTokenInfo) {
 	var remainRecords []liquid_staking_token.UnlockingRecord
 	for _, record := range info.UnlockingRecords {
-		if record.UnlockTimestamp >= blockTimestamp {
+		if record.UnlockTimestamp <= blockTimestamp {
 			info.Unlocked = info.Unlocked.Add(info.Unlocked, record.Amount)
 		} else {
 			remainRecords = append(remainRecords, record)
