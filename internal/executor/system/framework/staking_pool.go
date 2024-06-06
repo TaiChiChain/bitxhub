@@ -45,7 +45,7 @@ func (sp *StakingPool) Load(poolID uint64) *StakingPool {
 	return sp
 }
 
-func (sp *StakingPool) Create(operator ethcommon.Address, epoch uint64, commissionRate uint64, stakeNumber *big.Int) error {
+func (sp *StakingPool) Create(operator ethcommon.Address, epoch uint64, commissionRate uint64, stakeNumber *big.Int) (lstID *big.Int, err error) {
 	zero := big.NewInt(0)
 
 	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
@@ -57,7 +57,7 @@ func (sp *StakingPool) Create(operator ethcommon.Address, epoch uint64, commissi
 		UnlockingRecords: []liquid_staking_token.UnlockingRecord{},
 	})
 	if err != nil {
-		return errors.Wrapf(err, "failed to mint liquid staking token for node %d", sp.poolID)
+		return nil, errors.Wrapf(err, "failed to mint liquid staking token for node %d", sp.poolID)
 	}
 
 	stakingPoolInfo := &staking_manager.PoolInfo{
@@ -75,25 +75,30 @@ func (sp *StakingPool) Create(operator ethcommon.Address, epoch uint64, commissi
 		CumulativeReward:                        zero,
 		CumulativeCommission:                    zero,
 		OperatorLiquidStakingTokenID:            liquidStakingTokenID,
+		LastRateEpoch:                           0,
 	}
 
 	if sp.info.Has() {
-		return errors.Errorf("staking pool %d already exists", stakingPoolInfo.ID)
+		return nil, errors.Errorf("staking pool %d already exists", stakingPoolInfo.ID)
 	}
 
 	if stakingPoolInfo.CommissionRate > CommissionRateDenominator {
-		return errors.Errorf("invalid commission rate: %d, must be less than or equal %d", stakingPoolInfo.CommissionRate, CommissionRateDenominator)
+		return nil, errors.Errorf("invalid commission rate: %d, must be less than or equal %d", stakingPoolInfo.CommissionRate, CommissionRateDenominator)
 	}
 	if err := sp.info.Put(*stakingPoolInfo); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return liquidStakingTokenID, nil
 }
 
 func (sp *StakingPool) GenesisInit(genesis *repo.GenesisConfig) error {
 	info, err := sp.MustGetInfo()
 	if err != nil {
+		return err
+	}
+	info.LastRateEpoch = genesis.EpochInfo.Epoch
+	if err := sp.info.Put(*info); err != nil {
 		return err
 	}
 	if err := sp.historyLiquidStakingTokenRateMap.Put(genesis.EpochInfo.Epoch, staking_manager.LiquidStakingTokenRate{
@@ -102,6 +107,7 @@ func (sp *StakingPool) GenesisInit(genesis *repo.GenesisConfig) error {
 	}); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -215,7 +221,7 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 
 	updateLiquidStakingTokenUnlockingRecords(sp.Ctx.CurrentEVM.Context.Time, liquidStakingTokenInfo)
 
-	var pendingInactiveStakeWithdraw, pendingInactiveLiquidStakingTokenAmount *big.Int
+	var principalAndReward, pendingInactiveLiquidStakingTokenAmount *big.Int
 	// calculate liquidStakingToken amount
 	stakingRate, err := sp.HistoryLiquidStakingTokenRate(liquidStakingTokenInfo.ActiveEpoch - 1)
 	if err != nil {
@@ -228,21 +234,20 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 		if err != nil {
 			return err
 		}
-		principalAndReward := calculatePrincipalAndReward(stakingRate, lastRate, liquidStakingTokenInfo.Principal)
-		pendingInactiveStakeWithdraw = new(big.Int).Set(principalAndReward)
+		principalAndReward = calculatePrincipalAndReward(stakingRate, lastRate, liquidStakingTokenInfo.Principal)
 	} else {
 		// no reward
-		pendingInactiveStakeWithdraw = new(big.Int).Set(liquidStakingTokenInfo.Principal)
+		principalAndReward = new(big.Int).Set(liquidStakingTokenInfo.Principal)
 	}
-	pendingInactiveLiquidStakingTokenAmount = new(big.Int).Set(lstAmount)
-	if pendingInactiveStakeWithdraw.Cmp(amount) < 0 {
-		return errors.Errorf("amount is not enough, pendingInactiveStakeWithdraw: %s, amount: %s", pendingInactiveStakeWithdraw.String(), amount.String())
+	if principalAndReward.Cmp(amount) < 0 {
+		return errors.Errorf("amount is not enough, principalAndReward: %s, amount: %s", principalAndReward.String(), amount.String())
 	}
-	if !currentEpoch.StakeParams.EnablePartialUnlock && pendingInactiveStakeWithdraw.Cmp(amount) > 0 {
-		return errors.Errorf("not enable partial unlock, pendingInactiveStakeWithdraw: %s, amount: %s", pendingInactiveStakeWithdraw.String(), amount.String())
+	if !currentEpoch.StakeParams.EnablePartialUnlock && principalAndReward.Cmp(amount) > 0 {
+		return errors.Errorf("not enable partial unlock, principalAndReward: %s, amount: %s", principalAndReward.String(), amount.String())
 	}
 
-	info.PendingInactiveStake = new(big.Int).Add(info.PendingInactiveStake, pendingInactiveStakeWithdraw)
+	pendingInactiveLiquidStakingTokenAmount = new(big.Int).Set(lstAmount)
+	info.PendingInactiveStake = new(big.Int).Add(info.PendingInactiveStake, principalAndReward)
 	info.PendingInactiveLiquidStakingTokenAmount = new(big.Int).Add(info.PendingInactiveLiquidStakingTokenAmount, pendingInactiveLiquidStakingTokenAmount)
 	unlockRecord := liquid_staking_token.UnlockingRecord{
 		Amount:          amount,
@@ -254,7 +259,7 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 	}
 
 	// restake remain
-	liquidStakingTokenInfo.Principal = new(big.Int).Sub(pendingInactiveStakeWithdraw, amount)
+	liquidStakingTokenInfo.Principal = new(big.Int).Sub(principalAndReward, amount)
 	liquidStakingTokenInfo.ActiveEpoch = currentEpoch.Epoch + 1
 	info.PendingActiveStake = new(big.Int).Add(info.PendingActiveStake, liquidStakingTokenInfo.Principal)
 
@@ -297,6 +302,7 @@ func (sp *StakingPool) WithdrawStake(liquidStakingTokenID *big.Int, liquidStakin
 	principalWithdraw = new(big.Int)
 	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(sp.CrossCallSystemContractContext())
 	updateLiquidStakingTokenUnlockingRecords(sp.Ctx.CurrentEVM.Context.Time, liquidStakingTokenInfo)
+
 	if liquidStakingTokenInfo.Unlocked.Cmp(amount) >= 0 {
 		liquidStakingTokenInfo.Unlocked = new(big.Int).Sub(liquidStakingTokenInfo.Unlocked, amount)
 		if err := liquidStakingTokenContract.updateInfo(liquidStakingTokenID, liquidStakingTokenInfo); err != nil {
@@ -307,7 +313,7 @@ func (sp *StakingPool) WithdrawStake(liquidStakingTokenID *big.Int, liquidStakin
 		if liquidStakingTokenInfo.ActiveEpoch > currentEpoch.Epoch {
 			totalAmount := new(big.Int).Add(liquidStakingTokenInfo.Principal, liquidStakingTokenInfo.Unlocked)
 			if totalAmount.Cmp(amount) < 0 {
-				return nil, errors.Errorf("unlocked amount is not enough")
+				return nil, errors.Errorf("unlocked amount is not enough, totalAmount: %s, amount: %s", totalAmount.String(), amount.String())
 			}
 			// withdraw unlocked amount first
 			if liquidStakingTokenInfo.Unlocked.Cmp(amount) >= 0 {
@@ -433,6 +439,7 @@ func (sp *StakingPool) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *typ
 
 	// update commission
 	info.CommissionRate = info.NextEpochCommissionRate
+	info.LastRateEpoch = oldEpoch.Epoch
 	if err := sp.info.Put(*info); err != nil {
 		return err
 	}
@@ -473,6 +480,13 @@ func (sp *StakingPool) Info() (staking_manager.PoolInfo, error) {
 }
 
 func (sp *StakingPool) HistoryLiquidStakingTokenRate(epoch uint64) (staking_manager.LiquidStakingTokenRate, error) {
+	info, err := sp.MustGetInfo()
+	if err != nil {
+		return staking_manager.LiquidStakingTokenRate{}, err
+	}
+	if epoch > info.LastRateEpoch {
+		epoch = info.LastRateEpoch
+	}
 	exist, rate, err := sp.historyLiquidStakingTokenRateMap.Get(epoch)
 	if err != nil {
 		return staking_manager.LiquidStakingTokenRate{}, err

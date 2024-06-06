@@ -68,20 +68,40 @@ type NodeManager interface {
 	// Solidity: function updateOperator(uint64 nodeID, address newOperator) returns()
 	UpdateOperator(nodeID uint64, newOperator common.Address) error
 
+	// GetActiveValidatorIDSet is a free data retrieval call binding the contract method 0xe4eee358.
+	//
+	// Solidity: function getActiveValidatorIDSet() view returns(uint64[] ids)
+	GetActiveValidatorIDSet() ([]uint64, error)
+
 	// GetActiveValidatorSet is a free data retrieval call binding the contract method 0x24408a68.
 	//
 	// Solidity: function getActiveValidatorSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info, (uint64,int64)[] votingPowers)
 	GetActiveValidatorSet() ([]NodeInfo, []ConsensusVotingPower, error)
+
+	// GetCandidateIDSet is a free data retrieval call binding the contract method 0x3817e9e7.
+	//
+	// Solidity: function getCandidateIDSet() view returns(uint64[] ids)
+	GetCandidateIDSet() ([]uint64, error)
 
 	// GetCandidateSet is a free data retrieval call binding the contract method 0x9c137646.
 	//
 	// Solidity: function getCandidateSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetCandidateSet() ([]NodeInfo, error)
 
+	// GetDataSyncerIDSet is a free data retrieval call binding the contract method 0xee299445.
+	//
+	// Solidity: function getDataSyncerIDSet() view returns(uint64[] ids)
+	GetDataSyncerIDSet() ([]uint64, error)
+
 	// GetDataSyncerSet is a free data retrieval call binding the contract method 0x39937e75.
 	//
 	// Solidity: function getDataSyncerSet() view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] infos)
 	GetDataSyncerSet() ([]NodeInfo, error)
+
+	// GetExitedIDSet is a free data retrieval call binding the contract method 0x711049f1.
+	//
+	// Solidity: function getExitedIDSet() view returns(uint64[] ids)
+	GetExitedIDSet() ([]uint64, error)
 
 	// GetExitedSet is a free data retrieval call binding the contract method 0x4c434612.
 	//
@@ -97,6 +117,11 @@ type NodeManager interface {
 	//
 	// Solidity: function getInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)
 	GetInfos(nodeIDs []uint64) ([]NodeInfo, error)
+
+	// GetPendingInactiveIDSet is a free data retrieval call binding the contract method 0x23bed95e.
+	//
+	// Solidity: function getPendingInactiveIDSet() view returns(uint64[] ids)
+	GetPendingInactiveIDSet() ([]uint64, error)
 
 	// GetPendingInactiveSet is a free data retrieval call binding the contract method 0xcea3bc64.
 	//
@@ -120,8 +145,9 @@ func (_event *EventExit) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 
 // EventJoinedCandidateSet represents a JoinedCandidateSet event raised by the NodeManager contract.
 type EventJoinedCandidateSet struct {
-	NodeID         uint64
-	CommissionRate uint64
+	NodeID                       uint64
+	CommissionRate               uint64
+	OperatorLiquidStakingTokenID *big.Int
 }
 
 func (_event *EventJoinedCandidateSet) Pack(abi abi.ABI) (log *types.EvmLog, err error) {

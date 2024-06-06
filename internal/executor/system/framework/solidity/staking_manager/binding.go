@@ -43,6 +43,7 @@ type PoolInfo struct {
 	CumulativeReward                        *big.Int
 	CumulativeCommission                    *big.Int
 	OperatorLiquidStakingTokenID            *big.Int
+	LastRateEpoch                           uint64
 }
 
 type StakingManager interface {
@@ -82,10 +83,20 @@ type StakingManager interface {
 	// Solidity: function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) view returns((uint256,uint256) poolHistoryLiquidStakingTokenRate)
 	GetPoolHistoryLiquidStakingTokenRate(poolID uint64, epoch uint64) (LiquidStakingTokenRate, error)
 
+	// GetPoolHistoryLiquidStakingTokenRates is a free data retrieval call binding the contract method 0x844f1bb2.
+	//
+	// Solidity: function getPoolHistoryLiquidStakingTokenRates(uint64[] poolIDs, uint64 epoch) view returns((uint256,uint256)[] poolHistoryLiquidStakingTokenRate)
+	GetPoolHistoryLiquidStakingTokenRates(poolIDs []uint64, epoch uint64) ([]LiquidStakingTokenRate, error)
+
 	// GetPoolInfo is a free data retrieval call binding the contract method 0xf2347366.
 	//
-	// Solidity: function getPoolInfo(uint64 poolID) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256,uint256,uint256) poolInfo)
+	// Solidity: function getPoolInfo(uint64 poolID) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256,uint256,uint256,uint64) poolInfo)
 	GetPoolInfo(poolID uint64) (PoolInfo, error)
+
+	// GetPoolInfos is a free data retrieval call binding the contract method 0xba37e6d6.
+	//
+	// Solidity: function getPoolInfos(uint64[] poolIDs) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256,uint256,uint256,uint64)[] poolInfos)
+	GetPoolInfos(poolIDs []uint64) ([]PoolInfo, error)
 }
 
 // EventAddStake represents a AddStake event raised by the StakingManager contract.

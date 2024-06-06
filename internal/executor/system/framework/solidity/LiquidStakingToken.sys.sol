@@ -46,6 +46,8 @@ interface LiquidStakingToken {
 
     function getInfo(uint256 _tokenId) external view returns (LiquidStakingTokenInfo memory info);
 
+    function getInfos(uint256[] memory _tokenIds) external view returns (LiquidStakingTokenInfo[] memory infos);
+
     function getLockedReward(uint256 _tokenId) external view returns (uint256);
 
     function getUnlockingCoin(uint256 _tokenId) external view returns (uint256);

@@ -22,6 +22,7 @@ pragma solidity ^0.8.20;
         uint256 CumulativeReward;
         uint256 CumulativeCommission;
         uint256 OperatorLiquidStakingTokenID;
+        uint64 LastRateEpoch;
     }
 
 interface StakingManager {
@@ -51,5 +52,9 @@ interface StakingManager {
 
     function getPoolInfo(uint64 poolID) external view returns (PoolInfo memory poolInfo);
 
+    function getPoolInfos(uint64[] memory poolIDs) external view returns (PoolInfo[] memory poolInfos);
+
     function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) external view returns (LiquidStakingTokenRate memory poolHistoryLiquidStakingTokenRate);
+
+    function getPoolHistoryLiquidStakingTokenRates(uint64[] memory poolIDs, uint64 epoch) external view returns (LiquidStakingTokenRate[] memory poolHistoryLiquidStakingTokenRate);
 }

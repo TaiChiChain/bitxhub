@@ -124,7 +124,7 @@ func TestStakingManager_LifeCycle(t *testing.T) {
 	// create staking pool
 	// error repeat register
 	testNVM.Call(stakingManagerContract, types.NewAddressByStr("0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013").ETHAddress(), func() {
-		err := stakingManagerContract.CreatePool(1, 10)
+		_, err := stakingManagerContract.CreatePool(1, 10)
 		assert.ErrorContains(t, err, "already exists")
 	})
 	// success
