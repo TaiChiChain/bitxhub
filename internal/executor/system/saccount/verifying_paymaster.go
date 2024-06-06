@@ -11,7 +11,7 @@ import (
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/ipaymaster_client"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/verifying_paymaster_client"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -27,7 +27,7 @@ var _ interfaces.IPaymaster = (*VerifyingPaymaster)(nil)
 var VerifyingPaymasterBuildConfig = &common.SystemContractBuildConfig[*VerifyingPaymaster]{
 	Name:    "saccount_verifying_paymaster",
 	Address: common.VerifyingPaymasterContractAddr,
-	AbiStr:  ipaymaster_client.BindingContractMetaData.ABI,
+	AbiStr:  verifying_paymaster_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *VerifyingPaymaster {
 		return &VerifyingPaymaster{
 			SystemContractBase: systemContractBase,

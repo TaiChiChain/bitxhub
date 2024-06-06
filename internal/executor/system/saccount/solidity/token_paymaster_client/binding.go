@@ -1,7 +1,7 @@
 // Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
 
-package empty_client
+package token_paymaster_client
 
 import (
 	"errors"
@@ -29,36 +29,29 @@ var (
 	_ = abi.ConvertType
 )
 
+// UserOperation is an auto generated low-level Go binding around an user-defined struct.
+type UserOperation struct {
+	Sender               common.Address
+	Nonce                *big.Int
+	InitCode             []byte
+	CallData             []byte
+	CallGasLimit         *big.Int
+	VerificationGasLimit *big.Int
+	PreVerificationGas   *big.Int
+	MaxFeePerGas         *big.Int
+	MaxPriorityFeePerGas *big.Int
+	PaymasterAndData     []byte
+	Signature            []byte
+}
+
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
-	Bin: "0x6080604052348015600e575f80fd5b50604480601a5f395ff3fe608060405236600a57005b5f80fdfea2646970667358221220d49b90ebb4024cc4a8e9a140d2e40ae1cf106b430b434bbe124778643616875564736f6c63430008170033",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"oracle\",\"type\":\"address\"}],\"name\":\"addToken\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"}],\"name\":\"getToken\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"enumIPaymaster.PostOpMode\",\"name\":\"mode\",\"type\":\"uint8\"},{\"internalType\":\"bytes\",\"name\":\"context\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"actualGasCost\",\"type\":\"uint256\"}],\"name\":\"postOp\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"initCode\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"callData\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"callGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"verificationGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"preVerificationGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"paymasterAndData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"}],\"internalType\":\"structUserOperation\",\"name\":\"userOp\",\"type\":\"tuple\"},{\"internalType\":\"bytes32\",\"name\":\"userOpHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"maxCost\",\"type\":\"uint256\"}],\"name\":\"validatePaymasterUserOp\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"context\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"validationData\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
 // Deprecated: Use BindingContractMetaData.ABI instead.
 var BindingContractABI = BindingContractMetaData.ABI
-
-// BindingContractBin is the compiled bytecode used for deploying new contracts.
-// Deprecated: Use BindingContractMetaData.Bin instead.
-var BindingContractBin = BindingContractMetaData.Bin
-
-// DeployBindingContract deploys a new Ethereum contract, binding an instance of BindingContract to it.
-func DeployBindingContract(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *BindingContract, error) {
-	parsed, err := BindingContractMetaData.GetAbi()
-	if err != nil {
-		return common.Address{}, nil, nil, err
-	}
-	if parsed == nil {
-		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
-	}
-
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(BindingContractBin), backend)
-	if err != nil {
-		return common.Address{}, nil, nil, err
-	}
-	return address, tx, &BindingContract{BindingContractCaller: BindingContractCaller{contract: contract}, BindingContractTransactor: BindingContractTransactor{contract: contract}, BindingContractFilterer: BindingContractFilterer{contract: contract}}, nil
-}
 
 // BindingContract is an auto generated Go binding around an Ethereum contract.
 type BindingContract struct {
@@ -202,23 +195,96 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
-// Receive is a paid mutator transaction binding the contract receive function.
+// GetToken is a free data retrieval call binding the contract method 0x59770438.
 //
-// Solidity: receive() payable returns()
-func (_BindingContract *BindingContractTransactor) Receive(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _BindingContract.contract.RawTransact(opts, nil) // calldata is disallowed for receive function
+// Solidity: function getToken(address token) view returns(address)
+func (_BindingContract *BindingContractCaller) GetToken(opts *bind.CallOpts, token common.Address) (common.Address, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getToken", token)
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
 }
 
-// Receive is a paid mutator transaction binding the contract receive function.
+// GetToken is a free data retrieval call binding the contract method 0x59770438.
 //
-// Solidity: receive() payable returns()
-func (_BindingContract *BindingContractSession) Receive() (*types.Transaction, error) {
-	return _BindingContract.Contract.Receive(&_BindingContract.TransactOpts)
+// Solidity: function getToken(address token) view returns(address)
+func (_BindingContract *BindingContractSession) GetToken(token common.Address) (common.Address, error) {
+	return _BindingContract.Contract.GetToken(&_BindingContract.CallOpts, token)
 }
 
-// Receive is a paid mutator transaction binding the contract receive function.
+// GetToken is a free data retrieval call binding the contract method 0x59770438.
 //
-// Solidity: receive() payable returns()
-func (_BindingContract *BindingContractTransactorSession) Receive() (*types.Transaction, error) {
-	return _BindingContract.Contract.Receive(&_BindingContract.TransactOpts)
+// Solidity: function getToken(address token) view returns(address)
+func (_BindingContract *BindingContractCallerSession) GetToken(token common.Address) (common.Address, error) {
+	return _BindingContract.Contract.GetToken(&_BindingContract.CallOpts, token)
+}
+
+// AddToken is a paid mutator transaction binding the contract method 0x5476bd72.
+//
+// Solidity: function addToken(address token, address oracle) returns()
+func (_BindingContract *BindingContractTransactor) AddToken(opts *bind.TransactOpts, token common.Address, oracle common.Address) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "addToken", token, oracle)
+}
+
+// AddToken is a paid mutator transaction binding the contract method 0x5476bd72.
+//
+// Solidity: function addToken(address token, address oracle) returns()
+func (_BindingContract *BindingContractSession) AddToken(token common.Address, oracle common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.AddToken(&_BindingContract.TransactOpts, token, oracle)
+}
+
+// AddToken is a paid mutator transaction binding the contract method 0x5476bd72.
+//
+// Solidity: function addToken(address token, address oracle) returns()
+func (_BindingContract *BindingContractTransactorSession) AddToken(token common.Address, oracle common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.AddToken(&_BindingContract.TransactOpts, token, oracle)
+}
+
+// PostOp is a paid mutator transaction binding the contract method 0xa9a23409.
+//
+// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
+func (_BindingContract *BindingContractTransactor) PostOp(opts *bind.TransactOpts, mode uint8, context []byte, actualGasCost *big.Int) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "postOp", mode, context, actualGasCost)
+}
+
+// PostOp is a paid mutator transaction binding the contract method 0xa9a23409.
+//
+// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
+func (_BindingContract *BindingContractSession) PostOp(mode uint8, context []byte, actualGasCost *big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.PostOp(&_BindingContract.TransactOpts, mode, context, actualGasCost)
+}
+
+// PostOp is a paid mutator transaction binding the contract method 0xa9a23409.
+//
+// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
+func (_BindingContract *BindingContractTransactorSession) PostOp(mode uint8, context []byte, actualGasCost *big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.PostOp(&_BindingContract.TransactOpts, mode, context, actualGasCost)
+}
+
+// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0xf465c77e.
+//
+// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
+func (_BindingContract *BindingContractTransactor) ValidatePaymasterUserOp(opts *bind.TransactOpts, userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "validatePaymasterUserOp", userOp, userOpHash, maxCost)
+}
+
+// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0xf465c77e.
+//
+// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
+func (_BindingContract *BindingContractSession) ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.ValidatePaymasterUserOp(&_BindingContract.TransactOpts, userOp, userOpHash, maxCost)
+}
+
+// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0xf465c77e.
+//
+// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
+func (_BindingContract *BindingContractTransactorSession) ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (*types.Transaction, error) {
+	return _BindingContract.Contract.ValidatePaymasterUserOp(&_BindingContract.TransactOpts, userOp, userOpHash, maxCost)
 }
