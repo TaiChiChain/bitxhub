@@ -161,14 +161,6 @@ func (n *Node) Start() error {
 	go n.listenConsensusMsg()
 	go n.listenTxsBroadcastMsg()
 
-	// start inbound node engine
-	if err = n.n.Init(); err != nil {
-		return err
-	}
-	if err = n.n.Start(); err != nil {
-		return err
-	}
-
 	// start txpool engine
 	if err = n.txpool.Start(); err != nil {
 		return err
@@ -190,6 +182,14 @@ func (n *Node) Start() error {
 			}
 			txs = txs[length:]
 		}
+	}
+
+	// start inbound node engine
+	if err = n.n.Init(); err != nil {
+		return err
+	}
+	if err = n.n.Start(); err != nil {
+		return err
 	}
 
 	n.started.Store(true)
