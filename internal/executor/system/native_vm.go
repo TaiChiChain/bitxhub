@@ -160,7 +160,8 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 
 	methodName, err := nvm.getMethodName(contractAddr, data)
 	if err != nil {
-		return nil, err
+		// if method not found, return nil, nil, like solidity fallback
+		return nil, nil
 	}
 	// method name may be proposed, but we implement Propose
 	// capitalize the first letter of a function
@@ -171,7 +172,8 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	nvm.logger.Debugf("run system contract method name: %s\n", funcName)
 	method := reflect.ValueOf(contractInstance).MethodByName(funcName)
 	if !method.IsValid() {
-		return nil, ErrNotImplementFuncSystemContract
+		// if method not implement, return nil, nil, like solidity fallback
+		return nil, nil
 	}
 	args, err := nvm.parseArgs(contractBuildCfg, data, methodName)
 	if err != nil {
