@@ -115,9 +115,9 @@ func TestContractRun(t *testing.T) {
 			Message: &core.Message{
 				From: from,
 				To:   &to,
-				Data: hexutil.Bytes("error data"),
+				Data: hexutil.Bytes("error data"), //fallback
 			},
-			IsExpectedErr: true,
+			IsExpectedErr: false,
 		},
 		{
 			Message: &core.Message{
