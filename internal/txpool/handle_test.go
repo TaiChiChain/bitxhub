@@ -120,7 +120,6 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		records, err := GetAllTxRecords(pool.txRecordsFile)
 		ast.True(len(records) == 1)
 		pool.handleRemoveTimeout(RotateTxLocals)
-		time.Sleep(2 * time.Millisecond)
 		ast.Equal(uint64(0), pool.GetTotalPendingTxCount())
 		records2, err := GetAllTxRecords(pool.txRecordsFile)
 		ast.True(len(records2) == 0)
