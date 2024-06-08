@@ -513,7 +513,7 @@ func (ep *EntryPoint) handlePostOp(opIndex *big.Int, mode interfaces.PostOpMode,
 
 	sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.VerificationGasLimit)
 	if err := sa.postUserOp(opInfo.UseSessionKey, actualGasCost, totalValue); err != nil {
-		return nil, sa.Revert(&ientry_point.ErrorFailedOp{
+		return nil, ep.Revert(&ientry_point.ErrorFailedOp{
 			OpIndex: opIndex,
 			Reason:  fmt.Sprintf("post user op reverted: %s", err.Error()),
 		})
