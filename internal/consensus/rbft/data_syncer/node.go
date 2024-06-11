@@ -541,6 +541,8 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 			n.logger.Warningf("Replica %d recovered to seqNo %d but our high-target has moved to %d, "+
 				"keep on state transferring", n.chainState.SelfNodeInfo.ID, state.MetaState.Height, n.highStateTarget.metaState.Height)
 			n.setCommitHeight(n.highStateTarget.metaState.Height)
+			n.statusMgr.Off(StateTransferring)
+			n.tryStateTransfer()
 		} else {
 			n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d, accept epoch proof for %d", n.chainState.SelfNodeInfo.ID, n.lastCommitHeight, state.MetaState.Height, state.Epoch-1)
 			if ec, ok := n.epochProofCache[state.Epoch-1]; ok {
