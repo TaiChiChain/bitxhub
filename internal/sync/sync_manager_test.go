@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -113,9 +114,10 @@ func TestStartSync(t *testing.T) {
 	require.Nil(t, err)
 	syncTaskDoneCh := make(chan error, 1)
 	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 10, quorumCkpt), syncTaskDoneCh)
-	actualErr := <-syncTaskDoneCh
+	actualErr := waitSyncTaskDone(syncTaskDoneCh)
 	require.NotNil(t, actualErr)
 	require.Equal(t, actualErr, err)
+
 	require.Contains(t, err.Error(), "status is already true")
 	err = syncs[0].switchSyncStatus(false)
 	require.Nil(t, err)
@@ -132,10 +134,11 @@ func TestStartSync(t *testing.T) {
 		syncs[i].Start()
 	}
 
-	data := <-syncs[0].Commit()
-	blocks := data.([]common.CommitData)
-	require.Equal(t, 9, len(blocks))
-	require.Equal(t, uint64(10), blocks[len(blocks)-1].GetHeight())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks := data.([]common.CommitData)
+		require.Equal(t, 9, len(blocks))
+		require.Equal(t, uint64(10), blocks[len(blocks)-1].GetHeight())
+	})
 }
 
 func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
@@ -185,11 +188,15 @@ func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 
 	err := syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 10, quorumCkpt), syncTaskDoneCh)
 	require.Nil(t, err)
-	<-syncTaskDoneCh
-	data := <-syncs[0].Commit()
-	blocks := data.([]common.CommitData)
-	require.Equal(t, 9, len(blocks))
-	require.Equal(t, uint64(10), blocks[len(blocks)-1].GetHeight())
+
+	err = waitSyncTaskDone(syncTaskDoneCh)
+	require.Nil(t, err)
+
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks := data.([]common.CommitData)
+		require.Equal(t, 9, len(blocks))
+		require.Equal(t, uint64(10), blocks[len(blocks)-1].GetHeight())
+	})
 }
 
 func TestMultiEpochSync(t *testing.T) {
@@ -276,21 +283,26 @@ func TestMultiEpochSync(t *testing.T) {
 	syncTaskDoneCh := make(chan error, 1)
 	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 300, quorumCkpt300, epc1, epc2, epc3), syncTaskDoneCh)
 	require.Nil(t, err)
-	err = <-syncTaskDoneCh
+	err = waitSyncTaskDone(syncTaskDoneCh)
 	require.Nil(t, err)
 
-	data := <-syncs[0].Commit()
-	blocks1 := data.([]common.CommitData)
-	require.Equal(t, 99, len(blocks1))
-	require.Equal(t, uint64(100), blocks1[len(blocks1)-1].GetHeight())
-	data = <-syncs[0].Commit()
-	blocks2 := data.([]common.CommitData)
-	require.Equal(t, 100, len(blocks2))
-	require.Equal(t, uint64(200), blocks2[len(blocks2)-1].GetHeight())
-	data = <-syncs[0].Commit()
-	blocks3 := data.([]common.CommitData)
-	require.Equal(t, 100, len(blocks3))
-	require.Equal(t, uint64(300), blocks3[len(blocks3)-1].GetHeight())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks1 := data.([]common.CommitData)
+		require.Equal(t, 99, len(blocks1))
+		require.Equal(t, uint64(100), blocks1[len(blocks1)-1].GetHeight())
+	})
+
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks2 := data.([]common.CommitData)
+		require.Equal(t, 100, len(blocks2))
+		require.Equal(t, uint64(200), blocks2[len(blocks2)-1].GetHeight())
+	})
+
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks3 := data.([]common.CommitData)
+		require.Equal(t, 100, len(blocks3))
+		require.Equal(t, uint64(300), blocks3[len(blocks3)-1].GetHeight())
+	})
 
 	require.False(t, syncs[0].syncStatus.Load())
 }
@@ -378,15 +390,16 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	syncTaskDoneCh := make(chan error, 1)
 	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 10, quorumCkpt10), syncTaskDoneCh)
 	require.Nil(t, err)
-	err = <-syncTaskDoneCh
+	err = waitSyncTaskDone(syncTaskDoneCh)
 	require.Nil(t, err)
 
-	data := <-syncs[0].Commit()
-	blocks1 := data.([]common.CommitData)
-	require.Equal(t, 9, len(blocks1))
-	require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
-	require.Equal(t, block10.Hash().String(), blocks1[len(blocks1)-1].GetHash())
-	require.False(t, syncs[0].syncStatus.Load())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks1 := data.([]common.CommitData)
+		require.Equal(t, 9, len(blocks1))
+		require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
+		require.Equal(t, block10.Hash().String(), blocks1[len(blocks1)-1].GetHash())
+		require.False(t, syncs[0].syncStatus.Load())
+	})
 
 	// reset right block
 	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
@@ -430,17 +443,22 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	// start sync
 	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 101, quorumCkpt101, epc1), syncTaskDoneCh)
 	require.Nil(t, err)
-	err = <-syncTaskDoneCh
+	err = waitSyncTaskDone(syncTaskDoneCh)
 	require.Nil(t, err)
 
-	data = <-syncs[0].Commit()
-	blocks1 = data.([]common.CommitData)
-	require.Equal(t, 99, len(blocks1))
-	require.Equal(t, uint64(100), blocks1[len(blocks1)-1].GetHeight())
-	data = <-syncs[0].Commit()
-	blocks2 := data.([]common.CommitData)
-	require.Equal(t, 1, len(blocks2))
-	require.Equal(t, uint64(101), blocks2[len(blocks2)-1].GetHeight())
+	waitCommitData(t, syncs[0].Commit(),
+		func(t *testing.T, data any) {
+			blocks1 := data.([]common.CommitData)
+			require.Equal(t, 99, len(blocks1))
+			require.Equal(t, uint64(100), blocks1[len(blocks1)-1].GetHeight())
+		})
+
+	waitCommitData(t, syncs[0].Commit(),
+		func(t *testing.T, data any) {
+			blocks2 := data.([]common.CommitData)
+			require.Equal(t, 1, len(blocks2))
+			require.Equal(t, uint64(101), blocks2[len(blocks2)-1].GetHeight())
+		})
 
 	// reset right block
 	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
@@ -496,7 +514,7 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 		syncTaskDoneCh := make(chan error, 1)
 		err := syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, startHeight, targetHeight, wrongQuorumCkpt), syncTaskDoneCh)
 		require.Nil(t, err)
-		err = <-syncTaskDoneCh
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "quorum checkpoint is not equal to current hash")
 	})
@@ -560,10 +578,12 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 		param := genSyncParams(peers, latestBlockHash, 2, startHeight, targetHeight, wrongQuorumCkpt, epc1)
 		err = syncs[0].StartSync(param, syncTaskDoneCh)
 		require.Nil(t, err)
-		blocks := <-syncs[0].Commit()
-		require.NotNil(t, blocks)
 
-		err = <-syncTaskDoneCh
+		waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+			require.NotNil(t, data)
+		})
+
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "quorum checkpoint is not equal to current hash")
 	})
@@ -634,19 +654,20 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		require.False(t, progress.CatchUp)
 		require.Equal(t, uint64(2), progress.StartSyncBlock)
 
-		err = <-syncTaskDoneCh
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.Nil(t, err)
 		progress = syncs[0].GetSyncProgress()
 		require.False(t, progress.InSync)
 
-		data := <-syncs[0].Commit()
-		blocks1 := data.([]common.CommitData)
-		require.Equal(t, wrongId, syncs[0].peers[idx].PeerID)
-		require.Equal(t, uint64(1), syncs[0].peers[idx].TimeoutCount, "record timeout count")
-		require.Equal(t, 3, len(syncs[0].peers), "not remove timeout peer because timeoutCount < timeoutCountLimit")
-		require.Equal(t, 9, len(blocks1))
-		require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
-		require.Equal(t, oldRightBlock.Hash().String(), blocks1[timeoutBlockHeight-2].GetHash())
+		waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+			blocks1 := data.([]common.CommitData)
+			require.Equal(t, wrongId, syncs[0].peers[idx].PeerID)
+			require.Equal(t, uint64(1), syncs[0].peers[idx].TimeoutCount, "record timeout count")
+			require.Equal(t, 3, len(syncs[0].peers), "not remove timeout peer because timeoutCount < timeoutCountLimit")
+			require.Equal(t, 9, len(blocks1))
+			require.Equal(t, uint64(10), blocks1[len(blocks1)-1].GetHeight())
+			require.Equal(t, oldRightBlock.Hash().String(), blocks1[timeoutBlockHeight-2].GetHash())
+		})
 
 		// reset right commitData
 		err = ledgers[wrongId].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
@@ -719,11 +740,13 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		progress := syncs[0].GetSyncProgress()
 		require.True(t, progress.InSync)
 		require.Equal(t, uint64(2), progress.StartSyncBlock)
-		data := <-syncs[0].Commit()
-		blocks1 := data.([]common.CommitData)
-		require.Equal(t, 99, len(blocks1))
-		require.Equal(t, uint64(100), blocks1[len(blocks1)-1].GetHeight())
-		require.Equal(t, 2, len(syncs[0].peers), "remove timeout peer")
+
+		waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+			blocks1 := data.([]common.CommitData)
+			require.Equal(t, 99, len(blocks1))
+			require.Equal(t, uint64(100), blocks1[len(blocks1)-1].GetHeight())
+			require.Equal(t, 2, len(syncs[0].peers), "remove timeout peer")
+		})
 
 		require.False(t, syncs[0].syncStatus.Load())
 		progress = syncs[0].GetSyncProgress()
@@ -776,52 +799,177 @@ func TestHandleSyncErrMsg(t *testing.T) {
 	err := syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 100, quorumCkpt), syncTaskDoneCh)
 	require.Nil(t, err)
 
-	data := <-syncs[0].Commit()
-	blocks := data.([]common.CommitData)
-	require.Equal(t, 99, len(blocks))
-	require.Equal(t, uint64(100), blocks[len(blocks)-1].GetHeight())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
+		blocks := data.([]common.CommitData)
+		require.Equal(t, 99, len(blocks))
+		require.Equal(t, uint64(100), blocks[len(blocks)-1].GetHeight())
+	})
 }
 
 func TestValidateChunk(t *testing.T) {
-	n := 4
-	syncs, ledgers := newMockBlockSyncs(t, n)
+	testCases := []struct {
+		name         string
+		setupMocks   func(*SyncManager, *mockLedger)
+		expectErr    error
+		expectResult []*common.InvalidMsg
+	}{
+		{
+			name: "validate block success",
+			setupMocks: func(sync *SyncManager, ledger *mockLedger) {
+				sync.fullValidate = true
+				tx, err := types.GenerateEmptyTransactionAndSigner()
+				require.Nil(t, err)
+				sync.increaseRequester(&requester{
+					peerID:      "1",
+					blockHeight: 1,
+					quitCh:      make(chan struct{}, 1),
+					commitData: &common.BlockData{
+						Block: ConstructBlock(1, ledger.GetChainMeta().BlockHash, tx),
+					},
+				}, 1)
+			},
+		},
+		{
+			name:      "no requester",
+			expectErr: fmt.Errorf("requester[height:1] is nil"),
+			setupMocks: func(sync *SyncManager, ledger *mockLedger) {
+			},
+		},
 
-	localId := "0"
-	syncs[0].latestCheckedState = &pb.CheckpointState{
-		Height: ledgers[localId].GetChainMeta().Height,
-		Digest: ledgers[localId].GetChainMeta().BlockHash.String(),
+		{
+			name:      "requester commitData is nil",
+			expectErr: nil,
+			expectResult: []*common.InvalidMsg{
+				{
+					NodeID: "1",
+					Height: 1,
+					Typ:    common.SyncMsgType_TimeoutBlock,
+				},
+			},
+			setupMocks: func(sync *SyncManager, ledger *mockLedger) {
+				sync.increaseRequester(&requester{
+					peerID:      "1",
+					blockHeight: 1,
+					quitCh:      make(chan struct{}, 1),
+				}, 1)
+			},
+		},
+
+		{
+			name:      "requester commitData is invalid, previous commitData had checked",
+			expectErr: nil,
+			expectResult: []*common.InvalidMsg{
+				{
+					NodeID: "1",
+					Height: 1,
+					Typ:    common.SyncMsgType_InvalidBlock,
+				},
+			},
+			setupMocks: func(sync *SyncManager, ledger *mockLedger) {
+				sync.increaseRequester(&requester{
+					peerID:      "1",
+					blockHeight: 1,
+					quitCh:      make(chan struct{}, 1),
+					commitData: &common.BlockData{
+						Block: ConstructBlock(2, generateHash("wrongHash")),
+					},
+				}, 1)
+			},
+		},
+		{
+			name:      "requester commitData is invalid, previous commitData had not checked",
+			expectErr: nil,
+			expectResult: []*common.InvalidMsg{
+				{
+					NodeID: "1",
+					Height: 1,
+					Typ:    common.SyncMsgType_InvalidBlock,
+				},
+				{
+					NodeID: "2",
+					Height: 2,
+					Typ:    common.SyncMsgType_InvalidBlock,
+				},
+			},
+			setupMocks: func(sync *SyncManager, ledger *mockLedger) {
+				sync.chunk = &common.Chunk{
+					ChunkSize: 2,
+				}
+				sync.increaseRequester(&requester{
+					peerID:      "1",
+					blockHeight: 1,
+					quitCh:      make(chan struct{}, 1),
+					commitData: &common.BlockData{
+						Block: ConstructBlock(1, ledger.GetChainMeta().BlockHash),
+					},
+				}, 1)
+				sync.increaseRequester(&requester{
+					peerID:      "2",
+					blockHeight: 2,
+					quitCh:      make(chan struct{}, 1),
+					commitData: &common.BlockData{
+						Block: ConstructBlock(2, generateHash("wrongHash")),
+					},
+				}, 2)
+			},
+		},
+		{
+			name: "validate Block body failed",
+			expectResult: []*common.InvalidMsg{
+				{
+					NodeID: "1",
+					Height: 1,
+					Typ:    common.SyncMsgType_InvalidBlock,
+				},
+			},
+			setupMocks: func(sync *SyncManager, ledger *mockLedger) {
+				sync.fullValidate = true
+				tx, err := types.GenerateEmptyTransactionAndSigner()
+				require.Nil(t, err)
+
+				block := ConstructBlock(1, ledger.GetChainMeta().BlockHash, tx)
+				block.Header.TxRoot = generateHash("wrongHash")
+				sync.increaseRequester(&requester{
+					peerID:      "1",
+					blockHeight: 1,
+					quitCh:      make(chan struct{}, 1),
+					commitData: &common.BlockData{
+						Block: block,
+					},
+				}, 1)
+			},
+		},
 	}
-	syncs[0].curHeight = 1
-	syncs[0].chunk = &common.Chunk{
-		ChunkSize: 1,
+
+	for _, testCase := range testCases {
+		t.Log(testCase.name)
+		syncs, ledgers := newMockBlockSyncs(t, 4)
+		localId := 0
+		sync, ledger := syncs[localId], ledgers[fmt.Sprintf("%d", localId)]
+
+		sync.latestCheckedState = &pb.CheckpointState{
+			Height: ledger.GetChainMeta().Height,
+			Digest: ledger.GetChainMeta().BlockHash.String(),
+		}
+		sync.curHeight = 1
+		sync.chunk = &common.Chunk{
+			ChunkSize: 1,
+		}
+
+		testCase.setupMocks(sync, ledger)
+
+		invalidMsgs, err := syncs[localId].validateChunk()
+		if testCase.expectErr != nil {
+			require.Contains(t, err.Error(), testCase.expectErr.Error())
+		}
+		if testCase.expectResult != nil {
+			require.Equal(t, len(testCase.expectResult), len(invalidMsgs))
+			for i := 0; i < len(testCase.expectResult); i++ {
+				require.True(t, reflect.DeepEqual(*testCase.expectResult[i], *invalidMsgs[i]))
+			}
+		}
+
 	}
-
-	// get requester err: nil
-	_, err := syncs[0].validateChunk()
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "requester[height:1] is nil")
-
-	oldRequest := &requester{
-		peerID:      "1",
-		blockHeight: 1,
-		quitCh:      make(chan struct{}, 1),
-	}
-
-	syncs[0].increaseRequester(oldRequest, 1)
-
-	newRequest := &requester{
-		peerID:      "2",
-		blockHeight: 1,
-		quitCh:      make(chan struct{}, 1),
-	}
-
-	syncs[0].increaseRequester(newRequest, 1)
-	<-oldRequest.quitCh
-
-	// get requester commitData err: commitData is nil
-	invalidMsgs, err := syncs[0].validateChunk()
-	require.Nil(t, err)
-	require.Equal(t, 1, len(invalidMsgs))
 }
 
 func TestRequestState(t *testing.T) {
@@ -932,7 +1080,7 @@ func TestRequestState(t *testing.T) {
 		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), 2, 2, 10, quorumCkpt10), syncTaskDoneCh)
 		require.Nil(t, err)
 
-		err = <-syncTaskDoneCh
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.Nil(t, err)
 	})
 }
@@ -1030,20 +1178,23 @@ func TestStartSyncWithSnapshotMode(t *testing.T) {
 	syncTaskDoneCh := make(chan error, 1)
 	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash, 2, 2, 300, quorumCkpt300, epcs...), syncTaskDoneCh)
 	require.Nil(t, err)
-	err = <-syncTaskDoneCh
+	err = waitSyncTaskDone(syncTaskDoneCh)
 	require.Nil(t, err)
 
-	chainData := <-syncs[0].Commit()
-	require.NotNil(t, chainData)
-	require.Equal(t, uint64(100), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, chainData any) {
+		require.NotNil(t, chainData)
+		require.Equal(t, uint64(100), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
+	})
 
-	chainData = <-syncs[0].Commit()
-	require.NotNil(t, chainData)
-	require.Equal(t, uint64(200), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, chainData any) {
+		require.NotNil(t, chainData)
+		require.Equal(t, uint64(200), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
+	})
 
-	chainData = <-syncs[0].Commit()
-	require.NotNil(t, chainData)
-	require.Equal(t, uint64(300), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
+	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, chainData any) {
+		require.NotNil(t, chainData)
+		require.Equal(t, uint64(300), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
+	})
 }
 
 func TestPickPeer(t *testing.T) {
@@ -1137,7 +1288,7 @@ func TestPickPeer(t *testing.T) {
 		targetHeight := uint64(latestHeight)
 		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), 2, 2, targetHeight, quorumCkpt10), syncTaskDoneCh)
 		require.Nil(t, err)
-		err = <-syncTaskDoneCh
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.Nil(t, err)
 
 		// init peers' latest height in targetHeight
@@ -1191,7 +1342,7 @@ func TestPickPeer(t *testing.T) {
 		syncTaskDoneCh := make(chan error, 1)
 		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), 2, 2, targetHeight, quorumCkpt), syncTaskDoneCh)
 		require.Nil(t, err)
-		err = <-syncTaskDoneCh
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.Nil(t, err)
 
 		// peers' latest height had been updated(count is bigger than ensureOneCorrectNum)
@@ -1269,7 +1420,7 @@ func TestPickPeer(t *testing.T) {
 		syncTaskDoneCh := make(chan error, 1)
 		err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), uint64(quorum), 2, targetHeight, quorumCkpt), syncTaskDoneCh)
 		require.Nil(t, err)
-		err = <-syncTaskDoneCh
+		err = waitSyncTaskDone(syncTaskDoneCh)
 		require.Nil(t, err)
 
 		var matchPeerId string
@@ -1287,16 +1438,17 @@ func TestPickPeer(t *testing.T) {
 
 func TestTps(t *testing.T) {
 	t.Skip()
-	round := 100
+	round := 20
 	localId := 0
 	begin := uint64(2)
-	syncCount := 10000
+	syncCount := 1000
+	txCount := 500
 	end := begin + uint64(syncCount) - 1
 	epochInternal := 100
 	n := 4
 	snapDuration := make([]time.Duration, 0)
 	fullDuration := make([]time.Duration, 0)
-	syncs, epochChanges, allPeers := prepareBlockSyncs(t, epochInternal, localId, n, begin, end)
+	syncs, epochChanges, allPeers := prepareBlockSyncs(t, epochInternal, localId, n, txCount, begin, end)
 	// start sync model
 	for i := 0; i < n; i++ {
 		_, err := syncs[i].Prepare()
@@ -1337,32 +1489,33 @@ func TestTps(t *testing.T) {
 
 		err = syncs[localId].StartSync(genSyncParams(remotePeers, latestBlockHash, 2, begin, end, quorumCkpt, epochChanges...), syncTaskDone)
 		require.Nil(t, err)
+		taskDoneCh := make(chan bool, 1)
+		go func(ch chan bool) {
+			for {
+				select {
+				case data := <-syncs[localId].Commit():
+					var height uint64
+					switch syncs[localId].mode {
+					case common.SyncModeSnapshot:
+						snapData, ok := data.(*common.SnapCommitData)
+						require.True(t, ok)
+						height = snapData.Data[len(snapData.Data)-1].GetHeight()
+					case common.SyncModeFull:
+						fullData, ok := data.([]common.CommitData)
+						require.True(t, ok)
+						height = fullData[len(fullData)-1].GetHeight()
+					}
+					if height == end {
+						ch <- true
+						return
+					}
+				}
+			}
+		}(taskDoneCh)
+
 		err = <-syncTaskDone
 		require.Nil(t, err)
-
-		var taskDone bool
-		for {
-			select {
-			case data := <-syncs[localId].Commit():
-				var height uint64
-				switch syncs[localId].mode {
-				case common.SyncModeSnapshot:
-					snapData, ok := data.(*common.SnapCommitData)
-					require.True(t, ok)
-					height = snapData.Data[len(snapData.Data)-1].GetHeight()
-				case common.SyncModeFull:
-					fullData, ok := data.([]common.CommitData)
-					require.True(t, ok)
-					height = fullData[len(fullData)-1].GetHeight()
-				}
-				if height == end {
-					taskDone = true
-				}
-			}
-			if taskDone {
-				break
-			}
-		}
+		<-taskDoneCh
 		cost := time.Since(now)
 		switch syncs[localId].mode {
 		case common.SyncModeSnapshot:
@@ -1378,7 +1531,7 @@ func TestTps(t *testing.T) {
 		lo.ForEach(duration, func(d time.Duration, _ int) {
 			sum += d
 		})
-		t.Logf("%s tps: %f", common.SyncModeMap[mode], float64(syncCount*round)/sum.Seconds())
+		t.Logf("%s tps: %f", common.SyncModeMap[mode], float64(syncCount*txCount*round)/sum.Seconds())
 	}
 
 	caculateTps(snapDuration, common.SyncModeSnapshot)

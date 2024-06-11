@@ -3,9 +3,12 @@ package txpool
 import (
 	"math"
 	"math/big"
+	"path"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
@@ -42,6 +45,16 @@ func mockTxPoolImpl[T any, Constraint types.TXConstraint[T]](t *testing.T) *txPo
 	}
 	pool.Init(conf)
 	return pool
+}
+
+func getRepoRootFromRecordFile(file string) string {
+	recordSuffix := path.Join("storage", storagemgr.TxPool, TxRecordsFile)
+	// file: repo_root/storage/txpool/tx_records
+	// return: repo_root
+	if strings.HasSuffix(file, recordSuffix) {
+		return strings.TrimSuffix(file, recordSuffix)
+	}
+	return ""
 }
 
 func mockTxPoolImplWithTyp[T any, Constraint types.TXConstraint[T]](t *testing.T, typ string) *txPoolImpl[T, Constraint] {

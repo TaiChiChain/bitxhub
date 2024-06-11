@@ -116,9 +116,9 @@ type syncRequestMessage interface {
 
 type CommitData interface {
 	GetParentHash() string
+	GetBlock() *types.Block
 	GetHash() string
 	GetHeight() uint64
-
 	GetEpoch() uint64
 }
 
@@ -151,6 +151,10 @@ func (b *BlockData) GetEpoch() uint64 {
 	return b.Block.Header.Epoch
 }
 
+func (b *BlockData) GetBlock() *types.Block {
+	return b.Block
+}
+
 type ChainData struct {
 	Block    *types.Block
 	Receipts []*types.Receipt
@@ -170,6 +174,10 @@ func (c *ChainData) GetHeight() uint64 {
 
 func (c *ChainData) GetEpoch() uint64 {
 	return c.Block.Header.Epoch
+}
+
+func (c *ChainData) GetBlock() *types.Block {
+	return c.Block
 }
 
 func (c *Chunk) FillCheckPoint(chunkMaxHeight uint64, checkpoint *pb.CheckpointState) {

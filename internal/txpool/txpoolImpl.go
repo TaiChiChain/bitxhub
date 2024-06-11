@@ -84,15 +84,6 @@ func (p *txPoolImpl[T, Constraint]) Start() error {
 	}
 	go p.listenEvent()
 
-	if p.enableLocalsPersist {
-		if err := p.processRecords(); err != nil {
-			return err
-		}
-		if err := p.txRecords.rotate(p.txStore.allTxs); err != nil {
-			return err
-		}
-	}
-
 	err := p.timerMgr.StartTimer(RemoveTx)
 	if err != nil {
 		return err
@@ -133,14 +124,11 @@ func (p *txPoolImpl[T, Constraint]) processRecords() error {
 			if !ok {
 				return nil
 			}
-			insertCount := p.addLocalRecordTx(txs)
-
-			totalInsertCount += insertCount
+			totalInsertCount += p.processRecordsTask(txs)
 		case <-taskDoneCh:
 			close(txsCh)
 			for txs := range txsCh {
-				insertCount := p.addLocalRecordTx(txs)
-				totalInsertCount += insertCount
+				totalInsertCount += p.processRecordsTask(txs)
 			}
 
 			p.logger.WithFields(logrus.Fields{
@@ -150,6 +138,27 @@ func (p *txPoolImpl[T, Constraint]) processRecords() error {
 			return nil
 		}
 	}
+}
+
+func (p *txPoolImpl[T, Constraint]) processRecordsTask(txs []*T) int {
+	start := time.Now()
+	req := &reqLocalRecordTx[T, Constraint]{
+		txs: txs,
+		ch:  make(chan int, 1),
+	}
+	p.handleLocalRecordTx(req)
+	insertCount := <-req.ch
+
+	if p.checkPoolFull() {
+		p.setFull()
+	}
+
+	p.logger.WithFields(logrus.Fields{
+		"add_num": insertCount,
+		"cost":    time.Since(start),
+	}).Info("Add record txs successfully")
+
+	return insertCount
 }
 
 func (p *txPoolImpl[T, Constraint]) listenEvent() {
@@ -334,45 +343,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 
 	case localRecordTxEvent:
 		req := event.Event.(*reqLocalRecordTx[T, Constraint])
-		txs := req.txs
-		validTxs := make([]*T, 0)
-
-		traceRejectTxs := func(txs []*T) {
-			for i := 0; i < len(txs); i++ {
-				traceRejectTx(ErrTxPoolFull.Error())
-			}
-		}
-		overSpaceTxs := make([]*T, 0)
-		defer func() {
-			if len(overSpaceTxs) > 0 {
-				traceRejectTxs(overSpaceTxs)
-			}
-			req.ch <- len(validTxs)
-		}()
-
-		// if tx pool is full, reject the left txs
-		if len(p.txStore.txHashMap)+len(txs) > int(p.poolMaxSize) {
-			if len(p.txStore.txHashMap) < int(p.poolMaxSize) {
-				remainSpace := int(p.poolMaxSize) - len(p.txStore.txHashMap)
-				overSpaceTxs = txs[remainSpace:]
-				txs = txs[:remainSpace]
-			}
-		}
-		if p.statusMgr.In(PoolFull) {
-			overSpaceTxs = txs
-			return nil
-		}
-
-		// omit add record txs error
-		lo.ForEach(txs, func(tx *T, i int) {
-			replaced, err := p.addTx(tx, true)
-			if err == nil {
-				validTxs = append(validTxs, tx)
-			} else {
-				p.updateValidTxs(&validTxs, tx, replaced)
-			}
-		})
-
+		p.handleLocalRecordTx(req)
 	default:
 		p.logger.Errorf("unknown addTxs event type: %d", event.EventType)
 	}
@@ -383,6 +354,47 @@ func (p *txPoolImpl[T, Constraint]) dispatchAddTxsEvent(event *addTxsEvent) []tx
 	}
 
 	return nextEvents
+}
+
+func (p *txPoolImpl[T, Constraint]) handleLocalRecordTx(req *reqLocalRecordTx[T, Constraint]) {
+	txs := req.txs
+	validTxs := make([]*T, 0)
+
+	traceRejectTxs := func(txs []*T) {
+		for i := 0; i < len(txs); i++ {
+			traceRejectTx(ErrTxPoolFull.Error())
+		}
+	}
+	overSpaceTxs := make([]*T, 0)
+	defer func() {
+		if len(overSpaceTxs) > 0 {
+			traceRejectTxs(overSpaceTxs)
+		}
+		req.ch <- len(validTxs)
+	}()
+
+	// if tx pool is full, reject the left txs
+	if len(p.txStore.txHashMap)+len(txs) > int(p.poolMaxSize) {
+		if len(p.txStore.txHashMap) < int(p.poolMaxSize) {
+			remainSpace := int(p.poolMaxSize) - len(p.txStore.txHashMap)
+			overSpaceTxs = txs[remainSpace:]
+			txs = txs[:remainSpace]
+		}
+	}
+	if p.statusMgr.In(PoolFull) {
+		overSpaceTxs = txs
+		return
+	}
+
+	// omit add record txs error
+	lo.ForEach(txs, func(tx *T, i int) {
+		replaced, err := p.addTx(tx, true)
+		if err == nil {
+			validTxs = append(validTxs, tx)
+		} else {
+			p.updateValidTxs(&validTxs, tx, replaced)
+		}
+	})
 }
 
 func (p *txPoolImpl[T, Constraint]) postConsensusSignal(validTxs []*T) {
@@ -1080,6 +1092,15 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config, chain
 
 	txpoolImp.chainInfo = config.ChainInfo
 	txpoolImp.setPriceLimit(config.PriceLimit)
+
+	if txpoolImp.enableLocalsPersist {
+		if err = txpoolImp.processRecords(); err != nil {
+			return nil, err
+		}
+		if err = txpoolImp.txRecords.rotate(txpoolImp.txStore.allTxs); err != nil {
+			return nil, err
+		}
+	}
 
 	txpoolImp.logger.Infof("TxPool pool size = %d", txpoolImp.poolMaxSize)
 	txpoolImp.logger.Infof("TxPool batch size = %d", txpoolImp.chainInfo.EpochConf.BatchSize)

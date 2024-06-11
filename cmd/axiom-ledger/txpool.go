@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -83,6 +84,8 @@ func getAllTxRecords(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	now := time.Now()
 	for _, record := range records {
 		tx := &types.Transaction{}
 		err = tx.RbftUnmarshal(record)
@@ -103,7 +106,7 @@ func getAllTxRecords(ctx *cli.Context) error {
 			return err
 		}
 	}
-	fmt.Println("success get all txs in txrecords, count: ", len(records))
+	fmt.Printf("success get all txs in txrecords, count: %d, cost: %s\n", len(records), time.Since(now))
 
 	return nil
 }

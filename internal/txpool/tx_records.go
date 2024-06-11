@@ -6,8 +6,9 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path/filepath"
+	"path"
 
+	"github.com/axiomesh/axiom-kit/fileutil"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -125,9 +126,8 @@ func (r *txRecords[T, Constraint]) rotate(all map[string]*txSortedMap[T, Constra
 		}
 		r.writer = nil
 	}
-	dir := filepath.Dir(r.filePath)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err = os.MkdirAll(dir, 0755); err != nil {
+	if !fileutil.ExistDir(path.Dir(r.filePath)) {
+		if err := os.MkdirAll(path.Dir(r.filePath), 0755); err != nil {
 			return err
 		}
 	}

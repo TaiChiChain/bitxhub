@@ -164,6 +164,7 @@ type Access struct {
 }
 
 type Sync struct {
+	FullValidation        bool     `mapstructure:"full_validation" toml:"full_validation"`
 	WaitStatesTimeout     Duration `mapstructure:"wait_states_timeout" toml:"wait_states_timeout"`
 	RequesterRetryTimeout Duration `mapstructure:"requester_retry_timeout" toml:"requester_retry_timeout"`
 	TimeoutCountLimit     uint64   `mapstructure:"timeout_count_limit" toml:"timeout_count_limit"`
@@ -297,6 +298,7 @@ func defaultConfig() *Config {
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      1000,
+			FullValidation:        true,
 		},
 		Consensus: Consensus{
 			Type:        ConsensusTypeRbft,

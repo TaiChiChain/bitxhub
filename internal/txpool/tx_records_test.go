@@ -77,9 +77,6 @@ func TestTxRecords_load(t *testing.T) {
 
 	taskDoneCh := make(chan struct{}, 1)
 
-	records.load(nil, taskDoneCh)
-	<-taskDoneCh
-
 	// test wrong read
 	err := pool.Start()
 	assert.Nil(t, err)
@@ -143,6 +140,9 @@ func TestTxRecords_LoadMoreThanOneBatch(t *testing.T) {
 		assert.Nil(t, err)
 	}
 
+	err = pool.processRecords()
+	assert.Nil(t, err)
+
 	// restart pool
 	pool.Stop()
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
@@ -200,17 +200,4 @@ func TestTxRecords_RotateMoreThanOneBatch(t *testing.T) {
 	records, err := GetAllTxRecords(pool.txRecords.filePath)
 	assert.Nil(t, err)
 	assert.True(t, len(records) == TxRecordsBatchSize+1)
-}
-
-func TestTxRecords_Insert(t *testing.T) {
-	// init pool and txs
-	pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-	records := pool.txRecords
-
-	// test insert no writer
-	s, err := types.GenerateSigner()
-	assert.Nil(t, err)
-	tx1 := constructTx(s, 0)
-	err = records.insert(tx1)
-	assert.NotNil(t, err) // if not start pool first, records writer is null
 }

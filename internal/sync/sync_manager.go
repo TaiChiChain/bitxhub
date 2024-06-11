@@ -15,6 +15,7 @@ import (
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
+	"github.com/axiomesh/axiom-ledger/internal/components"
 	"github.com/gammazero/workerpool"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -35,6 +36,7 @@ var _ common.Sync = (*SyncManager)(nil)
 
 type SyncManager struct {
 	mode                common.SyncMode
+	fullValidate        bool
 	started             atomic.Bool
 	modeConstructor     common.ISyncConstructor
 	conf                repo.Sync
@@ -88,6 +90,7 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 	receiptFn func(height uint64) ([]*types.Receipt, error), getEpochStateFunc func(key []byte) []byte, network network.Network, cnf repo.Sync) (*SyncManager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	syncMgr := &SyncManager{
+		fullValidate:       cnf.FullValidation,
 		mode:               common.SyncModeFull,
 		modeConstructor:    newModeConstructor(common.SyncModeFull, common.WithContext(ctx)),
 		logger:             logger,
@@ -415,6 +418,7 @@ func (sm *SyncManager) validateChunk() ([]*common.InvalidMsg, error) {
 			}, nil
 		}
 
+		// 1. validate block hash consecutively
 		if cd.GetParentHash() != parentHash {
 			sm.logger.WithFields(logrus.Fields{
 				"height":               i,
@@ -447,9 +451,48 @@ func (sm *SyncManager) validateChunk() ([]*common.InvalidMsg, error) {
 			return invalidMsgs, nil
 		}
 
+		// 2. validate block body
+		if err := sm.validateBlockBody(cd); err != nil {
+			sm.logger.WithFields(logrus.Fields{
+				"height": i,
+				"err":    err,
+			}).Warning("Block body is invalid")
+			return []*common.InvalidMsg{
+				{
+					NodeID: r.peerID,
+					Height: i,
+					Typ:    common.SyncMsgType_InvalidBlock,
+				},
+			}, nil
+		}
+
 		parentHash = cd.GetHash()
 	}
 	return nil, nil
+}
+
+func (sm *SyncManager) validateBlockBody(d common.CommitData) error {
+	defer func(startTime time.Time) {
+		validateBlockDuration.Observe(time.Since(startTime).Seconds())
+	}(time.Now())
+
+	// if fullValidate is false, we don't need to validate block body
+	if !sm.fullValidate {
+		return nil
+	}
+
+	block := d.GetBlock()
+
+	// validate txRoot
+	txRoot, err := components.CalcTxsMerkleRoot(block.Transactions)
+	if err != nil {
+		return err
+	}
+	if txRoot.String() != block.Header.TxRoot.String() {
+		return fmt.Errorf("invalid txs root, caculate txRoot is %s, but remote block txRoot is %s", txRoot, block.Header.TxRoot)
+	}
+
+	return nil
 }
 
 func (sm *SyncManager) updateLatestCheckedState(height uint64, digest string) {
@@ -1062,8 +1105,11 @@ func (sm *SyncManager) SwitchMode(newMode common.SyncMode) error {
 	)
 	switch newMode {
 	case common.SyncModeFull:
+		sm.fullValidate = sm.conf.FullValidation
 		newConstructor = newModeConstructor(common.SyncModeFull, common.WithContext(sm.ctx))
 	case common.SyncModeSnapshot:
+		// snapshot mode need not validate block
+		sm.fullValidate = false
 		newConstructor = newModeConstructor(common.SyncModeSnapshot, common.WithContext(sm.ctx), common.WithLogger(sm.logger), common.WithNetwork(sm.network))
 	default:
 		return fmt.Errorf("invalid newMode: %d", newMode)

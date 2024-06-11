@@ -13,6 +13,15 @@ var (
 		[]string{"sync_count"},
 	)
 
+	validateBlockDuration = prometheus.NewSummary(
+		prometheus.SummaryOpts{
+			Namespace: "axiom_ledger",
+			Subsystem: "sync",
+			Name:      "validate_block_duration_seconds",
+			Help:      "The total latency of commitData validation",
+		},
+	)
+
 	requesterNumber = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "axiom_ledger",
@@ -45,6 +54,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(blockSyncDuration)
+	prometheus.MustRegister(validateBlockDuration)
 	prometheus.MustRegister(requesterNumber)
 	prometheus.MustRegister(invalidBlockNumber)
 	prometheus.MustRegister(recvBlockNumber)

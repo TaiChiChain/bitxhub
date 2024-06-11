@@ -34,6 +34,14 @@ func TestNewTxPool(t *testing.T) {
 	for _, tc := range testcase {
 		pool := tc
 		ast.False(pool.IsPoolFull())
+
+		// test load wrong path
+		wrongPool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+
+		wrongPool.txRecords.filePath = fmt.Sprintf("wrong-path-%d", time.Now().Unix())
+		err := wrongPool.processRecords()
+		ast.NotNil(err)
+		ast.Contains(err.Error(), "no such file or directory")
 	}
 }
 
@@ -68,19 +76,10 @@ func TestTxPoolImpl_Start(t *testing.T) {
 		ast.NotNil(err)
 		ast.Contains(err.Error(), "timer RemoveTx doesn't exist")
 		pool.Stop()
-
-		t.Run("test load tx records failed", func(t *testing.T) {
-			wrongPool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-
-			wrongPool.txRecords.filePath = fmt.Sprintf("wrong-path-%d", time.Now().Unix())
-			err = wrongPool.Start()
-			ast.NotNil(err)
-			ast.Contains(err.Error(), "no such file or directory")
-		})
 	}
 }
 
-func TestTxPoolImpl_StartWithTxRecordsFile(t *testing.T) {
+func TestTxPoolImpl_TxRecordsFile(t *testing.T) {
 	ast := assert.New(t)
 	t.Parallel()
 	t.Run("test load tx records successfully", func(t *testing.T) {
@@ -108,19 +107,22 @@ func TestTxPoolImpl_StartWithTxRecordsFile(t *testing.T) {
 
 			pool.Stop()
 
-			// start pool which txRecordsFile is not empty
-			pool = mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-			pool.txRecords.filePath = recordFile
-			ast.Equal(0, len(pool.txStore.txHashMap))
-			ast.Equal(0, pool.txStore.localTTLIndex.size())
+			// start pool which txRecordsFile is empty
+			emptyPool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
+			ast.Equal(0, len(emptyPool.txStore.txHashMap))
+			ast.Equal(0, emptyPool.txStore.localTTLIndex.size())
+
+			oldRepoRoot := getRepoRootFromRecordFile(recordFile)
+			oldChainState := pool.chainState
+			cnf := NewMockTxPoolConfig(t)
+			cnf.RepoRoot = oldRepoRoot
+			newPool, err := newTxPoolImpl[types.Transaction, *types.Transaction](cnf, oldChainState)
+			ast.Nil(err)
 
 			// load tx records successfully
-			err = pool.Start()
-			ast.Nil(err)
-			defer pool.Stop()
-			ast.Equal(10, len(pool.txStore.allTxs[from].items))
-			ast.Equal(10, len(pool.txStore.txHashMap))
-			ast.Equal(10, pool.txStore.localTTLIndex.size())
+			ast.Equal(10, len(newPool.txStore.allTxs[from].items))
+			ast.Equal(10, len(newPool.txStore.txHashMap))
+			ast.Equal(10, newPool.txStore.localTTLIndex.size())
 		}
 	})
 	t.Run("test load tx records failed, pool is full", func(t *testing.T) {
@@ -137,31 +139,29 @@ func TestTxPoolImpl_StartWithTxRecordsFile(t *testing.T) {
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
 			from := s.Addr.String()
-			txs := constructTxs(s, 10)
+			txs := constructTxs(s, TxRecordsBatchSize+1)
 			lo.ForEach(txs, func(tx *types.Transaction, _ int) {
 				err = pool.AddLocalTx(tx)
 				ast.Nil(err)
 			})
-			ast.Equal(10, len(pool.txStore.allTxs[from].items))
-			ast.Equal(10, len(pool.txStore.txHashMap))
-			ast.Equal(10, pool.txStore.localTTLIndex.size())
+			ast.Equal(TxRecordsBatchSize+1, len(pool.txStore.allTxs[from].items))
+			ast.Equal(TxRecordsBatchSize+1, len(pool.txStore.txHashMap))
+			ast.Equal(TxRecordsBatchSize+1, pool.txStore.localTTLIndex.size())
 
 			pool.Stop()
 
 			// start pool which txRecordsFile is not empty
-			pool = mockTxPoolImpl[types.Transaction, *types.Transaction](t)
-			pool.txRecords.filePath = recordFile
-			ast.Equal(0, len(pool.txStore.txHashMap))
-			ast.Equal(0, pool.txStore.localTTLIndex.size())
-
+			oldRepoRoot := getRepoRootFromRecordFile(recordFile)
+			oldChainState := pool.chainState
+			cnf := NewMockTxPoolConfig(t)
+			cnf.RepoRoot = oldRepoRoot
 			// decrease pool size
-			pool.poolMaxSize = 5
-			err = pool.Start()
+			cnf.PoolSize = 5
+			newPool, err := newTxPoolImpl[types.Transaction, *types.Transaction](cnf, oldChainState)
 			ast.Nil(err)
-			defer pool.Stop()
-			ast.Equal(5, len(pool.txStore.allTxs[from].items))
-			ast.Equal(5, len(pool.txStore.txHashMap))
-			ast.Equal(5, pool.txStore.localTTLIndex.size())
+			ast.Equal(5, len(newPool.txStore.allTxs[from].items))
+			ast.Equal(5, len(newPool.txStore.txHashMap))
+			ast.Equal(5, newPool.txStore.localTTLIndex.size())
 		}
 	})
 }

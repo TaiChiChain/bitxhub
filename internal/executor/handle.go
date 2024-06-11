@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cbergoon/merkletree"
+	"github.com/axiomesh/axiom-ledger/internal/components"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -143,12 +143,12 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}).Info("[Execute-Block] Apply transactions elapsed")
 
 	calcMerkleStart := time.Now()
-	txRoot, err := exec.buildTxMerkleTree(block.Transactions)
+	txRoot, err := components.CalcTxsMerkleRoot(block.Transactions)
 	if err != nil {
 		panic(err)
 	}
 
-	receiptRoot, err := exec.calcReceiptMerkleRoot(receipts)
+	receiptRoot, err := components.CalcReceiptMerkleRoot(receipts)
 	if err != nil {
 		panic(err)
 	}
@@ -234,17 +234,6 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
-}
-
-func (exec *BlockExecutor) buildTxMerkleTree(txs []*types.Transaction) (*types.Hash, error) {
-	hash, err := calcMerkleRoot(lo.Map(txs, func(item *types.Transaction, index int) merkletree.Content {
-		return item.GetHash()
-	}))
-	if err != nil {
-		return nil, err
-	}
-
-	return hash, nil
 }
 
 func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint) {
@@ -340,37 +329,6 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 
 func (exec *BlockExecutor) clear() {
 	exec.ledger.StateLedger.Clear()
-}
-
-func (exec *BlockExecutor) calcReceiptMerkleRoot(receipts []*types.Receipt) (*types.Hash, error) {
-	current := time.Now()
-
-	receiptHashes := make([]merkletree.Content, 0, len(receipts))
-	for _, receipt := range receipts {
-		receiptHashes = append(receiptHashes, receipt.Hash())
-	}
-	receiptRoot, err := calcMerkleRoot(receiptHashes)
-	if err != nil {
-		return nil, err
-	}
-
-	exec.logger.WithField("time", time.Since(current)).Debug("Calculate receipt merkle roots")
-
-	return receiptRoot, nil
-}
-
-func calcMerkleRoot(contents []merkletree.Content) (*types.Hash, error) {
-	if len(contents) == 0 {
-		// compatible with Ethereum
-		return types.NewHashByStr("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"), nil
-	}
-
-	tree, err := merkletree.NewTree(contents)
-	if err != nil {
-		return nil, err
-	}
-
-	return types.NewHash(tree.MerkleRoot()), nil
 }
 
 func getBlockHashFunc(chainLedger ledger.ChainLedger) vm.GetHashFunc {
