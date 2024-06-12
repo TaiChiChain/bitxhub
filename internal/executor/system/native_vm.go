@@ -173,6 +173,7 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 	method := reflect.ValueOf(contractInstance).MethodByName(funcName)
 	if !method.IsValid() {
 		// if method not implement, return nil, nil, like solidity fallback
+		nvm.logger.Debugf("no implement method: %s, system contract address: %s\n", funcName, contractAddr)
 		return nil, nil
 	}
 	args, err := nvm.parseArgs(contractBuildCfg, data, methodName)
@@ -184,7 +185,6 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		inputs = append(inputs, reflect.ValueOf(arg))
 	}
 	// convert input args, if input args contains slice struct which is defined in abi, convert to dest slice struct which is defined in golang
-	// if input args contains struct, convert to dest struct which is defined in golang
 	inputs = convertInputArgs(method, inputs)
 
 	// maybe panic when inputs mismatch, but we recover

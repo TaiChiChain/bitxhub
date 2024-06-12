@@ -65,10 +65,15 @@ func (passkey *Passkey) Validate(userOp *interfaces.UserOperation, userOpHash [3
 
 		pk := &ecdsa.PublicKey{Curve: elliptic.P256(), X: passkey.PubKeyX, Y: passkey.PubKeyY}
 		clientDataHash := sha256.Sum256(userOp.ClientData)
-		h := sha256.Sum256(append(userOp.AuthData, clientDataHash[:]...))
+		rawData := make([]byte, 0, len(userOp.AuthData)+len(clientDataHash))
+		rawData = append(rawData, userOp.AuthData...)
+		rawData = append(rawData, clientDataHash[:]...)
+		h := sha256.Sum256(rawData)
 
-		r := new(big.Int).SetBytes(userOp.Signature[:32])
-		s := new(big.Int).SetBytes(userOp.Signature[32:])
+		sig := make([]byte, len(userOp.Signature))
+		copy(sig, userOp.Signature)
+		r := new(big.Int).SetBytes(sig[:32])
+		s := new(big.Int).SetBytes(sig[32:])
 		if !ecdsa.Verify(pk, h[:], r, s) {
 			return validation, ErrPasskeyVerificationFailed
 		}

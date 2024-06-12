@@ -31,20 +31,7 @@ const (
 	admin4 = "0x1240000000000000000000000000000000000000"
 )
 
-func TestContractRun(t *testing.T) {
-	rep := repo.MockRepo(t)
-	lg, err := ledger.NewMemory(rep)
-	assert.Nil(t, err)
-
-	nvm := New()
-	err = nvm.GenesisInit(rep.GenesisConfig, lg.StateLedger)
-	assert.Nil(t, err)
-
-	from := types.NewAddressByStr(admin1).ETHAddress()
-	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
-	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
-	getIDData := hexutil.Bytes(generateGetLatestProposalIDData(t))
-	getUserOpHash := hexutil.Bytes(generateGetUserOpHashData(t))
+func initVM(t *testing.T, lg *ledger.Ledger) *vm.EVM {
 	entrypointAddr := types.NewAddressByStr(common.EntryPointContractAddr).ETHAddress()
 
 	coinbase := "0xed17543171C1459714cdC6519b58fFcC29A3C3c9"
@@ -90,6 +77,27 @@ func TestContractRun(t *testing.T) {
 		CancunTime:              &CancunTime,
 		PragueTime:              &PragueTime,
 	}, vm.Config{})
+
+	return evm
+}
+
+func TestContractRun(t *testing.T) {
+	rep := repo.MockRepo(t)
+	lg, err := ledger.NewMemory(rep)
+	assert.Nil(t, err)
+
+	nvm := New()
+	err = nvm.GenesisInit(rep.GenesisConfig, lg.StateLedger)
+	assert.Nil(t, err)
+
+	from := types.NewAddressByStr(admin1).ETHAddress()
+	to := types.NewAddressByStr(common.GovernanceContractAddr).ETHAddress()
+	data := hexutil.Bytes(generateVoteData(t, 1, governance.Pass))
+	getIDData := hexutil.Bytes(generateGetLatestProposalIDData(t))
+	getUserOpHash := hexutil.Bytes(generateGetUserOpHashData(t))
+	entrypointAddr := types.NewAddressByStr(common.EntryPointContractAddr).ETHAddress()
+
+	evm := initVM(t, lg)
 
 	testcases := []struct {
 		Message       *core.Message
@@ -151,7 +159,7 @@ func TestContractRun(t *testing.T) {
 				Data: getUserOpHash,
 			},
 			IsExpectedErr: false,
-			Result:  ethcommon.FromHex("0x4460313f1ffd55a8dda2645c0a9160620b20ec48fadd955d787a2c48f9e0372d"),
+			Result:        ethcommon.FromHex("0x4460313f1ffd55a8dda2645c0a9160620b20ec48fadd955d787a2c48f9e0372d"),
 		},
 	}
 	for i, testcase := range testcases {
@@ -168,7 +176,7 @@ func TestContractRun(t *testing.T) {
 				assert.Nil(t, err)
 			}
 			if testcase.Result != nil {
-			    assert.Equal(t, testcase.Result, res)
+				assert.Equal(t, testcase.Result, res)
 			}
 		})
 	}

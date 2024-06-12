@@ -55,7 +55,7 @@ var (
 
 	transferSig = crypto.Keccak256([]byte("transfer(address,uint256)"))[:4]
 
-	setPasskeySig = crypto.Keccak256([]byte("setPasskey(bytes, uint8)"))[:4]
+	setPasskeySig = crypto.Keccak256([]byte("setPasskey(bytes,uint8)"))[:4]
 
 	executeMethod = abi.Arguments{
 		{Name: "address", Type: common.AddressType},
@@ -73,7 +73,7 @@ var (
 		{Name: "algo", Type: common.UInt8Type},
 	}
 
-	LockedTime = 24 * time.Hour
+	LockedTime = time.Minute //24 * time.Hour
 )
 
 var _ interfaces.IAccount = (*SmartAccount)(nil)
@@ -232,6 +232,7 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 	// first use validator to validate, if validator validate failed, use smart account to validate
 	validatorList := sa.getAllValidators()
 	for _, validator := range validatorList {
+		sa.Logger.Infof("post user op, validator: %v", validator)
 		validation, err := validator.Validate(userOp, userOpHash)
 		if err != nil {
 			// validator validate failed, maybe other validator or owner validate successfully
@@ -438,6 +439,7 @@ func (sa *SmartAccount) SetPasskey(publicKey []byte, algo uint8) error {
 		Algo:    algo,
 	}
 	// reset passkeys
+	sa.Logger.Infof("sender %s set passkey successfully", sa.EthAddress.Hex())
 	return sa.passkeys.Put([]Passkey{newPasskey})
 }
 
@@ -517,6 +519,7 @@ func (sa *SmartAccount) postUserOp(validateData *interfaces.Validation, actualGa
 	// call all validators PostUserOp
 	validatorList := sa.getAllValidators()
 	for _, validator := range validatorList {
+		sa.Logger.Infof("post user op, validator: %v", validator)
 		if err := validator.PostUserOp(validateData, actualGasCost, totalValue); err != nil {
 			sa.Logger.Errorf("post user op failed, validator: %v, error: %v", validator, err)
 			return err

@@ -362,12 +362,15 @@ func (ep *EntryPoint) validateAccountPrepayment(opIndex *big.Int, op *interfaces
 	}
 	paymaster := mUserOp.Paymaster
 	if paymaster == (ethcommon.Address{}) {
-		depositInfo := ep.GetDepositInfo(sender)
-		if depositInfo.Deposit.Cmp(requiredPrefund) == -1 {
-			return big.NewInt(int64(usedGas)), nil, ep.Revert(&ientry_point.ErrorFailedOp{
-				OpIndex: opIndex,
-				Reason:  "AA21 didn't pay prefund",
-			})
+		if !ep.isNoGasUserOp(op) {
+			// if not no gas user op call, need check pay prefund
+			depositInfo := ep.GetDepositInfo(sender)
+			if depositInfo.Deposit.Cmp(requiredPrefund) == -1 {
+				return big.NewInt(int64(usedGas)), nil, ep.Revert(&ientry_point.ErrorFailedOp{
+					OpIndex: opIndex,
+					Reason:  "AA21 didn't pay prefund",
+				})
+			}
 		}
 
 		// if no paymaster set, just use sender balance
