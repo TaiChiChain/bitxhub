@@ -26,10 +26,14 @@ import (
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
+
+// maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
+const maxBatchSize = 64 * 1024 * 1024
 
 var ledgerGetBlockArgs = struct {
 	Number uint64
@@ -129,7 +133,7 @@ var ledgerCMD = &cli.Command{
 				},
 				&cli.BoolFlag{
 					Name:        "disable-backup",
-					Aliases:     []string{"db"},
+					Aliases:     []string{"d"},
 					Usage:       "disable backup original ledger folder",
 					Destination: &ledgerSimpleRollbackArgs.DisableBackup,
 					Required:    false,
@@ -508,9 +512,23 @@ func rollback(ctx *cli.Context) error {
 		return err
 	}
 	logger := loggers.Logger(loggers.App)
-	originBlockchainDir := repo.GetStoragePath(r.RepoRoot, storagemgr.BlockChain)
-	originBlockfileDir := repo.GetStoragePath(r.RepoRoot, storagemgr.Blockfile)
-	originStateLedgerDir := repo.GetStoragePath(r.RepoRoot, storagemgr.Ledger)
+
+	logger.Infof("This operation will REMOVE original snapshot/consensus/epoch data, and MODIFY original ledger/blockchain/blockfile, you'd better back up those data if you need. Continue? y/n\n")
+	if err := common.WaitUserConfirm(); err != nil {
+		return err
+	}
+
+	// remove original snapshot
+	if err := os.RemoveAll(repo.GetStoragePath(r.RepoRoot, storagemgr.Snapshot)); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(repo.GetStoragePath(r.RepoRoot, storagemgr.Consensus)); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(repo.GetStoragePath(r.RepoRoot, storagemgr.Epoch)); err != nil {
+		return err
+	}
+	logger.Infof("remove original snapshot successfully")
 
 	originChainLedger, err := ledger.NewChainLedger(r, "")
 	if err != nil {
@@ -529,6 +547,12 @@ func rollback(ctx *cli.Context) error {
 	chainMeta := originChainLedger.GetChainMeta()
 	if targetBlockNumber >= chainMeta.Height {
 		return errors.Errorf("target-block-number %d must be less than the current latest block height %d\n", targetBlockNumber, chainMeta.Height)
+	}
+	if r.Config.Ledger.EnablePrune {
+		minHeight, maxHeight := originStateLedger.GetHistoryRange()
+		if targetBlockNumber < minHeight || targetBlockNumber > maxHeight {
+			return errors.Errorf("this is a prune node, target-block-number %d must be within valid range, which is from %d to %d\n", targetBlockNumber, minHeight, maxHeight)
+		}
 	}
 
 	rollbackDir := path.Join(r.RepoRoot, fmt.Sprintf("storage-rollback-%d", targetBlockNumber))
@@ -565,80 +589,66 @@ func rollback(ctx *cli.Context) error {
 		}
 	}
 
-	// rollback directly on the original ledger
-	if ledgerSimpleRollbackArgs.DisableBackup {
-		if err := originChainLedger.RollbackBlockChain(targetBlockNumber); err != nil {
-			return errors.Errorf("rollback chain ledger error: %v", err.Error())
-		}
-
-		if err := originStateLedger.RollbackState(targetBlockNumber, targetBlockHeader.StateRoot); err != nil {
-			return fmt.Errorf("rollback state ledger failed: %w", err)
-		}
-
-		logger.Info("rollback chain ledger and state ledger success")
-
-		// wait for generating snapshot of target block
-		errC := make(chan error)
-		go originStateLedger.GenerateSnapshot(targetBlockHeader, errC)
-		err = <-errC
+	// If we need to back up rollback info, then write rollback logs into rollback dir in KV format.
+	if !ledgerSimpleRollbackArgs.DisableBackup {
+		rollbackStorage, err := storagemgr.Open(rollbackDir)
 		if err != nil {
-			return fmt.Errorf("generate snapshot failed: %w", err)
+			return fmt.Errorf("create rollback log dir failed: %w", err)
+		}
+		batch := rollbackStorage.NewBatch()
+
+		// write stale blocks
+		for i := chainMeta.Height; i > targetBlockNumber; i-- {
+			block, err := originChainLedger.GetBlock(i)
+			if err != nil {
+				return fmt.Errorf("get rollback block failed: %w", err)
+			}
+
+			logger.Infof("[rollback] stale block%v=%v\n", i, block)
+
+			blockBlob, err := block.Marshal()
+			if err != nil {
+				return fmt.Errorf("marshal rollback block failed: %w", err)
+			}
+			batch.Put(utils.CompositeKey(utils.RollbackBlockKey, i), blockBlob)
+			if batch.Size() > maxBatchSize {
+				batch.Commit()
+				batch.Reset()
+				logger.Infof("[rollback] write batch periodically")
+			}
 		}
 
-		return nil
+		// write stale ledger state deltas
+		if r.Config.Ledger.EnablePrune {
+			_, maxHeight := originStateLedger.GetHistoryRange()
+			for i := maxHeight; i > targetBlockNumber; i-- {
+				stateDelta := originStateLedger.GetStateDelta(i)
+				batch.Put(utils.CompositeKey(utils.RollbackStateKey, i), stateDelta.Encode())
+				if batch.Size() > maxBatchSize {
+					batch.Commit()
+					batch.Reset()
+					logger.Infof("[rollback] write batch periodically")
+				}
+			}
+
+		}
+		batch.Commit()
 	}
 
-	// copy blockchain dir
-	targetBlockchainDir := path.Join(rollbackDir, storagemgr.BlockChain)
-	if err := os.MkdirAll(targetBlockchainDir, os.ModePerm); err != nil {
-		return errors.Errorf("mkdir blockchain dir error: %v", err.Error())
-	}
-	if err := copyDir(originBlockchainDir, targetBlockchainDir); err != nil {
-		return errors.Errorf("copy blockchain dir to rollback dir error: %v", err.Error())
-	}
-	logger.Infof("copy blockchain dir to rollback dir success")
-
-	// copy blockfile dir
-	targetBlockfileDir := path.Join(rollbackDir, storagemgr.Blockfile)
-	if err := os.MkdirAll(targetBlockfileDir, os.ModePerm); err != nil {
-		return errors.Errorf("mkdir blockfile dir error: %v", err.Error())
-	}
-	if err := copyDir(originBlockfileDir, targetBlockfileDir); err != nil {
-		return errors.Errorf("copy blockfile dir to rollback dir error: %v", err.Error())
-	}
-	logger.Infof("copy blockfile dir to rollback dir success")
-
-	// copy state ledger dir
-	targetStateLedgerDir := path.Join(rollbackDir, storagemgr.Ledger)
-	if err := os.MkdirAll(targetStateLedgerDir, os.ModePerm); err != nil {
-		return errors.Errorf("mkdir state ledger dir error: %v", err.Error())
-	}
-	if err := copyDir(originStateLedgerDir, targetStateLedgerDir); err != nil {
-		return errors.Errorf("copy state ledger dir to rollback dir error: %v", err.Error())
-	}
-	logger.Infof("copy state ledger dir to rollback dir success")
-
-	// rollback chain ledger
-	rollbackChainLedger, err := ledger.NewChainLedger(r, rollbackDir)
-	if err != nil {
-		return fmt.Errorf("init rollback chain ledger failed: %w", err)
-	}
-	if err := rollbackChainLedger.RollbackBlockChain(targetBlockNumber); err != nil {
+	// rollback directly on the original ledger
+	if err := originChainLedger.RollbackBlockChain(targetBlockNumber); err != nil {
 		return errors.Errorf("rollback chain ledger error: %v", err.Error())
 	}
 
-	// rollback state ledger
-	rollbackStateLedger, err := ledger.NewStateLedger(r, rollbackDir)
-	if err != nil {
-		return fmt.Errorf("init rollback state ledger failed: %w", err)
-	}
-	if err := rollbackStateLedger.RollbackState(targetBlockNumber, targetBlockHeader.StateRoot); err != nil {
+	if err := originStateLedger.RollbackState(targetBlockNumber, targetBlockHeader.StateRoot); err != nil {
 		return fmt.Errorf("rollback state ledger failed: %w", err)
 	}
 
+	logger.Info("rollback chain ledger and state ledger success")
+
 	// wait for generating snapshot of target block
 	errC := make(chan error)
-	go rollbackStateLedger.GenerateSnapshot(targetBlockHeader, errC)
+	go originStateLedger.GenerateSnapshot(targetBlockHeader, errC)
 	err = <-errC
 	if err != nil {
 		return fmt.Errorf("generate snapshot failed: %w", err)
@@ -704,6 +714,12 @@ func generateTrie(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("init state ledger failed: %w", err)
 	}
+	if r.Config.Ledger.EnablePrune {
+		minHeight, maxHeight := originStateLedger.GetHistoryRange()
+		if ledgerGenerateTrieArgs.TargetBlockNumber < minHeight || ledgerGenerateTrieArgs.TargetBlockNumber > maxHeight {
+			return errors.Errorf("This is a prune node, target-block-number %d must be within valid range, which is from %d to %d\n", ledgerGenerateTrieArgs.TargetBlockNumber, minHeight, maxHeight)
+		}
+	}
 
 	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(originStateLedger))
 	epochInfo, err := epochManagerContract.HistoryEpoch(blockHeader.Epoch)
@@ -719,7 +735,7 @@ func generateTrie(ctx *cli.Context) error {
 	}, targetStateStorage, errC)
 	err = <-errC
 
-	logger.Infof("success generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
+	logger.Infof("finish generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
 
 	return err
 }

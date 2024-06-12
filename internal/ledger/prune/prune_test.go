@@ -187,7 +187,7 @@ func TestPruneCacheRollback(t *testing.T) {
 	batch.Commit()
 	batch.Reset()
 
-	err := tc.Rollback(1)
+	err := tc.Rollback(1, true)
 	require.Nil(t, err)
 
 	// verify version 1
@@ -424,11 +424,12 @@ func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	require.Equal(t, 10, len(tc.states.diffs))
 }
 
-func TestName(t *testing.T) {
-	var arr []int
-	arr = append(arr, 1)
-	arr = append(arr, 2)
-	println(len(arr[1:1]))
+func TestPruneCacheNil(t *testing.T) {
+	rep := createMockRepo(t)
+	rep.Config.Ledger.EnablePrune = false
+	pruneCache := NewPruneCache(rep, nil, nil, nil, log.NewWithModule("prune_test"))
+	require.Nil(t, pruneCache)
+	require.False(t, pruneCache.Enable())
 }
 
 func createMockRepo(t *testing.T) *repo.Repo {
@@ -437,9 +438,9 @@ func createMockRepo(t *testing.T) *repo.Repo {
 	r.Config.Ledger.StateLedgerReservedHistoryBlockNum = 10
 	// speed up unit test
 	{
-		checkFlushTimeInterval = 50 * time.Millisecond
-		maxFlushBlockNum = 5
-		maxFlushTimeInterval = 5 * time.Second
+		checkFlushTimeInterval = 100 * time.Millisecond
+		maxFlushBlockNum = 3
+		maxFlushTimeInterval = 3 * time.Second
 		maxFlushBatchSizeThreshold = 1 * 1024 * 1024 // 1MB
 	}
 	return r

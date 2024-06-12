@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/jmt"
@@ -420,8 +421,10 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 	}
 
 	// rollback world state trie
-	if err := l.pruneCache.Rollback(height); err != nil {
-		return err
+	if l.pruneCache != nil && l.pruneCache.Enable() {
+		if err := l.pruneCache.Rollback(height, true); err != nil {
+			return err
+		}
 	}
 	l.refreshAccountTrie(stateRoot)
 
@@ -590,19 +593,25 @@ func (l *StateLedgerImpl) exportMetrics() {
 }
 
 func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
-	if lastStateRoot == nil {
+	if lastStateRoot == nil || lastStateRoot.ETHHash() == (common.Hash{}) {
 		// dummy state
-		rootHash := common.Hash{}
+		rootHash := crypto.Keccak256Hash([]byte{})
 		rootNodeKey := &types.NodeKey{
 			Version: 0,
 			Path:    []byte{},
 			Type:    []byte{},
 		}
 		nk := rootNodeKey.Encode()
-		batch := l.backend.NewBatch()
-		batch.Put(nk, nil)
-		batch.Put(rootHash[:], nk)
-		batch.Commit()
+
+		// If not init yet, init a dummy world state trie.
+		// If already init, then no-op.
+		if !l.backend.Has(rootHash[:]) {
+			batch := l.backend.NewBatch()
+			batch.Put(nk, nil)
+			batch.Put(rootHash[:], nk)
+			batch.Commit()
+		}
+
 		trie, _ := jmt.New(rootHash, l.backend, l.accountTrieCache, l.pruneCache, l.logger)
 		l.accountTrie = trie
 		l.triePreloader = newTriePreloader(l.logger, l.backend, l.pruneCache, rootHash)

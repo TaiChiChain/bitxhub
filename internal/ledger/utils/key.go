@@ -17,6 +17,8 @@ const (
 	PruneJournalKey    = "prune-nodeInfo-"
 	SnapshotKey        = "snap-"
 	SnapshotMetaKey    = "snap-meta"
+	RollbackBlockKey   = "rollback-block"
+	RollbackStateKey   = "rollback-state"
 )
 
 const (

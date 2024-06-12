@@ -142,20 +142,22 @@ func (p *prunner) pruning() {
 		}
 
 		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
+
+		current := time.Now()
 		pendingBatch.Commit()
+		p.logger.Infof("[Prune] prune state from block %v to block %v, total size (bytes) = %v, time = %v", from, to, pendingFlushSize, time.Since(current))
 
 		// reset states diff
 		p.states.lock.Lock()
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
 		p.states.rebuildAllKeyMap()
 		p.states.lock.Unlock()
-		p.logger.Infof("[Prune] prune state from block %v to block %v", from, to)
 
 		pendingBatch.Reset()
 		from, to = 0, 0
 		p.lastPruneTime = time.Now()
 		accountTriePruneSet, storageTriePruneSet = make(map[string]struct{}), make(map[string]struct{})
 		accountTrieWriteSet, storageTrieWriteSet = make(map[string][]byte), make(map[string][]byte)
-		pendingFlushBlockNum = 0
+		pendingFlushBlockNum, pendingFlushSize = 0, 0
 	}
 }

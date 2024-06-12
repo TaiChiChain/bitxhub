@@ -122,7 +122,7 @@ func (o *SimpleAccount) initStorageTrie() {
 	}
 	// new account
 	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
-		rootHash := common.BytesToHash(o.Addr.ETHAddress().Bytes())
+		rootHash := crypto.Keccak256Hash(o.Addr.ETHAddress().Bytes())
 		rootNodeKey := &types.NodeKey{
 			Version: o.blockHeight,
 			Path:    []byte{},
@@ -258,7 +258,7 @@ func (o *SimpleAccount) SetState(key []byte, value []byte) {
 	if o.dirtyAccount == nil {
 		o.dirtyAccount = o.originAccount.CopyOrNewIfEmpty()
 	}
-	o.logger.Debugf("[SetState] addr: %v, key: %v, before state: %v, after state: %v", o.Addr, string(key), &bytesLazyLogger{bytes: prev}, &bytesLazyLogger{bytes: value})
+	o.logger.Debugf("[SetState] addr: %v, key: %v, before state: %v, after state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: prev}, &bytesLazyLogger{bytes: value})
 	o.setState(key, value)
 }
 
