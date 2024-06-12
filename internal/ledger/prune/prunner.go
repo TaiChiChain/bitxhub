@@ -109,8 +109,6 @@ func (p *prunner) pruning() {
 			continue
 		}
 
-		p.logger.Infof("[Prune] start prune state from block %v to block %v, total size (bytes) = %v", from, to, pendingFlushSize)
-
 		// The moment we update trie cache, other goroutine may read prune cache at the same time.
 		// But we don't need to lock here, because the jmt.getNode logic will always try from prune cache first,
 		// and we can ensure that the data we update will occur in prune cache.
@@ -144,7 +142,10 @@ func (p *prunner) pruning() {
 		}
 
 		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(to+1))
+
+		current := time.Now()
 		pendingBatch.Commit()
+		p.logger.Infof("[Prune] prune state from block %v to block %v, total size (bytes) = %v, time = %v", from, to, pendingFlushSize, time.Since(current))
 
 		// reset states diff
 		p.states.lock.Lock()

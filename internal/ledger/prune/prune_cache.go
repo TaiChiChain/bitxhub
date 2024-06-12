@@ -70,6 +70,7 @@ func (s *states) rebuildAllKeyMap() {
 
 func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, logger logrus.FieldLogger) *PruneCache {
 	if !rep.Config.Ledger.EnablePrune {
+		logger.Infof("[Prune] pruning is disabled")
 		return nil
 	}
 	tc := &PruneCache{
@@ -129,6 +130,10 @@ func (tc *PruneCache) Update(batch kv.Batch, height uint64, trieJournals *types.
 	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
 
 	tc.addNewDiff(batch, height, tc.ledgerStorage, trieJournals, true)
+}
+
+func (tc *PruneCache) Enable() bool {
+	return tc != nil
 }
 
 func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {

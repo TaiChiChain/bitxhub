@@ -532,6 +532,11 @@ func TestEmptySnapshot(t *testing.T) {
 	assert.Equal(t, uint64(0), maxHeight)
 	assert.Nil(t, snapshot.GetBlockJournal(0))
 	assert.Nil(t, snapshot.Rollback(0))
+	snapshot.ResetMetrics()
+	snapshot.ExportMetrics()
+	snapshot = nil
+	snapshot.ResetMetrics()
+	snapshot.ExportMetrics()
 }
 
 // LeftPadBytes zero-pads slice to the left up to length l.

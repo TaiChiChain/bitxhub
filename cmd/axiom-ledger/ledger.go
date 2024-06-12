@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"io"
 	"math/big"
 	"os"
@@ -27,6 +26,7 @@ import (
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
@@ -514,7 +514,7 @@ func rollback(ctx *cli.Context) error {
 	logger := loggers.Logger(loggers.App)
 
 	logger.Infof("This operation will REMOVE original snapshot/consensus/epoch data, and MODIFY original ledger/blockchain/blockfile, you'd better back up those data if you need. Continue? y/n\n")
-	if err := waitUserConfirm(); err != nil {
+	if err := common.WaitUserConfirm(); err != nil {
 		return err
 	}
 
@@ -713,6 +713,12 @@ func generateTrie(ctx *cli.Context) error {
 	originStateLedger, err := ledger.NewStateLedger(r, "")
 	if err != nil {
 		return fmt.Errorf("init state ledger failed: %w", err)
+	}
+	if r.Config.Ledger.EnablePrune {
+		minHeight, maxHeight := originStateLedger.GetHistoryRange()
+		if ledgerGenerateTrieArgs.TargetBlockNumber < minHeight || ledgerGenerateTrieArgs.TargetBlockNumber > maxHeight {
+			return errors.Errorf("This is a prune node, target-block-number %d must be within valid range, which is from %d to %d\n", ledgerGenerateTrieArgs.TargetBlockNumber, minHeight, maxHeight)
+		}
 	}
 
 	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(originStateLedger))

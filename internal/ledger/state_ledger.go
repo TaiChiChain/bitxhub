@@ -245,11 +245,11 @@ func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage,
 	batch := kv.NewBatch()
 
 	if l.pruneCache != nil {
-		if err := l.pruneCache.Rollback(blockHeader.Number, false); err != nil {
+		if err := l.pruneCache.Rollback(snapshotMeta.BlockHeader.Number, false); err != nil {
 			errC <- err
 		}
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(blockHeader.Number))
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(blockHeader.Number))
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(snapshotMeta.BlockHeader.Number))
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(snapshotMeta.BlockHeader.Number))
 	}
 
 	queue := []common.Hash{stateRoot}

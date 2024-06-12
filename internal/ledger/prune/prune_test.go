@@ -424,11 +424,12 @@ func TestPruningFlushByMaxFlushTime(t *testing.T) {
 	require.Equal(t, 10, len(tc.states.diffs))
 }
 
-func TestName(t *testing.T) {
-	var arr []int
-	arr = append(arr, 1)
-	arr = append(arr, 2)
-	println(len(arr[1:1]))
+func TestPruneCacheNil(t *testing.T) {
+	rep := createMockRepo(t)
+	rep.Config.Ledger.EnablePrune = false
+	pruneCache := NewPruneCache(rep, nil, nil, nil, log.NewWithModule("prune_test"))
+	require.Nil(t, pruneCache)
+	require.False(t, pruneCache.Enable())
 }
 
 func createMockRepo(t *testing.T) *repo.Repo {
