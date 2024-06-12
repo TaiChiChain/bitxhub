@@ -118,6 +118,12 @@ func TestTxPoolImpl_TxRecordsFile(t *testing.T) {
 			cnf.RepoRoot = oldRepoRoot
 			newPool, err := newTxPoolImpl[types.Transaction, *types.Transaction](cnf, oldChainState)
 			ast.Nil(err)
+			newPool.Init(commonpool.ConsensusConfig{
+				SelfID: 1,
+				NotifyGenerateBatchFn: func(typ int) {
+					// do nothing
+				},
+			})
 
 			// load tx records successfully
 			ast.Equal(10, len(newPool.txStore.allTxs[from].items))
@@ -159,6 +165,12 @@ func TestTxPoolImpl_TxRecordsFile(t *testing.T) {
 			cnf.PoolSize = 5
 			newPool, err := newTxPoolImpl[types.Transaction, *types.Transaction](cnf, oldChainState)
 			ast.Nil(err)
+			newPool.Init(commonpool.ConsensusConfig{
+				SelfID: 1,
+				NotifyGenerateBatchFn: func(typ int) {
+					// do nothing
+				},
+			})
 			ast.Equal(5, len(newPool.txStore.allTxs[from].items))
 			ast.Equal(5, len(newPool.txStore.txHashMap))
 			ast.Equal(5, newPool.txStore.localTTLIndex.size())
