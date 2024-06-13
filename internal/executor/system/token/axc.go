@@ -33,7 +33,7 @@ type AXC struct {
 }
 
 func (axc *AXC) GenesisInit(genesis *repo.GenesisConfig) error {
-	totalSupply := genesis.Axc.TotalSupply.ToBigInt()
+	totalSupply := new(big.Int)
 	for _, account := range genesis.Accounts {
 		balance := account.Balance.ToBigInt()
 		supplyAccount := axc.Ctx.StateLedger.GetOrCreateAccount(types.NewAddressByStr(account.Address))

@@ -50,7 +50,6 @@ type GenesisConfig struct {
 }
 
 type Token struct {
-	TotalSupply *types.CoinNumber `mapstructure:"total_supply" toml:"total_supply"`
 }
 
 type Incentive struct {
@@ -126,9 +125,7 @@ func defaultGenesisConfig() *GenesisConfig {
 	return &GenesisConfig{
 		ChainID:   1356,
 		Timestamp: 1704038400,
-		Axc: &Token{
-			TotalSupply: DefaultAXCBalance,
-		},
+		Axc:       &Token{},
 		Incentive: &Incentive{
 			Referral: &Referral{
 				AvgBlockReward: "0",

@@ -18,6 +18,10 @@ import (
 
 func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
+	testNVM.Rep.GenesisConfig.Accounts = append(testNVM.Rep.GenesisConfig.Accounts, &repo.Account{
+		Address: "0xd8b88c185e06ebf8c58b7dc8b7aff18304cdd888",
+		Balance: types.CoinNumberByAxc(1000000000),
+	})
 	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
 	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
 	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
