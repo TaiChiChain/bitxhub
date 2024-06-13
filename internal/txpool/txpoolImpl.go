@@ -386,12 +386,10 @@ func (p *txPoolImpl[T, Constraint]) handleLocalRecordTx(req *reqLocalRecordTx[T,
 		return
 	}
 
-	// omit add record txs error
 	lo.ForEach(txs, func(tx *T, i int) {
 		replaced, err := p.addTx(tx, true)
+		// omit add record txs error
 		if err == nil {
-			validTxs = append(validTxs, tx)
-		} else {
 			p.updateValidTxs(&validTxs, tx, replaced)
 		}
 	})
@@ -904,12 +902,12 @@ func (p *txPoolImpl[T, Constraint]) validateTx(txHash string, txNonce, currentSe
 
 	// 2. reject nonce too high tx, trigger remove all high nonce txs of account outbound
 	if txNonce > currentSeqNo+p.toleranceNonceGap {
-		return ErrNonceTooHigh
+		return errors.Wrapf(ErrNonceTooHigh, "txNonce: %d, expect nonce: %d, toleranceNonceGap: %d", txNonce, currentSeqNo, p.toleranceNonceGap)
 	}
 
 	// 3. reject nonce too low tx(except gas price bump tx)
 	if txNonce < currentSeqNo {
-		return ErrNonceTooLow
+		return errors.Wrapf(ErrNonceTooLow, "txNonce: %d, expect nonce: %d", txNonce, currentSeqNo)
 	}
 
 	// 4. reject tx with gas price lower than price limit
@@ -1093,15 +1091,6 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config, chain
 	txpoolImp.chainInfo = config.ChainInfo
 	txpoolImp.setPriceLimit(config.PriceLimit)
 
-	if txpoolImp.enableLocalsPersist {
-		if err = txpoolImp.processRecords(); err != nil {
-			return nil, err
-		}
-		if err = txpoolImp.txRecords.rotate(txpoolImp.txStore.allTxs); err != nil {
-			return nil, err
-		}
-	}
-
 	txpoolImp.logger.Infof("TxPool pool size = %d", txpoolImp.poolMaxSize)
 	txpoolImp.logger.Infof("TxPool batch size = %d", txpoolImp.chainInfo.EpochConf.BatchSize)
 	txpoolImp.logger.Infof("TxPool enable generate empty batch = %v", txpoolImp.chainInfo.EpochConf.EnableGenEmptyBatch)
@@ -1128,6 +1117,16 @@ func (p *txPoolImpl[T, Constraint]) Init(conf commonpool.ConsensusConfig) {
 	p.selfID = conf.SelfID
 	p.notifyGenerateBatchFn = conf.NotifyGenerateBatchFn
 	p.notifyFindNextBatchFn = conf.NotifyFindNextBatchFn
+
+	if p.enableLocalsPersist {
+		if err := p.processRecords(); err != nil {
+			p.logger.Errorf("Failed to process records: %v", err)
+		}
+		if err := p.txRecords.rotate(p.txStore.allTxs); err != nil {
+			p.logger.Errorf("Failed to rotate records: %v", err)
+		}
+	}
+
 }
 
 // GenerateRequestBatch generates a transaction batch and post it
