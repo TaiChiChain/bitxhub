@@ -20,6 +20,12 @@ func TestInitialize(t *testing.T) {
 	assert.Nil(t, err)
 
 	genesisConfig := repo.DefaultGenesisConfig()
+	for _, addr := range repo.MockDefaultAccountAddrs {
+		genesisConfig.Accounts = append(genesisConfig.Accounts, &repo.Account{
+			Address: addr,
+			Balance: types.CoinNumberByAxc(1000_0000),
+		})
+	}
 	err = Initialize(genesisConfig, lg)
 	assert.Nil(t, err)
 }

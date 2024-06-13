@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"time"
@@ -223,7 +222,7 @@ func (h *ClusterGeneratorHelper) populateGenesisConfig() error {
 			})
 		}
 	} else {
-		h.genesisCfgTemplate.Accounts = lo.Map(append(defaultCouncilMemberAddrs, defaultAccountAddrs...), func(addr string, idx int) *repo.Account {
+		h.genesisCfgTemplate.Accounts = lo.Map(append(defaultCouncilMemberAddrs, repo.MockDefaultAccountAddrs...), func(addr string, idx int) *repo.Account {
 			return &repo.Account{
 				Address: addr,
 				Balance: repo.DefaultAccountBalance,
@@ -342,15 +341,6 @@ func (h *ClusterGeneratorHelper) populateGenesisConfig() error {
 			h.genesisCfgTemplate.SmartAccountAdmin = nodeConfig.OperatorAddress
 		}
 	}
-
-	axcTotalSupply := big.NewInt(0)
-	for _, node := range h.genesisCfgTemplate.Nodes {
-		axcTotalSupply = axcTotalSupply.Add(axcTotalSupply, node.StakeNumber.ToBigInt())
-	}
-	for _, account := range h.genesisCfgTemplate.Accounts {
-		axcTotalSupply = axcTotalSupply.Add(axcTotalSupply, account.Balance.ToBigInt())
-	}
-	h.genesisCfgTemplate.Axc.TotalSupply = types.CoinNumberByBigInt(axcTotalSupply)
 
 	return nil
 }
