@@ -283,6 +283,7 @@ func (n *NodeManager) Register(info node_manager.NodeInfo) (id uint64, err error
 	if err != nil {
 		return
 	}
+	info.ID = id
 	n.EmitEvent(&node_manager.EventRegister{NodeID: info.ID, Info: info})
 	return id, nil
 }
