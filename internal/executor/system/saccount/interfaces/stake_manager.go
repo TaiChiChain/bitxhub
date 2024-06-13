@@ -37,9 +37,9 @@ type IStakeManager interface {
 
 	AddStake(unstakeDelaySec uint32)
 
-	UnlockStake()
+	UnlockStake() error
 
-	WithdrawStake(withdrawAddress ethcommon.Address)
+	WithdrawStake(withdrawAddress ethcommon.Address) error
 
-	WithdrawTo(withdrawAddress ethcommon.Address, withdrawAmount *big.Int)
+	WithdrawTo(withdrawAddress ethcommon.Address, withdrawAmount *big.Int) error
 }

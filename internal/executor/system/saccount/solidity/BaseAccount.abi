@@ -87,6 +87,16 @@
             "internalType": "bytes",
             "name": "signature",
             "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "authData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "clientData",
+            "type": "bytes"
           }
         ],
         "internalType": "struct UserOperation",

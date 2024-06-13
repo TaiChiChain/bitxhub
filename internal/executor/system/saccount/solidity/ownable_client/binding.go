@@ -1,7 +1,7 @@
 // Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
 
-package token_paymaster_client
+package ownable_client
 
 import (
 	"errors"
@@ -29,26 +29,9 @@ var (
 	_ = abi.ConvertType
 )
 
-// UserOperation is an auto generated low-level Go binding around an user-defined struct.
-type UserOperation struct {
-	Sender               common.Address
-	Nonce                *big.Int
-	InitCode             []byte
-	CallData             []byte
-	CallGasLimit         *big.Int
-	VerificationGasLimit *big.Int
-	PreVerificationGas   *big.Int
-	MaxFeePerGas         *big.Int
-	MaxPriorityFeePerGas *big.Int
-	PaymasterAndData     []byte
-	Signature            []byte
-	AuthData             []byte
-	ClientData           []byte
-}
-
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"oracle\",\"type\":\"address\"}],\"name\":\"addToken\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"token\",\"type\":\"address\"}],\"name\":\"getToken\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"enumIPaymaster.PostOpMode\",\"name\":\"mode\",\"type\":\"uint8\"},{\"internalType\":\"bytes\",\"name\":\"context\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"actualGasCost\",\"type\":\"uint256\"}],\"name\":\"postOp\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"initCode\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"callData\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"callGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"verificationGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"preVerificationGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"paymasterAndData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"authData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"clientData\",\"type\":\"bytes\"}],\"internalType\":\"structUserOperation\",\"name\":\"userOp\",\"type\":\"tuple\"},{\"internalType\":\"bytes32\",\"name\":\"userOpHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"maxCost\",\"type\":\"uint256\"}],\"name\":\"validatePaymasterUserOp\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"context\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"validationData\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -197,37 +180,6 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
-// GetToken is a free data retrieval call binding the contract method 0x59770438.
-//
-// Solidity: function getToken(address token) view returns(address)
-func (_BindingContract *BindingContractCaller) GetToken(opts *bind.CallOpts, token common.Address) (common.Address, error) {
-	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "getToken", token)
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// GetToken is a free data retrieval call binding the contract method 0x59770438.
-//
-// Solidity: function getToken(address token) view returns(address)
-func (_BindingContract *BindingContractSession) GetToken(token common.Address) (common.Address, error) {
-	return _BindingContract.Contract.GetToken(&_BindingContract.CallOpts, token)
-}
-
-// GetToken is a free data retrieval call binding the contract method 0x59770438.
-//
-// Solidity: function getToken(address token) view returns(address)
-func (_BindingContract *BindingContractCallerSession) GetToken(token common.Address) (common.Address, error) {
-	return _BindingContract.Contract.GetToken(&_BindingContract.CallOpts, token)
-}
-
 // Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
 //
 // Solidity: function owner() view returns(address)
@@ -259,48 +211,6 @@ func (_BindingContract *BindingContractCallerSession) Owner() (common.Address, e
 	return _BindingContract.Contract.Owner(&_BindingContract.CallOpts)
 }
 
-// AddToken is a paid mutator transaction binding the contract method 0x5476bd72.
-//
-// Solidity: function addToken(address token, address oracle) returns()
-func (_BindingContract *BindingContractTransactor) AddToken(opts *bind.TransactOpts, token common.Address, oracle common.Address) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "addToken", token, oracle)
-}
-
-// AddToken is a paid mutator transaction binding the contract method 0x5476bd72.
-//
-// Solidity: function addToken(address token, address oracle) returns()
-func (_BindingContract *BindingContractSession) AddToken(token common.Address, oracle common.Address) (*types.Transaction, error) {
-	return _BindingContract.Contract.AddToken(&_BindingContract.TransactOpts, token, oracle)
-}
-
-// AddToken is a paid mutator transaction binding the contract method 0x5476bd72.
-//
-// Solidity: function addToken(address token, address oracle) returns()
-func (_BindingContract *BindingContractTransactorSession) AddToken(token common.Address, oracle common.Address) (*types.Transaction, error) {
-	return _BindingContract.Contract.AddToken(&_BindingContract.TransactOpts, token, oracle)
-}
-
-// PostOp is a paid mutator transaction binding the contract method 0xa9a23409.
-//
-// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
-func (_BindingContract *BindingContractTransactor) PostOp(opts *bind.TransactOpts, mode uint8, context []byte, actualGasCost *big.Int) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "postOp", mode, context, actualGasCost)
-}
-
-// PostOp is a paid mutator transaction binding the contract method 0xa9a23409.
-//
-// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
-func (_BindingContract *BindingContractSession) PostOp(mode uint8, context []byte, actualGasCost *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.PostOp(&_BindingContract.TransactOpts, mode, context, actualGasCost)
-}
-
-// PostOp is a paid mutator transaction binding the contract method 0xa9a23409.
-//
-// Solidity: function postOp(uint8 mode, bytes context, uint256 actualGasCost) returns()
-func (_BindingContract *BindingContractTransactorSession) PostOp(mode uint8, context []byte, actualGasCost *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.PostOp(&_BindingContract.TransactOpts, mode, context, actualGasCost)
-}
-
 // TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
 //
 // Solidity: function transferOwnership(address newOwner) returns()
@@ -320,27 +230,6 @@ func (_BindingContract *BindingContractSession) TransferOwnership(newOwner commo
 // Solidity: function transferOwnership(address newOwner) returns()
 func (_BindingContract *BindingContractTransactorSession) TransferOwnership(newOwner common.Address) (*types.Transaction, error) {
 	return _BindingContract.Contract.TransferOwnership(&_BindingContract.TransactOpts, newOwner)
-}
-
-// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0x7ba19417.
-//
-// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
-func (_BindingContract *BindingContractTransactor) ValidatePaymasterUserOp(opts *bind.TransactOpts, userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "validatePaymasterUserOp", userOp, userOpHash, maxCost)
-}
-
-// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0x7ba19417.
-//
-// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
-func (_BindingContract *BindingContractSession) ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.ValidatePaymasterUserOp(&_BindingContract.TransactOpts, userOp, userOpHash, maxCost)
-}
-
-// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0x7ba19417.
-//
-// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
-func (_BindingContract *BindingContractTransactorSession) ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.ValidatePaymasterUserOp(&_BindingContract.TransactOpts, userOp, userOpHash, maxCost)
 }
 
 // BindingContractOwnershipTransferredIterator is returned from FilterOwnershipTransferred and is used to iterate over the raw logs and unpacked data for OwnershipTransferred events raised by the BindingContract contract.

@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	tokenOwnerKey  = "owner"
 	tokenOracleKey = "oracle"
 )
 
@@ -41,7 +40,7 @@ var TokenPaymasterBuildConfig = &common.SystemContractBuildConfig[*TokenPaymaste
 	AbiStr:  token_paymaster_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *TokenPaymaster {
 		return &TokenPaymaster{
-			SystemContractBase: systemContractBase,
+			Ownable: Ownable{SystemContractBase: systemContractBase},
 		}
 	},
 }
@@ -49,9 +48,7 @@ var TokenPaymasterBuildConfig = &common.SystemContractBuildConfig[*TokenPaymaste
 var _ interfaces.IPaymaster = (*TokenPaymaster)(nil)
 
 type TokenPaymaster struct {
-	common.SystemContractBase
-
-	owner *common.VMSlot[ethcommon.Address]
+	Ownable
 
 	// token -> tokenPriceOracle
 	oracles *common.VMMap[ethcommon.Address, ethcommon.Address]
@@ -62,29 +59,21 @@ func (tp *TokenPaymaster) GenesisInit(genesis *repo.GenesisConfig) error {
 		return errors.New("invalid admin address")
 	}
 
-	if err := tp.owner.Put(ethcommon.HexToAddress(genesis.SmartAccountAdmin)); err != nil {
-		return err
-	}
+	tp.Init(ethcommon.HexToAddress(genesis.SmartAccountAdmin))
 	return nil
 }
 
 func (tp *TokenPaymaster) SetContext(ctx *common.VMContext) {
-	tp.SystemContractBase.SetContext(ctx)
+	tp.Ownable.SetContext(ctx)
 
-	tp.owner = common.NewVMSlot[ethcommon.Address](tp.StateAccount, tokenOwnerKey)
 	tp.oracles = common.NewVMMap[ethcommon.Address, ethcommon.Address](tp.StateAccount, tokenOracleKey, func(key ethcommon.Address) string {
 		return key.String()
 	})
 }
 
 func (tp *TokenPaymaster) AddToken(token, tokenPriceOracle ethcommon.Address) error {
-	owner, err := tp.owner.MustGet()
-	if err != nil {
-		return err
-	}
-
-	if tp.Ctx.From != owner {
-		return errors.New("only owner can add token")
+	if !tp.CheckOwner() {
+		return errors.New("only owner can call addToken")
 	}
 
 	if tp.oracles.Has(token) {

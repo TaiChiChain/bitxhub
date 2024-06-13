@@ -18,8 +18,6 @@ import (
 const (
 	VALID_TIMESTAMP_OFFSET = 20
 	SIGNATURE_OFFSET       = 84
-
-	verifyingPaymasterOwner = "owner"
 )
 
 var _ interfaces.IPaymaster = (*VerifyingPaymaster)(nil)
@@ -30,7 +28,7 @@ var VerifyingPaymasterBuildConfig = &common.SystemContractBuildConfig[*Verifying
 	AbiStr:  verifying_paymaster_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *VerifyingPaymaster {
 		return &VerifyingPaymaster{
-			SystemContractBase: systemContractBase,
+			Ownable: Ownable{SystemContractBase: systemContractBase},
 		}
 	},
 }
@@ -45,9 +43,7 @@ var VerifyingPaymasterBuildConfig = &common.SystemContractBuildConfig[*Verifying
  * - the account checks a signature to prove identity and account ownership.
  */
 type VerifyingPaymaster struct {
-	common.SystemContractBase
-
-	owner *common.VMSlot[ethcommon.Address]
+	Ownable
 }
 
 func (vp *VerifyingPaymaster) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -55,24 +51,12 @@ func (vp *VerifyingPaymaster) GenesisInit(genesis *repo.GenesisConfig) error {
 		return errors.New("invalid admin address")
 	}
 
-	if err := vp.owner.Put(ethcommon.HexToAddress(genesis.SmartAccountAdmin)); err != nil {
-		return err
-	}
+	vp.Init(ethcommon.HexToAddress(genesis.SmartAccountAdmin))
 	return nil
 }
 
 func (vp *VerifyingPaymaster) SetContext(ctx *common.VMContext) {
-	vp.SystemContractBase.SetContext(ctx)
-
-	vp.owner = common.NewVMSlot[ethcommon.Address](vp.StateAccount, verifyingPaymasterOwner)
-}
-
-func (vp *VerifyingPaymaster) SetOwner(owner ethcommon.Address) error {
-	return vp.owner.Put(owner)
-}
-
-func (vp *VerifyingPaymaster) GetOwner() (ethcommon.Address, error) {
-	return vp.owner.MustGet()
+	vp.Ownable.SetContext(ctx)
 }
 
 // PostOp implements interfaces.IPaymaster.
@@ -117,7 +101,7 @@ func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOper
 	if err != nil {
 		return []byte(""), validationData, errors.New("paymaster validate user op signature error")
 	}
-	owner, err := vp.GetOwner()
+	owner, err := vp.Owner()
 	if err != nil {
 		return []byte(""), validationData, errors.New("get owner error")
 	}
@@ -125,6 +109,9 @@ func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOper
 		return []byte(""), validationData, nil
 	}
 	validationData.SigValidation = interfaces.SigValidationSucceeded
+	validationData.ValidUntil = validUntil.Uint64()
+	validationData.ValidAfter = validAfter.Uint64()
+	
 	return []byte(""), validationData, nil
 }
 

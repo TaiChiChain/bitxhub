@@ -72,6 +72,8 @@ type UserOperation struct {
 	MaxPriorityFeePerGas *big.Int
 	PaymasterAndData     []byte
 	Signature            []byte
+	AuthData             []byte
+	ClientData           []byte
 }
 
 type IentryPoint interface {
@@ -91,14 +93,14 @@ type IentryPoint interface {
 	// Solidity: function getSenderAddress(bytes initCode) returns()
 	GetSenderAddress(initCode []byte) error
 
-	// HandleAggregatedOps is a paid mutator transaction binding the contract method 0x4b1d7cf5.
+	// HandleAggregatedOps is a paid mutator transaction binding the contract method 0xde84c263.
 	//
-	// Solidity: function handleAggregatedOps(((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[],address,bytes)[] opsPerAggregator, address beneficiary) returns()
+	// Solidity: function handleAggregatedOps(((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes)[],address,bytes)[] opsPerAggregator, address beneficiary) returns()
 	HandleAggregatedOps(opsPerAggregator []IEntryPointUserOpsPerAggregator, beneficiary common.Address) error
 
-	// HandleOps is a paid mutator transaction binding the contract method 0x1fad948c.
+	// HandleOps is a paid mutator transaction binding the contract method 0x9511c1ce.
 	//
-	// Solidity: function handleOps((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[] ops, address beneficiary) returns()
+	// Solidity: function handleOps((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes)[] ops, address beneficiary) returns()
 	HandleOps(ops []UserOperation, beneficiary common.Address) error
 
 	// IncrementNonce is a paid mutator transaction binding the contract method 0x0bd28e3b.
@@ -106,15 +108,25 @@ type IentryPoint interface {
 	// Solidity: function incrementNonce(uint192 key) returns()
 	IncrementNonce(key *big.Int) error
 
-	// SimulateHandleOp is a paid mutator transaction binding the contract method 0xd6383f94.
+	// SetNoGasCalls is a paid mutator transaction binding the contract method 0xb1856377.
 	//
-	// Solidity: function simulateHandleOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) op, address target, bytes targetCallData) returns()
+	// Solidity: function setNoGasCalls(bytes calls) returns()
+	SetNoGasCalls(calls []byte) error
+
+	// SimulateHandleOp is a paid mutator transaction binding the contract method 0xe63e05d8.
+	//
+	// Solidity: function simulateHandleOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) op, address target, bytes targetCallData) returns()
 	SimulateHandleOp(op UserOperation, target common.Address, targetCallData []byte) error
 
-	// SimulateValidation is a paid mutator transaction binding the contract method 0xee219423.
+	// SimulateValidation is a paid mutator transaction binding the contract method 0xa17e4980.
 	//
-	// Solidity: function simulateValidation((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp) returns()
+	// Solidity: function simulateValidation((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp) returns()
 	SimulateValidation(userOp UserOperation) error
+
+	// TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
+	//
+	// Solidity: function transferOwnership(address newOwner) returns()
+	TransferOwnership(newOwner common.Address) error
 
 	// UnlockStake is a paid mutator transaction binding the contract method 0xbb9fe6bf.
 	//
@@ -141,15 +153,25 @@ type IentryPoint interface {
 	// Solidity: function getDepositInfo(address account) view returns((uint112,bool,uint112,uint32,uint48) info)
 	GetDepositInfo(account common.Address) (IStakeManagerDepositInfo, error)
 
+	// GetNoGasCalls is a free data retrieval call binding the contract method 0x835602bd.
+	//
+	// Solidity: function getNoGasCalls() view returns(bytes)
+	GetNoGasCalls() ([]byte, error)
+
 	// GetNonce is a free data retrieval call binding the contract method 0x35567e1a.
 	//
 	// Solidity: function getNonce(address sender, uint192 key) view returns(uint256 nonce)
 	GetNonce(sender common.Address, key *big.Int) (*big.Int, error)
 
-	// GetUserOpHash is a free data retrieval call binding the contract method 0xa6193531.
+	// GetUserOpHash is a free data retrieval call binding the contract method 0xddcbf54e.
 	//
-	// Solidity: function getUserOpHash((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp) view returns(bytes32)
+	// Solidity: function getUserOpHash((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp) view returns(bytes32)
 	GetUserOpHash(userOp UserOperation) ([32]byte, error)
+
+	// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
+	//
+	// Solidity: function owner() view returns(address)
+	Owner() (common.Address, error)
 }
 
 // EventAccountDeployed represents a AccountDeployed event raised by the IentryPoint contract.
@@ -180,6 +202,16 @@ type EventDeposited struct {
 
 func (_event *EventDeposited) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 	return packer.PackEvent(_event, abi.Events["Deposited"])
+}
+
+// EventOwnershipTransferred represents a OwnershipTransferred event raised by the IentryPoint contract.
+type EventOwnershipTransferred struct {
+	PreviousOwner common.Address
+	NewOwner      common.Address
+}
+
+func (_event *EventOwnershipTransferred) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
+	return packer.PackEvent(_event, abi.Events["OwnershipTransferred"])
 }
 
 // EventSignatureAggregatorChanged represents a SignatureAggregatorChanged event raised by the IentryPoint contract.
@@ -283,6 +315,24 @@ type ErrorFailedOp struct {
 
 func (_error *ErrorFailedOp) Pack(abi abi.ABI) error {
 	return packer.PackError(_error, abi.Errors["FailedOp"])
+}
+
+// ErrorOwnableInvalidOwner represents a OwnableInvalidOwner error raised by the IentryPoint contract.
+type ErrorOwnableInvalidOwner struct {
+	Owner common.Address
+}
+
+func (_error *ErrorOwnableInvalidOwner) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["OwnableInvalidOwner"])
+}
+
+// ErrorOwnableUnauthorizedAccount represents a OwnableUnauthorizedAccount error raised by the IentryPoint contract.
+type ErrorOwnableUnauthorizedAccount struct {
+	Account common.Address
+}
+
+func (_error *ErrorOwnableUnauthorizedAccount) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["OwnableUnauthorizedAccount"])
 }
 
 // ErrorSenderAddressResult represents a SenderAddressResult error raised by the IentryPoint contract.

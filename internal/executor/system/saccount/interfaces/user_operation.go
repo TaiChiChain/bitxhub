@@ -22,6 +22,8 @@ type UserOperation struct {
 	MaxPriorityFeePerGas *big.Int          `json:"maxPriorityFeePerGas"`
 	PaymasterAndData     []byte            `json:"paymasterAndData"`
 	Signature            []byte            `json:"signature"`
+	AuthData             []byte            `json:"authData"`
+	ClientData           []byte            `json:"clientData"`
 }
 
 func PackForSignature(userOp *UserOperation) []byte {

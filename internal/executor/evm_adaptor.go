@@ -72,11 +72,15 @@ func CallArgsToMessage(args *types.CallArgs, globalGasCap uint64, baseFee *big.I
 	if args.Value != nil {
 		value = args.Value.ToInt()
 	}
-	data := args.GetData()
+	// copy data to keep call safety
+	data := make([]byte, len(args.GetData()))
+	copy(data, args.GetData())
 	var accessList ethtypes.AccessList
 	if args.AccessList != nil {
-		accessList = *args.AccessList
+		accessList = make(ethtypes.AccessList, len(*args.AccessList))
+		copy(accessList, *args.AccessList)
 	}
+
 	msg := &core.Message{
 		From:              addr,
 		To:                args.To,

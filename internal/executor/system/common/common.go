@@ -73,6 +73,7 @@ var (
 	BigIntType, _       = abi.NewType("uint256", "", nil)
 	UInt64Type, _       = abi.NewType("uint64", "", nil)
 	UInt48Type, _       = abi.NewType("uint48", "", nil)
+	UInt8Type, _        = abi.NewType("uint8", "", nil)
 	StringType, _       = abi.NewType("string", "", nil)
 	AddressType, _      = abi.NewType("address", "", nil)
 	BytesType, _        = abi.NewType("bytes", "", nil)
