@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/samber/lo"
+
 	"github.com/axiomesh/axiom-kit/types"
 	rpctypes "github.com/axiomesh/axiom-ledger/api/jsonrpc/types"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi/api"
@@ -184,7 +186,7 @@ func includes(addresses []types.Address, a *types.Address) bool {
 		return false
 	}
 	for _, addr := range addresses {
-		if addr.String() == a.String() {
+		if addr.ETHAddress() == a.ETHAddress() {
 			return true
 		}
 	}
@@ -195,8 +197,26 @@ func includes(addresses []types.Address, a *types.Address) bool {
 // FilterLogs creates a slice of logs matching the given criteria.
 func FilterLogs(logs []*types.EvmLog, fromBlock, toBlock *big.Int, addresses []types.Address, topics [][]types.Hash) []*types.EvmLog {
 	var ret []*types.EvmLog
-Logs:
+
+	var cloneLogs []*types.EvmLog
 	for _, log := range logs {
+		cloneLogs = append(cloneLogs, &types.EvmLog{
+			Address: types.NewAddress(log.Address.Bytes()),
+			Topics: lo.Map(log.Topics, func(item *types.Hash, index int) *types.Hash {
+				return types.NewHash(item.Bytes())
+			}),
+			Data:             log.Data,
+			BlockNumber:      log.BlockNumber,
+			TransactionHash:  types.NewHash(log.TransactionHash.Bytes()),
+			TransactionIndex: log.TransactionIndex,
+			BlockHash:        types.NewHash(log.BlockHash.Bytes()),
+			LogIndex:         log.LogIndex,
+			Removed:          log.Removed,
+		})
+	}
+
+Logs:
+	for _, log := range cloneLogs {
 		if fromBlock != nil && fromBlock.Int64() >= 0 && fromBlock.Uint64() > log.BlockNumber {
 			continue
 		}
