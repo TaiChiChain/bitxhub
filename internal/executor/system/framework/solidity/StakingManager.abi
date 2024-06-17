@@ -1,5 +1,29 @@
 [
   {
+    "inputs":
+    [
+      {
+        "internalType": "uint256",
+        "name": "remain",
+        "type": "uint256"
+      }
+    ],
+    "name": "AddStakeReachEpochLimit",
+    "type": "error"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "uint256",
+        "name": "remain",
+        "type": "uint256"
+      }
+    ],
+    "name": "UnlockStakeReachEpochLimit",
+    "type": "error"
+  },
+  {
     "anonymous": false,
     "inputs":
     [

@@ -132,3 +132,21 @@ type EventWithdraw struct {
 func (_event *EventWithdraw) Pack(abi abi.ABI) (log *types.EvmLog, err error) {
 	return packer.PackEvent(_event, abi.Events["Withdraw"])
 }
+
+// ErrorAddStakeReachEpochLimit represents a AddStakeReachEpochLimit error raised by the StakingManager contract.
+type ErrorAddStakeReachEpochLimit struct {
+	Remain *big.Int
+}
+
+func (_error *ErrorAddStakeReachEpochLimit) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["AddStakeReachEpochLimit"])
+}
+
+// ErrorUnlockStakeReachEpochLimit represents a UnlockStakeReachEpochLimit error raised by the StakingManager contract.
+type ErrorUnlockStakeReachEpochLimit struct {
+	Remain *big.Int
+}
+
+func (_error *ErrorUnlockStakeReachEpochLimit) Pack(abi abi.ABI) error {
+	return packer.PackError(_error, abi.Errors["UnlockStakeReachEpochLimit"])
+}
