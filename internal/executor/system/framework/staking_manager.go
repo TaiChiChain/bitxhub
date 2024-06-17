@@ -313,11 +313,14 @@ func (s *StakingManager) AddStake(poolID uint64, owner ethcommon.Address, amount
 	if err != nil {
 		return err
 	}
-	currentEpochTotalAddStake = new(big.Int).Add(currentEpochTotalAddStake, amount)
 	limit := lastEpochTotalStake.Mul(lastEpochTotalStake, big.NewInt(int64(currentEpoch.StakeParams.MaxAddStakeRatio)))
 	limit = limit.Div(limit, big.NewInt(types.RatioLimit))
+	remain := new(big.Int).Sub(limit, currentEpochTotalAddStake)
+	currentEpochTotalAddStake = new(big.Int).Add(currentEpochTotalAddStake, amount)
 	if currentEpochTotalAddStake.Cmp(limit) > 0 {
-		return errors.Errorf("add stake reach epoch limit %s", limit.String())
+		return s.Revert(&staking_manager.ErrorAddStakeReachEpochLimit{
+			Remain: remain,
+		})
 	}
 
 	if err := s.updateTotalStake(true, amount); err != nil {
@@ -390,7 +393,6 @@ func (s *StakingManager) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts [
 	for _, amount := range amounts {
 		totalAmount = totalAmount.Add(totalAmount, amount)
 	}
-	currentEpochTotalUnlockStake = new(big.Int).Add(currentEpochTotalUnlockStake, totalAmount)
 	epochManagerContract := EpochManagerBuildConfig.Build(s.CrossCallSystemContractContext())
 	currentEpoch, err := epochManagerContract.CurrentEpoch()
 	if err != nil {
@@ -398,8 +400,12 @@ func (s *StakingManager) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts [
 	}
 	limit := lastEpochTotalStake.Mul(lastEpochTotalStake, big.NewInt(int64(currentEpoch.StakeParams.MaxUnlockStakeRatio)))
 	limit = limit.Div(limit, big.NewInt(types.RatioLimit))
+	remain := new(big.Int).Sub(limit, currentEpochTotalUnlockStake)
+	currentEpochTotalUnlockStake = new(big.Int).Add(currentEpochTotalUnlockStake, totalAmount)
 	if currentEpochTotalUnlockStake.Cmp(limit) > 0 {
-		return errors.Errorf("unlock stake reach epoch limit %s", limit.String())
+		return s.Revert(&staking_manager.ErrorUnlockStakeReachEpochLimit{
+			Remain: remain,
+		})
 	}
 
 	for i, liquidStakingTokenID := range liquidStakingTokenIDs {

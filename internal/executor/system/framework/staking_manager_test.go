@@ -185,7 +185,7 @@ func TestStakingManager_LifeCycle(t *testing.T) {
 		err = stakingManagerContract.AddStake(5, operatorAddr.ETHAddress(), big.NewInt(1))
 		assert.ErrorContains(t, err, "less than min stake")
 		err = stakingManagerContract.AddStake(5, operatorAddr.ETHAddress(), big.NewInt(200))
-		assert.ErrorContains(t, err, "reach epoch limit")
+		assert.ErrorContains(t, err, "AddStakeReachEpochLimit")
 	})
 
 	// add some stake

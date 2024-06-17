@@ -26,6 +26,10 @@ pragma solidity ^0.8.20;
     }
 
 interface StakingManager {
+    error AddStakeReachEpochLimit(uint256 remain);
+
+    error UnlockStakeReachEpochLimit(uint256 remain);
+
     event AddStake(uint64 indexed poolID, address indexed owner, uint256 amount, uint256 liquidStakingTokenID);
 
     event Unlock(uint256 liquidStakingTokenID, uint256 amount, uint64 unlockTimestamp);
