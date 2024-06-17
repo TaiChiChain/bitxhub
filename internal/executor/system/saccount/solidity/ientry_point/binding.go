@@ -72,8 +72,6 @@ type UserOperation struct {
 	MaxPriorityFeePerGas *big.Int
 	PaymasterAndData     []byte
 	Signature            []byte
-	AuthData             []byte
-	ClientData           []byte
 }
 
 type IentryPoint interface {
@@ -93,14 +91,14 @@ type IentryPoint interface {
 	// Solidity: function getSenderAddress(bytes initCode) returns()
 	GetSenderAddress(initCode []byte) error
 
-	// HandleAggregatedOps is a paid mutator transaction binding the contract method 0xde84c263.
+	// HandleAggregatedOps is a paid mutator transaction binding the contract method 0x4b1d7cf5.
 	//
-	// Solidity: function handleAggregatedOps(((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes)[],address,bytes)[] opsPerAggregator, address beneficiary) returns()
+	// Solidity: function handleAggregatedOps(((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[],address,bytes)[] opsPerAggregator, address beneficiary) returns()
 	HandleAggregatedOps(opsPerAggregator []IEntryPointUserOpsPerAggregator, beneficiary common.Address) error
 
-	// HandleOps is a paid mutator transaction binding the contract method 0x9511c1ce.
+	// HandleOps is a paid mutator transaction binding the contract method 0x1fad948c.
 	//
-	// Solidity: function handleOps((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes)[] ops, address beneficiary) returns()
+	// Solidity: function handleOps((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[] ops, address beneficiary) returns()
 	HandleOps(ops []UserOperation, beneficiary common.Address) error
 
 	// IncrementNonce is a paid mutator transaction binding the contract method 0x0bd28e3b.
@@ -113,14 +111,14 @@ type IentryPoint interface {
 	// Solidity: function setNoGasCalls(bytes calls) returns()
 	SetNoGasCalls(calls []byte) error
 
-	// SimulateHandleOp is a paid mutator transaction binding the contract method 0xe63e05d8.
+	// SimulateHandleOp is a paid mutator transaction binding the contract method 0xd6383f94.
 	//
-	// Solidity: function simulateHandleOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) op, address target, bytes targetCallData) returns()
+	// Solidity: function simulateHandleOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) op, address target, bytes targetCallData) returns()
 	SimulateHandleOp(op UserOperation, target common.Address, targetCallData []byte) error
 
-	// SimulateValidation is a paid mutator transaction binding the contract method 0xa17e4980.
+	// SimulateValidation is a paid mutator transaction binding the contract method 0xee219423.
 	//
-	// Solidity: function simulateValidation((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp) returns()
+	// Solidity: function simulateValidation((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp) returns()
 	SimulateValidation(userOp UserOperation) error
 
 	// TransferOwnership is a paid mutator transaction binding the contract method 0xf2fde38b.
@@ -163,9 +161,9 @@ type IentryPoint interface {
 	// Solidity: function getNonce(address sender, uint192 key) view returns(uint256 nonce)
 	GetNonce(sender common.Address, key *big.Int) (*big.Int, error)
 
-	// GetUserOpHash is a free data retrieval call binding the contract method 0xddcbf54e.
+	// GetUserOpHash is a free data retrieval call binding the contract method 0xa6193531.
 	//
-	// Solidity: function getUserOpHash((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp) view returns(bytes32)
+	// Solidity: function getUserOpHash((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp) view returns(bytes32)
 	GetUserOpHash(userOp UserOperation) ([32]byte, error)
 
 	// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.

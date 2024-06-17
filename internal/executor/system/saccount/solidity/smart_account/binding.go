@@ -34,8 +34,6 @@ type UserOperation struct {
 	MaxPriorityFeePerGas *big.Int
 	PaymasterAndData     []byte
 	Signature            []byte
-	AuthData             []byte
-	ClientData           []byte
 }
 
 type SmartAccount interface {
@@ -60,9 +58,9 @@ type SmartAccount interface {
 	// Solidity: function initialize(address anOwner) returns()
 	Initialize(anOwner common.Address) error
 
-	// ValidateUserOp is a paid mutator transaction binding the contract method 0xb0fff5ca.
+	// ValidateUserOp is a paid mutator transaction binding the contract method 0x3a871cdd.
 	//
-	// Solidity: function validateUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 missingAccountFunds) returns(uint256 validationData)
+	// Solidity: function validateUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 missingAccountFunds) returns(uint256 validationData)
 	ValidateUserOp(userOp UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (*big.Int, error)
 
 	// WithdrawDepositTo is a paid mutator transaction binding the contract method 0x4d44560d.
