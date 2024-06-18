@@ -116,7 +116,7 @@ func (b *BrokerAPI) StateAtTransaction(block *types.Block, txIndex int, reexec u
 		return nil, vm.BlockContext{}, nil, fmt.Errorf("parent %#x not found", block.Header.ParentHash)
 	}
 
-	statedb, err := b.axiomLedger.ViewLedger.StateLedger.NewViewWithoutCache(parentHeader, false)
+	statedb, err := b.axiomLedger.ViewLedger.StateLedger.NewView(parentHeader, false)
 	if err != nil {
 		return nil, vm.BlockContext{}, nil, fmt.Errorf("get target state error:%v", err)
 	}

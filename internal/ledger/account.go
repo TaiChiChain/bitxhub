@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -52,7 +51,6 @@ type SimpleAccount struct {
 	backend          kv.Storage
 	storageTrieCache *storagemgr.CacheWrapper
 	pruneCache       jmt.PruneCache
-	cache            *AccountCache
 
 	blockHeight uint64
 	storageTrie *jmt.JMT
@@ -62,17 +60,11 @@ type SimpleAccount struct {
 	created        bool // Flag whether the account was created in the current transaction
 
 	snapshot *snapshot.Snapshot
-
-	enableExpensiveMetric bool
 }
 
 func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 	ldb := kv.NewMemory()
 
-	ac, err := NewAccountCache(0, true)
-	if err != nil {
-		panic(err)
-	}
 	return &SimpleAccount{
 		logger:           loggers.Logger(loggers.Storage),
 		Addr:             addr,
@@ -82,14 +74,13 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		blockHeight:      blockHeight,
 		backend:          ldb,
 		storageTrieCache: storagemgr.NewCacheWrapper(32, false),
-		cache:            ac,
 		changer:          newChanger(),
 		selfDestructed:   false,
 		created:          false,
 	}
 }
 
-func NewAccount(blockHeight uint64, backend kv.Storage, storageTrieCache *storagemgr.CacheWrapper, pruneCache jmt.PruneCache, accountCache *AccountCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
+func NewAccount(blockHeight uint64, backend kv.Storage, storageTrieCache *storagemgr.CacheWrapper, pruneCache jmt.PruneCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
 	return &SimpleAccount{
 		logger:           loggers.Logger(loggers.Storage),
 		Addr:             addr,
@@ -100,16 +91,11 @@ func NewAccount(blockHeight uint64, backend kv.Storage, storageTrieCache *storag
 		backend:          backend,
 		storageTrieCache: storageTrieCache,
 		pruneCache:       pruneCache,
-		cache:            accountCache,
 		changer:          changer,
 		selfDestructed:   false,
 		created:          false,
 		snapshot:         snapshot,
 	}
-}
-
-func (o *SimpleAccount) SetEnableExpensiveMetric(enable bool) {
-	o.enableExpensiveMetric = enable
 }
 
 func (o *SimpleAccount) String() string {
@@ -171,24 +157,19 @@ func (o *SimpleAccount) GetState(key []byte) (bool, []byte) {
 		return value != nil, value
 	}
 
-	// todo opz here, consider api usage
-	// if o.snapshot != nil {
-	//	if value, err := o.snapshot.Storage(o.Addr, key); err == nil {
-	//		o.originState[string(key)] = value
-	//		o.initStorageTrie()
-	//		o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
-	//		return value != nil, value
-	//	}
-	// }
+	if o.snapshot != nil {
+		if value, err := o.snapshot.Storage(o.Addr, key); err == nil {
+			o.originState[string(key)] = value
+			o.initStorageTrie()
+			o.logger.Debugf("[GetState] get from snapshot, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
+			return value != nil, value
+		}
+	}
 
 	o.initStorageTrie()
-	start := time.Now()
 	val, err := o.storageTrie.Get(utils.CompositeStorageKey(o.Addr, key))
 	if err != nil {
 		panic(err)
-	}
-	if o.enableExpensiveMetric {
-		stateReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 	}
 	o.logger.Debugf("[GetState] get from storage trie, addr: %v, key: %v, state: %v", o.Addr, string(key), &bytesLazyLogger{bytes: val})
 
@@ -229,13 +210,9 @@ func (o *SimpleAccount) GetCommittedState(key []byte) []byte {
 	}
 
 	o.initStorageTrie()
-	start := time.Now()
 	val, err := o.storageTrie.Get(utils.CompositeStorageKey(o.Addr, key))
 	if err != nil {
 		panic(err)
-	}
-	if o.enableExpensiveMetric {
-		stateReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 	}
 	o.logger.Debugf("[GetCommittedState] get from storage trie, addr: %v, key: %v, state: %v", o.Addr, string(key), &bytesLazyLogger{bytes: val})
 
@@ -306,15 +283,8 @@ func (o *SimpleAccount) Code() []byte {
 		return nil
 	}
 
-	code, ok := o.cache.getCode(o.Addr)
-	if !ok {
-		start := time.Now()
-		code = o.backend.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
-		if o.enableExpensiveMetric {
-			codeReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-		}
-		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: code[:4]})
-	}
+	code := o.backend.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
+	o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: code[:4]})
 
 	o.originCode = code
 	o.dirtyCode = code
@@ -484,13 +454,6 @@ func (o *SimpleAccount) IsEmpty() bool {
 
 func (o *SimpleAccount) SelfDestructed() bool {
 	return o.selfDestructed
-}
-
-func (o *SimpleAccount) GetStorageRootHash() common.Hash {
-	if o.originAccount == nil || o.originAccount.StorageRoot == (common.Hash{}) {
-		return common.BytesToHash(o.Addr.ETHAddress().Bytes())
-	}
-	return o.originAccount.StorageRoot
 }
 
 func (o *SimpleAccount) GetStorageRoot() common.Hash {

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,4 +15,8 @@ func TestCompositeKey(t *testing.T) {
 	assert.True(t, len(CompositeStorageKey(addr, []byte("1das2345fsdfdssd"))) > 0)
 	assert.True(t, len(CompositeAccountKey(addr)) > 0)
 	assert.True(t, len(CompositeCodeKey(addr, []byte("1das2345fsdfdssd"))) > 0)
+
+	fmt.Printf("CompositeStorageKey(addr, []byte(\"1das2345fsdfdssd\"))=%v\n", CompositeStorageKey(addr, []byte("1das2345fsdfdssd")))
+	fmt.Printf("CompositeAccountKey(addr)=%v\n", CompositeAccountKey(addr))
+
 }

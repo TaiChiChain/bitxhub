@@ -8,24 +8,14 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
-func TestInitialize(t *testing.T) {
-	testcase := map[string]struct {
-		kvType string
-	}{
-		"leveldb": {kvType: "leveldb"},
-		"pebble":  {kvType: "pebble"},
-	}
-
-	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			err := Initialize(tc.kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
-			require.Nil(t, err)
-		})
-	}
-}
-
 func TestInitializeWrongType(t *testing.T) {
-	err := Initialize("unsupport", repo.KVStorageCacheSize, repo.KVStorageSync, false)
+	repoConfig := &repo.Config{Storage: repo.Storage{
+		KvType:      "unsupport",
+		Sync:        false,
+		KVCacheSize: repo.KVStorageCacheSize,
+		Pebble:      repo.Pebble{},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := Initialize(repoConfig)
 	require.NotNil(t, err)
 	require.Contains(t, err.Error(), "unknow kv type unsupport")
 }
@@ -41,7 +31,13 @@ func TestGet(t *testing.T) {
 	}
 	for name, tc := range testcase {
 		t.Run(name, func(t *testing.T) {
-			err := Initialize(tc.kvType, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+			repoConfig := &repo.Config{Storage: repo.Storage{
+				KvType:      tc.kvType,
+				Sync:        false,
+				KVCacheSize: repo.KVStorageCacheSize,
+				Pebble:      repo.Pebble{},
+			}, Monitor: repo.Monitor{Enable: false}}
+			err := Initialize(repoConfig)
 			require.Nil(t, err)
 
 			s, err := Open(repo.GetStoragePath(dir+tc.kvType, BlockChain))

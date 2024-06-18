@@ -53,7 +53,7 @@ func TestAccount_GetState(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, stateLedger.pruneCache, stateLedger.accountCache, addr, newChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, stateLedger.pruneCache, addr, newChanger(), stateLedger.snapshot)
 
 			addr1 := account.GetAddress()
 			assert.Equal(t, addr, addr1)
@@ -126,7 +126,7 @@ func TestAccount_AccountBalance(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, stateLedger.pruneCache, stateLedger.accountCache, addr, newChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, stateLedger.pruneCache, addr, newChanger(), stateLedger.snapshot)
 
 			account.AddBalance(big.NewInt(1))
 			account.SubBalance(big.NewInt(1))
@@ -183,7 +183,7 @@ func TestAccount_setNonce(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, stateLedger.pruneCache, stateLedger.accountCache, addr, newChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, stateLedger.pruneCache, addr, newChanger(), stateLedger.snapshot)
 
 			account.setNonce(1)
 
@@ -194,11 +194,9 @@ func TestAccount_setNonce(t *testing.T) {
 
 func TestAccount_InitJMTError(t *testing.T) {
 	lStateStorage := kv.NewMemory()
-	ac, err := NewAccountCache(0, true)
-	assert.Nil(t, err)
 
 	addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
-	account := NewAccount(1, lStateStorage, nil, nil, ac, addr, newChanger(), nil)
+	account := NewAccount(1, lStateStorage, nil, nil, addr, newChanger(), nil)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -250,7 +248,7 @@ func TestAccount_getAccountJournal(t *testing.T) {
 
 			addr := types.NewAddressByStr("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 			stateLedger := ledger.StateLedger.(*StateLedgerImpl)
-			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, nil, stateLedger.accountCache, addr, newChanger(), stateLedger.snapshot)
+			account := NewAccount(1, stateLedger.backend, stateLedger.storageTrieCache, nil, addr, newChanger(), stateLedger.snapshot)
 
 			code := []byte("code")
 			codeHash := []byte("codeHash")
