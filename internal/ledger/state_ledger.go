@@ -17,6 +17,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/trie_indexer"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
@@ -38,16 +39,16 @@ type revision struct {
 }
 
 type StateLedgerImpl struct {
-	logger       logrus.FieldLogger
-	accountCache *AccountCache // todo remove this
-	accountTrie  *jmt.JMT      // keep track of the latest world state (dirty or committed)
+	logger      logrus.FieldLogger
+	accountTrie *jmt.JMT // keep track of the latest world state (dirty or committed)
 
 	pruneCache       *prune.PruneCache
+	trieIndexer      *trie_indexer.TrieIndexer
 	backend          kv.Storage
 	accountTrieCache *storagemgr.CacheWrapper
 	storageTrieCache *storagemgr.CacheWrapper
 
-	triePreloader *triePreloader
+	triePreloader *triePreloaderManager
 	accounts      map[string]IAccount
 	repo          *repo.Repo
 	blockHeight   uint64
@@ -66,10 +67,6 @@ type StateLedgerImpl struct {
 	snapshot *snapshot.Snapshot
 
 	transientStorage transientStorage
-
-	// enableExpensiveMetric determines if costly metrics gathering is allowed or not.
-	// The goal is to separate standard metrics for health monitoring and debug metrics that might impact runtime performance.
-	enableExpensiveMetric bool
 }
 
 type SnapshotMeta struct {
@@ -146,54 +143,19 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	}
 
 	lg := &StateLedgerImpl{
-		repo:                  l.repo,
-		logger:                l.logger,
-		backend:               l.backend,
-		pruneCache:            l.pruneCache,
-		accountTrieCache:      l.accountTrieCache,
-		storageTrieCache:      l.storageTrieCache,
-		accountCache:          l.accountCache,
-		accounts:              make(map[string]IAccount),
-		preimages:             make(map[types.Hash][]byte),
-		changer:               newChanger(),
-		accessList:            NewAccessList(),
-		logs:                  newEvmLogs(),
-		enableExpensiveMetric: l.enableExpensiveMetric,
-		blockHeight:           blockHeader.Number,
-	}
-	if enableSnapshot {
-		lg.snapshot = l.snapshot
-	}
-	lg.refreshAccountTrie(blockHeader.StateRoot)
-	return lg, nil
-}
-
-// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
-func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error) {
-	l.logger.Debugf("[NewViewWithoutCache] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
-	if l.repo.Config.Ledger.EnablePrune {
-		min, max := l.GetHistoryRange()
-		if blockHeader.Number < min || blockHeader.Number > max {
-			return nil, fmt.Errorf("history at target block %v is invalid, the valid range is from %v to %v", blockHeader.Number, min, max)
-		}
-	}
-
-	ac, _ := NewAccountCache(0, true)
-	lg := &StateLedgerImpl{
-		repo:                  l.repo,
-		logger:                l.logger,
-		backend:               l.backend,
-		pruneCache:            l.pruneCache,
-		accountTrieCache:      l.accountTrieCache,
-		storageTrieCache:      l.storageTrieCache,
-		accountCache:          ac,
-		accounts:              make(map[string]IAccount),
-		preimages:             make(map[types.Hash][]byte),
-		changer:               newChanger(),
-		accessList:            NewAccessList(),
-		logs:                  newEvmLogs(),
-		enableExpensiveMetric: l.enableExpensiveMetric,
-		blockHeight:           blockHeader.Number,
+		repo:             l.repo,
+		logger:           l.logger,
+		backend:          l.backend,
+		pruneCache:       l.pruneCache,
+		accountTrieCache: l.accountTrieCache,
+		storageTrieCache: l.storageTrieCache,
+		trieIndexer:      l.trieIndexer,
+		accounts:         make(map[string]IAccount),
+		preimages:        make(map[types.Hash][]byte),
+		changer:          newChanger(),
+		accessList:       NewAccessList(),
+		logs:             newEvmLogs(),
+		blockHeight:      blockHeader.Number,
 	}
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
@@ -203,20 +165,7 @@ func (l *StateLedgerImpl) NewViewWithoutCache(blockHeader *types.BlockHeader, en
 }
 
 func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
-	minHeight := uint64(0)
-	maxHeight := uint64(0)
-
-	data := l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr))
-	if data != nil {
-		minHeight = utils.UnmarshalHeight(data)
-	}
-
-	data = l.backend.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr))
-	if data != nil {
-		maxHeight = utils.UnmarshalHeight(data)
-	}
-
-	return minHeight, maxHeight
+	return l.pruneCache.GetRange()
 }
 
 func (l *StateLedgerImpl) GetStateDelta(blockNumber uint64) *types.StateDelta {
@@ -227,11 +176,8 @@ func (l *StateLedgerImpl) Finalise() {
 	for _, account := range l.accounts {
 		keys := account.Finalise()
 
-		if l.triePreloader != nil {
-			l.triePreloader.preload(common.Hash{}, [][]byte{utils.CompositeAccountKey(account.GetAddress())})
-			if len(keys) > 0 {
-				l.triePreloader.preload(account.GetStorageRootHash(), keys)
-			}
+		if l.triePreloader != nil && len(keys) > 0 && l.repo.Config.Ledger.EnablePreload {
+			l.triePreloader.preload(account.GetStorageRoot(), keys)
 		}
 		account.SetCreated(false)
 	}
@@ -248,8 +194,8 @@ func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage,
 		if err := l.pruneCache.Rollback(snapshotMeta.BlockHeader.Number, false); err != nil {
 			errC <- err
 		}
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(snapshotMeta.BlockHeader.Number))
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(snapshotMeta.BlockHeader.Number))
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
 	}
 
 	queue := []common.Hash{stateRoot}
@@ -396,26 +342,24 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 	accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
 	storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
 
-	accountCache, err := NewAccountCache(rep.Config.Ledger.StateLedgerAccountCacheSize, false)
+	trieIndexerKv, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.TrieIndexer), storagemgr.TrieIndexer)
 	if err != nil {
 		return nil, err
 	}
-	accountCache.SetEnableExpensiveMetric(rep.Config.Monitor.EnableExpensive)
 
 	ledger := &StateLedgerImpl{
-		repo:                  rep,
-		logger:                loggers.Logger(loggers.Storage),
-		backend:               stateCachedStorage,
-		accountTrieCache:      accountTrieCache,
-		storageTrieCache:      storageTrieCache,
-		pruneCache:            prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
-		accountCache:          accountCache,
-		accounts:              make(map[string]IAccount),
-		preimages:             make(map[types.Hash][]byte),
-		changer:               newChanger(),
-		accessList:            NewAccessList(),
-		logs:                  newEvmLogs(),
-		enableExpensiveMetric: rep.Config.Monitor.EnableExpensive,
+		repo:             rep,
+		logger:           loggers.Logger(loggers.Storage),
+		backend:          stateCachedStorage,
+		accountTrieCache: accountTrieCache,
+		storageTrieCache: storageTrieCache,
+		pruneCache:       prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
+		trieIndexer:      trie_indexer.NewTrieIndexer(rep, trieIndexerKv, loggers.Logger(loggers.Storage)),
+		accounts:         make(map[string]IAccount),
+		preimages:        make(map[types.Hash][]byte),
+		changer:          newChanger(),
+		accessList:       NewAccessList(),
+		logs:             newEvmLogs(),
 	}
 
 	if snapshotStorage != nil {

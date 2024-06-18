@@ -95,9 +95,9 @@ func (tc *PruneCache) addNewDiff(batch kv.Batch, height uint64, ledgerStorage kv
 	}
 	if persist {
 		batch.Put(utils.CompositeKey(utils.PruneJournalKey, height), stateDelta.Encode())
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
+		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(height))
 		if height == 0 {
-			batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalHeight(height))
+			batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(height))
 		}
 	}
 
@@ -127,7 +127,7 @@ func (tc *PruneCache) Update(batch kv.Batch, height uint64, trieJournals *types.
 	tc.states.lock.Lock()
 	defer tc.states.lock.Unlock()
 
-	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v, journal=%v", height, trieJournals)
+	tc.logger.Debugf("[PruneCache-Update] update trie cache at height: %v", height)
 
 	tc.addNewDiff(batch, height, tc.ledgerStorage, trieJournals, true)
 }
@@ -154,11 +154,18 @@ func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {
 		if tc.states.diffs[i].height > version {
 			continue
 		}
+		// the origin trie node may be recycled later, so we must deep-copy it here.
 		if v, ok := tc.states.diffs[i].accountDiff[k]; ok {
-			return v, true
+			if v == nil {
+				return v, ok
+			}
+			return v.Copy(), true
 		}
 		if v, ok := tc.states.diffs[i].storageDiff[k]; ok {
-			return v, true
+			if v == nil {
+				return v, ok
+			}
+			return v.Copy(), true
 		}
 	}
 
@@ -195,7 +202,7 @@ func (tc *PruneCache) Rollback(height uint64, persist bool) error {
 		}
 		tc.addNewDiff(batch, i, tc.ledgerStorage, trieJournal, false)
 	}
-	batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalHeight(height))
+	batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(height))
 
 	for i := height + 1; i <= maxHeight; i++ {
 		batch.Delete(utils.CompositeKey(utils.PruneJournalKey, i))
@@ -215,12 +222,12 @@ func (tc *PruneCache) GetRange() (uint64, uint64) {
 
 	data := tc.ledgerStorage.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr))
 	if data != nil {
-		minHeight = utils.UnmarshalHeight(data)
+		minHeight = utils.UnmarshalUint64(data)
 	}
 
 	data = tc.ledgerStorage.Get(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr))
 	if data != nil {
-		maxHeight = utils.UnmarshalHeight(data)
+		maxHeight = utils.UnmarshalUint64(data)
 	}
 
 	return minHeight, maxHeight

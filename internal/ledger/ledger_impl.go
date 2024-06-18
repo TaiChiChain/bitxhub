@@ -152,21 +152,3 @@ func (l *Ledger) NewView() *Ledger {
 		StateLedger: sl,
 	}
 }
-
-// NewViewWithoutCache loads the latest state ledger and chain ledger by default
-func (l *Ledger) NewViewWithoutCache() *Ledger {
-	meta := l.ChainLedger.GetChainMeta()
-	blockHeader, err := l.ChainLedger.GetBlockHeader(meta.Height)
-	if err != nil {
-		panic(err)
-	}
-
-	sl, err := l.StateLedger.NewViewWithoutCache(blockHeader, true)
-	if err != nil {
-		panic(err)
-	}
-	return &Ledger{
-		ChainLedger: l.ChainLedger,
-		StateLedger: sl,
-	}
-}

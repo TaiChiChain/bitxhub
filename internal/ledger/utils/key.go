@@ -7,6 +7,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 	SnapshotMetaKey    = "snap-meta"
 	RollbackBlockKey   = "rollback-block"
 	RollbackStateKey   = "rollback-state"
+	TrieNodeIndexKey   = "tni-"
 )
 
 const (
@@ -26,32 +28,46 @@ const (
 	MaxHeightStr = "maxHeight"
 )
 
+var keyCache = storagemgr.NewCacheWrapper(64, false)
+
 func CompositeKey(prefix string, value any) []byte {
 	return append([]byte(prefix), []byte(fmt.Sprintf("%v", value))...)
 }
 
 func CompositeAccountKey(addr *types.Address) []byte {
-	return hexutil.EncodeToNibbles(addr.String())
+	k := addr.Bytes()
+	if res, ok := keyCache.Get(k); ok {
+		return res
+	}
+	res := hexutil.EncodeToNibbles(addr.String())
+	keyCache.Set(k, res)
+	return res
 }
 
 func CompositeStorageKey(addr *types.Address, key []byte) []byte {
-	keyHash := sha256.Sum256(append(addr.Bytes(), key...))
-	return hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
+	k := append(addr.Bytes(), key...)
+	if res, ok := keyCache.Get(k); ok {
+		return res
+	}
+	keyHash := sha256.Sum256(k)
+	res := hexutil.EncodeToNibbles(types.NewHash(keyHash[:]).String())
+	keyCache.Set(k, res)
+	return res
 }
 
 func CompositeCodeKey(addr *types.Address, codeHash []byte) []byte {
 	return append(addr.Bytes(), codeHash...)
 }
 
-func MarshalHeight(height uint64) []byte {
-	return []byte(strconv.FormatUint(height, 10))
+func MarshalUint64(data uint64) []byte {
+	return []byte(strconv.FormatUint(data, 10))
 }
 
-func UnmarshalHeight(data []byte) uint64 {
-	height, err := strconv.ParseUint(string(data), 10, 64)
+func UnmarshalUint64(data []byte) uint64 {
+	res, err := strconv.ParseUint(string(data), 10, 64)
 	if err != nil {
 		panic(err)
 	}
 
-	return height
+	return res
 }

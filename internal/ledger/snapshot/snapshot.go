@@ -36,6 +36,9 @@ var (
 // maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
 const maxBatchSize = 64 * 1024 * 1024
 
+// minPreserveJournalNumber defines the minimum number of snapshot journals that ledger would preserve.
+var minPreserveJournalNumber = 128
+
 func NewSnapshot(rep *repo.Repo, backend kv.Storage, logger logrus.FieldLogger) *Snapshot {
 	return &Snapshot{
 		rep:                   rep,
@@ -46,14 +49,14 @@ func NewSnapshot(rep *repo.Repo, backend kv.Storage, logger logrus.FieldLogger) 
 	}
 }
 
-// RemoveJournalsBeforeBlock removes snapshot journals whose block number < height
+// RemoveJournalsBeforeBlock batch removes snapshot journals whose block number < height
 func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 	minHeight, maxHeight := snap.GetJournalRange()
 	if height > maxHeight {
 		return ErrorRemoveJournalOutOfRange
 	}
 
-	if height <= minHeight {
+	if int(height-minHeight) < minPreserveJournalNumber || height <= minHeight {
 		return nil
 	}
 
@@ -61,7 +64,7 @@ func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 	for i := minHeight; i < height; i++ {
 		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
 	}
-	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalHeight(height))
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalUint64(height))
 	batch.Commit()
 
 	return nil
@@ -103,7 +106,6 @@ func (snap *Snapshot) Account(addr *types.Address) (*types.InnerAccount, error) 
 	return innerAccount, nil
 }
 
-// todo check correctness
 func (snap *Snapshot) Storage(addr *types.Address, key []byte) ([]byte, error) {
 	snap.lock.RLock()
 	defer snap.lock.RUnlock()
@@ -124,7 +126,7 @@ func (snap *Snapshot) Storage(addr *types.Address, key []byte) ([]byte, error) {
 }
 
 // todo batch update snapshot of serveral blocks
-func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, destructs map[string]struct{}, accounts map[string]*types.InnerAccount, storage map[string]map[string][]byte) error {
+func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, destructs map[string]struct{}, accounts map[string]*types.InnerAccount, storage map[string]map[string][]byte) (int, error) {
 	snap.lock.Lock()
 	defer snap.lock.Unlock()
 
@@ -159,17 +161,16 @@ func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, dest
 
 	data, err := journal.Encode()
 	if err != nil {
-		return fmt.Errorf("marshal snapshot journal error: %w", err)
+		return 0, fmt.Errorf("marshal snapshot journal error: %w", err)
 	}
-	snap.logger.Infof("[Snapshot-Update] journal size = %v", len(data))
 
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, height), data)
-	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(height))
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalUint64(height))
 	if height == 0 {
-		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalHeight(height))
+		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalUint64(height))
 	}
 	batch.Commit()
-	return nil
+	return batch.Size(), nil
 }
 
 // Rollback removes snapshot journals whose block number < height
@@ -210,7 +211,7 @@ func (snap *Snapshot) Rollback(height uint64) error {
 			}
 		}
 		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
-		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalHeight(i-1))
+		batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalUint64(i-1))
 		if batch.Size() > maxBatchSize {
 			batch.Commit()
 			batch.Reset()

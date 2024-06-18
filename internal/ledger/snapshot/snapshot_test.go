@@ -73,7 +73,7 @@ func TestNormalCase(t *testing.T) {
 		"key3": []byte("val33"),
 	}
 
-	err := snapshot.Update(1, nil, destructSet, accountSet, storageSet)
+	_, err := snapshot.Update(1, nil, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -146,7 +146,7 @@ func TestStateTransit(t *testing.T) {
 		"key2": []byte("val2"),
 	}
 
-	err := snapshot.Update(1, nil, destructSet, accountSet, storageSet)
+	_, err := snapshot.Update(1, nil, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -185,7 +185,7 @@ func TestStateTransit(t *testing.T) {
 	accountSet2[addr1.String()] = account11
 	accountSet2[addr2.String()] = account22
 
-	err = snapshot.Update(1, nil, destructSet, accountSet2, storageSet)
+	_, err = snapshot.Update(1, nil, destructSet, accountSet2, storageSet)
 	require.Nil(t, err)
 
 	a11, err := snapshot.Account(addr1)
@@ -248,7 +248,7 @@ func TestRollback(t *testing.T) {
 		PrevStates:     nil,
 	})
 
-	err := snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
+	_, err := snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -310,11 +310,11 @@ func TestRollback(t *testing.T) {
 			"key1": []byte("val1"),
 			"key2": []byte("val2"),
 			"key3": nil,
-			// "key4": make([]byte, maxBatchSize+1),
+			"key4": make([]byte, maxBatchSize+1),
 		},
 	})
 
-	err = snapshot.Update(2, journal2, destructSet, accountSet2, storageSet2)
+	_, err = snapshot.Update(2, journal2, destructSet, accountSet2, storageSet2)
 	require.Nil(t, err)
 
 	a11, err := snapshot.Account(addr1)
@@ -438,7 +438,7 @@ func TestRemoveJournal(t *testing.T) {
 		PrevStates:     nil,
 	})
 
-	err := snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
+	_, err := snapshot.Update(1, journal1, destructSet, accountSet, storageSet)
 	require.Nil(t, err)
 
 	a1, err := snapshot.Account(addr1)
@@ -502,7 +502,7 @@ func TestRemoveJournal(t *testing.T) {
 		},
 	})
 
-	err = snapshot.Update(2, journal2, destructSet, accountSet2, storageSet2)
+	_, err = snapshot.Update(2, journal2, destructSet, accountSet2, storageSet2)
 	require.Nil(t, err)
 
 	// remove to higher block
@@ -515,6 +515,7 @@ func TestRemoveJournal(t *testing.T) {
 	require.Nil(t, err)
 
 	// remove journal, then rollback
+	minPreserveJournalNumber = 0
 	err = snapshot.RemoveJournalsBeforeBlock(2)
 	require.Nil(t, err)
 	err = snapshot.Rollback(1)
