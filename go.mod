@@ -8,7 +8,7 @@ require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
 	github.com/axiomesh/axiom-bft v0.0.3-0.20240617072932-0335b45073fb
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240618031114-022034a5e23c
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240619074957-fd4a7db67e70
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20240601010407-4172c3880c30
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
@@ -228,3 +228,7 @@ require (
 	lukechampine.com/blake3 v1.2.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
+
+//replace (
+//	github.com/axiomesh/axiom-kit => /Users/zhangqirui/workplace/axiom-kit
+//)

@@ -40,12 +40,12 @@ func (indexer *TrieIndexer) Update(height uint64, stateDelta *types.StateDelta) 
 		for rawNk, node := range tj.DirtySet {
 			nk := types.DecodeNodeKey([]byte(rawNk))
 			if node.Type() == types.TypeLeafNode {
-				k := node.(*types.LeafNode).Key[:]
-				//batch.Put(utils.CompositeKey(utils.TrieNodeIndexKey, node.(*types.LeafNode).Key[:]), utils.MarshalUint64(uint64(len(nk.Path))))
-				indexer.logger.Debugf("[TrieIndexes-Update] update trie leaf node key %v with length %v", k, len(nk.Path))
-				batch.Put(k, utils.MarshalUint64(uint64(len(nk.Path))))
+				batch.Put(utils.CompositeKey(utils.TrieNodeIndexKey, node.(*types.LeafNode).Key[:]), utils.MarshalUint64(uint64(len(nk.Path))))
+				//k := node.(*types.LeafNode).Key[:]
+				//indexer.logger.Debugf("[TrieIndexes-Update] update trie leaf node key %v with length %v", k, len(nk.Path))
 			}
 			batch.Put(nk.GetIndex(), utils.MarshalUint64(nk.Version))
+			//indexer.logger.Infof("[TrieIndexer-Update] set trie node indexes: %v, nk: %v", nk.GetIndex(), nk)
 		}
 	}
 
@@ -56,34 +56,31 @@ func (indexer *TrieIndexer) Update(height uint64, stateDelta *types.StateDelta) 
 
 // GetTrieIndexes returns all trie node indexes of target merkle path.
 // todo(zqr): use cache to reduce goroutine number
-func (indexer *TrieIndexer) GetTrieIndexes(height uint64, typ []byte, key []byte) [][]byte {
-	// check validity, must be contract storage slot (256 bit) or account address (160 bit)
-	if len(typ) != 64 && len(typ) != 40 {
-		return nil
-	}
-
+func (indexer *TrieIndexer) GetTrieIndexes(height uint64, typ []byte, key []byte) []*types.NodeKey {
 	// get the number of nodes in target merkle path
 	rawLen := indexer.backend.Get(utils.CompositeKey(utils.TrieNodeIndexKey, key))
 	pathLen := uint64(0)
 	if len(rawLen) != 0 {
 		pathLen = utils.UnmarshalUint64(rawLen)
 	}
-	indexer.logger.Debugf("[GetTrieIndexes] get trie node key %v with length %v", key, pathLen)
 
-	res := make([][]byte, 0)
+	res := make([]*types.NodeKey, 0)
 	nks := make([]*types.NodeKey, 0)
 
 	// get each node's index of target merkle path
 	var wg sync.WaitGroup
 	for i := uint64(0); i <= pathLen; i++ {
 		nk := &types.NodeKey{
-			Type: typ,
-			Path: key[:i],
+			Type: make([]byte, len(typ)),
+			Path: make([]byte, i),
 		}
+		copy(nk.Type, typ) // todo really need deep-copy?
+		copy(nk.Path, key[:i])
 		nks = append(nks, nk)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// todo: use cache to reduce io here
 			rawVersion := indexer.backend.Get(nk.GetIndex())
 			if len(rawVersion) == 0 {
 				nk.Type = []byte{}
@@ -99,7 +96,7 @@ func (indexer *TrieIndexer) GetTrieIndexes(height uint64, typ []byte, key []byte
 		if len(nk.Type) == 0 || nk.Version > height {
 			continue
 		}
-		res = append(res, nk.Encode())
+		res = append(res, nk)
 	}
 	return res
 }

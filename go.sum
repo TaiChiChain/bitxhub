@@ -34,6 +34,10 @@ github.com/axiomesh/axiom-kit v0.0.3-0.20240617064021-8556cbbb2161 h1:7xOzrGtTA4
 github.com/axiomesh/axiom-kit v0.0.3-0.20240617064021-8556cbbb2161/go.mod h1:ujmn/qH4rbZRyUORO/seayrpYMjIIWA82hwHQlZMw/A=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240618031114-022034a5e23c h1:ZC1bkGxFaPYFOaVyzmIL3/HoZwNppvCpeDIVO9f9anY=
 github.com/axiomesh/axiom-kit v0.0.3-0.20240618031114-022034a5e23c/go.mod h1:ujmn/qH4rbZRyUORO/seayrpYMjIIWA82hwHQlZMw/A=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240619074123-ca08e88c76a4 h1:dZNAnHt0tpRqoBL8dwUbvMKp4whqgG8x0pCXL+GHK9s=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240619074123-ca08e88c76a4/go.mod h1:ujmn/qH4rbZRyUORO/seayrpYMjIIWA82hwHQlZMw/A=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240619074957-fd4a7db67e70 h1:UxHLLNd9ynt3MHJv4vwREadVCtlLZn+odO0U25J3hvk=
+github.com/axiomesh/axiom-kit v0.0.3-0.20240619074957-fd4a7db67e70/go.mod h1:ujmn/qH4rbZRyUORO/seayrpYMjIIWA82hwHQlZMw/A=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20240601010407-4172c3880c30 h1:FZOjeC9HbOEo4j0KKca+TPZMlBWvOsW3YDAKzOWog8w=
 github.com/axiomesh/axiom-p2p v0.0.3-0.20240601010407-4172c3880c30/go.mod h1:l/V68KxdZygExunJ1ZWu8RY0OaifrP8nwaA3tMjnJZk=
 github.com/axiomesh/go-ethereum v1.13.14-3 h1:tUiB1DUpkwd4hNFrR+8AlwDjfesis08b7bCRNIIgT3k=

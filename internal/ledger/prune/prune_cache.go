@@ -172,6 +172,23 @@ func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {
 	return nil, false
 }
 
+func (tc *PruneCache) Has(key []byte) bool {
+	tc.states.lock.RLock()
+	defer tc.states.lock.RUnlock()
+
+	if len(tc.states.diffs) == 0 {
+		return false
+	}
+
+	k := string(key)
+
+	if _, ok := tc.states.allKeyMap[k]; ok {
+		return true
+	}
+
+	return false
+}
+
 // Rollback rebuilds pruneCache from pruneJournal at target height.
 func (tc *PruneCache) Rollback(height uint64, persist bool) error {
 	tc.states.lock.Lock()

@@ -297,9 +297,10 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			defer wg.Done()
 
 			// get indexes of trie nodes, then preload
-			nodeKeys := make([][]byte, 0)
-			for _, key := range dirtyEntries {
-				nodeKeys = append(nodeKeys, l.trieIndexer.GetTrieIndexes(height, account.Addr.Bytes(), key)...)
+			nodeKeys := make([]*types.NodeKey, 0)
+			for key := range dirtyEntries {
+				nks := l.trieIndexer.GetTrieIndexes(height, account.Addr.Bytes(), utils.CompositeStorageKey(account.Addr, []byte(key)))
+				nodeKeys = append(nodeKeys, nks...)
 			}
 			account.storageTrie.PreloadTrieNodes(nodeKeys)
 
