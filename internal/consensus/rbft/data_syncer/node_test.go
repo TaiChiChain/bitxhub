@@ -771,7 +771,7 @@ func TestNode_GetLowWatermark(t *testing.T) {
 	assert.Nil(t, err)
 
 	block := testutil.ConstructBlock("block", uint64(12))
-	node.checkpointCache.insert(generateSignedCheckpoint(t, node.chainState.SelfNodeInfo.ID, block.Height(), block.Hash().String(), "batchDigest"))
+	node.checkpointCache.insert(generateSignedCheckpoint(t, node.chainState.SelfNodeInfo.ID, block.Height(), block.Hash().String(), "batchDigest"), false)
 	node.highStateTarget = &stateUpdateTarget{
 		metaState: &rbfttypes.MetaState{
 			Height: block.Height(),
