@@ -41,7 +41,7 @@ const (
 	latencyTypeSendState
 )
 
-const waitCaseTimeout = 10 * time.Second
+const waitCaseTimeout = 5 * time.Second
 
 const (
 	epochPrefix = "epoch." + rbft.EpochStatePrefix
