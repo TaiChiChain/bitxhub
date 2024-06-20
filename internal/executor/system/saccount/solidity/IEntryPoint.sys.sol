@@ -214,5 +214,12 @@ interface IEntryPoint is IStakeManager, INonceManager, Ownable {
      * @param calls the list of call method ids
      */
     function setNoGasCalls(bytes memory calls) external;
+
+    /**
+     * handle account recovery
+     * @param ops the operations to execute
+     * @param beneficiary the address to receive the fees
+     */
+    function handleAccountRecovery(UserOperation[] calldata ops, address payable beneficiary) external;
 }
 
