@@ -91,6 +91,11 @@ type IentryPoint interface {
 	// Solidity: function getSenderAddress(bytes initCode) returns()
 	GetSenderAddress(initCode []byte) error
 
+	// HandleAccountRecovery is a paid mutator transaction binding the contract method 0xee2f381b.
+	//
+	// Solidity: function handleAccountRecovery((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[] ops, address beneficiary) returns()
+	HandleAccountRecovery(ops []UserOperation, beneficiary common.Address) error
+
 	// HandleAggregatedOps is a paid mutator transaction binding the contract method 0x4b1d7cf5.
 	//
 	// Solidity: function handleAggregatedOps(((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes)[],address,bytes)[] opsPerAggregator, address beneficiary) returns()
