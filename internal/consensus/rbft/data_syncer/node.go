@@ -1096,7 +1096,7 @@ func (n *Node[T, Constraint]) handleSignedCheckpoint(sckpt *consensus.SignedChec
 	}
 
 	// 2. update checkpoint cache
-	recvNum := n.checkpointCache.insert(sckpt)
+	recvNum := n.checkpointCache.insert(sckpt, false)
 	// if reach quorum, notify node to handle quorum checkpoint
 	if n.reachQuorum(recvNum) {
 		n.logger.Debugf("checkpoint reach quorum, height: %d", sckpt.Height())
@@ -1272,7 +1272,7 @@ func (n *Node[T, Constraint]) updateHighStateTarget(target *rbfttypes.MetaState,
 		epochChanges:  epochChanges,
 	}
 	for _, checkpoint := range checkpointSet {
-		n.checkpointCache.insert(checkpoint)
+		n.checkpointCache.insert(checkpoint, true)
 	}
 }
 

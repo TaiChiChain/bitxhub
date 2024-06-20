@@ -24,6 +24,7 @@ const (
 )
 
 func TestHandleState(t *testing.T) {
+	t.Logf("Test handle state")
 	localId := 0
 	remoteId := 1
 
