@@ -104,6 +104,7 @@ func (q *checkpointStore) insert(checkpoint *consensus.SignedCheckpoint, stateUp
 	if !stateUpdate {
 		// omit older checkpoints and out of range checkpoints
 		if checkpoint.Height() <= q.lastPersistedHeight || checkpoint.Height() >= q.lastPersistedHeight+q.size {
+			q.logger.Debugf("height out of range,lastPersisted height %d, omitting checkpoint %d", q.lastPersistedHeight, checkpoint.Height())
 			return 0
 		}
 	}

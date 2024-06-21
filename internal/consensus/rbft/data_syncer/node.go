@@ -709,10 +709,7 @@ func (n *Node[T, Constraint]) initSyncState() error {
 
 	n.logger.Infof("Replica %d now init sync state", n.chainState.SelfNodeInfo.ID)
 
-	if err := n.fetchSyncState(); err != nil {
-		return err
-	}
-	return n.timeMgr.StartTimer(syncStateResp)
+	return n.fetchSyncState()
 }
 
 func (n *Node[T, Constraint]) fetchSyncState() error {
@@ -739,7 +736,8 @@ func (n *Node[T, Constraint]) fetchSyncState() error {
 		return err
 	}
 	n.updateMsgNonce(consensus.Type_SYNC_STATE)
-	return nil
+
+	return n.timeMgr.RestartTimer(syncStateResp)
 }
 
 func (n *Node[T, Constraint]) recvSyncStateResponse(resp *consensus.SyncStateResponse) *localEvent {
