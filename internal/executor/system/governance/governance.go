@@ -557,6 +557,21 @@ func (g *Governance) Proposal(proposalID uint64) (*Proposal, error) {
 	return &proposal, nil
 }
 
+func (g *Governance) GetCouncilMembers() ([]governance.CouncilMember, error) {
+	council, err := g.council.MustGet()
+	if err != nil {
+		return nil, err
+	}
+
+	return lo.Map(council.Members, func(item CouncilMember, index int) governance.CouncilMember {
+		return governance.CouncilMember{
+			Addr:   ethcommon.HexToAddress(item.Address),
+			Weight: item.Weight,
+			Name:   item.Name,
+		}
+	}), nil
+}
+
 func (g *Governance) checkFinishedAllProposal() (bool, error) {
 	exist, notFinishedProposals, err := g.notFinishedProposals.Get()
 	if err != nil {

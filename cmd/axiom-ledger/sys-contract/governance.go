@@ -107,6 +107,11 @@ var GovernanceCMD = &cli.Command{
 				},
 			},
 		},
+		{
+			Name:   "council-members",
+			Usage:  "Get council members",
+			Action: GovernanceActions{}.getCouncilMembers,
+		},
 	},
 }
 
@@ -187,6 +192,22 @@ func (a GovernanceActions) getLatestProposalID(ctx *cli.Context) error {
 		return err
 	}
 	fmt.Println("latest proposal id: ", latestProposalID)
+	return nil
+}
+
+func (a GovernanceActions) getCouncilMembers(ctx *cli.Context) error {
+	gov, _, err := a.bindContract(ctx)
+	if err != nil {
+		return err
+	}
+	councilMembers, err := gov.GetCouncilMembers(&bind.CallOpts{Context: ctx.Context})
+	if err != nil {
+		return err
+	}
+	fmt.Println("council members: ")
+	if err := common.Pretty(councilMembers); err != nil {
+		return err
+	}
 	return nil
 }
 

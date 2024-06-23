@@ -41,7 +41,7 @@ type NodeRegisterExtraArgs struct {
 }
 
 type NodeRemoveExtraArgs struct {
-	NodeID uint64 `json:"node_id"`
+	NodeIDs []uint64 `json:"node_ids"`
 }
 
 type NodeUpgradeExtraArgs struct {
@@ -203,12 +203,14 @@ func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, 
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
 
-	nodeInfo, err := nodeManagerContract.GetInfo(nodeExtraArgs.NodeID)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node info %d", nodeExtraArgs.NodeID)
-	}
-	if nodeInfo.Status == uint8(types.NodeStatusExited) {
-		return errors.Errorf("node already exited: %d[%s]", nodeExtraArgs.NodeID, nodeInfo.MetaData.Name)
+	for _, nodeID := range nodeExtraArgs.NodeIDs {
+		nodeInfo, err := nodeManagerContract.GetInfo(nodeID)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get node info %d", nodeID)
+		}
+		if nodeInfo.Status == uint8(types.NodeStatusExited) {
+			return errors.Errorf("node already exited: %d[%s]", nodeID, nodeInfo.MetaData.Name)
+		}
 	}
 
 	return nil
@@ -277,8 +279,11 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 	}
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	if err := nodeManagerContract.Exit(nodeExtraArgs.NodeID); err != nil {
-		return err
+
+	for _, nodeID := range nodeExtraArgs.NodeIDs {
+		if err := nodeManagerContract.Exit(nodeID); err != nil {
+			return err
+		}
 	}
 
 	return nil
