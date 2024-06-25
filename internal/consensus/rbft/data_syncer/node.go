@@ -709,10 +709,7 @@ func (n *Node[T, Constraint]) initSyncState() error {
 
 	n.logger.Infof("Replica %d now init sync state", n.chainState.SelfNodeInfo.ID)
 
-	if err := n.fetchSyncState(); err != nil {
-		return err
-	}
-	return n.timeMgr.StartTimer(syncStateResp)
+	return n.fetchSyncState()
 }
 
 func (n *Node[T, Constraint]) fetchSyncState() error {
@@ -739,7 +736,8 @@ func (n *Node[T, Constraint]) fetchSyncState() error {
 		return err
 	}
 	n.updateMsgNonce(consensus.Type_SYNC_STATE)
-	return nil
+
+	return n.timeMgr.RestartTimer(syncStateResp)
 }
 
 func (n *Node[T, Constraint]) recvSyncStateResponse(resp *consensus.SyncStateResponse) *localEvent {
@@ -1096,7 +1094,7 @@ func (n *Node[T, Constraint]) handleSignedCheckpoint(sckpt *consensus.SignedChec
 	}
 
 	// 2. update checkpoint cache
-	recvNum := n.checkpointCache.insert(sckpt)
+	recvNum := n.checkpointCache.insert(sckpt, false)
 	// if reach quorum, notify node to handle quorum checkpoint
 	if n.reachQuorum(recvNum) {
 		n.logger.Debugf("checkpoint reach quorum, height: %d", sckpt.Height())
@@ -1272,7 +1270,7 @@ func (n *Node[T, Constraint]) updateHighStateTarget(target *rbfttypes.MetaState,
 		epochChanges:  epochChanges,
 	}
 	for _, checkpoint := range checkpointSet {
-		n.checkpointCache.insert(checkpoint)
+		n.checkpointCache.insert(checkpoint, true)
 	}
 }
 

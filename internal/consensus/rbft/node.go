@@ -540,6 +540,8 @@ func status2String(status rbft.StatusType) string {
 		return "system is in view change"
 	case rbft.InRecovery:
 		return "system is in recovery"
+	case rbft.InSyncState:
+		return "system is in sync state"
 	case rbft.StateTransferring:
 		return "system is in state update"
 	case rbft.Pending:

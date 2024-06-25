@@ -97,13 +97,16 @@ func (q *checkpointStore) prune(height uint64) (pruned []string) {
 	return
 }
 
-func (q *checkpointStore) insert(checkpoint *consensus.SignedCheckpoint) int {
+func (q *checkpointStore) insert(checkpoint *consensus.SignedCheckpoint, stateUpdate bool) int {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	// omit older checkpoints and out of range checkpoints
-	if checkpoint.Height() <= q.lastPersistedHeight || checkpoint.Height() >= q.lastPersistedHeight+q.size {
-		return 0
+	if !stateUpdate {
+		// omit older checkpoints and out of range checkpoints
+		if checkpoint.Height() <= q.lastPersistedHeight || checkpoint.Height() >= q.lastPersistedHeight+q.size {
+			q.logger.Debugf("height out of range,lastPersisted height %d, omitting checkpoint %d", q.lastPersistedHeight, checkpoint.Height())
+			return 0
+		}
 	}
 
 	item, ok := q.items[checkpoint.Height()]
