@@ -26,6 +26,8 @@ type SyncArgs struct {
 
 type Config struct {
 	Ulimit         uint64         `mapstructure:"ulimit" toml:"ulimit"`
+	EnableParallel bool           `mapstructure:"enableParallel" toml:"enableParallel"`
+	Worker         int            `mapstructure:"worker" toml:"worker"`
 	Port           Port           `mapstructure:"port" toml:"port"`
 	Node           Node           `mapstructure:"node" toml:"node"`
 	GasPriceOracle GasPriceOracle `mapstructure:"gas_price_oracle" toml:"gas_price_oracle"`
@@ -245,7 +247,9 @@ func DefaultConfig() *Config {
 
 func defaultConfig() *Config {
 	return &Config{
-		Ulimit: 65535,
+		Ulimit:         65535,
+		EnableParallel: true,
+		Worker:         10,
 		Port: Port{
 			JsonRpc:   8881,
 			WebSocket: 9991,

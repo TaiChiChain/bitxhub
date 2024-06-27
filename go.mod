@@ -13,6 +13,7 @@ require (
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/common-nighthawk/go-figure v0.0.0-20190529165535-67e0ed34491a
+	github.com/emirpasic/gods v1.18.1
 	github.com/ethereum/go-ethereum v1.13.14
 	github.com/gammazero/workerpool v1.1.3
 	github.com/go-webauthn/webauthn v0.10.2
@@ -20,6 +21,7 @@ require (
 	github.com/google/btree v1.1.2
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.6
+	github.com/heimdalr/dag v1.4.0
 	github.com/holiman/uint256 v1.2.4
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1

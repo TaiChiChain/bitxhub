@@ -43,13 +43,13 @@ func start(ctx *cli.Context) error {
 		return nil
 	}
 
-	password := common.KeystorePasswordFlagVar
-	if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
-		password, err = common.EnterPassword(false)
-		if err != nil {
-			return err
-		}
-	}
+	password := ""
+	// if !ctx.IsSet(common.KeystorePasswordFlag().Name) {
+	// 	password, err = common.EnterPassword(false)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	r, err := repo.Load(p)
 	if err != nil {

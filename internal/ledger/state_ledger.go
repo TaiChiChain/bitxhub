@@ -15,6 +15,7 @@ import (
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/trie_indexer"
@@ -67,6 +68,14 @@ type StateLedgerImpl struct {
 	snapshot *snapshot.Snapshot
 
 	transientStorage transientStorage
+
+	// Block-stm related fields
+	mvHashmap    *blockstm.MVHashMap
+	incarnation  int
+	readMap      map[blockstm.Key]blockstm.ReadDescriptor
+	writeMap     map[blockstm.Key]blockstm.WriteDescriptor
+	revertedKeys map[blockstm.Key]struct{}
+	dep          int
 }
 
 type SnapshotMeta struct {
