@@ -53,6 +53,8 @@ type BlockExecutor struct {
 
 	nvm             syscommon.VirtualMachine
 	afterBlockHooks []AfterBlockHook
+
+	enableParallelExecute bool
 }
 
 // New creates executor instance
@@ -60,18 +62,19 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 	ctx, cancel := context.WithCancel(context.Background())
 
 	blockExecutor := &BlockExecutor{
-		ledger:            ledger,
-		logger:            loggers.Logger(loggers.Executor),
-		ctx:               ctx,
-		chainState:        chainState,
-		cancel:            cancel,
-		blockC:            make(chan *common.CommitEvent, blockChanNumber),
-		cumulativeGasUsed: 0,
-		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
-		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,
-		evmChainCfg:       newEVMChainCfg(rep.GenesisConfig),
-		rep:               rep,
-		gasLimit:          rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
+		ledger:                ledger,
+		logger:                loggers.Logger(loggers.Executor),
+		ctx:                   ctx,
+		chainState:            chainState,
+		cancel:                cancel,
+		blockC:                make(chan *common.CommitEvent, blockChanNumber),
+		cumulativeGasUsed:     0,
+		currentHeight:         ledger.ChainLedger.GetChainMeta().Height,
+		currentBlockHash:      ledger.ChainLedger.GetChainMeta().BlockHash,
+		evmChainCfg:           newEVMChainCfg(rep.GenesisConfig),
+		rep:                   rep,
+		gasLimit:              rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
+		enableParallelExecute: rep.Config.EnableParallel,
 	}
 
 	blockExecutor.evm = newEvm(1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
@@ -115,7 +118,12 @@ func (exec *BlockExecutor) Stop() error {
 
 // ExecuteBlock executes block from consensus
 func (exec *BlockExecutor) ExecuteBlock(block *common.CommitEvent) {
-	exec.processExecuteEvent(block)
+	if exec.enableParallelExecute {
+		exec.processExecuteEventParallel(block)
+	} else {
+		exec.processExecuteEvent(block)
+	}
+
 }
 
 func (exec *BlockExecutor) AsyncExecuteBlock(block *common.CommitEvent) {
@@ -158,7 +166,11 @@ func (exec *BlockExecutor) listenExecuteEvent() {
 			close(exec.blockC)
 			return
 		case commitEvent := <-exec.blockC:
-			exec.processExecuteEvent(commitEvent)
+			if exec.enableParallelExecute {
+				exec.processExecuteEventParallel(commitEvent)
+			} else {
+				exec.processExecuteEvent(commitEvent)
+			}
 		}
 	}
 }

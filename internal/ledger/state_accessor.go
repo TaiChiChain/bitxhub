@@ -14,6 +14,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
@@ -31,6 +32,9 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 		account.SetCreated(true)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
+
+		MVWrite(l, blockstm.NewAddressKey(*addr))
+		MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
 	} else {
 		l.logger.Debugf("[GetOrCreateAccount] get account, addr: %v", addr)
@@ -39,58 +43,88 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	return account
 }
 
-// GetAccount get account info using account Address
-func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
-	addr := address.String()
-
-	value, ok := l.accounts[addr]
-	if ok {
-		l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
-		return value
+// mvRecordWritten checks whether a state object is already present in the current MV writeMap.
+// If yes, it returns the object directly.
+// If not, it clones the object and inserts it into the writeMap before returning it.
+func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
+	if s.mvHashmap == nil {
+		return object
 	}
 
-	account := NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, address, l.changer, l.snapshot)
+	addrKey := blockstm.NewAddressKey(*object.GetAddress())
 
-	// try getting account from snapshot first
-	if l.snapshot != nil {
-		if innerAccount, err := l.snapshot.Account(address); err == nil {
-			if innerAccount == nil {
-				return nil
+	if MVWritten(s, addrKey) {
+		return object
+	}
+
+	// todo
+	// check
+	MVWrite(s, addrKey)
+	return object
+
+	// Deepcopy is needed to ensure that objects are not written by multiple transactions at the same time, because
+	// the input state object can come from a different transaction.
+	// s.setStateObject(object.deepCopy(s))
+
+	// MVWrite(s, addrKey)
+
+	// return s.stateObjects[object.Address()]
+}
+
+// GetAccount get account info using account Address
+func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
+	return MVRead(l, blockstm.NewAddressKey(*address), nil, func(s *StateLedgerImpl) IAccount {
+		addr := address.String()
+		value, ok := l.accounts[addr]
+		if ok {
+			l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
+			return value
+		}
+
+		account := NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, address, l.changer, l.snapshot)
+
+		// try getting account from snapshot first
+		if l.snapshot != nil {
+			if innerAccount, err := l.snapshot.Account(address); err == nil {
+				if innerAccount == nil {
+					return nil
+				}
+				account.originAccount = innerAccount
+				if !bytes.Equal(innerAccount.CodeHash, nil) {
+					code := l.backend.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
+					account.originCode = code
+					account.dirtyCode = code
+				}
+				l.accounts[addr] = account
+				l.logger.Debugf("[GetAccount] get account from snapshot, addr: %v, account: %v", addr, account)
+				return account
 			}
-			account.originAccount = innerAccount
-			if !bytes.Equal(innerAccount.CodeHash, nil) {
+		}
+
+		var rawAccount []byte
+		rawAccount, err := l.accountTrie.Get(utils.CompositeAccountKey(address))
+		if err != nil {
+			panic(err)
+		}
+
+		if rawAccount != nil {
+			account.originAccount = &types.InnerAccount{Balance: big.NewInt(0)}
+			if err := account.originAccount.Unmarshal(rawAccount); err != nil {
+				panic(err)
+			}
+			if !bytes.Equal(account.originAccount.CodeHash, nil) {
 				code := l.backend.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
 				account.originCode = code
 				account.dirtyCode = code
 			}
 			l.accounts[addr] = account
-			l.logger.Debugf("[GetAccount] get account from snapshot, addr: %v, account: %v", addr, account)
+			l.logger.Debugf("[GetAccount] get from account trie，addr: %v, account: %v", addr, account)
 			return account
 		}
-	}
+		l.logger.Debugf("[GetAccount] account not found，addr: %v", addr)
+		return nil
+	})
 
-	var rawAccount []byte
-	rawAccount, err := l.accountTrie.Get(utils.CompositeAccountKey(address))
-	if err != nil {
-		panic(err)
-	}
-
-	if rawAccount != nil {
-		account.originAccount = &types.InnerAccount{Balance: big.NewInt(0)}
-		if err := account.originAccount.Unmarshal(rawAccount); err != nil {
-			panic(err)
-		}
-		if !bytes.Equal(account.originAccount.CodeHash, nil) {
-			code := l.backend.Get(utils.CompositeCodeKey(account.Addr, account.originAccount.CodeHash))
-			account.originCode = code
-			account.dirtyCode = code
-		}
-		l.accounts[addr] = account
-		l.logger.Debugf("[GetAccount] get from account trie，addr: %v, account: %v", addr, account)
-		return account
-	}
-	l.logger.Debugf("[GetAccount] account not found，addr: %v", addr)
-	return nil
 }
 
 // nolint
@@ -101,32 +135,56 @@ func (l *StateLedgerImpl) setAccount(account IAccount) {
 
 // GetBalance get account balance using account Address
 func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
-	account := l.GetOrCreateAccount(addr)
-	return account.GetBalance()
+	return MVRead(l, blockstm.NewSubpathKey(*addr, BalancePath), common.Big0, func(s *StateLedgerImpl) *big.Int {
+		account := l.GetOrCreateAccount(addr)
+		return account.GetBalance()
+	})
 }
 
 // SetBalance set account balance
 func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
 	account := l.GetOrCreateAccount(addr)
+	if l.mvHashmap != nil {
+		// ensure a read balance operation is recorded in mvHashmap
+		l.GetBalance(addr)
+	}
+	account = l.mvRecordWritten(account)
 	account.SetBalance(value)
+	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+
 }
 
 func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {
 	account := l.GetOrCreateAccount(addr)
+	if l.mvHashmap != nil {
+		// ensure a read balance operation is recorded in mvHashmap
+		l.GetBalance(addr)
+	}
 	if !account.IsEmpty() {
+		account = l.mvRecordWritten(account)
 		account.SubBalance(value)
+		MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
 	}
 }
 
 func (l *StateLedgerImpl) AddBalance(addr *types.Address, value *big.Int) {
 	account := l.GetOrCreateAccount(addr)
+	if l.mvHashmap != nil {
+		// ensure a read balance operation is recorded in mvHashmap
+		l.GetBalance(addr)
+	}
+	account = l.mvRecordWritten(account)
 	account.AddBalance(value)
+	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+
 }
 
 // GetState get account state value using account Address and key
 func (l *StateLedgerImpl) GetState(addr *types.Address, key []byte) (bool, []byte) {
-	account := l.GetOrCreateAccount(addr)
-	return account.GetState(key)
+	return MVRead2(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), true, (&types.Hash{}).Bytes(), func(s *StateLedgerImpl) (bool, []byte) {
+		account := l.GetOrCreateAccount(addr)
+		return account.GetState(key)
+	})
 }
 
 func (l *StateLedgerImpl) setTransientState(addr types.Address, key, value []byte) {
@@ -134,47 +192,62 @@ func (l *StateLedgerImpl) setTransientState(addr types.Address, key, value []byt
 }
 
 func (l *StateLedgerImpl) GetCommittedState(addr *types.Address, key []byte) []byte {
-	account := l.GetOrCreateAccount(addr)
-	if account.IsEmpty() {
-		return (&types.Hash{}).Bytes()
-	}
-	return account.GetCommittedState(key)
+	return MVRead(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), (&types.Hash{}).Bytes(), func(s *StateLedgerImpl) []byte {
+		account := l.GetOrCreateAccount(addr)
+		if account.IsEmpty() {
+			return (&types.Hash{}).Bytes()
+		}
+		return account.GetCommittedState(key)
+	})
+
 }
 
 // SetState set account state value using account Address and key
 func (l *StateLedgerImpl) SetState(addr *types.Address, key []byte, v []byte) {
 	account := l.GetOrCreateAccount(addr)
+	account = l.mvRecordWritten(account)
 	account.SetState(key, v)
+	MVWrite(l, blockstm.NewStateKey(*addr, *types.NewHash(key)))
 }
 
 // SetCode set contract code
 func (l *StateLedgerImpl) SetCode(addr *types.Address, code []byte) {
 	account := l.GetOrCreateAccount(addr)
+	account = l.mvRecordWritten(account)
 	account.SetCodeAndHash(code)
+	MVWrite(l, blockstm.NewSubpathKey(*addr, CodePath))
 }
 
 // GetCode get contract code
 func (l *StateLedgerImpl) GetCode(addr *types.Address) []byte {
-	account := l.GetOrCreateAccount(addr)
-	return account.Code()
+	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), nil, func(s *StateLedgerImpl) []byte {
+		account := l.GetOrCreateAccount(addr)
+		return account.Code()
+	})
 }
 
 func (l *StateLedgerImpl) GetCodeHash(addr *types.Address) *types.Hash {
-	account := l.GetOrCreateAccount(addr)
-	if account.IsEmpty() {
-		return &types.Hash{}
-	}
-	return types.NewHash(account.CodeHash())
+	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), &types.Hash{}, func(s *StateLedgerImpl) *types.Hash {
+		account := l.GetOrCreateAccount(addr)
+		if account.IsEmpty() {
+			return &types.Hash{}
+		}
+		return types.NewHash(account.CodeHash())
+	})
+
 }
 
 func (l *StateLedgerImpl) GetCodeSize(addr *types.Address) int {
-	account := l.GetOrCreateAccount(addr)
-	if !account.IsEmpty() {
-		if code := account.Code(); code != nil {
-			return len(code)
+	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), 0, func(s *StateLedgerImpl) int {
+		account := l.GetOrCreateAccount(addr)
+		if !account.IsEmpty() {
+			if code := account.Code(); code != nil {
+				return len(code)
+			}
 		}
-	}
-	return 0
+		return 0
+	})
+
 }
 
 func (l *StateLedgerImpl) AddRefund(gas uint64) {
@@ -196,14 +269,19 @@ func (l *StateLedgerImpl) GetRefund() uint64 {
 
 // GetNonce get account nonce
 func (l *StateLedgerImpl) GetNonce(addr *types.Address) uint64 {
-	account := l.GetOrCreateAccount(addr)
-	return account.GetNonce()
+	return MVRead(l, blockstm.NewSubpathKey(*addr, NoncePath), 0, func(s *StateLedgerImpl) uint64 {
+		account := l.GetOrCreateAccount(addr)
+		return account.GetNonce()
+	})
+
 }
 
 // SetNonce set account nonce
 func (l *StateLedgerImpl) SetNonce(addr *types.Address, nonce uint64) {
 	account := l.GetOrCreateAccount(addr)
+	account = l.mvRecordWritten(account)
 	account.SetNonce(nonce)
+	MVWrite(l, blockstm.NewSubpathKey(*addr, NoncePath))
 }
 
 func (l *StateLedgerImpl) Clear() {
@@ -437,21 +515,27 @@ func (l *StateLedgerImpl) SelfDestruct(addr *types.Address) bool {
 		prev:        account.SelfDestructed(),
 		prevbalance: new(big.Int).Set(account.GetBalance()),
 	})
+	account = l.mvRecordWritten(account)
 	l.logger.Debugf("[SelfDestruct] addr: %v, before balance: %v", addr, account.GetBalance())
 	account.SetSelfDestructed(true)
 	account.SetBalance(new(big.Int))
+
+	MVWrite(l, blockstm.NewSubpathKey(*addr, SuicidePath))
+	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
 
 	return true
 }
 
 func (l *StateLedgerImpl) HasSelfDestructed(addr *types.Address) bool {
-	account := l.GetOrCreateAccount(addr)
-	if account.IsEmpty() {
-		l.logger.Debugf("[HasSelfDestructed] addr: %v, is empty, selfDestructed: false", addr)
-		return false
-	}
-	l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
-	return account.SelfDestructed()
+	return MVRead(l, blockstm.NewSubpathKey(*addr, SuicidePath), false, func(s *StateLedgerImpl) bool {
+		account := l.GetOrCreateAccount(addr)
+		if account.IsEmpty() {
+			l.logger.Debugf("[HasSelfDestructed] addr: %v, is empty, selfDestructed: false", addr)
+			return false
+		}
+		l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
+		return account.SelfDestructed()
+	})
 }
 
 func (l *StateLedgerImpl) Selfdestruct6780(addr *types.Address) {
@@ -557,6 +641,10 @@ func (l *StateLedgerImpl) AddPreimage(hash types.Hash, preimage []byte) {
 		copy(pi, preimage)
 		l.preimages[hash] = pi
 	}
+}
+
+func (s *StateLedgerImpl) Preimages() map[types.Hash][]byte {
+	return s.preimages
 }
 
 func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, currentExecutingHeight uint64) {

@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 )
 
 type stateChange interface {
@@ -127,6 +128,7 @@ type (
 
 func (ch createObjectChange) revert(l *StateLedgerImpl) {
 	delete(l.accounts, ch.account.String())
+	RevertWrite(l, blockstm.NewAddressKey(*ch.account))
 }
 
 func (ch createObjectChange) dirtied() *types.Address {
@@ -136,6 +138,7 @@ func (ch createObjectChange) dirtied() *types.Address {
 // nolint
 func (ch resetObjectChange) revert(l *StateLedgerImpl) {
 	l.setAccount(ch.prev)
+	RevertWrite(l, blockstm.NewAddressKey(*ch.prev.GetAddress()))
 }
 
 // nolint
@@ -148,6 +151,7 @@ func (ch suicideChange) revert(l *StateLedgerImpl) {
 	account := acc.(*SimpleAccount)
 	account.selfDestructed = ch.prev
 	account.setBalance(ch.prevbalance)
+	RevertWrite(l, blockstm.NewSubpathKey(*ch.account, SuicidePath))
 }
 
 func (ch suicideChange) dirtied() *types.Address {
@@ -179,6 +183,7 @@ func (ch nonceChange) dirtied() *types.Address {
 
 func (ch codeChange) revert(l *StateLedgerImpl) {
 	l.GetOrCreateAccount(ch.account).(*SimpleAccount).setCodeAndHash(ch.prevcode)
+	RevertWrite(l, blockstm.NewSubpathKey(*ch.account, CodePath))
 }
 
 func (ch codeChange) dirtied() *types.Address {
@@ -187,6 +192,7 @@ func (ch codeChange) dirtied() *types.Address {
 
 func (ch storageChange) revert(l *StateLedgerImpl) {
 	l.GetOrCreateAccount(ch.account).(*SimpleAccount).setState(ch.key, ch.prevalue)
+	RevertWrite(l, blockstm.NewStateKey(*ch.account, *types.NewHash(ch.key)))
 }
 
 func (ch storageChange) dirtied() *types.Address {
