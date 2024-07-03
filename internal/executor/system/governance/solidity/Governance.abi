@@ -78,6 +78,20 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getNotFinishedProposalIDs",
+    "outputs":
+    [
+      {
+        "internalType": "uint64[]",
+        "name": "ids",
+        "type": "uint64[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs":
     [
       {

@@ -557,6 +557,16 @@ func (g *Governance) Proposal(proposalID uint64) (*Proposal, error) {
 	return &proposal, nil
 }
 
+func (g *Governance) GetNotFinishedProposalIDs() ([]uint64, error) {
+	_, notFinishedProposals, err := g.notFinishedProposals.Get()
+	if err != nil {
+		return nil, err
+	}
+	return lo.Map(notFinishedProposals, func(item NotFinishedProposal, index int) uint64 {
+		return item.ID
+	}), nil
+}
+
 func (g *Governance) checkFinishedAllProposal() (bool, error) {
 	exist, notFinishedProposals, err := g.notFinishedProposals.Get()
 	if err != nil {
@@ -642,7 +652,7 @@ func (g *Governance) removeNotFinishedProposal(id uint64) error {
 		return ErrNotFoundProposal
 	}
 
-	if err := g.notFinishedProposals.Put(proposals); err != nil {
+	if err := g.notFinishedProposals.Put(newProposals); err != nil {
 		return err
 	}
 	return nil

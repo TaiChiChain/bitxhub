@@ -51,7 +51,7 @@ type Proposal struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"enumProposalType\",\"name\":\"proposalType\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"proposer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"proposal\",\"type\":\"bytes\"}],\"name\":\"Propose\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"enumProposalType\",\"name\":\"proposalType\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"proposer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"proposal\",\"type\":\"bytes\"}],\"name\":\"Vote\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"getLatestProposalID\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"}],\"name\":\"proposal\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"enumProposalType\",\"name\":\"Type\",\"type\":\"uint8\"},{\"internalType\":\"enumProposalStrategy\",\"name\":\"Strategy\",\"type\":\"uint8\"},{\"internalType\":\"string\",\"name\":\"Proposer\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"Title\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"Desc\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"BlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"TotalVotes\",\"type\":\"uint64\"},{\"internalType\":\"string[]\",\"name\":\"PassVotes\",\"type\":\"string[]\"},{\"internalType\":\"string[]\",\"name\":\"RejectVotes\",\"type\":\"string[]\"},{\"internalType\":\"enumProposalStatus\",\"name\":\"Status\",\"type\":\"uint8\"},{\"internalType\":\"bytes\",\"name\":\"Extra\",\"type\":\"bytes\"},{\"internalType\":\"uint64\",\"name\":\"CreatedBlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EffectiveBlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"ExecuteSuccess\",\"type\":\"bool\"},{\"internalType\":\"string\",\"name\":\"ExecuteFailedMsg\",\"type\":\"string\"}],\"internalType\":\"structProposal\",\"name\":\"proposal\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"enumProposalType\",\"name\":\"proposalType\",\"type\":\"uint8\"},{\"internalType\":\"string\",\"name\":\"title\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"deadlineBlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"extra\",\"type\":\"bytes\"}],\"name\":\"propose\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"},{\"internalType\":\"enumVoteResult\",\"name\":\"voteResult\",\"type\":\"uint8\"}],\"name\":\"vote\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"enumProposalType\",\"name\":\"proposalType\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"proposer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"proposal\",\"type\":\"bytes\"}],\"name\":\"Propose\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"enumProposalType\",\"name\":\"proposalType\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"proposer\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"proposal\",\"type\":\"bytes\"}],\"name\":\"Vote\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"getLatestProposalID\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getNotFinishedProposalIDs\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"ids\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"}],\"name\":\"proposal\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"enumProposalType\",\"name\":\"Type\",\"type\":\"uint8\"},{\"internalType\":\"enumProposalStrategy\",\"name\":\"Strategy\",\"type\":\"uint8\"},{\"internalType\":\"string\",\"name\":\"Proposer\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"Title\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"Desc\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"BlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"TotalVotes\",\"type\":\"uint64\"},{\"internalType\":\"string[]\",\"name\":\"PassVotes\",\"type\":\"string[]\"},{\"internalType\":\"string[]\",\"name\":\"RejectVotes\",\"type\":\"string[]\"},{\"internalType\":\"enumProposalStatus\",\"name\":\"Status\",\"type\":\"uint8\"},{\"internalType\":\"bytes\",\"name\":\"Extra\",\"type\":\"bytes\"},{\"internalType\":\"uint64\",\"name\":\"CreatedBlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"EffectiveBlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"ExecuteSuccess\",\"type\":\"bool\"},{\"internalType\":\"string\",\"name\":\"ExecuteFailedMsg\",\"type\":\"string\"}],\"internalType\":\"structProposal\",\"name\":\"proposal\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"enumProposalType\",\"name\":\"proposalType\",\"type\":\"uint8\"},{\"internalType\":\"string\",\"name\":\"title\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"desc\",\"type\":\"string\"},{\"internalType\":\"uint64\",\"name\":\"deadlineBlockNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes\",\"name\":\"extra\",\"type\":\"bytes\"}],\"name\":\"propose\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"proposalID\",\"type\":\"uint64\"},{\"internalType\":\"enumVoteResult\",\"name\":\"voteResult\",\"type\":\"uint8\"}],\"name\":\"vote\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -229,6 +229,37 @@ func (_BindingContract *BindingContractSession) GetLatestProposalID() (uint64, e
 // Solidity: function getLatestProposalID() view returns(uint64)
 func (_BindingContract *BindingContractCallerSession) GetLatestProposalID() (uint64, error) {
 	return _BindingContract.Contract.GetLatestProposalID(&_BindingContract.CallOpts)
+}
+
+// GetNotFinishedProposalIDs is a free data retrieval call binding the contract method 0x91a59dba.
+//
+// Solidity: function getNotFinishedProposalIDs() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCaller) GetNotFinishedProposalIDs(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getNotFinishedProposalIDs")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetNotFinishedProposalIDs is a free data retrieval call binding the contract method 0x91a59dba.
+//
+// Solidity: function getNotFinishedProposalIDs() view returns(uint64[] ids)
+func (_BindingContract *BindingContractSession) GetNotFinishedProposalIDs() ([]uint64, error) {
+	return _BindingContract.Contract.GetNotFinishedProposalIDs(&_BindingContract.CallOpts)
+}
+
+// GetNotFinishedProposalIDs is a free data retrieval call binding the contract method 0x91a59dba.
+//
+// Solidity: function getNotFinishedProposalIDs() view returns(uint64[] ids)
+func (_BindingContract *BindingContractCallerSession) GetNotFinishedProposalIDs() ([]uint64, error) {
+	return _BindingContract.Contract.GetNotFinishedProposalIDs(&_BindingContract.CallOpts)
 }
 
 // Proposal is a free data retrieval call binding the contract method 0x7afa0aa3.
