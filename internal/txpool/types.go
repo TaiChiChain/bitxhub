@@ -242,8 +242,6 @@ const (
 	reqPendingTxCountEvent
 	reqPoolMetaEvent
 	reqAccountMetaEvent
-	reqChainInfoEvent
-	updateChainInfoEvent
 )
 
 var poolInfoEventToStr = map[int]string{
@@ -252,8 +250,6 @@ var poolInfoEventToStr = map[int]string{
 	reqPendingTxCountEvent: "reqPendingTxCountEvent",
 	reqPoolMetaEvent:       "reqPoolMetaEvent",
 	reqAccountMetaEvent:    "reqAccountMetaEvent",
-	reqChainInfoEvent:      "reqChainInfoEvent",
-	updateChainInfoEvent:   "updateChainInfoEvent",
 }
 
 // poolInfoEvent represents poolInfo event sent by local api modules

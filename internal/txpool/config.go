@@ -5,7 +5,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	commonpool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -13,7 +12,6 @@ import (
 type Config struct {
 	RepoRoot               string
 	Logger                 logrus.FieldLogger
-	ChainInfo              *commonpool.ChainInfo
 	PoolSize               uint64
 	ToleranceNonceGap      uint64
 	ToleranceTime          time.Duration

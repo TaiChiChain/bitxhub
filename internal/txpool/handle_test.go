@@ -17,7 +17,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		pool.toleranceRemoveTime = 10 * time.Millisecond
-		pool.chainInfo.EpochConf.BatchSize = 4
+		pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 		ch := make(chan struct{}, 1)
 		pool.notifyGenerateBatchFn = func(typ int) {
 			go func() {
