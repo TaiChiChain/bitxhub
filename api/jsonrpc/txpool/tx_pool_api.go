@@ -240,10 +240,3 @@ func (api *TxPoolAPI) Status() (any, error) {
 		Total:   meta.TxCount,
 	}, nil
 }
-
-func (api *TxPoolAPI) GetChainInfo() (any, error) {
-	if !api.api.TxPool().IsStarted() {
-		return nil, ErrNotStarted
-	}
-	return api.api.TxPool().GetChainInfo(), nil
-}
