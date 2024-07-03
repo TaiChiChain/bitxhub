@@ -101,7 +101,7 @@ func defaultConsensusConfig() *ConsensusConfig {
 			RotateTxLocalsInterval: Duration(1 * time.Hour),
 			ToleranceNonceGap:      1000,
 			EnableLocalsPersist:    true,
-			PriceLimit:             DefaultMinGasPrice,
+			PriceLimit:             GetDefaultMinGasPrice(),
 			PriceBump:              10,
 			GenerateBatchType:      GenerateBatchByTime,
 		},

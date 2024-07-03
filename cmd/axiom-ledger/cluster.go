@@ -146,11 +146,11 @@ func generateDefault(ctx *cli.Context) error {
 	helper := NewClusterGeneratorHelper(&ClusterGenerateConfig{
 		DefaultPort:               defaultPort,
 		EnablePortAutoIncrease:    true,
-		MintForOperatorCoinAmount: repo.DefaultAccountBalance,
+		MintForOperatorCoinAmount: repo.GetDefaultAccountBalance(),
 		Accounts: lo.Map(append(defaultCouncilMemberAddrs, repo.MockDefaultAccountAddrs...), func(addr string, idx int) *ClusterAccount {
 			return &ClusterAccount{
 				Address: addr,
-				Balance: repo.DefaultAccountBalance,
+				Balance: repo.GetDefaultAccountBalance(),
 			}
 		}),
 		CouncilMembers: lo.Map(defaultCouncilMemberAddrs, func(item string, idx int) *ClusterCouncilMember {
@@ -168,7 +168,7 @@ func generateDefault(ctx *cli.Context) error {
 				ConsensusPrivateKey: "0x099383c2b41a282936fe9e656467b2ad6ecafd38753eefa080b5a699e3276372",
 				OperatorAddress:     defaultCouncilMemberAddrs[0],
 				IsDataSyncer:        false,
-				StakeNumber:         repo.DefaultAccountBalance,
+				StakeNumber:         repo.GetDefaultAccountBalance(),
 				IP:                  "127.0.0.1",
 				Port:                ClusterNodePort{},
 			},
@@ -177,7 +177,7 @@ func generateDefault(ctx *cli.Context) error {
 				ConsensusPrivateKey: "0x5d21b741bd16e05c3a883b09613d36ad152f1586393121d247bdcfef908cce8f",
 				OperatorAddress:     defaultCouncilMemberAddrs[1],
 				IsDataSyncer:        false,
-				StakeNumber:         repo.DefaultAccountBalance,
+				StakeNumber:         repo.GetDefaultAccountBalance(),
 				IP:                  "127.0.0.1",
 				Port:                ClusterNodePort{},
 			},
@@ -186,7 +186,7 @@ func generateDefault(ctx *cli.Context) error {
 				ConsensusPrivateKey: "0x42cc8e862b51a1c21a240bb2ae6f2dbad59668d86fe3c45b2e4710eebd2a63fd",
 				OperatorAddress:     defaultCouncilMemberAddrs[2],
 				IsDataSyncer:        false,
-				StakeNumber:         repo.DefaultAccountBalance,
+				StakeNumber:         repo.GetDefaultAccountBalance(),
 				IP:                  "127.0.0.1",
 				Port:                ClusterNodePort{},
 			},
@@ -195,7 +195,7 @@ func generateDefault(ctx *cli.Context) error {
 				ConsensusPrivateKey: "0x6e327c2d5a284b89f9c312a02b2714a90b38e721256f9a157f03ec15c1a386a6",
 				OperatorAddress:     defaultCouncilMemberAddrs[3],
 				IsDataSyncer:        false,
-				StakeNumber:         repo.DefaultAccountBalance,
+				StakeNumber:         repo.GetDefaultAccountBalance(),
 				IP:                  "127.0.0.1",
 				Port:                ClusterNodePort{},
 			},
@@ -216,7 +216,7 @@ func quickGenerate(ctx *cli.Context) error {
 
 	helper := NewClusterGeneratorHelper(&ClusterGenerateConfig{
 		EnablePortAutoIncrease:    true,
-		MintForOperatorCoinAmount: repo.DefaultAccountBalance,
+		MintForOperatorCoinAmount: repo.GetDefaultAccountBalance(),
 		Nodes: lo.RepeatBy(int(clusterGenerateNodeNumber), func(index int) *ClusterNode {
 			return &ClusterNode{}
 		}),
