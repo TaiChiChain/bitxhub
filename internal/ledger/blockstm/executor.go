@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var logger = loggers.Logger(loggers.Executor)
 
 type ExecResult struct {
 	err      error
@@ -341,7 +344,6 @@ func (pe *ParallelExecutor) Prepare() error {
 				}
 
 				res := task.Execute()
-
 				if res.err == nil {
 					pe.mvh.FlushMVWriteSet(res.txAllOut)
 				}

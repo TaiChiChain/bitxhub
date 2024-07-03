@@ -25,13 +25,16 @@ import (
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/sirupsen/logrus"
 )
+
+var log = loggers.Logger(loggers.Executor)
 
 type ParallelEVMConfig struct {
 	Enable               bool
@@ -44,6 +47,7 @@ type ParallelEVMConfig struct {
 // StateProcessor implements Processor.
 type ParallelStateProcessor struct {
 	config *params.ChainConfig // Chain configuration options
+	logger logrus.FieldLogger
 
 	bc *types.Block // Canonical block chain
 	//engine consensus.Engine // Consensus engine used for block rewards
@@ -59,10 +63,13 @@ func NewParallelStateProcessor(config *params.ChainConfig, bc *types.Block, para
 		bc:                           bc,
 		parallelSpeculativeProcesses: parallelSpeculativeProcesses,
 		gasLimit:                     gasLimit,
+		logger:                       loggers.Logger(loggers.Executor),
 	}
 }
 
 type ExecutionTask struct {
+	logger logrus.FieldLogger
+
 	msg    core.Message
 	config *params.ChainConfig
 
@@ -121,8 +128,11 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 
 	// Apply the transaction to the current state (included in the env).
 	if *task.shouldDelayFeeCal {
+		timeStart := time.Now()
 		task.result, err = core.ApplyMessageNoFeeBurnOrTip(evm, task.msg, new(core.GasPool).AddGas(task.gasLimit))
-
+		if incarnation > 0 {
+			task.logger.Info("task index:", task.index, ",task incarnation:", incarnation, ",time:", time.Since(timeStart))
+		}
 		if task.result == nil || err != nil {
 			return blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: err}
 		}
@@ -291,14 +301,17 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 
 	//blockTxDependency := block.GetTxDependency()
 
-	//deps := GetDeps(blockTxDependency)
+	deps := make(map[int][]int)
 
-	// if !VerifyDeps(deps) || len(blockTxDependency) != len(block.Transactions()) {
-	// 	blockTxDependency = nil
+	// deps := GetDepsByBlock(block)
+	// p.logger.Info(deps)
+
+	// if !VerifyDeps(deps) {
+	// 	p.logger.Info(deps)
 	// 	deps = make(map[int][]int)
 	// }
 
-	// if blockTxDependency != nil {
+	// if deps != nil {
 	// 	metadata = true
 	// }
 
@@ -322,6 +335,8 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 		}
 
 		task := &ExecutionTask{
+			logger: loggers.Logger(loggers.Executor),
+
 			msg:               *msg,
 			config:            p.config,
 			gasLimit:          p.gasLimit,
@@ -340,7 +355,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			totalUsedGas:      usedGas,
 			receipts:          &receipts,
 			allLogs:           &allLogs,
-			dependencies:      []int{},
+			dependencies:      deps[i],
 			coinbase:          *types.NewAddressByStr(coinbase),
 			blockContext:      blockContext,
 		}
@@ -351,6 +366,9 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 	backupStateDB := ledgerNow.NewView().StateLedger
 
 	profile := false
+
+	p.logger.Info("blockstm.ExecuteParallel")
+	p.logger.Info("blockstm.ExecuteParallel worker:", p.parallelSpeculativeProcesses)
 	result, err := blockstm.ExecuteParallel(tasks, profile, metadata, p.parallelSpeculativeProcesses, interruptCtx)
 
 	if err == nil && profile && result.Deps != nil {
@@ -412,6 +430,32 @@ func GetDeps(txDependency [][]uint64) map[int][]int {
 		}
 	}
 
+	return deps
+}
+
+func GetDepsByBlock(block *types.Block) map[int][]int {
+	type NonceIndexMap struct {
+		Nonce uint64
+		Index int
+	}
+	deps := make(map[int][]int)
+
+	nonceMap := make(map[string]*NonceIndexMap)
+	txs := block.Transactions
+	for i, tx := range txs {
+		deps[i] = []int{}
+		addr := tx.GetFrom().String()
+		if nonceMap[addr] == nil {
+			nonceMap[addr] = &NonceIndexMap{
+				Nonce: tx.GetNonce(),
+				Index: i,
+			}
+		} else {
+			deps[i] = append(deps[i], nonceMap[addr].Index)
+			nonceMap[addr].Nonce = tx.GetNonce()
+			nonceMap[addr].Index = i
+		}
+	}
 	return deps
 }
 

@@ -113,7 +113,13 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		return
 	}
 	exec.ledger.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, block.Height())
+	currentFromStart := time.Now()
 	receipts := exec.applyTransactions(block.Transactions, block.Height())
+	exec.logger.WithFields(logrus.Fields{
+		"time":   time.Since(currentFromStart),
+		"height": block.Height(),
+		"count":  len(block.Transactions),
+	}).Info("[Serial-Execute-Block]")
 
 	totalGasFee := new(big.Int)
 	for i, receipt := range receipts {
@@ -141,6 +147,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.logger.WithFields(logrus.Fields{
 		"time":  time.Since(current),
 		"count": len(block.Transactions),
+		"type":  "SerialExecute",
 	}).Info("[Execute-Block] Apply transactions elapsed")
 
 	calcMerkleStart := time.Now()
@@ -238,6 +245,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 }
 
 func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscommon.CommitEvent) {
+	exec.logger.Info("Parallel Execute")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var txHashList []*types.Hash
@@ -281,11 +289,18 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 	//parall_execute
 	vmCfg := vm.Config{}
 	processor := NewParallelStateProcessor(exec.evmChainCfg, block, exec.rep.Config.Worker, exec.rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit)
+	exec.logger.Info("parallelStateProcessor start")
+	currentFromStart := time.Now()
 	receipts, _, gasUsed, err := processor.Process(block, exec.ledger, vmCfg, ctx)
 	if err != nil {
 		panic(err)
 	}
-	exec.logger.Info("gasUsed:", gasUsed)
+	exec.logger.WithFields(logrus.Fields{
+		"time":   time.Since(currentFromStart),
+		"height": block.Height(),
+		"count":  len(block.Transactions),
+	}).Info("[Paraller-Execute-Block]")
+
 	gasUsedCaculate := 0
 	totalGasFee := new(big.Int)
 	for i, receipt := range receipts {
@@ -294,7 +309,6 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 		totalGasFee = totalGasFee.Add(totalGasFee, txGasFee)
 		gasUsedCaculate = gasUsedCaculate + int(receipt.GasUsed)
 	}
-	exec.logger.Info("gasUsedCaculate:", gasUsedCaculate)
 	block.Header.TotalGasFee = totalGasFee
 	block.Header.GasFeeReward = totalGasFee
 	block.Header.GasPrice = 0
@@ -315,6 +329,7 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 	exec.logger.WithFields(logrus.Fields{
 		"time":  time.Since(current),
 		"count": len(block.Transactions),
+		"type":  "ParallelExecute",
 	}).Info("[Execute-Block] Apply transactions elapsed")
 
 	calcMerkleStart := time.Now()
@@ -460,7 +475,9 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	txContext := core.NewEVMTxContext(msg)
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
+	timeStart := time.Now()
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
+	exec.logger.Info("tx index:", i, ",time:", time.Since(timeStart))
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
 		statedb.RevertToSnapshot(snapshot)
