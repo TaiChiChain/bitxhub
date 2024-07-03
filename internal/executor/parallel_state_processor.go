@@ -128,11 +128,7 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 
 	// Apply the transaction to the current state (included in the env).
 	if *task.shouldDelayFeeCal {
-		timeStart := time.Now()
 		task.result, err = core.ApplyMessageNoFeeBurnOrTip(evm, task.msg, new(core.GasPool).AddGas(task.gasLimit))
-		if incarnation > 0 {
-			task.logger.Info("task index:", task.index, ",task incarnation:", incarnation, ",time:", time.Since(timeStart))
-		}
 		if task.result == nil || err != nil {
 			return blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: err}
 		}
@@ -335,8 +331,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 		}
 
 		task := &ExecutionTask{
-			logger: loggers.Logger(loggers.Executor),
-
+			logger:            loggers.Logger(loggers.Executor),
 			msg:               *msg,
 			config:            p.config,
 			gasLimit:          p.gasLimit,
@@ -368,7 +363,6 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 	profile := false
 
 	p.logger.Info("blockstm.ExecuteParallel")
-	p.logger.Info("blockstm.ExecuteParallel worker:", p.parallelSpeculativeProcesses)
 	result, err := blockstm.ExecuteParallel(tasks, profile, metadata, p.parallelSpeculativeProcesses, interruptCtx)
 
 	if err == nil && profile && result.Deps != nil {

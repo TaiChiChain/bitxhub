@@ -1,10 +1,8 @@
 module github.com/axiomesh/axiom-ledger
 
-go 1.21
+go 1.20
 
-toolchain go1.21.0
-
-replace github.com/ethereum/go-ethereum v1.13.14 => /Users/wyj/code/go-ethereum
+replace github.com/ethereum/go-ethereum v1.13.14 => github.com/axiomesh/go-ethereum v1.13.14-3
 
 require (
 	github.com/Rican7/retry v0.3.1
