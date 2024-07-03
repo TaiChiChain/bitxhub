@@ -225,7 +225,7 @@ func (h *ClusterGeneratorHelper) populateGenesisConfig() error {
 		h.genesisCfgTemplate.Accounts = lo.Map(append(defaultCouncilMemberAddrs, repo.MockDefaultAccountAddrs...), func(addr string, idx int) *repo.Account {
 			return &repo.Account{
 				Address: addr,
-				Balance: repo.DefaultAccountBalance,
+				Balance: repo.GetDefaultAccountBalance(),
 			}
 		})
 	}

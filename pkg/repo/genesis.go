@@ -93,7 +93,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 		},
 		FinanceParams: types.FinanceParams{
 			GasLimit:    0x5f5e100,
-			MinGasPrice: DefaultMinGasPrice,
+			MinGasPrice: GetDefaultMinGasPrice(),
 		},
 		StakeParams: types.StakeParams{
 			StakeEnable:           true,
