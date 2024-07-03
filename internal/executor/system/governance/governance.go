@@ -264,6 +264,30 @@ func (g *Governance) checkAndUpdateState(method string) error {
 	}
 
 	for _, notFinishedProposal := range notFinishedProposals {
+		proposalExist, proposal, err := g.proposals.Get(notFinishedProposal.ID)
+		if err != nil {
+			return err
+		}
+		if !proposalExist {
+			return ErrNotFoundProposal
+		}
+
+		if proposal.Status == Approved || proposal.Status == Rejected {
+			_, proposals, err := g.notFinishedProposals.Get()
+			if err != nil {
+				return err
+			}
+			newProposals := lo.Filter[NotFinishedProposal](proposals, func(item NotFinishedProposal, index int) bool {
+				return item.ID != proposal.ID
+			})
+
+			if len(newProposals) != len(proposals) {
+				if err := g.notFinishedProposals.Put(newProposals); err != nil {
+					return err
+				}
+			}
+		}
+
 		if notFinishedProposal.DeadlineBlockNumber <= g.Ctx.BlockNumber {
 			// update original proposal status
 			proposalExist, proposal, err := g.proposals.Get(notFinishedProposal.ID)
