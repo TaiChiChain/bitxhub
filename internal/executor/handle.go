@@ -475,9 +475,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	txContext := core.NewEVMTxContext(msg)
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
-	timeStart := time.Now()
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
-	exec.logger.Info("tx index:", i, ",time:", time.Since(timeStart))
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
 		statedb.RevertToSnapshot(snapshot)
