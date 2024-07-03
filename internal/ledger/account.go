@@ -472,3 +472,74 @@ func (o *SimpleAccount) IsCreated() bool {
 func (o *SimpleAccount) SetCreated(created bool) {
 	o.created = created
 }
+
+func DeepCopy(account *SimpleAccount) *SimpleAccount {
+	res := &SimpleAccount{
+		logger:         loggers.Logger(loggers.Storage),
+		Addr:           types.NewAddress(account.Addr.Bytes()),
+		blockHeight:    account.blockHeight,
+		backend:        account.backend,
+		selfDestructed: account.selfDestructed,
+		created:        account.created,
+	}
+	res.originAccount = account.originAccount
+	res.dirtyAccount = InnerAccountDeepCopy(account.dirtyAccount)
+
+	res.originState = DeepCopyMapBytes(account.originState)
+	res.pendingState = DeepCopyMapBytes(account.pendingState)
+	res.dirtyState = DeepCopyMapBytes(account.dirtyState)
+
+	res.originCode = CopyBytes(account.originCode)
+	res.dirtyCode = CopyBytes(account.dirtyCode)
+
+	res.storageTrieCache = account.storageTrieCache
+	res.pruneCache = account.pruneCache
+	res.changer = account.changer.stateChangerDeepCopy()
+	res.snapshot = account.snapshot
+
+	return res
+}
+
+func InnerAccountDeepCopy(o *types.InnerAccount) *types.InnerAccount {
+	if o == nil {
+		return nil
+	}
+
+	return &types.InnerAccount{
+		Nonce:       o.Nonce,
+		Balance:     new(big.Int).Set(o.Balance),
+		CodeHash:    CopyBytes(o.CodeHash),
+		StorageRoot: common.BytesToHash(o.StorageRoot.Bytes()),
+	}
+}
+
+func DeepCopyMapBytes(src map[string][]byte) map[string][]byte {
+	if src == nil {
+		return nil
+	}
+
+	// Create a new map with the same capacity as the source map
+	dst := make(map[string][]byte, len(src))
+
+	// Iterate over the source map
+	for key, value := range src {
+		// Use CopyBytes to create a new byte slice for each value
+		dst[key] = CopyBytes(value)
+	}
+
+	return dst
+}
+
+func CopyBytes(src []byte) []byte {
+	if src == nil {
+		return nil
+	}
+
+	// Create a new slice of the same length as the source slice
+	dst := make([]byte, len(src))
+
+	// Copy the contents of the source slice into the new slice
+	copy(dst, src)
+
+	return dst
+}
