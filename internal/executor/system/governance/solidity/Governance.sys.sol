@@ -60,4 +60,6 @@ interface Governance {
     function proposal(uint64 proposalID) external view returns (Proposal calldata proposal);
 
     function getLatestProposalID() external view returns (uint64);
+
+    function getNotFinishedProposalIDs() external view returns (uint64[] memory ids);
 }
