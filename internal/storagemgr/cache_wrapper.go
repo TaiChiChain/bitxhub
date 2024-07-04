@@ -53,6 +53,14 @@ func (c *CacheWrapper) Get(k []byte) ([]byte, bool) {
 	return res, ok
 }
 
+func (c *CacheWrapper) Has(k []byte) bool {
+	return c.cache.Has(k)
+}
+
+func (c *CacheWrapper) Enable() bool {
+	return c.cache != nil
+}
+
 func (c *CacheWrapper) Set(k []byte, v []byte) {
 	c.cache.Set(k, v)
 }

@@ -110,6 +110,7 @@ func MockRepoWithNodeID(t testing.TB, nodeCount int, nodeID uint64, isDataSyncer
 		StartArgs:         &StartArgs{},
 	}
 	rep.Config.Ledger.EnablePrune = false
+	rep.Config.Ledger.EnablePreload = true
 	rep.GenesisConfig.EpochInfo.StakeParams.MinValidatorStake = types.CoinNumberByAxc(1)
 
 	rep.GenesisConfig.Nodes = lo.Map(MockConsensusPubKeys[0:nodeCount], func(key string, index int) GenesisNodeInfo {

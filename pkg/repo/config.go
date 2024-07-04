@@ -179,16 +179,25 @@ type Consensus struct {
 
 type Storage struct {
 	KvType      string `mapstructure:"kv_type" toml:"kv_type"`
-	KvCacheSize int    `mapstructure:"kv_cache_size" toml:"kv_cache_size"`
 	Sync        bool   `mapstructure:"sync" toml:"sync"`
+	KVCacheSize int64  `mapstructure:"kv_cache_size" toml:"kv_cache_size"` // mb
+	Pebble      Pebble `mapstructure:"pebble" toml:"pebble"`
+}
+
+type Pebble struct {
+	MaxOpenFiles                int   `mapstructure:"max_open_files" toml:"max_open_files"`
+	MemTableSize                int   `mapstructure:"mem_table_size" toml:"memtable_size"` // mb
+	MemTableStopWritesThreshold int   `mapstructure:"mem_table_stop_writes_threshold" toml:"mem_table_stop_writes_threshold"`
+	LBaseMaxSize                int64 `mapstructure:"lbase_max_size" toml:"lbase_max_size"` //unit mb
+	L0CompactionFileThreshold   int   `mapstructure:"l0_cmpaction_file_threshold" toml:"l0_cmpaction_file_threshold"`
 }
 
 type Ledger struct {
 	ChainLedgerCacheSize                      int  `mapstructure:"chain_ledger_cache_size" toml:"chain_ledger_cache_size"`
 	StateLedgerAccountTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_account_trie_cache_megabytes_limit" toml:"state_ledger_account_trie_cache_megabytes_limit"`
 	StateLedgerStorageTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_storage_trie_cache_megabytes_limit" toml:"state_ledger_storage_trie_cache_megabytes_limit"`
-	StateLedgerAccountCacheSize               int  `mapstructure:"state_ledger_account_cache_size" toml:"state_ledger_account_cache_size"`
 	EnablePrune                               bool `mapstructure:"enable_prune" toml:"enable_prune"`
+	EnablePreload                             bool `mapstructure:"enable_preload" toml:"enable_preload"`
 	EnableIndexer                             bool `mapstructure:"enable_indexer" toml:"enable_indexer"`
 	StateLedgerReservedHistoryBlockNum        int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
 }
@@ -307,17 +316,24 @@ func defaultConfig() *Config {
 		},
 		Storage: Storage{
 			KvType:      KVStorageTypePebble,
-			KvCacheSize: 128,
 			Sync:        true,
+			KVCacheSize: 128,
+			Pebble: Pebble{
+				MaxOpenFiles:                10000,
+				MemTableSize:                32,
+				MemTableStopWritesThreshold: 2,
+				LBaseMaxSize:                64,
+				L0CompactionFileThreshold:   500,
+			},
 		},
 		Ledger: Ledger{
 			ChainLedgerCacheSize:                      100,
 			StateLedgerAccountTrieCacheMegabytesLimit: 128,
 			StateLedgerStorageTrieCacheMegabytesLimit: 128,
-			StateLedgerAccountCacheSize:               1024,
-			EnablePrune:                               true,
-			EnableIndexer:                             false,
-			StateLedgerReservedHistoryBlockNum:        256,
+			EnablePrune:                        true,
+			EnablePreload:                      false,
+			EnableIndexer:                      false,
+			StateLedgerReservedHistoryBlockNum: 256,
 		},
 		Snapshot: Snapshot{
 			AccountSnapshotCacheMegabytesLimit:  128,

@@ -26,6 +26,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
+	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 func MockMinNode(ctrl *gomock.Controller, t *testing.T) *Node {
@@ -152,6 +154,14 @@ func TestInit(t *testing.T) {
 }
 
 func TestNewNode(t *testing.T) {
+	repoConfig := &repo.Config{Storage: repo.Storage{
+		KvType:      repo.KVStorageTypeLeveldb,
+		Sync:        false,
+		KVCacheSize: repo.KVStorageCacheSize,
+		Pebble:      repo.Pebble{},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(repoConfig)
+	assert.Nil(t, err)
 	testCase := []struct {
 		name           string
 		setupMocks     func(consensusConf *common.Config, ctrl *gomock.Controller)

@@ -42,7 +42,7 @@ func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 
 	// stake/totalSupply = 1, should have APY 3%
 	testNVM.RunSingleTX(stakingManagerBuildContract, ethcommon.Address{}, func() error {
-		err := stakingManagerBuildContract.totalStake.Put(repo.DefaultAXCBalance.ToBigInt())
+		err := stakingManagerBuildContract.totalStake.Put(repo.GetDefaultAXCBalance().ToBigInt())
 		assert.Nil(t, err)
 		err = stakingManagerBuildContract.UpdateStakeRewardPerBlock()
 		assert.Nil(t, err)
@@ -59,7 +59,7 @@ func Test_stakingManager_InternalCalculateStakeReward(t *testing.T) {
 
 	// stake/totalSupply = 0.1, should have APY 7.89%
 	testNVM.RunSingleTX(stakingManagerBuildContract, ethcommon.Address{}, func() error {
-		err := stakingManagerBuildContract.totalStake.Put(new(big.Int).Div(repo.DefaultAXCBalance.ToBigInt(), big.NewInt(10)))
+		err := stakingManagerBuildContract.totalStake.Put(new(big.Int).Div(repo.GetDefaultAXCBalance().ToBigInt(), big.NewInt(10)))
 		assert.Nil(t, err)
 		err = stakingManagerBuildContract.UpdateStakeRewardPerBlock()
 		assert.Nil(t, err)

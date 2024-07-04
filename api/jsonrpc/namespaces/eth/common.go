@@ -55,7 +55,7 @@ func getStateLedgerAt(api api.CoreAPI, blockNrOrHash *rpctypes.BlockNumberOrHash
 	}
 
 	enableSnapshot := blockHeader.Number == meta.Height
-	lg, err := api.Broker().GetViewStateLedger().NewViewWithoutCache(blockHeader, enableSnapshot)
+	lg, err := api.Broker().GetViewStateLedger().NewView(blockHeader, enableSnapshot)
 	if err != nil {
 		return nil, fmt.Errorf("GetViewStateLedger error: %v", err)
 	}

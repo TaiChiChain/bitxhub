@@ -31,7 +31,13 @@ import (
 )
 
 func TestNewNode(t *testing.T) {
-	err := storagemgr.Initialize(repo.KVStorageTypeLeveldb, repo.KVStorageCacheSize, repo.KVStorageSync, false)
+	repoConfig := &repo.Config{Storage: repo.Storage{
+		KvType:      repo.KVStorageTypeLeveldb,
+		Sync:        false,
+		KVCacheSize: repo.KVStorageCacheSize,
+		Pebble:      repo.Pebble{},
+	}, Monitor: repo.Monitor{Enable: false}}
+	err := storagemgr.Initialize(repoConfig)
 	assert.Nil(t, err)
 	ctrl := gomock.NewController(t)
 	logger := log.NewWithModule("data_syncer")

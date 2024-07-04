@@ -81,6 +81,18 @@ var (
 	DefaultMinGasPrice = types.CoinNumberByGmol(1000)
 )
 
+func GetDefaultMinGasPrice() *types.CoinNumber {
+	return DefaultMinGasPrice.Clone()
+}
+
+func GetDefaultAccountBalance() *types.CoinNumber {
+	return DefaultAccountBalance.Clone()
+}
+
+func GetDefaultAXCBalance() *types.CoinNumber {
+	return DefaultAXCBalance.Clone()
+}
+
 const (
 	// BloomBitsBlocks is the number of blocks a single bloom bit section vector
 	// contains on the server side.

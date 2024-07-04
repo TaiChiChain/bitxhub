@@ -88,9 +88,6 @@ type StateLedger interface {
 	// NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewView(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error)
 
-	// NewViewWithoutCache get a view ledger at specific block. We can enable snapshot if and only if the block were the latest block.
-	NewViewWithoutCache(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error)
-
 	IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage, errC chan error)
 
 	GetTrieSnapshotMeta() (*SnapshotMeta, error)
@@ -246,10 +243,6 @@ type IAccount interface {
 	SelfDestructed() bool
 
 	SetSelfDestructed(bool)
-
-	SetEnableExpensiveMetric(bool)
-
-	GetStorageRootHash() common.Hash
 
 	GetStorageRoot() common.Hash
 

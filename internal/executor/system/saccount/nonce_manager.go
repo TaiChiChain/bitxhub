@@ -52,18 +52,21 @@ func (nm *NonceManager) GetNonce(sender ethcommon.Address, key *big.Int) (*big.I
 
 // nolint
 func (nm *NonceManager) incrementNonce(sender ethcommon.Address, key *big.Int) {
-	k := generateKey(sender, key)
-	exist, nonce, _ := nm.nonceSequenceNumber.Get(k)
-	if exist {
-		nonce.Add(nonce, big.NewInt(1))
-
-		// if nonce is out of range, reinit
-		newNonce := new(big.Int).Lsh(key, 64)
-		if nonce.Rsh(nonce, 64).Cmp(newNonce) == 1 {
-			nonce.Set(newNonce)
-		}
-		nm.nonceSequenceNumber.Put(k, nonce)
+	nonce, err := nm.GetNonce(sender, key)
+	if err != nil {
+		nm.Logger.Errorf("incrementNonce error: %v", err)
+		return
 	}
+
+	nonce.Add(nonce, big.NewInt(1))
+
+	// if nonce is out of range, reinit
+	newNonce := new(big.Int).Lsh(key, 64)
+	if new(big.Int).Rsh(nonce, 64).Cmp(key) != 0 {
+		nonce.Set(newNonce)
+	}
+	k := generateKey(sender, key)
+	nm.nonceSequenceNumber.Put(k, nonce)
 }
 
 // nolint
@@ -74,11 +77,7 @@ func (nm *NonceManager) validateAndUpdateNonce(sender ethcommon.Address, nonce *
 		return false, err
 	}
 	if n.Cmp(nonce) == 0 {
-		n.Add(n, big.NewInt(1))
-		k := generateKey(sender, key)
-		if err := nm.nonceSequenceNumber.Put(k, n); err != nil {
-			return false, err
-		}
+		nm.incrementNonce(sender, key)
 		return true, nil
 	}
 

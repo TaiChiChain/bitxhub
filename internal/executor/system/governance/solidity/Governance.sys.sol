@@ -68,4 +68,6 @@ interface Governance {
     function getLatestProposalID() external view returns (uint64);
 
     function getCouncilMembers() external view returns (CouncilMember[] memory members);
+
+    function getNotFinishedProposalIDs() external view returns (uint64[] memory ids);
 }

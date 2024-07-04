@@ -35,12 +35,12 @@ func (snap *Snapshot) GetJournalRange() (uint64, uint64) {
 
 	data := snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr))
 	if data != nil {
-		minHeight = utils.UnmarshalHeight(data)
+		minHeight = utils.UnmarshalUint64(data)
 	}
 
 	data = snap.backend.Get(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr))
 	if data != nil {
-		maxHeight = utils.UnmarshalHeight(data)
+		maxHeight = utils.UnmarshalUint64(data)
 	}
 
 	return minHeight, maxHeight

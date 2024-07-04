@@ -192,7 +192,7 @@ func (api *TracerAPI) TraceCall(args types.CallArgs, blockNrOrHash *rpctypes.Blo
 		return nil, err
 	}
 
-	statedb, err := api.api.Broker().GetViewStateLedger().NewViewWithoutCache(blockHeader, false)
+	statedb, err := api.api.Broker().GetViewStateLedger().NewView(blockHeader, false)
 	if err != nil {
 		return nil, err
 	}
