@@ -13,7 +13,6 @@ import (
 
 func (esa EvmStateDBAdaptor) CreateAccount(address common.Address) {
 	esa.StateLedger.GetOrCreateAccount(types.NewAddress(address.Bytes()))
-
 }
 
 func (esa EvmStateDBAdaptor) SubBalance(addr common.Address, amount *uint256.Int) {

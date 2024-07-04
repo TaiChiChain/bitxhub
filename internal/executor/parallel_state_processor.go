@@ -246,6 +246,7 @@ func (task *ExecutionTask) Settle() {
 
 	receipt.TxHash = task.tx.GetHash()
 	receipt.GasUsed = task.result.UsedGas
+	receipt.Ret = task.result.Return()
 
 	// If the transaction created a contract, store the creation address in the receipt.
 	if task.msg.To == nil {

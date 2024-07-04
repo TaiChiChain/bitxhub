@@ -120,6 +120,14 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"height": block.Height(),
 		"count":  len(block.Transactions),
 	}).Info("[Serial-Execute-Block]")
+	exec.count = exec.count + time.Since(currentFromStart)
+	if block.Height()%100 == 0 {
+		exec.logger.WithFields(logrus.Fields{
+			"countTime": exec.count,
+			"height":    block.Height(),
+		}).Info("[Serial-Execute-Block-Every-100]")
+		exec.count = time.Duration(0)
+	}
 
 	totalGasFee := new(big.Int)
 	for i, receipt := range receipts {
@@ -300,6 +308,14 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 		"height": block.Height(),
 		"count":  len(block.Transactions),
 	}).Info("[Paraller-Execute-Block]")
+	exec.count = exec.count + time.Since(currentFromStart)
+	if block.Height()%100 == 0 {
+		exec.logger.WithFields(logrus.Fields{
+			"countTime": exec.count,
+			"height":    block.Height(),
+		}).Info("[Paraller-Execute-Block-Every-100]")
+		exec.count = time.Duration(0)
+	}
 
 	gasUsedCaculate := 0
 	totalGasFee := new(big.Int)
