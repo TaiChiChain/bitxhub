@@ -242,8 +242,11 @@ func (sp *StakingPool) UnlockStake(liquidStakingTokenID *big.Int, liquidStakingT
 	if principalAndReward.Cmp(amount) < 0 {
 		return errors.Errorf("amount is not enough, principalAndReward: %s, amount: %s", principalAndReward.String(), amount.String())
 	}
-	if !currentEpoch.StakeParams.EnablePartialUnlock && principalAndReward.Cmp(amount) > 0 {
-		return errors.Errorf("not enable partial unlock, principalAndReward: %s, amount: %s", principalAndReward.String(), amount.String())
+
+	if info.OperatorLiquidStakingTokenID.Cmp(liquidStakingTokenID) != 0 {
+		if !currentEpoch.StakeParams.EnablePartialUnlock && principalAndReward.Cmp(amount) > 0 {
+			return errors.Errorf("not enable partial unlock, principalAndReward: %s, amount: %s", principalAndReward.String(), amount.String())
+		}
 	}
 
 	pendingInactiveLiquidStakingTokenAmount = new(big.Int).Set(lstAmount)

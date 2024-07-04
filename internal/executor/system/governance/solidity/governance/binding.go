@@ -21,6 +21,13 @@ var (
 	_ = packer.RevertError{}
 )
 
+// CouncilMember is an auto generated low-level Go binding around an user-defined struct.
+type CouncilMember struct {
+	Addr   common.Address
+	Weight uint64
+	Name   string
+}
+
 // Proposal is an auto generated low-level Go binding around an user-defined struct.
 type Proposal struct {
 	ID                   uint64
@@ -52,6 +59,11 @@ type Governance interface {
 	//
 	// Solidity: function vote(uint64 proposalID, uint8 voteResult) returns()
 	Vote(proposalID uint64, voteResult uint8) error
+
+	// GetCouncilMembers is a free data retrieval call binding the contract method 0x606a6b76.
+	//
+	// Solidity: function getCouncilMembers() view returns((address,uint64,string)[] members)
+	GetCouncilMembers() ([]CouncilMember, error)
 
 	// GetLatestProposalID is a free data retrieval call binding the contract method 0x6785bd6e.
 	//

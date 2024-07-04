@@ -45,6 +45,12 @@ pragma solidity ^0.8.0;
         string ExecuteFailedMsg;
     }
 
+    struct CouncilMember {
+        address addr;
+        uint64 weight;
+        string name;
+    }
+
 // Governance contract is a system contract that needn't be deployed
 // this is only used for generate governance ABI
 interface Governance {
@@ -60,6 +66,8 @@ interface Governance {
     function proposal(uint64 proposalID) external view returns (Proposal calldata proposal);
 
     function getLatestProposalID() external view returns (uint64);
+
+    function getCouncilMembers() external view returns (CouncilMember[] memory members);
 
     function getNotFinishedProposalIDs() external view returns (uint64[] memory ids);
 }

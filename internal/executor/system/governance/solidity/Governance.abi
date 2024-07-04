@@ -65,6 +65,38 @@
   },
   {
     "inputs": [],
+    "name": "getCouncilMembers",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "address",
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "weight",
+            "type": "uint64"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct CouncilMember[]",
+        "name": "members",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "getLatestProposalID",
     "outputs":
     [

@@ -642,6 +642,18 @@ func (n *NodeManager) UpdateOperator(nodeID uint64, newOperator ethcommon.Addres
 	return nil
 }
 
+func (n *NodeManager) GetInfoByConsensusPubKey(consensusPubKey string) (node_manager.NodeInfo, error) {
+	isExist, nodeID, err := n.nodeConsensusPubKeyIndex.Get(consensusPubKey)
+	if err != nil {
+		return node_manager.NodeInfo{}, err
+	}
+	if !isExist {
+		return node_manager.NodeInfo{}, ErrNodeNotFound
+	}
+
+	return n.GetInfo(nodeID)
+}
+
 func (n *NodeManager) GetInfo(nodeID uint64) (info node_manager.NodeInfo, err error) {
 	isExist, nodeInfo, err := n.nodeRegistry.Get(nodeID)
 	if err != nil {

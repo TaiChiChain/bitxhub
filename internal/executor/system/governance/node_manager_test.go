@@ -175,14 +175,14 @@ func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: NodeRemoveExtraArgs{
-				NodeID: 1,
+				NodeIDs: []uint64{1},
 			},
 			ErrHandler: assert.NoError,
 		},
 		{
 			Caller: ethcommon.HexToAddress("0x1200000000000000000000000000000000000000"),
 			Data: NodeRemoveExtraArgs{
-				NodeID: 1,
+				NodeIDs: []uint64{1},
 			},
 			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.ErrorContains(t, err, ErrNotFoundCouncilMember.Error())
@@ -191,7 +191,7 @@ func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: NodeRemoveExtraArgs{
-				NodeID: 2,
+				NodeIDs: []uint64{2},
 			},
 			PreProposeHook: func(t *testing.T, ctx *common.VMContext) {
 				nodeManagerContract := framework.NodeManagerBuildConfig.Build(ctx)
@@ -470,7 +470,7 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
 		data, err := json.Marshal(NodeRemoveExtraArgs{
-			NodeID: 5,
+			NodeIDs: []uint64{5},
 		})
 		assert.Nil(t, err)
 
@@ -544,7 +544,7 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
 		data, err := json.Marshal(NodeRemoveExtraArgs{
-			NodeID: 5,
+			NodeIDs: []uint64{5},
 		})
 		assert.Nil(t, err)
 

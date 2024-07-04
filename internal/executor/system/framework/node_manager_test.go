@@ -103,7 +103,14 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 			assert.EqualValues(t, i+1, nodes[i].ID)
 			assert.EqualValues(t, fmt.Sprintf("node%d", i+1), nodes[i].MetaData.Name)
 			assert.EqualValues(t, types.NodeStatusActive, nodes[i].Status)
+
+			queryNode, err := nodeManagerContract.GetInfoByConsensusPubKey(nodes[i].ConsensusPubKey)
+			assert.Nil(t, err)
+			assert.EqualValues(t, nodes[i], queryNode)
 		}
+
+		_, err = nodeManagerContract.GetInfoByConsensusPubKey("123")
+		assert.ErrorContains(t, err, "node not found")
 
 		activeValidatorSet, votingPowers, err := nodeManagerContract.GetActiveValidatorSet()
 		assert.Nil(t, err)
