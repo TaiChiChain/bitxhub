@@ -1,6 +1,12 @@
 package saccount
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"math/big"
 
@@ -42,35 +48,35 @@ func (passkey *Passkey) Validate(userOp *interfaces.UserOperation, userOpHash [3
 
 	switch passkey.Algo {
 	case AlgoSecp256R1:
-		// // parse clientData and check userOpHash
-		// clientData := &ClientData{}
-		// err := json.Unmarshal(userOp.ClientData, clientData)
-		// if err != nil {
-		// 	return validation, err
-		// }
+		// parse clientData and check userOpHash
+		clientData := &ClientData{}
+		err := json.Unmarshal(userOp.ClientData, clientData)
+		if err != nil {
+			return validation, err
+		}
 
-		// challenge, err := base64.RawURLEncoding.DecodeString(clientData.Challenge)
-		// if err != nil {
-		// 	return validation, err
-		// }
-		// if !bytes.Equal(challenge, userOpHash[:]) {
-		// 	return validation, ErrPasskeyUserOpHashCheckFailed
-		// }
+		challenge, err := base64.RawURLEncoding.DecodeString(clientData.Challenge)
+		if err != nil {
+			return validation, err
+		}
+		if !bytes.Equal(challenge, userOpHash[:]) {
+			return validation, ErrPasskeyUserOpHashCheckFailed
+		}
 
-		// pk := &ecdsa.PublicKey{Curve: elliptic.P256(), X: passkey.PubKeyX, Y: passkey.PubKeyY}
-		// clientDataHash := sha256.Sum256(userOp.ClientData)
-		// rawData := make([]byte, 0, len(userOp.AuthData)+len(clientDataHash))
-		// rawData = append(rawData, userOp.AuthData...)
-		// rawData = append(rawData, clientDataHash[:]...)
-		// h := sha256.Sum256(rawData)
+		pk := &ecdsa.PublicKey{Curve: elliptic.P256(), X: passkey.PubKeyX, Y: passkey.PubKeyY}
+		clientDataHash := sha256.Sum256(userOp.ClientData)
+		rawData := make([]byte, 0, len(userOp.AuthData)+len(clientDataHash))
+		rawData = append(rawData, userOp.AuthData...)
+		rawData = append(rawData, clientDataHash[:]...)
+		h := sha256.Sum256(rawData)
 
-		// sig := make([]byte, len(userOp.Signature))
-		// copy(sig, userOp.Signature)
-		// r := new(big.Int).SetBytes(sig[:32])
-		// s := new(big.Int).SetBytes(sig[32:])
-		// if !ecdsa.Verify(pk, h[:], r, s) {
-		// 	return validation, ErrPasskeyVerificationFailed
-		// }
+		sig := make([]byte, len(userOp.Signature))
+		copy(sig, userOp.Signature)
+		r := new(big.Int).SetBytes(sig[:32])
+		s := new(big.Int).SetBytes(sig[32:])
+		if !ecdsa.Verify(pk, h[:], r, s) {
+			return validation, ErrPasskeyVerificationFailed
+		}
 		validation.SigValidation = interfaces.SigValidationSucceeded
 		return validation, nil
 	}
