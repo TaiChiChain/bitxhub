@@ -34,6 +34,8 @@ type UserOperation struct {
 	MaxPriorityFeePerGas *big.Int
 	PaymasterAndData     []byte
 	Signature            []byte
+	AuthData             []byte
+	ClientData           []byte
 }
 
 type TokenPaymaster interface {
@@ -53,9 +55,9 @@ type TokenPaymaster interface {
 	// Solidity: function transferOwnership(address newOwner) returns()
 	TransferOwnership(newOwner common.Address) error
 
-	// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0xf465c77e.
+	// ValidatePaymasterUserOp is a paid mutator transaction binding the contract method 0x7ba19417.
 	//
-	// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
+	// Solidity: function validatePaymasterUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 maxCost) returns(bytes context, uint256 validationData)
 	ValidatePaymasterUserOp(userOp UserOperation, userOpHash [32]byte, maxCost *big.Int) ([]byte, *big.Int, error)
 
 	// GetToken is a free data retrieval call binding the contract method 0x59770438.

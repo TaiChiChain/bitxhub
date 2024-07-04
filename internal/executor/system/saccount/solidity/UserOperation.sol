@@ -20,7 +20,6 @@ import {calldataKeccak} from "./Helpers.sol";
      * @param signature sender-verified signature over the entire request, the EntryPoint address and the chain ID.
      */
     struct UserOperation {
-
         address sender;
         uint256 nonce;
         bytes initCode;
@@ -32,6 +31,8 @@ import {calldataKeccak} from "./Helpers.sol";
         uint256 maxPriorityFeePerGas;
         bytes paymasterAndData;
         bytes signature;
+        bytes authData;
+        bytes clientData;
     }
 
 /**
