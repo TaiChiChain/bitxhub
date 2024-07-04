@@ -233,6 +233,9 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
 	exec.postLogsEvent(data.Receipts)
+	if exec.currentHeight == uint64(18828) {
+		panic("stop at height 18828")
+	}
 	exec.clear()
 }
 
