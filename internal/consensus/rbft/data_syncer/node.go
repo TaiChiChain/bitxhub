@@ -1012,6 +1012,13 @@ func (n *Node[T, Constraint]) verifyEpochChangeProof(proof *consensus.EpochChang
 
 func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeProof) {
 	quorumCheckpoint := proof.Last().Checkpoint
+
+	if quorumCheckpoint.Height() <= n.lastCommitHeight {
+		n.logger.Warningf("Replica %d ignore handle epoch change proof at height %d, because node had already committed at height %d",
+			n.chainState.SelfNodeInfo.ID, quorumCheckpoint.Height(), n.lastCommitHeight)
+		return
+	}
+
 	var checkpointSet []*consensus.SignedCheckpoint
 	for id, sig := range quorumCheckpoint.Signatures {
 		signedCheckpoint := &consensus.SignedCheckpoint{
@@ -1072,6 +1079,11 @@ func (n *Node[T, Constraint]) genCommitEvent() *localEvent {
 }
 
 func (n *Node[T, Constraint]) handlePrePrepare(msg *consensus.ConsensusMessage) error {
+	if len(n.batchCache) > maxCacheSize {
+		n.logger.Warningf("batch cache size %d exceeds max size %d, ignoring it", len(n.batchCache), maxCacheSize)
+		return nil
+	}
+
 	prePrepare := &consensus.PrePrepare{}
 
 	if err := prePrepare.UnmarshalVT(msg.Payload); err != nil {
