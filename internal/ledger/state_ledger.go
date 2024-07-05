@@ -277,7 +277,7 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 	for len(queue) > 0 {
 		trieRoot := queue[0]
 		iter := jmt.NewIterator(trieRoot, l.backend, l.pruneCache, 10000, 300*time.Second)
-		l.logger.Debugf("[GenerateSnapshot] trie root=%v", trieRoot)
+		l.logger.Infof("[GenerateSnapshot] trie root=%v", trieRoot)
 		go iter.IterateLeaf()
 
 		for {
@@ -290,7 +290,22 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 					return
 				}
 			}
+			//l.logger.Infof("[GenerateSnapshot] node.LeafKey=%v, node.LeafValue=%v", node.LeafKey, node.LeafValue)
 			batch.Put(node.LeafKey, node.LeafValue)
+			if len(node.LeafKey) == 40 {
+				flag := true
+				for j := 0; j < 40; j++ {
+					if node.LeafKey[j] != 0 {
+						flag = false
+						break
+					}
+				}
+				if flag {
+					l.logger.Errorf("[GenerateSnapshot] node.LeafKey=%v, node.LeafValue=%v", node.LeafKey, node.LeafValue)
+				}
+			}
+			//l.logger.Infof("[GenerateSnapshot] node.LeafKey=%v, node.LeafValue=%v", node.LeafKey, node.LeafValue)
+
 			// data size exceed threshold, flush to disk
 			if batch.Size() > maxBatchSize {
 				batch.Commit()
@@ -310,8 +325,9 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 			}
 		}
 		queue = queue[1:]
-		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
+		//batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalUint64(blockHeader.Number))
 	batch.Commit()
 	l.logger.Infof("[GenerateSnapshot] generate snapshot successfully")
 

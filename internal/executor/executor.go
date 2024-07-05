@@ -53,6 +53,9 @@ type BlockExecutor struct {
 
 	nvm             syscommon.VirtualMachine
 	afterBlockHooks []AfterBlockHook
+
+	flag  bool
+	block *types.Block
 }
 
 // New creates executor instance

@@ -186,6 +186,10 @@ func (snap *Snapshot) Rollback(height uint64) error {
 	minHeight, maxHeight := snap.GetJournalRange()
 	snap.logger.Infof("[Snapshot-Rollback] minHeight=%v,maxHeight=%v,height=%v", minHeight, maxHeight, height)
 
+	if minHeight == 0 {
+		return nil
+	}
+
 	if maxHeight < height {
 		return ErrorRollbackToHigherNumber
 	}

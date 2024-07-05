@@ -78,6 +78,12 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	current := time.Now()
 	block := commitEvent.Block
 
+	if block.Header.Number == 18828 {
+		exec.block = block
+	}
+
+	//|| (exec.currentHeight == 18829 && !exec.flag)
+
 	// check executor handle the right block
 	if block.Header.Number != exec.currentHeight+1 {
 		exec.logger.WithFields(logrus.Fields{"block height": block.Header.Number,
@@ -86,6 +92,10 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 			if exec.rep.Config.Executor.DisableRollback {
 				panic(fmt.Sprintf("not supported rollback to %d", block.Header.Number))
 			}
+			//if exec.currentHeight == 18829 && !exec.flag {
+			//	exec.flag = true
+			//	block = exec.block
+			//}
 			err := exec.rollbackBlocks(block)
 			if err != nil {
 				exec.logger.WithError(err).Error("rollback blocks failed")

@@ -173,6 +173,12 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 				if !ok {
 					panic("state update failed: invalid commit data")
 				}
+				if block.Block.Header.Number == 18829 {
+					a.postCommitEvent(&common.CommitEvent{
+						Block:                  block.Block,
+						StateUpdatedCheckpoint: stateUpdatedCheckpoint,
+					})
+				}
 				a.postCommitEvent(&common.CommitEvent{
 					Block:                  block.Block,
 					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
