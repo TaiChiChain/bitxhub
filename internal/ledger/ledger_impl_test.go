@@ -33,6 +33,7 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/kv/leveldb"
 	"github.com/axiomesh/axiom-kit/storage/kv/pebble"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/prune"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
@@ -2259,6 +2260,25 @@ func TestStateLedger_IterateEOATrie(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, block5.Header.StateRoot.String(), meta.BlockHeader.StateRoot.String())
 	})
+
+	t.Run("wrong block", func(t *testing.T) {
+		// iterate trie of block 100
+		block5 := &types.Block{
+			Header: &types.BlockHeader{
+				Number:    100,
+				StateRoot: stateRoot5,
+			},
+		}
+		s5 := kv.NewMemory()
+		errC5 := make(chan error)
+		go sl.IterateTrie(&SnapshotMeta{BlockHeader: block5.Header, EpochInfo: &types.EpochInfo{
+			Epoch: 1,
+		}, Nodes: &consensus.QuorumValidators{Validators: []*consensus.QuorumValidator{{Id: 1, PeerId: "P2PNodeID-1"}}}}, s5, errC5)
+		err, ok := <-errC5
+		assert.True(t, ok)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), prune.ErrorRollbackToHigherNumber.Error())
+	})
 }
 
 func TestStateLedger_IterateStorageTrie(t *testing.T) {
@@ -2696,6 +2716,9 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check snapshot in block 1
+		min, max := snap.GetJournalRange()
+		assert.Equal(t, min, uint64(1))
+		assert.Equal(t, max, uint64(1))
 		val, err := snap.Storage(account1, []byte("k1"))
 		assert.Nil(t, err)
 		assert.Equal(t, val, []byte("v1"))
@@ -2722,6 +2745,9 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check snapshot in block 2
+		min, max := snap.GetJournalRange()
+		assert.Equal(t, min, uint64(2))
+		assert.Equal(t, max, uint64(2))
 		val, err := snap.Storage(account1, []byte("k1"))
 		assert.Nil(t, err)
 		assert.Equal(t, val, []byte("v1"))
@@ -2755,6 +2781,9 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check snapshot in block 3
+		min, max := snap.GetJournalRange()
+		assert.Equal(t, min, uint64(3))
+		assert.Equal(t, max, uint64(3))
 		val, err := snap.Storage(account1, []byte("k1"))
 		assert.Nil(t, err)
 		assert.Equal(t, val, []byte("v1"))
@@ -2788,6 +2817,9 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		assert.Nil(t, err)
 
 		// check snapshot in block 4
+		min, max := snap.GetJournalRange()
+		assert.Equal(t, min, uint64(4))
+		assert.Equal(t, max, uint64(4))
 		val, err := snap.Storage(account1, []byte("k1"))
 		assert.Nil(t, err)
 		assert.Equal(t, val, []byte("v1"))
@@ -2802,6 +2834,24 @@ func TestStateLedger_GenerateSnapshotFromTrie(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, acc.Nonce, uint64(7))
 		assert.Equal(t, acc.Balance.Uint64(), uint64(6))
+	})
+
+	t.Run("wrong block", func(t *testing.T) {
+		// iterate trie of block 100
+		block4 := &types.Block{
+			Header: &types.BlockHeader{
+				Number:    100,
+				StateRoot: stateRoot4,
+			},
+		}
+		snap := newSnapshot(createMockRepo(t))
+		sl.snapshot = snap
+		errC := make(chan error)
+		go sl.GenerateSnapshot(block4.Header, errC)
+		err, ok := <-errC
+		assert.True(t, ok)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), prune.ErrorRollbackToHigherNumber.Error())
 	})
 }
 

@@ -513,6 +513,26 @@ func rollback(ctx *cli.Context) error {
 	}
 	logger := loggers.Logger(loggers.App)
 
+	// back up storage dir
+	backupStorageDir := path.Join(r.RepoRoot, "storage-backup")
+	if !ledgerSimpleRollbackArgs.DisableBackup {
+		if fileutil.Exist(backupStorageDir) {
+			if !ledgerSimpleRollbackArgs.Force {
+				return errors.Errorf("backup dir %s already exists\n", backupStorageDir)
+			}
+			if err := os.RemoveAll(backupStorageDir); err != nil {
+				return err
+			}
+		}
+		if err := os.MkdirAll(backupStorageDir, os.ModePerm); err != nil {
+			return errors.Errorf("mkdir storage-backup dir error: %v", err.Error())
+		}
+		if err := copyDir(repo.GetStoragePath(r.RepoRoot), backupStorageDir); err != nil {
+			return errors.Errorf("backup original storage dir error: %v", err.Error())
+		}
+		logger.Infof("backup original storage success")
+	}
+
 	logger.Infof("This operation will REMOVE original snapshot/consensus/epoch data, and MODIFY original ledger/blockchain/blockfile, you'd better back up those data if you need. Continue? y/n\n")
 	if err := common.WaitUserConfirm(); err != nil {
 		return err
@@ -523,9 +543,6 @@ func rollback(ctx *cli.Context) error {
 		return err
 	}
 	if err := os.RemoveAll(repo.GetStoragePath(r.RepoRoot, storagemgr.Consensus)); err != nil {
-		return err
-	}
-	if err := os.RemoveAll(repo.GetStoragePath(r.RepoRoot, storagemgr.Epoch)); err != nil {
 		return err
 	}
 	logger.Infof("remove original snapshot successfully")
@@ -541,8 +558,8 @@ func rollback(ctx *cli.Context) error {
 
 	// check if target height is legal
 	targetBlockNumber := ledgerSimpleRollbackArgs.TargetBlockNumber
-	if targetBlockNumber <= 1 {
-		return errors.New("target-block-number must be greater than 1")
+	if targetBlockNumber < 0 {
+		return errors.New("target-block-number must be greater than or equal to 0")
 	}
 	chainMeta := originChainLedger.GetChainMeta()
 	if targetBlockNumber >= chainMeta.Height {
@@ -555,42 +572,19 @@ func rollback(ctx *cli.Context) error {
 		}
 	}
 
-	rollbackDir := path.Join(r.RepoRoot, fmt.Sprintf("storage-rollback-%d", targetBlockNumber))
-	force := ledgerSimpleRollbackArgs.Force
-	if !ledgerSimpleRollbackArgs.DisableBackup {
-		if fileutil.Exist(rollbackDir) {
-			if !force {
-				return errors.Errorf("rollback dir %s already exists\n", rollbackDir)
-			}
-			if err := os.RemoveAll(rollbackDir); err != nil {
-				return err
-			}
-		}
-	}
-
 	targetBlockHeader, err := originChainLedger.GetBlockHeader(targetBlockNumber)
 	if err != nil {
 		return fmt.Errorf("get target block failed: %w", err)
 	}
-	if force {
-		if !ledgerSimpleRollbackArgs.DisableBackup {
-			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash(), rollbackDir)
-		} else {
-			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash())
-		}
-	} else {
-		if !ledgerSimpleRollbackArgs.DisableBackup {
-			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, rollback storage dir: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash(), rollbackDir)
-		} else {
-			logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash())
-		}
-		if err := common.WaitUserConfirm(); err != nil {
-			return err
-		}
+
+	logger.Infof("current chain meta info height: %d, hash: %s, will rollback to the target height %d, hash: %s, confirm? y/n\n", chainMeta.Height, chainMeta.BlockHash, targetBlockNumber, targetBlockHeader.Hash())
+	if err := common.WaitUserConfirm(); err != nil {
+		return err
 	}
 
 	// If we need to back up rollback info, then write rollback logs into rollback dir in KV format.
 	if !ledgerSimpleRollbackArgs.DisableBackup {
+		rollbackDir := path.Join(backupStorageDir, "rollback-log")
 		rollbackStorage, err := storagemgr.Open(rollbackDir)
 		if err != nil {
 			return fmt.Errorf("create rollback log dir failed: %w", err)
@@ -635,6 +629,14 @@ func rollback(ctx *cli.Context) error {
 		batch.Commit()
 	}
 
+	// wait for generating snapshot of target block
+	errC := make(chan error)
+	go originStateLedger.GenerateSnapshot(targetBlockHeader, errC)
+	err = <-errC
+	if err != nil {
+		return fmt.Errorf("generate snapshot failed: %w", err)
+	}
+
 	// rollback directly on the original ledger
 	if err := originChainLedger.RollbackBlockChain(targetBlockNumber); err != nil {
 		return errors.Errorf("rollback chain ledger error: %v", err.Error())
@@ -645,14 +647,6 @@ func rollback(ctx *cli.Context) error {
 	}
 
 	logger.Info("rollback chain ledger and state ledger success")
-
-	// wait for generating snapshot of target block
-	errC := make(chan error)
-	go originStateLedger.GenerateSnapshot(targetBlockHeader, errC)
-	err = <-errC
-	if err != nil {
-		return fmt.Errorf("generate snapshot failed: %w", err)
-	}
 
 	return nil
 }
@@ -704,7 +698,7 @@ func generateTrie(ctx *cli.Context) error {
 		return fmt.Errorf("get block failed: %w", err)
 	}
 
-	targetStateStoragePath := path.Join(repo.GetStoragePath(r.RepoRoot, storagemgr.Sync), ledgerGenerateTrieArgs.TargetStoragePath)
+	targetStateStoragePath := path.Join(r.RepoRoot, ledgerGenerateTrieArgs.TargetStoragePath)
 	targetStateStorage, err := storagemgr.Open(targetStateStoragePath)
 	if err != nil {
 		return fmt.Errorf("create targetStateStorage: %w", err)

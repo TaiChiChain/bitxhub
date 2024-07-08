@@ -64,6 +64,7 @@ func (snap *Snapshot) RemoveJournalsBeforeBlock(height uint64) error {
 	for i := minHeight; i < height; i++ {
 		batch.Delete(utils.CompositeKey(utils.SnapshotKey, i))
 	}
+	snap.logger.Infof("[RemoveJournalsBeforeBlock] remove snapshot journals before block %v", height)
 	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalUint64(height))
 	batch.Commit()
 
@@ -175,6 +176,9 @@ func (snap *Snapshot) Update(height uint64, journal *types.SnapshotJournal, dest
 
 // Rollback removes snapshot journals whose block number < height
 func (snap *Snapshot) Rollback(height uint64) error {
+	snap.lock.Lock()
+	defer snap.lock.Unlock()
+
 	if snap.contractSnapshotCache != nil {
 		snap.contractSnapshotCache.Reset()
 	}
