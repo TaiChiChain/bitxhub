@@ -107,19 +107,12 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.ledger.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, block.Height())
 	currentFromStart := time.Now()
 	receipts := exec.applyTransactions(block.Transactions, block.Height())
+	evmExecuteBlockDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 	exec.logger.WithFields(logrus.Fields{
 		"time":   time.Since(currentFromStart),
 		"height": block.Height(),
 		"count":  len(block.Transactions),
 	}).Info("[Serial-Execute-Block]")
-	exec.count = exec.count + time.Since(currentFromStart)
-	if block.Height()%100 == 0 {
-		exec.logger.WithFields(logrus.Fields{
-			"countTime": exec.count,
-			"height":    block.Height(),
-		}).Info("[Serial-Execute-Block-Every-100]")
-		exec.count = time.Duration(0)
-	}
 
 	totalGasFee := new(big.Int)
 	for i, receipt := range receipts {
@@ -295,19 +288,12 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 	if err != nil {
 		panic(err)
 	}
+	evmExecuteBlockDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 	exec.logger.WithFields(logrus.Fields{
 		"time":   time.Since(currentFromStart),
 		"height": block.Height(),
 		"count":  len(block.Transactions),
 	}).Info("[Paraller-Execute-Block]")
-	exec.count = exec.count + time.Since(currentFromStart)
-	if block.Height()%100 == 0 {
-		exec.logger.WithFields(logrus.Fields{
-			"countTime": exec.count,
-			"height":    block.Height(),
-		}).Info("[Paraller-Execute-Block-Every-100]")
-		exec.count = time.Duration(0)
-	}
 
 	gasUsedCaculate := 0
 	totalGasFee := new(big.Int)

@@ -19,6 +19,7 @@ package executor
 import (
 	"context"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -26,6 +27,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -253,6 +256,29 @@ func (task *ExecutionTask) Settle() {
 		receipt.ContractAddress = types.NewAddress(crypto.CreateAddress(task.msg.From, task.tx.GetNonce()).Bytes())
 	}
 
+	//same as serial-execute
+	if task.result.Failed() {
+		if len(task.result.Revert()) > 0 {
+			reason, errUnpack := abi.UnpackRevert(task.result.Revert())
+			if errUnpack == nil {
+				task.logger.Warnf("execute tx failed: %s: %s", task.result.Err.Error(), reason)
+			} else {
+				task.logger.Warnf("execute tx failed: %s", task.result.Err.Error())
+			}
+		} else {
+			task.logger.Warnf("execute tx failed: %s", task.result.Err.Error())
+		}
+
+		receipt.Status = types.ReceiptFAILED
+		receipt.Ret = []byte(task.result.Err.Error())
+		if strings.HasPrefix(task.result.Err.Error(), vm.ErrExecutionReverted.Error()) {
+			receipt.Ret = append(receipt.Ret, common.CopyBytes(task.result.ReturnData)...)
+		}
+	} else {
+		receipt.Status = types.ReceiptSUCCESS
+		receipt.Ret = task.result.Return()
+	}
+
 	// Set the receipt logs and create the bloom filter.
 	receipt.EvmLogs = task.finalStateDB.GetLogs(*task.tx.GetHash(), task.blockNumber.Uint64())
 	receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
@@ -365,7 +391,6 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 
 	p.logger.Info("blockstm.ExecuteParallel")
 	result, err := blockstm.ExecuteParallel(tasks, profile, metadata, p.parallelSpeculativeProcesses, interruptCtx)
-
 	if err == nil && profile && result.Deps != nil {
 		_, weight := result.Deps.LongestPath(*result.Stats)
 

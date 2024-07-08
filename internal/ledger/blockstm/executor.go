@@ -9,10 +9,8 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/sirupsen/logrus"
 )
-
-var logger = loggers.Logger(loggers.Executor)
 
 type ExecResult struct {
 	err      error
@@ -245,6 +243,10 @@ type ParallelExecutor struct {
 
 	// Worker wait group
 	workerWg sync.WaitGroup
+
+	executeMap map[int]int
+
+	log logrus.FieldLogger
 }
 
 type ExecutionStat struct {
@@ -293,6 +295,8 @@ func NewParallelExecutor(tasks []ExecTask, profile bool, metadata bool, numProcs
 		preValidated:        make(map[int]bool),
 		begin:               time.Now(),
 		profile:             profile,
+		executeMap:          make(map[int]int),
+		log:                 loggers.Logger(loggers.Executor),
 	}
 
 	return pe
@@ -368,11 +372,14 @@ func (pe *ParallelExecutor) Prepare() error {
 
 			if procNum < pe.numSpeculativeProcs {
 				for range pe.chSpeculativeTasks {
-					doWork(pe.specTaskQueue.Pop().(ExecVersionView))
+					execVersionView := pe.specTaskQueue.Pop().(ExecVersionView)
+					doWork(execVersionView)
+					pe.executeMap[procNum]++
 				}
 			} else {
 				for task := range pe.chTasks {
 					doWork(task)
+					pe.executeMap[procNum]++
 				}
 			}
 		}(i)
@@ -556,7 +563,7 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 	}
 
 	if pe.validateTasks.countComplete() == len(pe.tasks) && pe.execTasks.countComplete() == len(pe.tasks) {
-		log.Debug("blockstm exec summary", "execs", pe.cntExec, "success", pe.cntSuccess, "aborts", pe.cntAbort, "validations", pe.cntTotalValidations, "failures", pe.cntValidationFail, "#tasks/#execs", fmt.Sprintf("%.2f%%", float64(len(pe.tasks))/float64(pe.cntExec)*100))
+		pe.log.Info("blockstm exec summary", "execs:", pe.cntExec, ",success:", pe.cntSuccess, ",aborts:", pe.cntAbort, ",validations:", pe.cntTotalValidations, ",failures:", pe.cntValidationFail, ",#tasks/#execs:", fmt.Sprintf("%.2f%%", float64(len(pe.tasks))/float64(pe.cntExec)*100))
 
 		pe.Close(true)
 
@@ -609,6 +616,9 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 	}
 
 	pe := NewParallelExecutor(tasks, profile, metadata, numProcs)
+	defer func() {
+		pe.log.Info("execute count:", pe.executeMap)
+	}()
 	err = pe.Prepare()
 
 	if err != nil {

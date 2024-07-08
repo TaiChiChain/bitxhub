@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
@@ -56,10 +55,6 @@ type BlockExecutor struct {
 	afterBlockHooks []AfterBlockHook
 
 	enableParallelExecute bool
-
-	//to do
-	//delete time.duration
-	count time.Duration
 }
 
 // New creates executor instance
@@ -80,7 +75,6 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 		rep:                   rep,
 		gasLimit:              rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
 		enableParallelExecute: rep.Config.EnableParallel,
-		count:                 time.Duration(0),
 	}
 
 	blockExecutor.evm = newEvm(1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")
