@@ -297,7 +297,12 @@ func TestNodeManager_LifeCycleOfNode(t *testing.T) {
 		assert.Nil(t, err)
 		_, err = epochManagerContract.TurnIntoNewEpoch()
 		assert.Nil(t, err)
+		// min exit node number is 1
 		err = nodeManagerContract.Exit(node5ID)
+		assert.Nil(t, err)
+
+		nodeManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[3])
+		err = nodeManagerContract.Exit(4)
 		assert.ErrorContains(t, err, "PendingInactiveSetIsFull")
 	})
 

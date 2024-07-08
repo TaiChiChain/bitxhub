@@ -320,3 +320,127 @@ func TestStakingManager_UpdatePoolCommissionRate(t *testing.T) {
 	err = newStakingManagerContract.UpdatePoolCommissionRate(1, 1)
 	assert.Nil(t, err)
 }
+
+func Test_stakingManager_ValidatorActivelyOrPassivelyExit(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+	testNVM.Rep = repo.MockRepoWithNodeID(t, 5, 1, []bool{false, false, false, false, false}, []*types.CoinNumber{types.CoinNumberByAxc(1000), types.CoinNumberByAxc(1000), types.CoinNumberByAxc(1000), types.CoinNumberByAxc(1000), types.CoinNumberByAxc(1000)})
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinValidatorStake = types.CoinNumberByAxc(900)
+
+	epochManagerContract := EpochManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	nodeManagerContract := NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	stakingManagerContract := StakingManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcContract := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	liquidStakingTokenContract := LiquidStakingTokenBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcContract, epochManagerContract, liquidStakingTokenContract, nodeManagerContract, stakingManagerContract)
+
+	// / first exit node5, then node4 unlock and active stake not enough
+	testNVM.Call(stakingManagerContract, ethcommon.Address{}, func() {
+		nodeManagerContract.SetContext(stakingManagerContract.Ctx)
+		nodeManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[4])
+		err := nodeManagerContract.Exit(5)
+		assert.Nil(t, err)
+
+		poolInfo, err := stakingManagerContract.GetPoolInfo(4)
+		assert.Nil(t, err)
+
+		stakingManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[3])
+		err = stakingManagerContract.Unlock(poolInfo.OperatorLiquidStakingTokenID, types.CoinNumberByAxc(200).ToBigInt())
+		assert.ErrorContains(t, err, "less than min validator number")
+	})
+
+	// / first node4 unlock and active stake not enough, then exit node5
+	testNVM.Call(stakingManagerContract, ethcommon.Address{}, func() {
+		poolInfo, err := stakingManagerContract.GetPoolInfo(4)
+		assert.Nil(t, err)
+
+		stakingManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[3])
+		err = stakingManagerContract.Unlock(poolInfo.OperatorLiquidStakingTokenID, types.CoinNumberByAxc(200).ToBigInt())
+		assert.Nil(t, err)
+
+		nodeManagerContract.SetContext(stakingManagerContract.Ctx)
+		nodeManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[4])
+		err = nodeManagerContract.Exit(5)
+		assert.ErrorContains(t, err, "less than min validator number")
+	})
+
+	// check unlock stake and re add stake
+	testNVM.RunSingleTX(stakingManagerContract, ethcommon.Address{}, func() error {
+		poolInfo, err := stakingManagerContract.GetPoolInfo(4)
+		assert.Nil(t, err)
+		stakingManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[3])
+		// first unlock
+		err = stakingManagerContract.Unlock(poolInfo.OperatorLiquidStakingTokenID, types.CoinNumberByAxc(200).ToBigInt())
+		assert.Nil(t, err)
+
+		currentEpochTotalStakeNotEnoughValidators, err := stakingManagerContract.GetCurrentEpochTotalStakeNotEnoughValidators()
+		assert.Nil(t, err)
+		assert.EqualValues(t, []uint64{4}, currentEpochTotalStakeNotEnoughValidators)
+		return err
+	})
+
+	testNVM.Call(stakingManagerContract, ethcommon.Address{}, func() {
+		nodeManagerContract.SetContext(stakingManagerContract.Ctx)
+		nodeManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[4])
+		// cannot exit by
+		err := nodeManagerContract.Exit(5)
+		assert.ErrorContains(t, err, "less than min validator number")
+	})
+	testNVM.RunSingleTX(stakingManagerContract, ethcommon.Address{}, func() error {
+		stakingManagerContract.Ctx.Value = types.CoinNumberByAxc(200).ToBigInt()
+		stakingManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[3])
+		// re add stake
+		err := stakingManagerContract.AddStake(4, stakingManagerContract.Ctx.From, types.CoinNumberByAxc(200).ToBigInt())
+		assert.Nil(t, err)
+
+		currentEpochTotalStakeNotEnoughValidators, err := stakingManagerContract.GetCurrentEpochTotalStakeNotEnoughValidators()
+		assert.Nil(t, err)
+		assert.EqualValues(t, []uint64{}, currentEpochTotalStakeNotEnoughValidators)
+		return err
+	})
+	testNVM.Call(stakingManagerContract, ethcommon.Address{}, func() {
+		nodeManagerContract.SetContext(stakingManagerContract.Ctx)
+		nodeManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[4])
+		// can exit
+		err := nodeManagerContract.Exit(5)
+		assert.Nil(t, err)
+	})
+
+	// check epoch reset
+	testNVM.RunSingleTX(stakingManagerContract, ethcommon.Address{}, func() error {
+		poolInfo, err := stakingManagerContract.GetPoolInfo(3)
+		assert.Nil(t, err)
+		stakingManagerContract.Ctx.From = ethcommon.HexToAddress(repo.MockOperatorAddrs[2])
+		// first unlock
+		err = stakingManagerContract.Unlock(poolInfo.OperatorLiquidStakingTokenID, types.CoinNumberByAxc(200).ToBigInt())
+		assert.Nil(t, err)
+
+		currentEpochTotalStakeNotEnoughValidators, err := stakingManagerContract.GetCurrentEpochTotalStakeNotEnoughValidators()
+		assert.Nil(t, err)
+		assert.EqualValues(t, []uint64{3}, currentEpochTotalStakeNotEnoughValidators)
+		return err
+	})
+	turnIntoNewEpoch := func() {
+		testNVM.RunSingleTX(stakingManagerContract, ethcommon.Address{}, func() error {
+			epochManagerContract.SetContext(stakingManagerContract.Ctx)
+			stakingManagerContract.SetContext(stakingManagerContract.Ctx)
+
+			oldEpoch, err := epochManagerContract.CurrentEpoch()
+			assert.Nil(t, err)
+			// turn into new epoch
+			newEpoch, err := epochManagerContract.TurnIntoNewEpoch()
+			assert.Nil(t, err)
+
+			err = stakingManagerContract.TurnIntoNewEpoch(oldEpoch.ToTypesEpoch(), newEpoch.ToTypesEpoch())
+			assert.Nil(t, err)
+			return err
+		})
+	}
+	turnIntoNewEpoch()
+	testNVM.Call(stakingManagerContract, ethcommon.Address{}, func() {
+		// reset
+		currentEpochTotalStakeNotEnoughValidators, err := stakingManagerContract.GetCurrentEpochTotalStakeNotEnoughValidators()
+		assert.Nil(t, err)
+		assert.EqualValues(t, []uint64{}, currentEpochTotalStakeNotEnoughValidators)
+	})
+}

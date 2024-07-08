@@ -559,7 +559,10 @@ func (n *NodeManager) Exit(nodeID uint64) error {
 				new(big.Float).SetUint64(epochInfo.StakeParams.MaxPendingInactiveValidatorRatio),
 				big.NewFloat(CommissionRateDenominator),
 			)).Float64()
-		maxPendingInactiveNumber := uint64(math.Ceil(maxPendingInactiveNumberFloat))
+		maxPendingInactiveNumber := uint64(math.Floor(maxPendingInactiveNumberFloat))
+		if maxPendingInactiveNumber == 0 {
+			maxPendingInactiveNumber = 1
+		}
 		// check if the pending inactive set still has sparse space to leave
 		if uint64(len(pendingInactiveSet)) >= maxPendingInactiveNumber {
 			return n.Revert(&node_manager.ErrorPendingInactiveSetIsFull{})
@@ -574,6 +577,23 @@ func (n *NodeManager) Exit(nodeID uint64) error {
 		if err = n.operatorTransferStatus(types.NodeStatusActive, types.NodeStatusPendingInactive, nodeInfo); err != nil {
 			return err
 		}
+
+		validatorIDSet, err := n.GetActiveValidatorIDSet()
+		if err != nil {
+			return err
+		}
+		pendingInactiveIDSet, err := n.GetPendingInactiveIDSet()
+		if err != nil {
+			return err
+		}
+		// check remain validators
+		stakingManager := StakingManagerBuildConfig.Build(n.CrossCallSystemContractContext())
+		if err := stakingManager.checkNextEpochValidatorActiveStake(epochInfo, len(validatorIDSet), map[uint64]struct{}{}, lo.SliceToMap(pendingInactiveIDSet, func(item uint64) (uint64, struct{}) {
+			return item, struct{}{}
+		})); err != nil {
+			return err
+		}
+
 		n.EmitEvent(&node_manager.EventExit{NodeID: nodeID})
 		return nil
 	case types.NodeStatusCandidate, types.NodeStatusDataSyncer:

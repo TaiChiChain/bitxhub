@@ -56,7 +56,7 @@ type PoolInfo struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"remain\",\"type\":\"uint256\"}],\"name\":\"AddStakeReachEpochLimit\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"remain\",\"type\":\"uint256\"}],\"name\":\"UnlockStakeReachEpochLimit\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"}],\"name\":\"AddStake\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"unlockTimestamp\",\"type\":\"uint64\"}],\"name\":\"Unlock\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"addStake\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"liquidStakingTokenIDs\",\"type\":\"uint256[]\"},{\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"batchUnlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"liquidStakingTokenIDs\",\"type\":\"uint256[]\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"batchWithdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"}],\"name\":\"getPoolHistoryLiquidStakingTokenRate\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"StakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LiquidStakingTokenAmount\",\"type\":\"uint256\"}],\"internalType\":\"structLiquidStakingTokenRate\",\"name\":\"poolHistoryLiquidStakingTokenRate\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"poolIDs\",\"type\":\"uint64[]\"},{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"}],\"name\":\"getPoolHistoryLiquidStakingTokenRates\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"StakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LiquidStakingTokenAmount\",\"type\":\"uint256\"}],\"internalType\":\"structLiquidStakingTokenRate[]\",\"name\":\"poolHistoryLiquidStakingTokenRate\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"}],\"name\":\"getPoolInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"IsActive\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"ActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"TotalLiquidStakingToken\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveLiquidStakingTokenAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"CommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"NextEpochCommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"OperatorLiquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"LastRateEpoch\",\"type\":\"uint64\"}],\"internalType\":\"structPoolInfo\",\"name\":\"poolInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"poolIDs\",\"type\":\"uint64[]\"}],\"name\":\"getPoolInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"IsActive\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"ActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"TotalLiquidStakingToken\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveLiquidStakingTokenAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"CommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"NextEpochCommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"OperatorLiquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"LastRateEpoch\",\"type\":\"uint64\"}],\"internalType\":\"structPoolInfo[]\",\"name\":\"poolInfos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"newCommissionRate\",\"type\":\"uint64\"}],\"name\":\"updatePoolCommissionRate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"remain\",\"type\":\"uint256\"}],\"name\":\"AddStakeReachEpochLimit\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"remain\",\"type\":\"uint256\"}],\"name\":\"UnlockStakeReachEpochLimit\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"}],\"name\":\"AddStake\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint64\",\"name\":\"unlockTimestamp\",\"type\":\"uint64\"}],\"name\":\"Unlock\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"Withdraw\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"addStake\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"liquidStakingTokenIDs\",\"type\":\"uint256[]\"},{\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"batchUnlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256[]\",\"name\":\"liquidStakingTokenIDs\",\"type\":\"uint256[]\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256[]\",\"name\":\"amounts\",\"type\":\"uint256[]\"}],\"name\":\"batchWithdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentEpochTotalAddStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"currentEpochTotalAddStake\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentEpochTotalStakeNotEnoughValidators\",\"outputs\":[{\"internalType\":\"uint64[]\",\"name\":\"currentEpochTotalStakeNotEnoughValidators\",\"type\":\"uint64[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCurrentEpochTotalUnlockStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"currentEpochTotalUnlockStake\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastEpochTotalStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"lastEpochTotalStake\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"}],\"name\":\"getPoolHistoryLiquidStakingTokenRate\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"StakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LiquidStakingTokenAmount\",\"type\":\"uint256\"}],\"internalType\":\"structLiquidStakingTokenRate\",\"name\":\"poolHistoryLiquidStakingTokenRate\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"poolIDs\",\"type\":\"uint64[]\"},{\"internalType\":\"uint64\",\"name\":\"epoch\",\"type\":\"uint64\"}],\"name\":\"getPoolHistoryLiquidStakingTokenRates\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"StakeAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LiquidStakingTokenAmount\",\"type\":\"uint256\"}],\"internalType\":\"structLiquidStakingTokenRate[]\",\"name\":\"poolHistoryLiquidStakingTokenRate\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"}],\"name\":\"getPoolInfo\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"IsActive\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"ActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"TotalLiquidStakingToken\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveLiquidStakingTokenAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"CommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"NextEpochCommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"OperatorLiquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"LastRateEpoch\",\"type\":\"uint64\"}],\"internalType\":\"structPoolInfo\",\"name\":\"poolInfo\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64[]\",\"name\":\"poolIDs\",\"type\":\"uint64[]\"}],\"name\":\"getPoolInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"ID\",\"type\":\"uint64\"},{\"internalType\":\"bool\",\"name\":\"IsActive\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"ActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"TotalLiquidStakingToken\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingActiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveStake\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"PendingInactiveLiquidStakingTokenAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"CommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"NextEpochCommissionRate\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"LastEpochCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeReward\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"CumulativeCommission\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"OperatorLiquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"LastRateEpoch\",\"type\":\"uint64\"}],\"internalType\":\"structPoolInfo[]\",\"name\":\"poolInfos\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getTotalStake\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"totalStake\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"unlock\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"poolID\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"newCommissionRate\",\"type\":\"uint64\"}],\"name\":\"updatePoolCommissionRate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"liquidStakingTokenID\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdraw\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -205,6 +205,130 @@ func (_BindingContract *BindingContractTransactorRaw) Transact(opts *bind.Transa
 	return _BindingContract.Contract.contract.Transact(opts, method, params...)
 }
 
+// GetCurrentEpochTotalAddStake is a free data retrieval call binding the contract method 0x7a7ee15b.
+//
+// Solidity: function getCurrentEpochTotalAddStake() view returns(uint256 currentEpochTotalAddStake)
+func (_BindingContract *BindingContractCaller) GetCurrentEpochTotalAddStake(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getCurrentEpochTotalAddStake")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetCurrentEpochTotalAddStake is a free data retrieval call binding the contract method 0x7a7ee15b.
+//
+// Solidity: function getCurrentEpochTotalAddStake() view returns(uint256 currentEpochTotalAddStake)
+func (_BindingContract *BindingContractSession) GetCurrentEpochTotalAddStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetCurrentEpochTotalAddStake(&_BindingContract.CallOpts)
+}
+
+// GetCurrentEpochTotalAddStake is a free data retrieval call binding the contract method 0x7a7ee15b.
+//
+// Solidity: function getCurrentEpochTotalAddStake() view returns(uint256 currentEpochTotalAddStake)
+func (_BindingContract *BindingContractCallerSession) GetCurrentEpochTotalAddStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetCurrentEpochTotalAddStake(&_BindingContract.CallOpts)
+}
+
+// GetCurrentEpochTotalStakeNotEnoughValidators is a free data retrieval call binding the contract method 0xcdc29054.
+//
+// Solidity: function getCurrentEpochTotalStakeNotEnoughValidators() view returns(uint64[] currentEpochTotalStakeNotEnoughValidators)
+func (_BindingContract *BindingContractCaller) GetCurrentEpochTotalStakeNotEnoughValidators(opts *bind.CallOpts) ([]uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getCurrentEpochTotalStakeNotEnoughValidators")
+
+	if err != nil {
+		return *new([]uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]uint64)).(*[]uint64)
+
+	return out0, err
+
+}
+
+// GetCurrentEpochTotalStakeNotEnoughValidators is a free data retrieval call binding the contract method 0xcdc29054.
+//
+// Solidity: function getCurrentEpochTotalStakeNotEnoughValidators() view returns(uint64[] currentEpochTotalStakeNotEnoughValidators)
+func (_BindingContract *BindingContractSession) GetCurrentEpochTotalStakeNotEnoughValidators() ([]uint64, error) {
+	return _BindingContract.Contract.GetCurrentEpochTotalStakeNotEnoughValidators(&_BindingContract.CallOpts)
+}
+
+// GetCurrentEpochTotalStakeNotEnoughValidators is a free data retrieval call binding the contract method 0xcdc29054.
+//
+// Solidity: function getCurrentEpochTotalStakeNotEnoughValidators() view returns(uint64[] currentEpochTotalStakeNotEnoughValidators)
+func (_BindingContract *BindingContractCallerSession) GetCurrentEpochTotalStakeNotEnoughValidators() ([]uint64, error) {
+	return _BindingContract.Contract.GetCurrentEpochTotalStakeNotEnoughValidators(&_BindingContract.CallOpts)
+}
+
+// GetCurrentEpochTotalUnlockStake is a free data retrieval call binding the contract method 0x5a0db463.
+//
+// Solidity: function getCurrentEpochTotalUnlockStake() view returns(uint256 currentEpochTotalUnlockStake)
+func (_BindingContract *BindingContractCaller) GetCurrentEpochTotalUnlockStake(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getCurrentEpochTotalUnlockStake")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetCurrentEpochTotalUnlockStake is a free data retrieval call binding the contract method 0x5a0db463.
+//
+// Solidity: function getCurrentEpochTotalUnlockStake() view returns(uint256 currentEpochTotalUnlockStake)
+func (_BindingContract *BindingContractSession) GetCurrentEpochTotalUnlockStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetCurrentEpochTotalUnlockStake(&_BindingContract.CallOpts)
+}
+
+// GetCurrentEpochTotalUnlockStake is a free data retrieval call binding the contract method 0x5a0db463.
+//
+// Solidity: function getCurrentEpochTotalUnlockStake() view returns(uint256 currentEpochTotalUnlockStake)
+func (_BindingContract *BindingContractCallerSession) GetCurrentEpochTotalUnlockStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetCurrentEpochTotalUnlockStake(&_BindingContract.CallOpts)
+}
+
+// GetLastEpochTotalStake is a free data retrieval call binding the contract method 0x424d4f85.
+//
+// Solidity: function getLastEpochTotalStake() view returns(uint256 lastEpochTotalStake)
+func (_BindingContract *BindingContractCaller) GetLastEpochTotalStake(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getLastEpochTotalStake")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetLastEpochTotalStake is a free data retrieval call binding the contract method 0x424d4f85.
+//
+// Solidity: function getLastEpochTotalStake() view returns(uint256 lastEpochTotalStake)
+func (_BindingContract *BindingContractSession) GetLastEpochTotalStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetLastEpochTotalStake(&_BindingContract.CallOpts)
+}
+
+// GetLastEpochTotalStake is a free data retrieval call binding the contract method 0x424d4f85.
+//
+// Solidity: function getLastEpochTotalStake() view returns(uint256 lastEpochTotalStake)
+func (_BindingContract *BindingContractCallerSession) GetLastEpochTotalStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetLastEpochTotalStake(&_BindingContract.CallOpts)
+}
+
 // GetPoolHistoryLiquidStakingTokenRate is a free data retrieval call binding the contract method 0x222b3405.
 //
 // Solidity: function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) view returns((uint256,uint256) poolHistoryLiquidStakingTokenRate)
@@ -327,6 +451,37 @@ func (_BindingContract *BindingContractSession) GetPoolInfos(poolIDs []uint64) (
 // Solidity: function getPoolInfos(uint64[] poolIDs) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256,uint256,uint256,uint64)[] poolInfos)
 func (_BindingContract *BindingContractCallerSession) GetPoolInfos(poolIDs []uint64) ([]PoolInfo, error) {
 	return _BindingContract.Contract.GetPoolInfos(&_BindingContract.CallOpts, poolIDs)
+}
+
+// GetTotalStake is a free data retrieval call binding the contract method 0x7bc74225.
+//
+// Solidity: function getTotalStake() view returns(uint256 totalStake)
+func (_BindingContract *BindingContractCaller) GetTotalStake(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getTotalStake")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetTotalStake is a free data retrieval call binding the contract method 0x7bc74225.
+//
+// Solidity: function getTotalStake() view returns(uint256 totalStake)
+func (_BindingContract *BindingContractSession) GetTotalStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetTotalStake(&_BindingContract.CallOpts)
+}
+
+// GetTotalStake is a free data retrieval call binding the contract method 0x7bc74225.
+//
+// Solidity: function getTotalStake() view returns(uint256 totalStake)
+func (_BindingContract *BindingContractCallerSession) GetTotalStake() (*big.Int, error) {
+	return _BindingContract.Contract.GetTotalStake(&_BindingContract.CallOpts)
 }
 
 // AddStake is a paid mutator transaction binding the contract method 0xad899a39.
