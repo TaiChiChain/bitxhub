@@ -244,8 +244,6 @@ type ParallelExecutor struct {
 	// Worker wait group
 	workerWg sync.WaitGroup
 
-	executeMap map[int]int
-
 	log logrus.FieldLogger
 }
 
@@ -295,7 +293,6 @@ func NewParallelExecutor(tasks []ExecTask, profile bool, metadata bool, numProcs
 		preValidated:        make(map[int]bool),
 		begin:               time.Now(),
 		profile:             profile,
-		executeMap:          make(map[int]int),
 		log:                 loggers.Logger(loggers.Executor),
 	}
 
@@ -374,12 +371,10 @@ func (pe *ParallelExecutor) Prepare() error {
 				for range pe.chSpeculativeTasks {
 					execVersionView := pe.specTaskQueue.Pop().(ExecVersionView)
 					doWork(execVersionView)
-					pe.executeMap[procNum]++
 				}
 			} else {
 				for task := range pe.chTasks {
 					doWork(task)
-					pe.executeMap[procNum]++
 				}
 			}
 		}(i)
@@ -616,9 +611,6 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 	}
 
 	pe := NewParallelExecutor(tasks, profile, metadata, numProcs)
-	defer func() {
-		pe.log.Info("execute count:", pe.executeMap)
-	}()
 	err = pe.Prepare()
 
 	if err != nil {
