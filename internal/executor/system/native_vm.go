@@ -123,6 +123,8 @@ func (nvm *NativeVM) Run(data []byte, statefulArgs *vm.StatefulArgs) (execResult
 		return nil, ErrNotExistSystemContract
 	}
 	contractAddr := statefulArgs.To.Hex()
+	// convert all contract address to lower due to EIP-55
+	contractAddr = strings.ToLower(contractAddr)
 	contractBuildCfg := nvm.contractBuildConfigMap[contractAddr]
 	if contractBuildCfg == nil {
 		return nil, ErrNotExistSystemContract
