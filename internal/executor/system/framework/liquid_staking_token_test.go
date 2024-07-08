@@ -17,6 +17,7 @@ import (
 func TestLiquidStakingToken_stakeInfo(t *testing.T) {
 	testNVM := common.NewTestNVM(t)
 	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.EnablePartialUnlock = true
+	testNVM.Rep.GenesisConfig.EpochInfo.StakeParams.MinValidatorStake = types.CoinNumberByMol(1)
 	testNVM.Rep.GenesisConfig.Nodes[0].IsDataSyncer = false
 	testNVM.Rep.GenesisConfig.Nodes[0].StakeNumber = types.CoinNumberByMol(10000)
 	testNVM.Rep.GenesisConfig.Nodes[0].CommissionRate = 10000

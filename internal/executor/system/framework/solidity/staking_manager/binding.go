@@ -78,6 +78,26 @@ type StakingManager interface {
 	// Solidity: function withdraw(uint256 liquidStakingTokenID, address recipient, uint256 amount) returns()
 	Withdraw(liquidStakingTokenID *big.Int, recipient common.Address, amount *big.Int) error
 
+	// GetCurrentEpochTotalAddStake is a free data retrieval call binding the contract method 0x7a7ee15b.
+	//
+	// Solidity: function getCurrentEpochTotalAddStake() view returns(uint256 currentEpochTotalAddStake)
+	GetCurrentEpochTotalAddStake() (*big.Int, error)
+
+	// GetCurrentEpochTotalStakeNotEnoughValidators is a free data retrieval call binding the contract method 0xcdc29054.
+	//
+	// Solidity: function getCurrentEpochTotalStakeNotEnoughValidators() view returns(uint64[] currentEpochTotalStakeNotEnoughValidators)
+	GetCurrentEpochTotalStakeNotEnoughValidators() ([]uint64, error)
+
+	// GetCurrentEpochTotalUnlockStake is a free data retrieval call binding the contract method 0x5a0db463.
+	//
+	// Solidity: function getCurrentEpochTotalUnlockStake() view returns(uint256 currentEpochTotalUnlockStake)
+	GetCurrentEpochTotalUnlockStake() (*big.Int, error)
+
+	// GetLastEpochTotalStake is a free data retrieval call binding the contract method 0x424d4f85.
+	//
+	// Solidity: function getLastEpochTotalStake() view returns(uint256 lastEpochTotalStake)
+	GetLastEpochTotalStake() (*big.Int, error)
+
 	// GetPoolHistoryLiquidStakingTokenRate is a free data retrieval call binding the contract method 0x222b3405.
 	//
 	// Solidity: function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) view returns((uint256,uint256) poolHistoryLiquidStakingTokenRate)
@@ -97,6 +117,11 @@ type StakingManager interface {
 	//
 	// Solidity: function getPoolInfos(uint64[] poolIDs) view returns((uint64,bool,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint256,uint256,uint256,uint256,uint256,uint64)[] poolInfos)
 	GetPoolInfos(poolIDs []uint64) ([]PoolInfo, error)
+
+	// GetTotalStake is a free data retrieval call binding the contract method 0x7bc74225.
+	//
+	// Solidity: function getTotalStake() view returns(uint256 totalStake)
+	GetTotalStake() (*big.Int, error)
 }
 
 // EventAddStake represents a AddStake event raised by the StakingManager contract.

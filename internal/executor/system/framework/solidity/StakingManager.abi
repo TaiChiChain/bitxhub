@@ -175,6 +175,62 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getCurrentEpochTotalAddStake",
+    "outputs":
+    [
+      {
+        "internalType": "uint256",
+        "name": "currentEpochTotalAddStake",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getCurrentEpochTotalStakeNotEnoughValidators",
+    "outputs":
+    [
+      {
+        "internalType": "uint64[]",
+        "name": "currentEpochTotalStakeNotEnoughValidators",
+        "type": "uint64[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getCurrentEpochTotalUnlockStake",
+    "outputs":
+    [
+      {
+        "internalType": "uint256",
+        "name": "currentEpochTotalUnlockStake",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getLastEpochTotalStake",
+    "outputs":
+    [
+      {
+        "internalType": "uint256",
+        "name": "lastEpochTotalStake",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs":
     [
       {
@@ -445,6 +501,20 @@
         "internalType": "struct PoolInfo[]",
         "name": "poolInfos",
         "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTotalStake",
+    "outputs":
+    [
+      {
+        "internalType": "uint256",
+        "name": "totalStake",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",

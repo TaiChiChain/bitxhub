@@ -61,4 +61,14 @@ interface StakingManager {
     function getPoolHistoryLiquidStakingTokenRate(uint64 poolID, uint64 epoch) external view returns (LiquidStakingTokenRate memory poolHistoryLiquidStakingTokenRate);
 
     function getPoolHistoryLiquidStakingTokenRates(uint64[] memory poolIDs, uint64 epoch) external view returns (LiquidStakingTokenRate[] memory poolHistoryLiquidStakingTokenRate);
+
+    function getTotalStake() external view returns (uint256 totalStake);
+
+    function getLastEpochTotalStake() external view returns (uint256 lastEpochTotalStake);
+
+    function getCurrentEpochTotalAddStake() external view returns (uint256 currentEpochTotalAddStake);
+
+    function getCurrentEpochTotalUnlockStake() external view returns (uint256 currentEpochTotalUnlockStake);
+
+    function getCurrentEpochTotalStakeNotEnoughValidators() external view returns (uint64[] memory currentEpochTotalStakeNotEnoughValidators);
 }
