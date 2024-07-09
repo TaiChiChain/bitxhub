@@ -68,6 +68,13 @@ func main() {
 					Destination: &startArgs.Snapshot,
 					Required:    false,
 				},
+				&cli.StringSliceFlag{
+					Name:        "peers",
+					Usage:       "peers address",
+					Value:       &cli.StringSlice{},
+					Destination: &syncSnapshotArgs.remotePeers,
+					Required:    false,
+				},
 				common.KeystorePasswordFlag(),
 			},
 		},

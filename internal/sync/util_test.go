@@ -519,6 +519,10 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 		ledgers[msg.From].stateResponse <- msg
 		return nil
 	}).AnyTimes()
+
+	mock.EXPECT().GetConnectedPeers(gomock.Any()).DoAndReturn(func(peers []string) []string {
+		return peers
+	}).AnyTimes()
 }
 
 func genGenesisBlock() *types.Block {
@@ -573,8 +577,9 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		conf := repo.Sync{
 			RequesterRetryTimeout: repo.Duration(1 * time.Second),
 			TimeoutCountLimit:     5,
-			ConcurrencyLimit:      100,
+			ConcurrencyLimit:      10,
 			WaitStatesTimeout:     repo.Duration(100 * time.Second),
+			MaxChunkSize:          100,
 		}
 
 		getReceiptsFn := func(height uint64) ([]*types.Receipt, error) {

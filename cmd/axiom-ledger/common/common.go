@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/axiomesh/axiom-ledger/internal/app"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/term"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
-	"github.com/axiomesh/axiom-ledger/internal/app"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -140,4 +142,28 @@ func WaitUserConfirm() error {
 		return errors.New("interrupt by user")
 	}
 	return nil
+}
+
+func DecodePeers(peersStr []string) (*consensus.QuorumValidators, error) {
+	var peers []*consensus.QuorumValidator
+	if len(peersStr) == 0 {
+		return nil, errors.New("peers cannot be empty")
+	}
+	for _, p := range peersStr {
+		// spilt id and peerId by :
+		data := strings.Split(p, ":")
+		if len(data) != 2 {
+			return nil, fmt.Errorf("invalid peer: %s, should be id:peerId", p)
+		}
+		id, err := strconv.ParseUint(data[0], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		peers = append(peers, &consensus.QuorumValidator{
+			Id:     id,
+			PeerId: data[1],
+		})
+	}
+
+	return &consensus.QuorumValidators{Validators: peers}, nil
 }

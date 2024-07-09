@@ -182,20 +182,12 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-		snap, err = loadSnapMeta(rwLdg)
+		snap, err = loadSnapMeta(rwLdg, rep.SyncArgs)
 		if err != nil {
 			return nil, err
 		}
 		if snap.snapBlockHeader.Number == 0 {
 			return nil, errors.New("cannot start snap mode at block 0")
-		}
-		// verify whether trie snapshot is legal
-		verified, err := rwLdg.StateLedger.VerifyTrie(snap.snapBlockHeader)
-		if err != nil {
-			return nil, err
-		}
-		if !verified {
-			return nil, errors.New("verify snapshot trie failed")
 		}
 
 		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlockHeader: snap.snapBlockHeader.Clone()})

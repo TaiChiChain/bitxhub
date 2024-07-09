@@ -645,6 +645,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 
 				//
 				syncs[1].Stop()
+				syncs[0].conf.ConcurrencyLimit = 100
 				quorumCkpt100 := &consensus.SignedCheckpoint{
 					Checkpoint: &consensus.Checkpoint{
 						ExecuteState: &consensus.Checkpoint_ExecuteState{

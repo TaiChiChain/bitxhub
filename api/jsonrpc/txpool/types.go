@@ -11,12 +11,19 @@ var (
 )
 
 type ContentResponse struct {
-	Pending         map[string]map[string]*rpctypes.RPCTransaction `json:"pending"`
-	Queued          map[string]map[string]*rpctypes.RPCTransaction `json:"queued"`
-	TxCountLimit    uint64                                         `json:"txCountLimit"`
-	TxCount         uint64                                         `json:"txCount"`
-	ReadyTxCount    uint64                                         `json:"readyTxCount"`
-	NotReadyTxCount uint64                                         `json:"notReadyTxCount"`
+	Pending         map[string]map[string]PoolTxContent `json:"pending"`
+	Queued          map[string]map[string]PoolTxContent `json:"queued"`
+	TxCountLimit    uint64                              `json:"txCountLimit"`
+	TxCount         uint64                              `json:"txCount"`
+	ReadyTxCount    uint64                              `json:"readyTxCount"`
+	NotReadyTxCount uint64                              `json:"notReadyTxCount"`
+}
+
+type PoolTxContent struct {
+	Transaction *rpctypes.RPCTransaction `json:"transaction"`
+	Local       bool                     `json:"local"`
+	LifeTime    int64                    `json:"lifeTime"`
+	ArrivedTime int64                    `json:"arrivedTime"`
 }
 
 type SimpleContentResponse struct {
@@ -41,11 +48,11 @@ type TxByNonce struct {
 }
 
 type AccountContentResponse struct {
-	Pending      map[string]*rpctypes.RPCTransaction `json:"pending"`
-	Queued       map[string]*rpctypes.RPCTransaction `json:"queued"`
-	CommitNonce  uint64                              `json:"commitNonce"`
-	PendingNonce uint64                              `json:"pendingNonce"`
-	TxCount      uint64                              `json:"txCount"`
+	Pending      map[string]PoolTxContent `json:"pending"`
+	Queued       map[string]PoolTxContent `json:"queued"`
+	CommitNonce  uint64                   `json:"commitNonce"`
+	PendingNonce uint64                   `json:"pendingNonce"`
+	TxCount      uint64                   `json:"txCount"`
 }
 
 type InspectResponse struct {

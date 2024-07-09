@@ -24,7 +24,8 @@ const (
 )
 
 const (
-	Normal status.StatusType = iota
+	Pending status.StatusType = iota
+	Normal
 	NeedSyncState
 	InSyncState
 	NeedFetchMissingTxs
@@ -34,6 +35,7 @@ const (
 )
 
 var statusTypes = map[status.StatusType]string{
+	Pending:           "Pending",
 	Normal:            "Normal",
 	NeedSyncState:     "NeedSyncState",
 	InSyncState:       "InSyncState",
