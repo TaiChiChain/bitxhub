@@ -1020,16 +1020,15 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 	}
 
 	var checkpointSet []*consensus.SignedCheckpoint
-	for id, sig := range quorumCheckpoint.Signatures {
+	for _, info := range quorumCheckpoint.ValidatorSet {
 		signedCheckpoint := &consensus.SignedCheckpoint{
 			Checkpoint: quorumCheckpoint.Checkpoint,
-			Signature:  sig,
-			Author:     id,
+			Author:     info.Id,
 		}
-		if err := n.verifySignedCheckpoint(signedCheckpoint); err != nil {
-			n.logger.Errorf("Replica %d verify checkpoint error: %s", n.chainState.SelfNodeInfo.ID, err)
-			return
-		}
+		//if err := n.verifySignedCheckpoint(signedCheckpoint); err != nil {
+		//	n.logger.Errorf("Replica %d verify checkpoint error: %s", n.chainState.SelfNodeInfo.ID, err)
+		//	return
+		//}
 		checkpointSet = append(checkpointSet, signedCheckpoint)
 	}
 
