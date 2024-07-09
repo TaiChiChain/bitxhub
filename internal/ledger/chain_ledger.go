@@ -374,8 +374,9 @@ func (l *ChainLedgerImpl) doBatchPersistExecutionResult(batchBlock []*types.Bloc
 	}
 
 	lastBlock := batchBlock[len(batchBlock)-1]
+	beginBlock := batchBlock[0]
 
-	if err := l.bf.BatchAppendBlock(lastBlock.Header.Number, listOfHash, listOfHeader, listOfExtra, listOfReceipts, listOfTransactions); err != nil {
+	if err := l.bf.BatchAppendBlock(beginBlock.Header.Number, listOfHash, listOfHeader, listOfExtra, listOfReceipts, listOfTransactions); err != nil {
 		return fmt.Errorf("append block with height %d to blockfile failed: %w", lastBlock.Header.Number, err)
 	}
 
