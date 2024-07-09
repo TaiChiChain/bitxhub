@@ -174,13 +174,20 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-		rwLdg, err = ledger.NewLedgerWithStores(rep, nil, stateLg, nil, nil)
+		snapshotStorage, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Snapshot), storagemgr.Snapshot)
+		if err != nil {
+			return nil, err
+		}
+		rwLdg, err = ledger.NewLedgerWithStores(rep, nil, stateLg, snapshotStorage, nil)
 		if err != nil {
 			return nil, err
 		}
 		snap, err = loadSnapMeta(rwLdg)
 		if err != nil {
 			return nil, err
+		}
+		if snap.snapBlockHeader.Number == 0 {
+			return nil, errors.New("cannot start snap mode at block 0")
 		}
 		// verify whether trie snapshot is legal
 		verified, err := rwLdg.StateLedger.VerifyTrie(snap.snapBlockHeader)
@@ -317,7 +324,15 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 					return nil, fmt.Errorf("snap sync err: %w", err)
 				}
 
-				// 4. end snapshot sync, change to full mode
+				// 4. wait for generating snapshot of target block
+				errC := make(chan error)
+				go axm.ViewLedger.StateLedger.GenerateSnapshot(axm.snapMeta.snapBlockHeader, errC)
+				err = <-errC
+				if err != nil {
+					return nil, fmt.Errorf("snap-sync generate snapshot failed: %w", err)
+				}
+
+				// 5. end snapshot sync, change to full mode
 				err = axm.Sync.SwitchMode(synccomm.SyncModeFull)
 				if err != nil {
 					return nil, fmt.Errorf("switch mode err: %w", err)

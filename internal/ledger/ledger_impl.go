@@ -43,16 +43,9 @@ func NewLedgerWithStores(repo *repo.Repo, blockchainStore kv.Storage, ldb, snaps
 		}
 	}
 	if ldb != nil {
-		if snapshot != nil {
-			ledger.StateLedger, err = newStateLedger(repo, ldb, snapshot)
-			if err != nil {
-				return nil, fmt.Errorf("init state ledger failed: %w", err)
-			}
-		} else {
-			ledger.StateLedger, err = newStateLedger(repo, ldb, nil)
-			if err != nil {
-				return nil, fmt.Errorf("init state ledger failed: %w", err)
-			}
+		ledger.StateLedger, err = newStateLedger(repo, ldb, snapshot)
+		if err != nil {
+			return nil, fmt.Errorf("init state ledger failed: %w", err)
 		}
 	} else {
 		ledger.StateLedger, err = NewStateLedger(repo, "")
@@ -126,7 +119,7 @@ func (l *Ledger) NewView() *Ledger {
 		var sm atomic.Value
 		sm.Store(snap)
 
-		sl, err := l.StateLedger.NewView(snapBlockHeader, false)
+		sl, err := l.StateLedger.NewView(snapBlockHeader, true)
 		if err != nil {
 			panic(err)
 		}
