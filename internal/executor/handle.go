@@ -233,8 +233,8 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
 	exec.postLogsEvent(data.Receipts)
-	if exec.currentHeight == 25585 {
-		panic("stop at 25585 in commit b2f1ef6f")
+	if exec.currentHeight == 25572 {
+		panic("stop at 25572 in commit b2f1ef6f")
 	}
 	exec.clear()
 }
