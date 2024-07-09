@@ -165,6 +165,7 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 		accessList:       NewAccessList(),
 		logs:             newEvmLogs(),
 		blockHeight:      blockHeader.Number,
+		revertedKeys:     make(map[blockstm.Key]struct{}),
 	}
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
@@ -369,6 +370,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 		changer:          newChanger(),
 		accessList:       NewAccessList(),
 		logs:             newEvmLogs(),
+		revertedKeys:     make(map[blockstm.Key]struct{}),
 	}
 
 	if snapshotStorage != nil {
