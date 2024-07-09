@@ -340,3 +340,13 @@ func (tx *internalTransaction[T, Constraint]) getHash() string {
 func (tx *internalTransaction[T, Constraint]) getGasPrice() *big.Int {
 	return Constraint(tx.rawTx).RbftGetGasPrice()
 }
+
+func (tx *internalTransaction[T, Constraint]) clone() *internalTransaction[T, Constraint] {
+	cloneTx := types.CloneTransaction[T, Constraint](tx.rawTx)
+	return &internalTransaction[T, Constraint]{
+		rawTx:       cloneTx,
+		local:       tx.local,
+		lifeTime:    tx.lifeTime,
+		arrivedTime: tx.arrivedTime,
+	}
+}

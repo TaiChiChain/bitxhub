@@ -21,9 +21,8 @@ import (
 
 // nolint
 const (
-	DefaultTestBatchSize = uint64(4)
-	defaultGasPrice      = 1000
-	defaultGasLimit      = 21000
+	defaultGasPrice = 1000
+	defaultGasLimit = 21000
 )
 
 // nolint
@@ -99,15 +98,6 @@ func NewMockTxPoolConfig(t *testing.T) Config {
 		PriceLimit:             0,
 		PriceBump:              DefaultPriceBump,
 		GenerateBatchType:      repo.GenerateBatchByTime,
-
-		ChainInfo: &txpool.ChainInfo{
-			Height:   1,
-			GasPrice: big.NewInt(defaultGasPrice),
-			EpochConf: &txpool.EpochConfig{
-				EnableGenEmptyBatch: false,
-				BatchSize:           DefaultTestBatchSize,
-			},
-		},
 	}
 	return poolConfig
 }

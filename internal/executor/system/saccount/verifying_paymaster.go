@@ -111,7 +111,7 @@ func (vp *VerifyingPaymaster) validatePaymasterUserOp(userOp interfaces.UserOper
 	validationData.SigValidation = interfaces.SigValidationSucceeded
 	validationData.ValidUntil = validUntil.Uint64()
 	validationData.ValidAfter = validAfter.Uint64()
-	
+
 	return []byte(""), validationData, nil
 }
 

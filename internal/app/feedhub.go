@@ -3,8 +3,6 @@ package app
 import (
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/txpool"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
@@ -40,19 +38,6 @@ func (axm *AxiomLedger) listenWaitReportBlock() {
 
 func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool) {
 	axm.Consensus.ReportState(ev.Block.Header.Number, ev.Block.Hash(), ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs)
-
-	// update txpool chain info
-	newChainInfo := &txpool.ChainInfo{
-		Height: ev.Block.Height(),
-	}
-
-	if common.NeedChangeEpoch(ev.Block.Height(), axm.ChainState.EpochInfo) {
-		newChainInfo.EpochConf = &txpool.EpochConfig{
-			EnableGenEmptyBatch: axm.ChainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
-			BatchSize:           axm.ChainState.EpochInfo.ConsensusParams.BlockMaxTxNum,
-		}
-	}
-	axm.TxPool.UpdateChainInfo(newChainInfo)
 }
 
 func (axm *AxiomLedger) listenWaitExecuteBlock() {

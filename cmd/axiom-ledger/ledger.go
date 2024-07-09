@@ -13,7 +13,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	rbft "github.com/axiomesh/axiom-bft"
+	"github.com/axiomesh/axiom-kit/hexutil"
+	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
@@ -33,7 +38,11 @@ import (
 )
 
 // maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
-const maxBatchSize = 64 * 1024 * 1024
+const (
+	maxBatchSize = 64 * 1024 * 1024
+	bls          = "bls"
+	ed25519      = "ed25519"
+)
 
 var ledgerGetBlockArgs = struct {
 	Number uint64
@@ -61,6 +70,15 @@ var ledgerImportAccountsArgs = struct {
 	TargetFilePath string
 	Balance        string
 	BatchSize      uint
+}{}
+
+var ledgerGenerateEpochArgs = struct {
+	ValidatorPrivateKeys cli.StringSlice
+	CryptoAlgo           string
+}{}
+
+var ledgerGetEpochStateArgs = struct {
+	Epoch uint64
 }{}
 
 var ledgerCMD = &cli.Command{
@@ -191,6 +209,41 @@ var ledgerCMD = &cli.Command{
 					Usage:       "number of accounts to import in one block",
 					Required:    false,
 					Destination: &ledgerImportAccountsArgs.BatchSize,
+				},
+			},
+		},
+		{
+			Name:   "generate-epoch",
+			Usage:  "Generate epoch change proof DB",
+			Action: generateEpoch,
+			Flags: []cli.Flag{
+				&cli.StringSliceFlag{
+					Name:        "private-key",
+					Usage:       `list validator p2p private keys, format:"1:p2pPrivateKey"`,
+					Aliases:     []string{`p`},
+					Destination: &ledgerGenerateEpochArgs.ValidatorPrivateKeys,
+					Required:    true,
+				},
+				&cli.StringFlag{
+					Name:        "algo",
+					Usage:       "crypto algorithm, support bls or ed25519, default is ed25519",
+					Value:       "ed25519",
+					Destination: &ledgerGenerateEpochArgs.CryptoAlgo,
+					Required:    false,
+				},
+			},
+		},
+		{
+			Name:   "get-epoch-state",
+			Usage:  "get epoch change proof from DB",
+			Action: getEpochState,
+			Flags: []cli.Flag{
+				&cli.Uint64Flag{
+					Name:        "epoch",
+					Usage:       `get epoch change proof from this epoch`,
+					Aliases:     []string{`e`},
+					Destination: &ledgerGetEpochStateArgs.Epoch,
+					Required:    true,
 				},
 			},
 		},
@@ -738,6 +791,219 @@ func generateTrie(ctx *cli.Context) error {
 	logger.Infof("finish generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
 
 	return err
+}
+
+func decodePrivateKeys(privateKeys []string) (map[uint64]crypto.KeystoreKey, error) {
+	var enableBls bool
+	switch ledgerGenerateEpochArgs.CryptoAlgo {
+	case bls:
+		enableBls = true
+	case ed25519:
+		enableBls = false
+	default:
+		return nil, fmt.Errorf("invalid crypto algo: %s", ledgerGenerateEpochArgs.CryptoAlgo)
+	}
+	keys := make(map[uint64]crypto.KeystoreKey)
+	if len(privateKeys) == 0 {
+		return nil, errors.New("privateKeys cannot be empty")
+	}
+	for _, p := range privateKeys {
+		// spilt id and privateKey by :
+		data := strings.Split(p, ":")
+		if len(data) != 2 {
+			return nil, fmt.Errorf("invalid privateKeys: %s, should be id:privateKey", p)
+		}
+		id, err := strconv.ParseUint(data[0], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := keys[id]; ok {
+			return nil, fmt.Errorf("duplicate id: %d", id)
+		}
+
+		if enableBls {
+			privateKey := &crypto.Bls12381PrivateKey{}
+			if err = privateKey.Unmarshal(hexutil.Decode(data[1])); err != nil {
+				return nil, err
+			}
+			keys[id] = privateKey
+		} else {
+			privateKey := &crypto.Ed25519PrivateKey{}
+			if err = privateKey.Unmarshal(hexutil.Decode(data[1])); err != nil {
+				return nil, err
+			}
+
+			keys[id] = privateKey
+		}
+	}
+
+	return keys, nil
+}
+
+func generateEpoch(ctx *cli.Context) error {
+	logger := loggers.Logger(loggers.App)
+	r, err := common.PrepareRepo(ctx)
+	if err != nil {
+		return err
+	}
+	lg, err := ledger.NewLedger(r)
+	if err != nil {
+		return fmt.Errorf("init ledger failed: %w", err)
+	}
+
+	priKeys, err := decodePrivateKeys(ledgerGenerateEpochArgs.ValidatorPrivateKeys.Value())
+	if err != nil {
+		return fmt.Errorf("decode private keys failed: %w", err)
+	}
+
+	// 1. clean old epoch DB
+	if err := os.RemoveAll(repo.GetStoragePath(r.RepoRoot, storagemgr.Epoch)); err != nil {
+		return err
+	}
+
+	// 2. open new epoch DB
+	epochStore, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(r.RepoRoot, storagemgr.Epoch), storagemgr.Epoch)
+	if err != nil {
+		return err
+	}
+
+	vl := lg.NewView()
+	chainMeta := vl.ChainLedger.GetChainMeta()
+	epochContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(vl.StateLedger))
+	currentEpoch, err := epochContract.CurrentEpoch()
+	if err != nil {
+		return fmt.Errorf("get current epoch failed: %w", err)
+	}
+
+	validators, err := getValidators(vl)
+	if err != nil {
+		return fmt.Errorf("get validators failed: %w", err)
+	}
+
+	logger.Infof("start generating epoch change at height: %v, end epoch: %d\n", chainMeta.Height, currentEpoch.Epoch)
+
+	for i := uint64(1); i <= currentEpoch.Epoch; i++ {
+		historyEpoch, err := epochContract.HistoryEpoch(i)
+		if err != nil {
+			return fmt.Errorf("get history epoch failed: %w", err)
+		}
+
+		// check if we need to generate epoch state
+		if chainMeta.Height < getEpochHeight(historyEpoch) {
+			break
+		}
+
+		storeEpochStateFn := func(key string, value []byte) error {
+			return consensuscommon.StoreEpochState(epochStore, key, value)
+		}
+
+		eps, err := generateEpochState(historyEpoch, lg.ChainLedger, validators, priKeys)
+		if err != nil {
+			return err
+		}
+		if err := rbft.PersistEpochQuorumCheckpoint(storeEpochStateFn, eps); err != nil {
+			return err
+		}
+
+		logger.Infof("finish generating epoch change at epoch: %d\n", i)
+	}
+
+	logger.Infof("end generate all epoch change\n")
+	return nil
+}
+
+func getEpochHeight(epochInfo epoch_manager.EpochInfo) uint64 {
+	return epochInfo.StartBlock + epochInfo.EpochPeriod - 1
+}
+
+func getValidators(vl *ledger.Ledger) ([]consensus.ValidatorInfo, error) {
+	nodeInfoContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(vl.StateLedger))
+	nodes, _, err := nodeInfoContract.GetActiveValidatorSet()
+	if err != nil {
+		return nil, fmt.Errorf("get node info failed: %w", err)
+	}
+	nodeSet := lo.Map(nodes, func(info node_manager.NodeInfo, index int) consensus.ValidatorInfo {
+		return consensus.ValidatorInfo{
+			Id:    info.ID,
+			P2PId: info.P2PID,
+		}
+	})
+	return nodeSet, nil
+}
+
+func generateEpochState(epochInfo epoch_manager.EpochInfo, lg ledger.ChainLedger, validators []consensus.ValidatorInfo, privateKeys map[uint64]crypto.KeystoreKey) (*consensus.QuorumCheckpoint, error) {
+	header, err := lg.GetBlockHeader(getEpochHeight(epochInfo))
+	if err != nil {
+		return nil, err
+	}
+
+	validatorSet := make(map[uint64]*consensus.ValidatorInfo)
+	for i := 0; i < len(validators); i++ {
+		validatorSet[uint64(i)] = &validators[i]
+	}
+
+	checkpoint := &consensus.Checkpoint{
+		Epoch: header.Epoch,
+		ExecuteState: &consensus.Checkpoint_ExecuteState{
+			Height: header.Number,
+			Digest: header.Hash().String(),
+		},
+		NeedUpdateEpoch: true,
+	}
+
+	msg := checkpoint.Hash()
+
+	sigs := lo.MapEntries(privateKeys, func(id uint64, priv crypto.KeystoreKey) (uint64, []byte) {
+		v, err := priv.(*crypto.Ed25519PrivateKey).Sign(msg)
+		if err != nil {
+			panic(err)
+		}
+		return id, v
+	})
+	qckt := &consensus.QuorumCheckpoint{
+		Checkpoint:   checkpoint,
+		Signatures:   sigs,
+		ValidatorSet: validatorSet,
+	}
+
+	return qckt, nil
+}
+
+func getEpochState(ctx *cli.Context) error {
+	logger := loggers.Logger(loggers.App)
+	r, err := common.PrepareRepo(ctx)
+	if err != nil {
+		return err
+	}
+	epoch := ledgerGetEpochStateArgs.Epoch
+	epochStore, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(r.RepoRoot, storagemgr.Epoch), storagemgr.Epoch)
+	if err != nil {
+		return err
+	}
+
+	key := fmt.Sprintf("%s%d", rbft.EpochStatePrefix, epoch)
+	raw, err := consensuscommon.ReadEpochState(epochStore, key)
+	if err != nil {
+		return errors.WithMessagef(err, "failed to read epoch %d quorum chkpt", epoch)
+	}
+	cp := &consensus.QuorumCheckpoint{}
+	if err := cp.UnmarshalVT(raw); err != nil {
+		return errors.WithMessagef(err, "failed to unmarshal epoch %d quorum chkpt", epoch)
+	}
+
+	validators := make([]*consensus.QuorumValidator, 0)
+	for _, n := range cp.ValidatorSet {
+		validators = append(validators, &consensus.QuorumValidator{
+			Id:     n.Id,
+			PeerId: n.P2PId,
+		})
+	}
+
+	epochChanges := make([]*consensus.EpochChange, 0)
+	epochChanges = append(epochChanges, &consensus.EpochChange{Checkpoint: cp, Validators: &consensus.QuorumValidators{Validators: validators}})
+	logger.Infof("epoch %d quorum checkpoint: %v", epoch, epochChanges)
+	return nil
 }
 
 func copyDir(src, dest string) error {

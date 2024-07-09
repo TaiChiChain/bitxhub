@@ -79,14 +79,6 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 		getBalanceFn := func(addr string) *big.Int {
 			return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(addr))
 		}
-		epcCnf := &txpool.EpochConfig{
-			BatchSize:           axm.ChainState.EpochInfo.ConsensusParams.BlockMaxTxNum,
-			EnableGenEmptyBatch: axm.ChainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock,
-		}
-		chainInfo := &txpool.ChainInfo{
-			Height:    chainMeta.Height,
-			EpochConf: epcCnf,
-		}
 
 		priceLimit := poolConf.PriceLimit
 		// ensure price limit is not less than min gas price
@@ -106,7 +98,6 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			EnableLocalsPersist:    poolConf.EnableLocalsPersist,
 			RepoRoot:               rep.RepoRoot,
 			RotateTxLocalsInterval: poolConf.RotateTxLocalsInterval.ToDuration(),
-			ChainInfo:              chainInfo,
 			PriceLimit:             priceLimit.ToBigInt().Uint64(),
 			PriceBump:              poolConf.PriceBump,
 			GenerateBatchType:      poolConf.GenerateBatchType,

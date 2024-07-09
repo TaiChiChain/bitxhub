@@ -55,6 +55,12 @@ func (n *Node[T, Constraint]) handleTimeout(name timer.TimeoutEvent) {
 		}
 
 	case syncStateResp:
+		if n.statusMgr.In(InEpochSyncing) {
+			n.timeMgr.StopTimer(syncStateResp)
+			n.logger.Infof("stop syncStateResp timer because current status is InEpochSyncing")
+			return
+		}
+		n.logger.Info("handle syncStateResp timeout")
 		if err := n.fetchSyncState(); err != nil {
 			n.logger.Error(err)
 			return
