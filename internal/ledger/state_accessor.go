@@ -411,6 +411,9 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 	l.logger.Infof("[RollbackState] rollback state to height=%v\n", height)
 
 	l.Clear()
+	l.accountTrieCache.Reset()
+	l.storageTrieCache.Reset()
+	l.changer.reset()
 
 	// rollback snapshots
 	if l.snapshot != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	common2 "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -60,22 +61,23 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 	}
 
 	var startEpcNum uint64 = 1
-
-	blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
-	if err != nil {
-		return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
-	}
-	blockEpc := blockHeader.Epoch
-	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
-	info, err := epochManagerContract.HistoryEpoch(blockEpc)
-	if err != nil {
-		return nil, nil, fmt.Errorf("get epoch info err: %w", err)
-	}
-	if info.StartBlock+info.EpochPeriod-1 == latestHeight {
-		// if the last blockHeader in this epoch had been persisted, start from the next epoch
-		startEpcNum = info.Epoch + 1
-	} else {
-		startEpcNum = info.Epoch
+	if latestHeight != 0 {
+		blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
+		}
+		blockEpc := blockHeader.Epoch
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
+		info, err := epochManagerContract.HistoryEpoch(blockEpc)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get epoch info err: %w", err)
+		}
+		if info.StartBlock+info.EpochPeriod-1 == latestHeight {
+			// if the last blockHeader in this epoch had been persisted, start from the next epoch
+			startEpcNum = info.Epoch + 1
+		} else {
+			startEpcNum = info.Epoch
+		}
 	}
 
 	// 2. fill snap sync config option
@@ -186,7 +188,12 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 
 func (axm *AxiomLedger) genSnapSyncParams(peers []*common.Node, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
-	latestBlockHash := axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
+	latestBlockHash := common2.Hash{}.String()
+	if axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash != nil {
+		latestBlockHash = axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
+	} else {
+		startHeight--
+	}
 	return &common.SyncParams{
 		Peers:            peers,
 		LatestBlockHash:  latestBlockHash,
