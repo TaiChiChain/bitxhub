@@ -16,6 +16,7 @@ import (
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
 	"github.com/axiomesh/axiom-ledger/internal/components"
+	common2 "github.com/ethereum/go-ethereum/common"
 	"github.com/gammazero/workerpool"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -155,7 +156,7 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 	// 1. update commitData sync info
 	sm.InitBlockSyncInfo(params.Peers, params.LatestBlockHash, params.Quorum, params.CurHeight, params.TargetHeight, params.QuorumCheckpoint, params.EpochChanges...)
 	// 2. send sync state request to all validators, waiting for Quorum response
-	if sm.curHeight != 1 {
+	if params.LatestBlockHash != (common2.Hash{}).String() {
 		err := sm.requestSyncState(sm.curHeight-1, params.LatestBlockHash)
 		if err != nil {
 			syncTaskDoneCh <- err
