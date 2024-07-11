@@ -320,6 +320,18 @@ func (s *SystemContractBase) CrossCallSystemContractContext() *VMContext {
 	}
 }
 
+func (s *SystemContractBase) CrossCallSystemContractContextWithSnapshot() (ctx *VMContext, snapshot int) {
+	return &VMContext{
+		StateLedger:    s.Ctx.StateLedger,
+		BlockNumber:    s.Ctx.BlockNumber,
+		From:           s.EthAddress,
+		CallFromSystem: true,
+		// TODO: set caller
+		CurrentEVM:               s.Ctx.CurrentEVM,
+		disableRecordLogToLedger: s.Ctx.disableRecordLogToLedger,
+	}, s.Ctx.StateLedger.Snapshot()
+}
+
 func (s *SystemContractBase) EmitEvent(packer packer.Event) {
 	log, err := packer.Pack(s.Abi)
 	if err != nil {

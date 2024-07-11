@@ -282,12 +282,20 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 		return errors.Wrap(err, "unmarshal node remove extra arguments error")
 	}
 
-	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-
-	for _, nodeID := range nodeExtraArgs.NodeIDs {
-		if err := nodeManagerContract.Exit(nodeID); err != nil {
-			return err
+	ctx, snapshot := nm.gov.CrossCallSystemContractContextWithSnapshot()
+	nodeManagerContract := framework.NodeManagerBuildConfig.Build(ctx)
+	err := func() error {
+		for _, nodeID := range nodeExtraArgs.NodeIDs {
+			if err := nodeManagerContract.Exit(nodeID); err != nil {
+				return err
+			}
 		}
+		return nil
+	}()
+	if err != nil {
+		// revert all changes
+		ctx.StateLedger.RevertToSnapshot(snapshot)
+		return err
 	}
 
 	return nil
