@@ -525,10 +525,9 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 		if err = g.proposals.Put(proposal.ID, proposal); err != nil {
 			return err
 		}
-	} else {
-		if err = handler.CleanProposal(&proposal); err != nil {
-			return errors.Wrapf(err, "failed to clean proposal, id: %d, type: %d", proposal.ID, proposal.Type)
-		}
+	}
+	if err = handler.CleanProposal(&proposal); err != nil {
+		return errors.Wrapf(err, "failed to clean proposal, id: %d, type: %d", proposal.ID, proposal.Type)
 	}
 
 	g.EmitVoteEvent(&proposal)
