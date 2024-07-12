@@ -27,7 +27,7 @@ const MinJournalHeight = 10
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	account := l.GetAccount(addr)
 	if account == nil {
-		account = NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, addr, l.changer, l.snapshot)
+		account = NewAccount(l.blockHeight, l.backend, l.trieCache, l.pruneCache, addr, l.changer, l.snapshot)
 		account.SetCreated(true)
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.String()] = account
@@ -49,7 +49,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		return value
 	}
 
-	account := NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, address, l.changer, l.snapshot)
+	account := NewAccount(l.blockHeight, l.backend, l.trieCache, l.pruneCache, address, l.changer, l.snapshot)
 
 	// try getting account from snapshot first
 	if l.snapshot != nil {
@@ -301,7 +301,7 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 			for _, key := range dirtyEntries {
 				nodeKeys = append(nodeKeys, l.trieIndexer.GetTrieIndexes(height, account.Addr.Bytes(), key)...)
 			}
-			account.storageTrie.PreloadTrieNodes(nodeKeys)
+			//account.storageTrie.PreloadTrieNodes(nodeKeys)
 
 			for key, valBytes := range dirtyEntries {
 				if err := account.storageTrie.Update(height, utils.CompositeStorageKey(account.Addr, []byte(key)), valBytes); err != nil {
@@ -411,8 +411,8 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 	l.logger.Infof("[RollbackState] rollback state to height=%v\n", height)
 
 	l.Clear()
-	l.accountTrieCache.Reset()
-	l.storageTrieCache.Reset()
+	//l.accountTrieCache.Reset()
+	//l.storageTrieCache.Reset()
 	l.changer.reset()
 
 	// rollback snapshots
@@ -574,22 +574,22 @@ func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, currentExecuti
 
 func (l *StateLedgerImpl) resetMetrics() {
 	l.snapshot.ResetMetrics()
-	l.accountTrieCache.ResetCounterMetrics()
-	l.storageTrieCache.ResetCounterMetrics()
+	//l.accountTrieCache.ResetCounterMetrics()
+	//l.storageTrieCache.ResetCounterMetrics()
 }
 
 func (l *StateLedgerImpl) exportMetrics() {
 	l.snapshot.ExportMetrics()
 
-	accountTrieCacheMetrics := l.accountTrieCache.ExportMetrics()
-	accountTrieCacheMissCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheMissCounter))
-	accountTrieCacheHitCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheHitCounter))
-	accountTrieCacheSize.Set(float64(accountTrieCacheMetrics.CacheSize / 1024 / 1024))
-
-	storageTrieCacheMetrics := l.storageTrieCache.ExportMetrics()
-	storageTrieCacheMissCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheMissCounter))
-	storageTrieCacheHitCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheHitCounter))
-	storageTrieCacheSize.Set(float64(storageTrieCacheMetrics.CacheSize / 1024 / 1024))
+	//accountTrieCacheMetrics := l.accountTrieCache.ExportMetrics()
+	//accountTrieCacheMissCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheMissCounter))
+	//accountTrieCacheHitCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheHitCounter))
+	//accountTrieCacheSize.Set(float64(accountTrieCacheMetrics.CacheSize / 1024 / 1024))
+	//
+	//storageTrieCacheMetrics := l.storageTrieCache.ExportMetrics()
+	//storageTrieCacheMissCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheMissCounter))
+	//storageTrieCacheHitCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheHitCounter))
+	//storageTrieCacheSize.Set(float64(storageTrieCacheMetrics.CacheSize / 1024 / 1024))
 }
 
 func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
@@ -612,13 +612,13 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 			batch.Commit()
 		}
 
-		trie, _ := jmt.New(rootHash, l.backend, l.accountTrieCache, l.pruneCache, l.logger)
+		trie, _ := jmt.New(rootHash, l.backend, l.trieCache, l.pruneCache, l.logger)
 		l.accountTrie = trie
-		l.triePreloader = newTriePreloaderManager(l.logger, l.backend, l.storageTrieCache, l.pruneCache)
+		l.triePreloader = newTriePreloaderManager(l.logger, l.backend, l.trieCache, l.pruneCache)
 		return
 	}
 
-	trie, err := jmt.New(lastStateRoot.ETHHash(), l.backend, l.accountTrieCache, l.pruneCache, l.logger)
+	trie, err := jmt.New(lastStateRoot.ETHHash(), l.backend, l.trieCache, l.pruneCache, l.logger)
 	if err != nil {
 		l.logger.WithFields(logrus.Fields{
 			"lastStateRoot": lastStateRoot,
@@ -628,7 +628,7 @@ func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
 		return
 	}
 	l.accountTrie = trie
-	l.triePreloader = newTriePreloaderManager(l.logger, l.backend, l.storageTrieCache, l.pruneCache)
+	l.triePreloader = newTriePreloaderManager(l.logger, l.backend, l.trieCache, l.pruneCache)
 }
 
 func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {

@@ -42,11 +42,13 @@ type StateLedgerImpl struct {
 	logger      logrus.FieldLogger
 	accountTrie *jmt.JMT // keep track of the latest world state (dirty or committed)
 
-	pruneCache       *prune.PruneCache
-	trieIndexer      *trie_indexer.TrieIndexer
-	backend          kv.Storage
-	accountTrieCache *storagemgr.CacheWrapper
-	storageTrieCache *storagemgr.CacheWrapper
+	pruneCache  *prune.PruneCache
+	trieIndexer *trie_indexer.TrieIndexer
+	backend     kv.Storage
+
+	trieCache jmt.TrieCache
+	//accountTrieCache *storagemgr.CacheWrapper
+	//storageTrieCache *storagemgr.CacheWrapper
 
 	triePreloader *triePreloaderManager
 	accounts      map[string]IAccount
@@ -143,19 +145,20 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	}
 
 	lg := &StateLedgerImpl{
-		repo:             l.repo,
-		logger:           l.logger,
-		backend:          l.backend,
-		pruneCache:       l.pruneCache,
-		accountTrieCache: l.accountTrieCache,
-		storageTrieCache: l.storageTrieCache,
-		trieIndexer:      l.trieIndexer,
-		accounts:         make(map[string]IAccount),
-		preimages:        make(map[types.Hash][]byte),
-		changer:          newChanger(),
-		accessList:       NewAccessList(),
-		logs:             newEvmLogs(),
-		blockHeight:      blockHeader.Number,
+		repo:       l.repo,
+		logger:     l.logger,
+		backend:    l.backend,
+		pruneCache: l.pruneCache,
+		trieCache:  l.trieCache,
+		//accountTrieCache: l.accountTrieCache,
+		//storageTrieCache: l.storageTrieCache,
+		trieIndexer: l.trieIndexer,
+		accounts:    make(map[string]IAccount),
+		preimages:   make(map[types.Hash][]byte),
+		changer:     newChanger(),
+		accessList:  NewAccessList(),
+		logs:        newEvmLogs(),
+		blockHeight: blockHeader.Number,
 	}
 	if enableSnapshot {
 		lg.snapshot = l.snapshot
@@ -351,8 +354,9 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (StateLedger, error) {
 	stateCachedStorage := storagemgr.NewCachedStorage(stateStorage, 128).(*storagemgr.CachedStorage)
-	accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
-	storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
+	//accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
+	//storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
+	trieCache := jmt.NewJMTCache(1)
 
 	trieIndexerKv, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.TrieIndexer), storagemgr.TrieIndexer)
 	if err != nil {
@@ -360,18 +364,19 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 	}
 
 	ledger := &StateLedgerImpl{
-		repo:             rep,
-		logger:           loggers.Logger(loggers.Storage),
-		backend:          stateCachedStorage,
-		accountTrieCache: accountTrieCache,
-		storageTrieCache: storageTrieCache,
-		pruneCache:       prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
-		trieIndexer:      trie_indexer.NewTrieIndexer(rep, trieIndexerKv, loggers.Logger(loggers.Storage)),
-		accounts:         make(map[string]IAccount),
-		preimages:        make(map[types.Hash][]byte),
-		changer:          newChanger(),
-		accessList:       NewAccessList(),
-		logs:             newEvmLogs(),
+		repo:    rep,
+		logger:  loggers.Logger(loggers.Storage),
+		backend: stateCachedStorage,
+		//accountTrieCache: accountTrieCache,
+		//storageTrieCache: storageTrieCache,
+		trieCache:   trieCache,
+		pruneCache:  prune.NewPruneCache(rep, stateCachedStorage, trieCache, loggers.Logger(loggers.Storage)),
+		trieIndexer: trie_indexer.NewTrieIndexer(rep, trieIndexerKv, loggers.Logger(loggers.Storage)),
+		accounts:    make(map[string]IAccount),
+		preimages:   make(map[types.Hash][]byte),
+		changer:     newChanger(),
+		accessList:  NewAccessList(),
+		logs:        newEvmLogs(),
 	}
 
 	if snapshotStorage != nil {

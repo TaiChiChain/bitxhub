@@ -15,7 +15,6 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/snapshot"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 )
 
@@ -49,7 +48,7 @@ type SimpleAccount struct {
 	dirtyCode  []byte
 
 	backend          kv.Storage
-	storageTrieCache *storagemgr.CacheWrapper
+	storageTrieCache jmt.TrieCache
 	pruneCache       jmt.PruneCache
 
 	blockHeight uint64
@@ -73,14 +72,14 @@ func NewMockAccount(blockHeight uint64, addr *types.Address) *SimpleAccount {
 		dirtyState:       make(map[string][]byte),
 		blockHeight:      blockHeight,
 		backend:          ldb,
-		storageTrieCache: storagemgr.NewCacheWrapper(32, false),
+		storageTrieCache: nil,
 		changer:          newChanger(),
 		selfDestructed:   false,
 		created:          false,
 	}
 }
 
-func NewAccount(blockHeight uint64, backend kv.Storage, storageTrieCache *storagemgr.CacheWrapper, pruneCache jmt.PruneCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
+func NewAccount(blockHeight uint64, backend kv.Storage, storageTrieCache jmt.TrieCache, pruneCache jmt.PruneCache, addr *types.Address, changer *stateChanger, snapshot *snapshot.Snapshot) *SimpleAccount {
 	return &SimpleAccount{
 		logger:           loggers.Logger(loggers.Storage),
 		Addr:             addr,

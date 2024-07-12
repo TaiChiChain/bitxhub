@@ -3,6 +3,7 @@ package prune
 import (
 	"errors"
 	"fmt"
+	"github.com/axiomesh/axiom-kit/jmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -38,8 +38,8 @@ type states struct {
 type diff struct {
 	height uint64
 
-	accountDiff map[string]types.Node
-	storageDiff map[string]types.Node
+	accountDiff map[string]*jmt.NodeData
+	storageDiff map[string]*jmt.NodeData
 
 	ledgerStorage kv.Storage
 }
@@ -68,7 +68,7 @@ func (s *states) rebuildAllKeyMap() {
 	}
 }
 
-func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, logger logrus.FieldLogger) *PruneCache {
+func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, trieCache jmt.TrieCache, logger logrus.FieldLogger) *PruneCache {
 	if !rep.Config.Ledger.EnablePrune {
 		logger.Infof("[Prune] pruning is disabled")
 		return nil
@@ -80,7 +80,7 @@ func NewPruneCache(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *s
 		logger:        logger,
 	}
 
-	p := NewPrunner(rep, ledgerStorage, accountTrieCache, storageTrieCache, tc.states, logger)
+	p := NewPrunner(rep, ledgerStorage, trieCache, tc.states, logger)
 	tc.prunner = p
 	go p.pruning()
 	return tc
@@ -90,8 +90,8 @@ func (tc *PruneCache) addNewDiff(batch kv.Batch, height uint64, ledgerStorage kv
 	l := &diff{
 		height:        height,
 		ledgerStorage: ledgerStorage,
-		accountDiff:   make(map[string]types.Node),
-		storageDiff:   make(map[string]types.Node),
+		accountDiff:   make(map[string]*jmt.NodeData),
+		storageDiff:   make(map[string]*jmt.NodeData),
 	}
 	if persist {
 		batch.Put(utils.CompositeKey(utils.PruneJournalKey, height), stateDelta.Encode())
@@ -113,9 +113,15 @@ func (tc *PruneCache) addNewDiff(batch kv.Batch, height uint64, ledgerStorage kv
 		}
 		for k, v := range journal.DirtySet {
 			if journal.Type == TypeAccount {
-				l.accountDiff[k] = v
+				l.accountDiff[k] = &jmt.NodeData{
+					Node: v,
+					Nk:   types.DecodeNodeKey([]byte(k)),
+				}
 			} else {
-				l.storageDiff[k] = v
+				l.storageDiff[k] = &jmt.NodeData{
+					Node: v,
+					Nk:   types.DecodeNodeKey([]byte(k)),
+				}
 			}
 			tc.states.allKeyMap[k] = struct{}{}
 		}
@@ -157,15 +163,15 @@ func (tc *PruneCache) Get(version uint64, key []byte) (types.Node, bool) {
 		// the origin trie node may be recycled later, so we must deep-copy it here.
 		if v, ok := tc.states.diffs[i].accountDiff[k]; ok {
 			if v == nil {
-				return v, ok
+				return v.Node, ok
 			}
-			return v.Copy(), true
+			return v.Node.Copy(), true
 		}
 		if v, ok := tc.states.diffs[i].storageDiff[k]; ok {
 			if v == nil {
-				return v, ok
+				return v.Node, ok
 			}
-			return v.Copy(), true
+			return v.Node.Copy(), true
 		}
 	}
 

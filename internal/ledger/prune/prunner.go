@@ -1,6 +1,7 @@
 package prune
 
 import (
+	"github.com/axiomesh/axiom-kit/jmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -8,7 +9,6 @@ import (
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/utils"
-	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -17,8 +17,9 @@ type prunner struct {
 	states *states
 
 	ledgerStorageBackend kv.Storage
-	accountTrieCache     *storagemgr.CacheWrapper
-	storageTrieCache     *storagemgr.CacheWrapper
+	//accountTrieCache     jmt.TrieCache
+	//storageTrieCache     jmt.TrieCache
+	trieCache jmt.TrieCache
 
 	logger logrus.FieldLogger
 
@@ -27,21 +28,22 @@ type prunner struct {
 
 var (
 	defaultMinimumReservedBlockNum = 2
-	checkFlushTimeInterval         = 1 * time.Minute
-	maxFlushBlockNum               = 128
-	maxFlushTimeInterval           = 10 * time.Minute
+	checkFlushTimeInterval         = 10 * time.Second
+	maxFlushBlockNum               = 10
+	maxFlushTimeInterval           = 1 * time.Minute
 	maxFlushBatchSizeThreshold     = 32 * 1024 * 1024 // 32MB
 )
 
-func NewPrunner(rep *repo.Repo, ledgerStorage kv.Storage, accountTrieCache *storagemgr.CacheWrapper, storageTrieCache *storagemgr.CacheWrapper, states *states, logger logrus.FieldLogger) *prunner {
+func NewPrunner(rep *repo.Repo, ledgerStorage kv.Storage, trieCache jmt.TrieCache, states *states, logger logrus.FieldLogger) *prunner {
 	return &prunner{
 		rep:                  rep,
 		ledgerStorageBackend: ledgerStorage,
-		accountTrieCache:     accountTrieCache,
-		storageTrieCache:     storageTrieCache,
-		states:               states,
-		logger:               logger,
-		lastPruneTime:        time.Now(),
+		//accountTrieCache:     accountTrieCache,
+		//storageTrieCache:     storageTrieCache,
+		trieCache:     trieCache,
+		states:        states,
+		logger:        logger,
+		lastPruneTime: time.Now(),
 	}
 }
 
@@ -56,8 +58,8 @@ func (p *prunner) pruning() {
 		ticker                                   = time.NewTicker(checkFlushTimeInterval)
 		pendingBatch                             = p.ledgerStorageBackend.NewBatch()
 		from, to                                 = uint64(0), uint64(0) // block range
-		accountTriePruneSet, storageTriePruneSet = make(map[string]struct{}), make(map[string]struct{})
-		accountTrieWriteSet, storageTrieWriteSet = make(map[string][]byte), make(map[string][]byte)
+		accountTriePruneSet, storageTriePruneSet = make(map[string]*jmt.NodeData), make(map[string]*jmt.NodeData)
+		accountTrieWriteSet, storageTrieWriteSet = make(map[string]*jmt.NodeData), make(map[string]*jmt.NodeData)
 		pendingFlushBlockNum, pendingFlushSize   = 0, 0
 	)
 
@@ -80,23 +82,21 @@ func (p *prunner) pruning() {
 				// handle account trie cache
 				for k, v := range diff.accountDiff {
 					if v == nil {
-						accountTriePruneSet[k] = struct{}{}
+						accountTriePruneSet[k] = v
 						pendingFlushSize += len(k)
 					} else {
-						blob := v.Encode()
-						accountTrieWriteSet[k] = blob
-						pendingFlushSize += len(k) + len(blob)
+						accountTrieWriteSet[k] = v
+						pendingFlushSize += len(k)
 					}
 				}
 				// handle storage trie cache
 				for k, v := range diff.storageDiff {
 					if v == nil {
-						storageTriePruneSet[k] = struct{}{}
+						storageTriePruneSet[k] = v
 						pendingFlushSize += len(k)
 					} else {
-						blob := v.Encode()
-						storageTrieWriteSet[k] = blob
-						pendingFlushSize += len(k) + len(blob)
+						storageTrieWriteSet[k] = v
+						pendingFlushSize += len(k)
 					}
 				}
 				pendingBatch.Delete(utils.CompositeKey(utils.PruneJournalKey, diff.height))
@@ -114,33 +114,36 @@ func (p *prunner) pruning() {
 		// But we don't need to lock here, because the jmt.getNode logic will always try from prune cache first,
 		// and we can ensure that the data we update will occur in prune cache.
 
+		insertNodes, delNodes := make([]*jmt.NodeData, 0), make([]*jmt.NodeData, 0)
 		// update account trie cache
 		for k, v := range accountTrieWriteSet {
 			if _, has := accountTriePruneSet[k]; !has {
-				pendingBatch.Put([]byte(k), v)
-				p.accountTrieCache.Set([]byte(k), v)
+				pendingBatch.Put([]byte(k), v.Node.Encode())
+				insertNodes = append(insertNodes, v)
 			}
 		}
-		for k := range accountTriePruneSet {
+		for k, v := range accountTriePruneSet {
 			if _, has := accountTrieWriteSet[k]; !has {
 				pendingBatch.Delete([]byte(k))
-				p.accountTrieCache.Del([]byte(k))
+				delNodes = append(delNodes, v)
 			}
 		}
 
 		// update storage trie cache
 		for k, v := range storageTrieWriteSet {
 			if _, has := storageTriePruneSet[k]; !has {
-				pendingBatch.Put([]byte(k), v)
-				p.storageTrieCache.Set([]byte(k), v)
+				pendingBatch.Put([]byte(k), v.Node.Encode())
+				insertNodes = append(insertNodes, v)
 			}
 		}
-		for k := range storageTriePruneSet {
+		for k, v := range storageTriePruneSet {
 			if _, has := storageTrieWriteSet[k]; !has {
 				pendingBatch.Delete([]byte(k))
-				p.storageTrieCache.Del([]byte(k))
+				delNodes = append(delNodes, v)
 			}
 		}
+		p.trieCache.(*jmt.JMTCache).BatchDelete(delNodes)
+		p.trieCache.(*jmt.JMTCache).BatchInsert(insertNodes)
 
 		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(to+1))
 
@@ -153,10 +156,16 @@ func (p *prunner) pruning() {
 		stales := p.states.diffs[:pendingFlushBlockNum]
 		for _, d := range stales {
 			for _, node := range d.accountDiff {
-				types.RecycleTrieNode(node)
+				if node == nil {
+					continue
+				}
+				types.RecycleTrieNode(node.Node)
 			}
 			for _, node := range d.storageDiff {
-				types.RecycleTrieNode(node)
+				if node == nil {
+					continue
+				}
+				types.RecycleTrieNode(node.Node)
 			}
 		}
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
@@ -166,8 +175,8 @@ func (p *prunner) pruning() {
 		pendingBatch.Reset()
 		from, to = 0, 0
 		p.lastPruneTime = time.Now()
-		accountTriePruneSet, storageTriePruneSet = make(map[string]struct{}), make(map[string]struct{})
-		accountTrieWriteSet, storageTrieWriteSet = make(map[string][]byte), make(map[string][]byte)
+		accountTriePruneSet, storageTriePruneSet = make(map[string]*jmt.NodeData), make(map[string]*jmt.NodeData)
+		accountTrieWriteSet, storageTrieWriteSet = make(map[string]*jmt.NodeData), make(map[string]*jmt.NodeData)
 		pendingFlushBlockNum, pendingFlushSize = 0, 0
 	}
 }
