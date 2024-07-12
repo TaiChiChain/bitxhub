@@ -105,9 +105,13 @@ func (tc *PruneCache) addNewDiff(batch kv.Batch, height uint64, ledgerStorage kv
 		batch.Put(journal.RootHash[:], journal.RootNodeKey.Encode())
 		for k := range journal.PruneSet {
 			if journal.Type == TypeAccount {
-				l.accountDiff[k] = nil
+				l.accountDiff[k] = &jmt.NodeData{
+					Nk: types.DecodeNodeKey([]byte(k)),
+				}
 			} else {
-				l.storageDiff[k] = nil
+				l.storageDiff[k] = &jmt.NodeData{
+					Nk: types.DecodeNodeKey([]byte(k)),
+				}
 			}
 			tc.states.allKeyMap[k] = struct{}{}
 		}

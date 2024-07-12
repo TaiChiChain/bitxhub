@@ -81,7 +81,7 @@ func (p *prunner) pruning() {
 			for _, diff := range pendingStales {
 				// handle account trie cache
 				for k, v := range diff.accountDiff {
-					if v == nil {
+					if v.Node == nil {
 						accountTriePruneSet[k] = v
 						pendingFlushSize += len(k)
 					} else {
@@ -91,7 +91,7 @@ func (p *prunner) pruning() {
 				}
 				// handle storage trie cache
 				for k, v := range diff.storageDiff {
-					if v == nil {
+					if v.Node == nil {
 						storageTriePruneSet[k] = v
 						pendingFlushSize += len(k)
 					} else {
@@ -114,12 +114,15 @@ func (p *prunner) pruning() {
 		// But we don't need to lock here, because the jmt.getNode logic will always try from prune cache first,
 		// and we can ensure that the data we update will occur in prune cache.
 
+		// todo filter out leaf in del nodes
 		insertNodes, delNodes := make([]*jmt.NodeData, 0), make([]*jmt.NodeData, 0)
 		// update account trie cache
 		for k, v := range accountTrieWriteSet {
 			if _, has := accountTriePruneSet[k]; !has {
 				pendingBatch.Put([]byte(k), v.Node.Encode())
-				insertNodes = append(insertNodes, v)
+				if v.Node.Type() == types.TypeInternalNode {
+					insertNodes = append(insertNodes, v)
+				}
 			}
 		}
 		for k, v := range accountTriePruneSet {
@@ -133,7 +136,9 @@ func (p *prunner) pruning() {
 		for k, v := range storageTrieWriteSet {
 			if _, has := storageTriePruneSet[k]; !has {
 				pendingBatch.Put([]byte(k), v.Node.Encode())
-				insertNodes = append(insertNodes, v)
+				if v.Node.Type() == types.TypeInternalNode {
+					insertNodes = append(insertNodes, v)
+				}
 			}
 		}
 		for k, v := range storageTriePruneSet {

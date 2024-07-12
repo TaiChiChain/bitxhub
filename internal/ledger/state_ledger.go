@@ -356,7 +356,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 	stateCachedStorage := storagemgr.NewCachedStorage(stateStorage, 128).(*storagemgr.CachedStorage)
 	//accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)
 	//storageTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerStorageTrieCacheMegabytesLimit, true)
-	trieCache := jmt.NewJMTCache(1)
+	trieCache := jmt.NewJMTCache(1, loggers.Logger(loggers.Storage))
 
 	trieIndexerKv, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.TrieIndexer), storagemgr.TrieIndexer)
 	if err != nil {
