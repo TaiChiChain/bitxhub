@@ -70,7 +70,8 @@ func main() {
 				},
 				&cli.StringSliceFlag{
 					Name:        "peers",
-					Usage:       "peers address",
+					Aliases:     []string{"p"},
+					Usage:       "peers address, format: <id1>:<pid1>,<id2>:<pid2>,...",
 					Value:       &cli.StringSlice{},
 					Destination: &syncSnapshotArgs.remotePeers,
 					Required:    false,

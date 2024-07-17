@@ -14,7 +14,7 @@ import (
 	"github.com/axiomesh/axiom-kit/txpool/mock_txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
-	common2 "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -42,7 +42,7 @@ func newMockPreCheckMgr(ledger *mockDb, t *testing.T) (*TxPreCheckMgr, *logrus.E
 	mockPool := mock_txpool.NewMockMinimalTxPool[types.Transaction, *types.Transaction](500, ctrl)
 	r := repo.MockRepo(t)
 	r.GenesisConfig.EpochInfo.FinanceParams.MinGasPrice = types.CoinNumberByMol(0)
-	cnf := &common2.Config{
+	cnf := &consensuscommon.Config{
 		Logger: logger,
 		GenesisEpochInfo: &types.EpochInfo{
 			MiscParams: types.MiscParams{
@@ -69,20 +69,20 @@ func (db *mockDb) getBalance(address string) *big.Int {
 	return val
 }
 
-func createLocalTxEvent(tx *types.Transaction) *common2.UncheckedTxEvent {
-	return &common2.UncheckedTxEvent{
-		EventType: common2.LocalTxEvent,
-		Event: &common2.TxWithResp{
+func createLocalTxEvent(tx *types.Transaction) *consensuscommon.UncheckedTxEvent {
+	return &consensuscommon.UncheckedTxEvent{
+		EventType: consensuscommon.LocalTxEvent,
+		Event: &consensuscommon.TxWithResp{
 			Tx:      tx,
-			CheckCh: make(chan *common2.TxResp),
-			PoolCh:  make(chan *common2.TxResp),
+			CheckCh: make(chan *consensuscommon.TxResp),
+			PoolCh:  make(chan *consensuscommon.TxResp),
 		},
 	}
 }
 
-func createRemoteTxEvent(txs []*types.Transaction) *common2.UncheckedTxEvent {
-	return &common2.UncheckedTxEvent{
-		EventType: common2.RemoteTxEvent,
+func createRemoteTxEvent(txs []*types.Transaction) *consensuscommon.UncheckedTxEvent {
+	return &consensuscommon.UncheckedTxEvent{
+		EventType: consensuscommon.RemoteTxEvent,
 		Event:     txs,
 	}
 }

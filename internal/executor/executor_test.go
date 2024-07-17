@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	common2 "github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -373,7 +373,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 	require.Nil(t, err)
 	to := types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7")
 
-	dummyRootHash := common2.Hash{}
+	dummyRootHash := ethcommon.Hash{}
 	ldg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), 1)
 	ldg.StateLedger.SetBalance(signer.Addr, new(big.Int).Mul(big.NewInt(5000000000000), big.NewInt(21000*10000)))
 	account := ldg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))

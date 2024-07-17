@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	common2 "github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -195,7 +195,7 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 
 func (axm *AxiomLedger) genSnapSyncParams(peers []*common.Node, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
-	latestBlockHash := common2.Hash{}.String()
+	latestBlockHash := ethcommon.Hash{}.String()
 	if axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash != nil {
 		latestBlockHash = axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
 	} else {
