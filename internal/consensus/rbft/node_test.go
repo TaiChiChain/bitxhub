@@ -396,11 +396,9 @@ func TestReportState(t *testing.T) {
 		testutil.SetMockBlockLedger(block30, true)
 		defer testutil.ResetMockBlockLedger()
 
-		ckp := &consensus.Checkpoint{
-			ExecuteState: &consensus.Checkpoint_ExecuteState{
-				Height: 30,
-				Digest: block30.Hash().String(),
-			},
+		ckp := &common.Checkpoint{
+			Height: 30,
+			Digest: block30.Hash().String(),
 		}
 		node.ReportState(uint64(30), block.Hash(), nil, ckp, false)
 		ast.Equal(false, node.stack.StateUpdating)

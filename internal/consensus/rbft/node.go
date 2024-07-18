@@ -401,7 +401,7 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint, needRemoveTxs bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *common.Checkpoint, needRemoveTxs bool) {
 	n.logger.Infof("Receive report state: height = %d, blockHash = %s, ckp = %v, needRemoveTxs = %v", height, blockHash, ckp, needRemoveTxs)
 
 	var err error
@@ -498,15 +498,15 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 	return n.stack.MockBlockFeed.Subscribe(ch)
 }
 
-func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *consensus.Checkpoint) error {
-	height := checkpoint.Height()
+func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *common.Checkpoint) error {
+	height := checkpoint.Height
 	localBlockHeader, err := n.config.GetBlockHeaderFunc(height)
 	if err != nil || localBlockHeader == nil {
 		return fmt.Errorf("get local block header failed: %w", err)
 	}
-	if localBlockHeader.Hash().String() != checkpoint.GetExecuteState().GetDigest() {
+	if localBlockHeader.Hash().String() != checkpoint.Digest {
 		return fmt.Errorf("local block [hash %s, height: %d] not equal to checkpoint digest %s",
-			localBlockHeader.Hash().String(), height, checkpoint.GetExecuteState().GetDigest())
+			localBlockHeader.Hash().String(), height, checkpoint.Digest)
 	}
 	return nil
 }
