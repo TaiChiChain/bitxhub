@@ -574,12 +574,14 @@ func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, currentExecuti
 
 func (l *StateLedgerImpl) resetMetrics() {
 	l.snapshot.ResetMetrics()
+	l.trieCache.(*jmt.JMTCache).ResetTrieCacheMetrics()
 	//l.accountTrieCache.ResetCounterMetrics()
 	//l.storageTrieCache.ResetCounterMetrics()
 }
 
 func (l *StateLedgerImpl) exportMetrics() {
 	l.snapshot.ExportMetrics()
+	l.trieCache.(*jmt.JMTCache).ExportTrieCacheMetrics()
 
 	//accountTrieCacheMetrics := l.accountTrieCache.ExportMetrics()
 	//accountTrieCacheMissCounterPerBlock.Set(float64(accountTrieCacheMetrics.CacheMissCounter))

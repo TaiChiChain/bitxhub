@@ -199,13 +199,14 @@ type Pebble struct {
 }
 
 type Ledger struct {
-	ChainLedgerCacheSize                      int  `mapstructure:"chain_ledger_cache_size" toml:"chain_ledger_cache_size"`
-	StateLedgerAccountTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_account_trie_cache_megabytes_limit" toml:"state_ledger_account_trie_cache_megabytes_limit"`
-	StateLedgerStorageTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_storage_trie_cache_megabytes_limit" toml:"state_ledger_storage_trie_cache_megabytes_limit"`
-	EnablePrune                               bool `mapstructure:"enable_prune" toml:"enable_prune"`
-	EnablePreload                             bool `mapstructure:"enable_preload" toml:"enable_preload"`
-	EnableIndexer                             bool `mapstructure:"enable_indexer" toml:"enable_indexer"`
-	StateLedgerReservedHistoryBlockNum        int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
+	ChainLedgerCacheSize int `mapstructure:"chain_ledger_cache_size" toml:"chain_ledger_cache_size"`
+	//StateLedgerAccountTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_account_trie_cache_megabytes_limit" toml:"state_ledger_account_trie_cache_megabytes_limit"`
+	//StateLedgerStorageTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_storage_trie_cache_megabytes_limit" toml:"state_ledger_storage_trie_cache_megabytes_limit"`
+	StateLedgerTrieCacheMegabytesLimit int  `mapstructure:"state_ledger_trie_cache_megabytes_limit" toml:"state_ledger_trie_cache_megabytes_limit"`
+	EnablePrune                        bool `mapstructure:"enable_prune" toml:"enable_prune"`
+	EnablePreload                      bool `mapstructure:"enable_preload" toml:"enable_preload"`
+	EnableIndexer                      bool `mapstructure:"enable_indexer" toml:"enable_indexer"`
+	StateLedgerReservedHistoryBlockNum int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
 }
 
 type Snapshot struct {
@@ -334,9 +335,8 @@ func defaultConfig() *Config {
 			},
 		},
 		Ledger: Ledger{
-			ChainLedgerCacheSize:                      100,
-			StateLedgerAccountTrieCacheMegabytesLimit: 128,
-			StateLedgerStorageTrieCacheMegabytesLimit: 128,
+			ChainLedgerCacheSize:               100,
+			StateLedgerTrieCacheMegabytesLimit: 128,
 			EnablePrune:                        true,
 			EnablePreload:                      false,
 			EnableIndexer:                      false,

@@ -28,9 +28,9 @@ type prunner struct {
 
 var (
 	defaultMinimumReservedBlockNum = 2
-	checkFlushTimeInterval         = 10 * time.Second
-	maxFlushBlockNum               = 10
-	maxFlushTimeInterval           = 1 * time.Minute
+	checkFlushTimeInterval         = 60 * time.Second
+	maxFlushBlockNum               = 64
+	maxFlushTimeInterval           = 2 * time.Minute
 	maxFlushBatchSizeThreshold     = 32 * 1024 * 1024 // 32MB
 )
 
@@ -147,8 +147,7 @@ func (p *prunner) pruning() {
 				delNodes = append(delNodes, v)
 			}
 		}
-		p.trieCache.(*jmt.JMTCache).BatchDelete(delNodes)
-		p.trieCache.(*jmt.JMTCache).BatchInsert(insertNodes)
+		p.trieCache.(*jmt.JMTCache).Update(insertNodes, delNodes)
 
 		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(to+1))
 
@@ -176,6 +175,8 @@ func (p *prunner) pruning() {
 		p.states.diffs = p.states.diffs[pendingFlushBlockNum:]
 		p.states.rebuildAllKeyMap()
 		p.states.lock.Unlock()
+
+		//p.trieCache.(*jmt.JMTCache).PrintAll()
 
 		pendingBatch.Reset()
 		from, to = 0, 0
