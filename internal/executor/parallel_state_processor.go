@@ -131,10 +131,12 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 
 	// Apply the transaction to the current state (included in the env).
 	if *task.shouldDelayFeeCal {
+		currentFromStart := time.Now()
 		task.result, err = core.ApplyMessageNoFeeBurnOrTip(evm, task.msg, new(core.GasPool).AddGas(task.gasLimit))
 		if task.result == nil || err != nil {
 			return blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: err}
 		}
+		evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 
 		reads := task.statedb.MVReadMap()
 
@@ -424,7 +426,6 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			}
 
 			_, err = blockstm.ExecuteParallel(tasks, false, metadata, p.parallelSpeculativeProcesses, interruptCtx)
-
 			break
 		}
 	}

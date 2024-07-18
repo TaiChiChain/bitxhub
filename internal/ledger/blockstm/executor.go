@@ -244,6 +244,10 @@ type ParallelExecutor struct {
 	// Worker wait group
 	workerWg sync.WaitGroup
 
+	executeMutex sync.Mutex
+
+	executeMap map[int][]int
+
 	log logrus.FieldLogger
 }
 
@@ -293,6 +297,7 @@ func NewParallelExecutor(tasks []ExecTask, profile bool, metadata bool, numProcs
 		preValidated:        make(map[int]bool),
 		begin:               time.Now(),
 		profile:             profile,
+		executeMap:          make(map[int][]int),
 		log:                 loggers.Logger(loggers.Executor),
 	}
 
@@ -371,10 +376,16 @@ func (pe *ParallelExecutor) Prepare() error {
 				for range pe.chSpeculativeTasks {
 					execVersionView := pe.specTaskQueue.Pop().(ExecVersionView)
 					doWork(execVersionView)
+					pe.executeMutex.Lock()
+					pe.executeMap[procNum] = append(pe.executeMap[procNum], execVersionView.ver.TxnIndex)
+					pe.executeMutex.Unlock()
 				}
 			} else {
 				for task := range pe.chTasks {
 					doWork(task)
+					pe.executeMutex.Lock()
+					pe.executeMap[procNum] = append(pe.executeMap[procNum], task.ver.TxnIndex)
+					pe.executeMutex.Unlock()
 				}
 			}
 		}(i)
@@ -425,10 +436,10 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 	if abortErr, ok := res.err.(ErrExecAbortError); ok && abortErr.OriginError != nil && pe.skipCheck[tx] {
 		// If the transaction failed when we know it should not fail, this means the transaction itself is
 		// bad (e.g. wrong nonce), and we should exit the execution immediately
-		err = fmt.Errorf("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
-		pe.Close(true)
-
-		return
+		//err = fmt.Errorf("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
+		pe.log.Error("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
+		// pe.Close(true)
+		// return
 	}
 
 	// nolint: nestif
@@ -625,8 +636,9 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 		}
 
 		res := pe.resultQueue.Pop().(ExecResult)
-
+		start := time.Now()
 		result, err = pe.Step(&res)
+		blockStmStepDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 
 		if err != nil {
 			return result, err
@@ -637,6 +649,7 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 		}
 
 		if result.TxIO != nil || err != nil {
+			pe.log.Info(pe.executeMap)
 			return result, err
 		}
 	}
