@@ -38,7 +38,9 @@ func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height ui
 	receipts := make([]*types.Receipt, 0, len(txs))
 
 	for i, tx := range txs {
+		currentFromStart := time.Now()
 		receipts = append(receipts, exec.applyTransaction(i, tx, height))
+		evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 	}
 
 	exec.logger.Debugf("executor executed %d txs", len(txs))

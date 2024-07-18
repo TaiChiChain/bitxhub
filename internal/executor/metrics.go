@@ -17,6 +17,13 @@ var (
 		Help:      "The total latency of block execute",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
 	})
+	evmExecuteEachDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "evm_execute_each_duration_second",
+		Help:      "The tx latency of evm execute",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
 	executeBlockDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "executor",
@@ -57,6 +64,7 @@ func init() {
 	prometheus.MustRegister(calcMerkleDuration)
 	prometheus.MustRegister(calcBlockSize)
 	prometheus.MustRegister(evmExecuteBlockDuration)
+	prometheus.MustRegister(evmExecuteEachDuration)
 	prometheus.MustRegister(executeBlockDuration)
 	prometheus.MustRegister(txCounter)
 	prometheus.MustRegister(proposedBlockCounter)
