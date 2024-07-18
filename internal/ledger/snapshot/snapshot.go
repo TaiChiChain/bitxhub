@@ -245,6 +245,15 @@ func (snap *Snapshot) ResetMetrics() {
 	snap.contractSnapshotCache.ResetCounterMetrics()
 }
 
+// Batch provides the ability to write snapshot directly
 func (snap *Snapshot) Batch() kv.Batch {
+	// reset snapshot cache to ensure data consistency
+	if snap.contractSnapshotCache != nil {
+		snap.contractSnapshotCache.Reset()
+	}
+	if snap.accountSnapshotCache != nil {
+		snap.accountSnapshotCache.Reset()
+	}
+
 	return snap.backend.NewBatch()
 }
