@@ -1,9 +1,12 @@
 package common
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"math/big"
+	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -80,6 +83,13 @@ var (
 	Bytes32Type, _      = abi.NewType("bytes32", "", nil)
 	AddressSliceType, _ = abi.NewType("address[]", "", nil)
 	BytesSliceType, _   = abi.NewType("bytes[]", "", nil)
+)
+
+var (
+	ErrMethodNotFound     = errors.New("method not found")
+	ErrMethodNotImplement = errors.New("method not implement")
+
+	errorType = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 type VirtualMachine interface {
@@ -433,4 +443,196 @@ func NewRevertStringError(data string) *packer.RevertError {
 		Data: append(revertSelector, packed...),
 		Str:  data,
 	}
+}
+
+func Recovery(logger logrus.FieldLogger, execErr error) {
+	if err := recover(); err != nil {
+		logger.Error(err)
+		execErr = fmt.Errorf("%s", err)
+
+		// get panic stack info
+		stack := make([]byte, 4096)
+		stack = stack[:runtime.Stack(stack, false)]
+
+		lines := bytes.Split(stack, []byte("\n"))
+		var errMsg []byte
+		isRecord := false
+		errLineNum := 0
+		for _, line := range lines {
+			if bytes.Contains(line, []byte("panic")) {
+				isRecord = true
+			}
+			if isRecord {
+				errMsg = append(errMsg, line...)
+				errMsg = append(errMsg, []byte("\n")...)
+				errLineNum++
+			}
+			if errLineNum > 20 {
+				break
+			}
+		}
+		logger.Errorf("panic stack info: %s", errMsg)
+	}
+}
+
+func ParseMethodName(contractABI abi.ABI, data []byte) (string, error) {
+	if len(data) < 4 {
+		return "", ErrMethodNotFound
+	}
+
+	var methodName string
+	methodSig := data[:4]
+	for name, method := range contractABI.Methods {
+		if string(methodSig) == string(method.ID) {
+			methodName = name
+			break
+		}
+	}
+
+	if methodName == "" {
+		return "", ErrMethodNotFound
+	}
+
+	return methodName, nil
+}
+
+// ParseArgs parse the arguments to specified interface by method name
+func ParseArgs(contractABI abi.ABI, data []byte, methodName string) ([]any, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("msg data length is not improperly formatted: %q - Bytes: %+v", data, data)
+	}
+
+	// dinvmard method id
+	msgData := data[4:]
+
+	var args abi.Arguments
+	if method, ok := contractABI.Methods[methodName]; ok {
+		if len(msgData)%32 != 0 {
+			return nil, fmt.Errorf("system contract abi: improperly formatted output: %q - Bytes: %+v", msgData, msgData)
+		}
+		args = method.Inputs
+	}
+
+	if args == nil {
+		return nil, fmt.Errorf("system contract abi: could not locate named method: %s", methodName)
+	}
+
+	unpacked, err := args.Unpack(msgData)
+	if err != nil {
+		return nil, err
+	}
+	return unpacked, nil
+}
+
+// PackOutputArgs pack the output arguments by method name
+func PackOutputArgs(contractABI abi.ABI, methodName string, outputArgs ...any) ([]byte, error) {
+	var args abi.Arguments
+	if method, ok := contractABI.Methods[methodName]; ok {
+		args = method.Outputs
+	}
+
+	if args == nil {
+		return nil, fmt.Errorf("system contract abi: could not locate named method: %s", methodName)
+	}
+
+	return args.Pack(outputArgs...)
+}
+
+// UnpackOutputArgs unpack the output arguments by method name
+func UnpackOutputArgs(contractABI abi.ABI, methodName string, packed []byte) ([]any, error) {
+	var args abi.Arguments
+	if method, ok := contractABI.Methods[methodName]; ok {
+		args = method.Outputs
+	}
+
+	if args == nil {
+		return nil, fmt.Errorf("system contract abi: could not locate named method: %s", methodName)
+	}
+
+	return args.Unpack(packed)
+}
+
+// CallSystemContract call system contract and get result and error
+// CallSystemContract get function name from data and call it
+func CallSystemContract(logger logrus.FieldLogger, instance SystemContract, contractAddr string, contractABI abi.ABI, data []byte) (execResult []any, execErr error) {
+	methodName, err := ParseMethodName(contractABI, data)
+	if err != nil {
+		return nil, err
+	}
+
+	// method name may be proposed, but we implement Propose
+	// capitalize the first letter of a function
+	funcName := methodName
+	if len(funcName) >= 2 {
+		funcName = fmt.Sprintf("%s%s", strings.ToUpper(methodName[:1]), methodName[1:])
+	}
+	logger.Debugf("run system contract method name: %s\n", funcName)
+	method := reflect.ValueOf(instance).MethodByName(funcName)
+	if !method.IsValid() {
+		logger.Debugf("no implement method: %s, system contract address: %s\n", funcName, contractAddr)
+		return nil, ErrMethodNotImplement
+	}
+	args, err := ParseArgs(contractABI, data, methodName)
+	if err != nil {
+		return nil, err
+	}
+	var inputs []reflect.Value
+	for _, arg := range args {
+		inputs = append(inputs, reflect.ValueOf(arg))
+	}
+	// convert input args, if input args contains slice struct which is defined in abi, convert to dest slice struct which is defined in golang
+	inputs = ConvertInputArgs(method, inputs)
+
+	// maybe panic when inputs mismatch, but we recover
+	results := method.Call(inputs)
+
+	var returnRes []any
+	var returnErr error
+	for i, result := range results {
+		if checkIsError(result.Type()) {
+			if i != len(results)-1 {
+				panic(fmt.Sprintf("contract[%s] call method[%s] return error: %s, but not the last return value", contractAddr, methodName, returnErr))
+			}
+			if !result.IsNil() {
+				returnErr = result.Interface().(error)
+			}
+		} else {
+			returnRes = append(returnRes, result.Interface())
+		}
+	}
+
+	logger.Debugf("Contract addr: %s, method name: %s, return result: %+v, return error: %s", contractAddr, methodName, returnRes, returnErr)
+
+	return returnRes, returnErr
+}
+
+func ConvertInputArgs(method reflect.Value, inputArgs []reflect.Value) []reflect.Value {
+	outputArgs := make([]reflect.Value, len(inputArgs))
+	copy(outputArgs, inputArgs)
+
+	rt := method.Type()
+	for i := 0; i < rt.NumIn(); i++ {
+		argType := rt.In(i)
+		// convert args, if arg is slice struct
+		if argType.Kind() == reflect.Slice && inputArgs[i].Kind() == reflect.Slice {
+			if argType.Elem().Kind() == reflect.Struct && inputArgs[i].Type().Elem().Kind() == reflect.Struct {
+				slice := reflect.MakeSlice(argType, inputArgs[i].Len(), inputArgs[i].Len())
+				for j := 0; j < inputArgs[i].Len(); j++ {
+					v := reflect.New(argType.Elem()).Elem()
+					for k := 0; k < v.NumField(); k++ {
+						field := inputArgs[i].Index(j).Field(k)
+						v.Field(k).Set(field)
+					}
+					slice.Index(j).Set(v)
+				}
+
+				outputArgs[i] = slice
+			}
+		}
+	}
+	return outputArgs
+}
+
+func checkIsError(tpe reflect.Type) bool {
+	return tpe.AssignableTo(errorType)
 }

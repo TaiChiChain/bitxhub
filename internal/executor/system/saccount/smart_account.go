@@ -76,6 +76,12 @@ var (
 	LockedTime = time.Minute //24 * time.Hour
 )
 
+type CallReturnResult struct {
+	UsedGas        uint64
+	TotalUsedValue *big.Int
+	Result         []any
+}
+
 var _ interfaces.IAccount = (*SmartAccount)(nil)
 
 type SmartAccount struct {
@@ -90,6 +96,9 @@ type SmartAccount struct {
 
 	// remaining gas
 	remainingGas *big.Int
+
+	// total used value
+	totalUsedValue *big.Int
 }
 
 func (sa *SmartAccount) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -106,7 +115,9 @@ func (sa *SmartAccount) SetContext(context *common.VMContext) {
 	sa.passkeys = common.NewVMSlot[[]Passkey](sa.StateAccount, passkeyKey)
 	sa.status = common.NewVMSlot[uint64](sa.StateAccount, statusKey)
 
+	// reset remaining gas and total used value
 	sa.remainingGas = big.NewInt(MaxCallGasLimit)
+	sa.totalUsedValue = big.NewInt(0)
 }
 
 func (sa *SmartAccount) SetRemainingGas(gas *big.Int) *SmartAccount {
@@ -149,6 +160,10 @@ func (sa *SmartAccount) Initialize(owner, guardian ethcommon.Address) error {
 // nolint
 func (sa *SmartAccount) getRemainingGas() *big.Int {
 	return sa.remainingGas
+}
+
+func (sa *SmartAccount) getTotalUsedValue() *big.Int {
+	return sa.totalUsedValue
 }
 
 func (sa *SmartAccount) getOwner() (ethcommon.Address, error) {
@@ -274,54 +289,70 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 	return validationData, nil
 }
 
-func (sa *SmartAccount) Execute(dest ethcommon.Address, value *big.Int, callFunc []byte) (*big.Int, *big.Int, error) {
+func (sa *SmartAccount) Execute(dest ethcommon.Address, value *big.Int, callFunc []byte) error {
 	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
-		return big.NewInt(0), big.NewInt(0), errors.New("only entrypoint can call smart account execute")
+		return errors.New("only entrypoint can call smart account execute")
 	}
 
 	sa.Logger.Infof("execute smart account, dest %s, value: %s, callFunc: %x, remainingGas: %s", dest.Hex(), value.Text(10), callFunc, sa.remainingGas.Text(10))
 
+	// support execute smart account method
+	if dest == sa.EthAddress {
+		// check if callFunc is execute or executeBatch
+		methodId := callFunc[:4]
+		if string(methodId) == string(sa.Abi.Methods["execute"].ID) || string(methodId) == string(sa.Abi.Methods["executeBatch"].ID) {
+			return errors.New("smart account can not call execute or executeBatch recursively")
+		}
+
+		_, err := CallMethod(callFunc, sa)
+		if err == nil {
+			// call successfully
+			return nil
+		}
+
+		if err != common.ErrMethodNotFound {
+			return err
+		}
+		// if method is not system contract method, call solidity
+	}
+
 	// use left gas to call
 	_, gasLeft, err := sa.CrossCallEVMContractWithValue(sa.remainingGas, value, dest, callFunc)
 	if err != nil {
-		return big.NewInt(0), big.NewInt(0), fmt.Errorf("execute smart account callWithValue failed: %v", err)
+		return fmt.Errorf("execute smart account callWithValue failed: %v", err)
 	}
-	gasCost := new(big.Int).Sub(sa.remainingGas, big.NewInt(int64(gasLeft)))
 	sa.remainingGas = big.NewInt(int64(gasLeft))
 
 	totalUsedValue, err := sa.getAxcOfTransferValue(dest, callFunc)
 	if err != nil {
-		return big.NewInt(0), big.NewInt(0), fmt.Errorf("execute smart account getAxcOfTransferValue failed: %v", err)
+		return fmt.Errorf("execute smart account getAxcOfTransferValue failed: %v", err)
 	}
 
 	if value != nil {
 		totalUsedValue.Add(totalUsedValue, value)
 	}
+	sa.totalUsedValue.Add(sa.totalUsedValue, totalUsedValue)
 
-	return gasCost, totalUsedValue, nil
+	return nil
 }
 
-func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte) (*big.Int, *big.Int, error) {
+func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte) error {
 	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
-		return big.NewInt(0), big.NewInt(0), errors.New("only entrypoint can call smart account execute")
+		return errors.New("only entrypoint can call smart account execute")
 	}
 
 	if len(dest) != len(callFunc) {
-		return big.NewInt(0), big.NewInt(0), errors.New("dest and callFunc length mismatch")
+		return errors.New("dest and callFunc length mismatch")
 	}
 
-	gasCost := big.NewInt(0)
-	totalUsedValue := big.NewInt(0)
 	for i := 0; i < len(dest); i++ {
-		usedGas, usedAxc, err := sa.Execute(dest[i], big.NewInt(0), callFunc[i])
+		err := sa.Execute(dest[i], big.NewInt(0), callFunc[i])
 		if err != nil {
-			return nil, big.NewInt(0), err
+			return err
 		}
-		gasCost.Add(gasCost, usedGas)
-		totalUsedValue.Add(totalUsedValue, usedAxc)
 	}
 
-	return gasCost, totalUsedValue, nil
+	return nil
 }
 
 // SetGuardian set guardian for recover smart account's owner
@@ -531,7 +562,7 @@ func (sa *SmartAccount) postUserOp(validateData *interfaces.Validation, actualGa
 
 func recoveryAddrFromSignature(hash [32]byte, signature []byte) (ethcommon.Address, error) {
 	if len(signature) != 65 {
-		return ethcommon.Address{}, common.NewRevertStringError("invalid signature length")
+		return ethcommon.Address{}, fmt.Errorf("invalid signature length")
 	}
 
 	ethHash := accounts.TextHash(hash[:])
@@ -552,89 +583,20 @@ func recoveryAddrFromSignature(hash [32]byte, signature []byte) (ethcommon.Addre
 	return recoveredAddr, nil
 }
 
-// TODO: use abi to find method
-// JudgeOrCallInnerMethod judge if call data is inner method, if yes, call it, return true.
-func JudgeOrCallInnerMethod(callData []byte, sa *SmartAccount) (bool, uint64, *big.Int, error) {
-	if len(callData) < 4 {
-		return false, 0, nil, errors.New("callData length is too short")
+func CallMethod(callData []byte, sa *SmartAccount) (res CallReturnResult, returnErr error) {
+	defer common.Recovery(sa.Logger, returnErr)
+
+	remainingGas := new(big.Int).SetBytes(sa.getRemainingGas().Bytes())
+	totalUsedValue := new(big.Int).SetBytes(sa.getTotalUsedValue().Bytes())
+
+	execRes, err := common.CallSystemContract(sa.Logger, sa, sa.Address.String(), sa.Abi, callData)
+	if err != nil {
+		return res, err
 	}
 
-	var err error
-	usedGas := big.NewInt(0)
-	var gas *big.Int
-	var totalUsedValue *big.Int
-	var value *big.Int
-	methodSig := callData[:4]
-	switch string(methodSig) {
-	case string(executeSig):
-		if len(callData) < 36 {
-			return false, 0, nil, errors.New("call smart account execute, callData length is too short")
-		}
-		var res []any
-		res, err = executeMethod.Unpack(callData[4:])
-		if err != nil {
-			return false, 0, nil, fmt.Errorf("call smart account execute, unpack error: %v", err)
-		}
-		if len(res) != 3 {
-			return false, 0, nil, errors.New("call smart account execute error, unpack result length is not 3")
-		}
-		dest := res[0].(ethcommon.Address)
-		value = res[1].(*big.Int)
-		callFunc := res[2].([]byte)
-		gas, totalUsedValue, err = sa.Execute(dest, value, callFunc)
-	case string(executeBatchSig):
-		var res []any
-		res, err = executeBatchMethod.Unpack(callData[4:])
-		if err != nil {
-			return false, 0, nil, fmt.Errorf("call smart account execute batch, unpack error: %v", err)
-		}
-		if len(res) != 2 {
-			return false, 0, nil, errors.New("call smart account execute batch error, unpack result length is not 2")
-		}
-		dest := res[0].([]ethcommon.Address)
-		callFunc := res[1].([][]byte)
-		gas, totalUsedValue, err = sa.ExecuteBatch(dest, callFunc)
-	case string(setGuardianSig):
-		if len(callData) < 36 {
-			return false, 0, nil, errors.New("call smart account set guardian, callData length is too short")
-		}
-		err = sa.SetGuardian(ethcommon.BytesToAddress(callData[4:36]))
-	case string(resetOwnerSig):
-		if len(callData) < 36 {
-			return false, 0, nil, errors.New("call smart account reset owner, callData length is too short")
-		}
-		err = sa.ResetOwner(ethcommon.BytesToAddress(callData[4:36]))
-	case string(setSessionSig):
-		if len(callData) < 132 {
-			return false, 0, nil, errors.New("call smart account set session, callData length is too short")
-		}
-		err = sa.SetSession(ethcommon.BytesToAddress(callData[4:36]),
-			new(big.Int).SetBytes(callData[36:68]),
-			new(big.Int).SetBytes(callData[68:100]).Uint64(),
-			new(big.Int).SetBytes(callData[100:132]).Uint64(),
-		)
-	case string(setPasskeySig):
-		if len(callData) < 68 {
-			return false, 0, nil, errors.New("call smart account set passkey, callData length is too short")
-		}
-		var res []any
-		res, err = setPasskeyMethod.Unpack(callData[4:])
-		if err != nil {
-			return false, 0, nil, fmt.Errorf("call smart account set passkey, unpack error: %v", err)
-		}
-		if len(res) != 2 {
-			return false, 0, nil, errors.New("call smart account setPasskey error, unpack result length is not 2")
-		}
-		err = sa.SetPasskey(res[0].([]byte), res[1].(uint8))
-	default:
-		return false, 0, nil, nil
-	}
+	res.Result = execRes
+	res.UsedGas = new(big.Int).Sub(remainingGas, sa.getRemainingGas()).Uint64()
+	res.TotalUsedValue = new(big.Int).Sub(sa.getTotalUsedValue(), totalUsedValue)
 
-	if gas == nil {
-		gas = big.NewInt(callInnerMethodGas)
-	}
-
-	usedGas.Add(usedGas, gas)
-
-	return true, usedGas.Uint64(), totalUsedValue, err
+	return res, nil
 }

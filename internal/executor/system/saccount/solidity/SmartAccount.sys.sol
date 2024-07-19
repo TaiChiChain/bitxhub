@@ -128,5 +128,17 @@ contract SmartAccount is BaseAccount {
         (newImplementation);
         _onlyOwner();
     }
+
+    function setGuardian(address) public onlyOwner {
+    }
+
+    function resetOwner(address) public onlyOwner {
+    }
+
+    function setSession(address ,uint256, uint64, uint64) public onlyOwner {
+    }
+
+    function setPasskey(bytes calldata, uint8) public onlyOwner {
+    }
 }
 

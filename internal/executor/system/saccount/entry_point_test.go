@@ -247,7 +247,7 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
 				userOp.CallGasLimit = big.NewInt(499923)
 			},
-			ErrMsg: "unpack error",
+			ErrMsg: "cannot marshal in to go slice",
 		},
 	}
 

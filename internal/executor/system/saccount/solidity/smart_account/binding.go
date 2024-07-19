@@ -60,6 +60,26 @@ type SmartAccount interface {
 	// Solidity: function initialize(address anOwner) returns()
 	Initialize(anOwner common.Address) error
 
+	// ResetOwner is a paid mutator transaction binding the contract method 0x73cc802a.
+	//
+	// Solidity: function resetOwner(address ) returns()
+	ResetOwner(arg0 common.Address) error
+
+	// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+	//
+	// Solidity: function setGuardian(address ) returns()
+	SetGuardian(arg0 common.Address) error
+
+	// SetPasskey is a paid mutator transaction binding the contract method 0x39d8bab5.
+	//
+	// Solidity: function setPasskey(bytes , uint8 ) returns()
+	SetPasskey(arg0 []byte, arg1 uint8) error
+
+	// SetSession is a paid mutator transaction binding the contract method 0xa3ca5fe3.
+	//
+	// Solidity: function setSession(address , uint256 , uint64 , uint64 ) returns()
+	SetSession(arg0 common.Address, arg1 *big.Int, arg2 uint64, arg3 uint64) error
+
 	// ValidateUserOp is a paid mutator transaction binding the contract method 0xb0fff5ca.
 	//
 	// Solidity: function validateUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 missingAccountFunds) returns(uint256 validationData)
