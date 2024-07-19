@@ -109,7 +109,7 @@ func (p *txPoolImpl[T, Constraint]) handleGetAccountMeta(account string, full bo
 			p.logger.Errorf("Get nil tx from allTxs items")
 			return true
 		}
-		fullTxs = append(fullTxs, item)
+		fullTxs = append(fullTxs, item.clone())
 		return true
 	})
 

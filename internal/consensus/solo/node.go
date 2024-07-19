@@ -13,7 +13,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
@@ -181,7 +180,7 @@ func (n *Node) Ready() error {
 	return nil
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensus.Checkpoint, _ bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {
 	txHashList := make([]*types.Hash, len(txPointerList))
 	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
 		txHashList[i] = item.Hash

@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -96,7 +95,7 @@ func (n *NodeDev) Ready() error {
 	return nil
 }
 
-func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensus.Checkpoint, _ bool) {
+func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {
 	if height%checkpoint == 0 {
 		n.logger.WithFields(logrus.Fields{
 			"height": height,

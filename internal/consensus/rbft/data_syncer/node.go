@@ -103,6 +103,7 @@ func NewNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, st
 		return nil, err
 	}
 
+	node.statusMgr.On(Pending)
 	node.logger.Infof("new data_syncer node: %s", rbftConfig.SelfP2PNodeID)
 	return node, nil
 }
@@ -204,9 +205,6 @@ func (n *Node[T, Constraint]) Stop() {
 }
 
 func (n *Node[T, Constraint]) Status() (status rbft.NodeStatus) {
-	if !n.started.Load() {
-		return rbft.NodeStatus{Status: rbft.Pending}
-	}
 	n.chainConfig.lock.RLock()
 	defer n.chainConfig.lock.RUnlock()
 	status.H = n.chainConfig.H
@@ -218,6 +216,8 @@ func (n *Node[T, Constraint]) Status() (status rbft.NodeStatus) {
 		status.Status = rbft.StateTransferring
 	case n.statusMgr.In(InSyncState):
 		status.Status = rbft.InSyncState
+	case n.statusMgr.In(Pending):
+		status.Status = rbft.Pending
 	default:
 		status.Status = rbft.Normal
 	}
@@ -234,8 +234,10 @@ func (n *Node[T, Constraint]) getCurrentStatus() status.StatusType {
 		return InSyncState
 	case n.statusMgr.In(InCommit):
 		return InCommit
-	default:
+	case n.statusMgr.In(Normal):
 		return Normal
+	default:
+		return Pending
 	}
 }
 
@@ -296,6 +298,12 @@ func (n *Node[T, Constraint]) consensusMessageFilter(msg *consensus.ConsensusMes
 		n.logger.Warningf("unknown consensus message type: %s from %d", msg.Type, msg.From)
 		return nil
 	}
+
+	if n.statusMgr.In(InEpochSyncing) {
+		n.logger.Debugf("Replica %d is in epoch syncing status, reject consensus messages", n.chainState.SelfNodeInfo.ID)
+		return nil
+	}
+
 	if msg.Epoch != n.chainConfig.epochInfo.Epoch && !n.isConsensusMsgWhiteList(msg) {
 		return n.checkEpoch(msg)
 	}
@@ -376,7 +384,7 @@ func (n *Node[T, Constraint]) processEvent(event *localEvent) []*localEvent {
 	defer func() {
 		traceProcessEvent(eventTypes[event.EventType], time.Since(start))
 		if event.EventType != eventType_consensusMessage {
-			n.logger.Debugf("process event: %s, cost: %s", eventTypes[event.EventType], time.Since(start))
+			n.logger.Debugf("end process event: %s, cost: %s", eventTypes[event.EventType], time.Since(start))
 		}
 	}()
 	switch event.EventType {
@@ -467,7 +475,8 @@ func (n *Node[T, Constraint]) processEvent(event *localEvent) []*localEvent {
 			n.logger.Errorf("invalid event type: %v", event.Event)
 			return nil
 		}
-		if !n.started.Load() {
+		if n.statusMgr.In(Pending) {
+			n.logger.Infof("current status is %s, ignore executed event", statusTypes[n.getCurrentStatus()])
 			return nil
 		}
 		sckptList := n.checkpointCache.getItems(state.MetaState.Height)
@@ -612,6 +621,7 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 			return nil
 		}
 	} else {
+		n.statusMgr.Off(Pending)
 		n.statusMgr.On(Normal)
 		return n.genCommitEvent()
 	}
@@ -804,6 +814,7 @@ func (n *Node[T, Constraint]) recvSyncStateResponse(resp *consensus.SyncStateRes
 			}
 		}
 
+		n.statusMgr.Off(Pending)
 		if !n.statusMgr.In(Normal) {
 			n.statusMgr.On(Normal)
 		}

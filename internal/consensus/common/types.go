@@ -3,8 +3,6 @@ package common
 import (
 	"github.com/pkg/errors"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
-	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 )
@@ -59,18 +57,11 @@ type TxResp struct {
 
 type CommitEvent struct {
 	Block                  *types.Block
-	StateUpdatedCheckpoint *consensus.Checkpoint
+	StateUpdatedCheckpoint *Checkpoint
 }
 
-func StoreEpochState(epochStore kv.Storage, key string, value []byte) error {
-	epochStore.Put([]byte("epoch."+key), value)
-	return nil
-}
-
-func ReadEpochState(epochStore kv.Storage, key string) ([]byte, error) {
-	b := epochStore.Get([]byte("epoch." + key))
-	if b == nil {
-		return nil, errors.New("not found")
-	}
-	return b, nil
+type Checkpoint struct {
+	Epoch  uint64
+	Height uint64
+	Digest string
 }

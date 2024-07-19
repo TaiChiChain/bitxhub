@@ -757,9 +757,7 @@ func TestNode_Status(t *testing.T) {
 			tc.setupMocks(node, pipes, consensusMsgPipes, cnf, ctrl)
 			status := node.Status()
 			assert.Equal(t, tc.expectResult, status.Status)
-			if node.started.Load() {
-				node.Stop()
-			}
+			node.Stop()
 		})
 	}
 }

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	common2 "github.com/ethereum/go-ethereum/common"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -25,7 +26,7 @@ type snapMeta struct {
 	snapPeers        []*common.Node
 }
 
-func loadSnapMeta(lg *ledger.Ledger) (*snapMeta, error) {
+func loadSnapMeta(lg *ledger.Ledger, args *repo.SyncArgs) (*snapMeta, error) {
 	meta, err := lg.StateLedger.GetTrieSnapshotMeta()
 	if err != nil {
 		return nil, fmt.Errorf("get snapshot meta hash: %w", err)
@@ -36,8 +37,14 @@ func loadSnapMeta(lg *ledger.Ledger) (*snapMeta, error) {
 		snapPersistedEpoch = meta.EpochInfo.Epoch
 	}
 
+	// if local node is started with specified nodes for synchronization,
+	// the specified nodes will be used instead of the snapshot meta
+	rawPeers := meta.Nodes
+	if args.RemotePeers != nil && len(args.RemotePeers.Validators) != 0 {
+		rawPeers = args.RemotePeers
+	}
 	// flatten peers
-	peers := lo.FlatMap(meta.Nodes.Validators, func(p *consensus.QuorumValidator, _ int) []*common.Node {
+	peers := lo.FlatMap(rawPeers.Validators, func(p *consensus.QuorumValidator, _ int) []*common.Node {
 		return []*common.Node{
 			{
 				Id:     p.Id,
@@ -188,7 +195,7 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 
 func (axm *AxiomLedger) genSnapSyncParams(peers []*common.Node, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
-	latestBlockHash := common2.Hash{}.String()
+	latestBlockHash := ethcommon.Hash{}.String()
 	if axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash != nil {
 		latestBlockHash = axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
 	} else {

@@ -85,9 +85,14 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			latestBlockHash = localBlockHeader.Hash().String()
 		} else {
 			// notify rbft report State Updated
+			rbftCheckpoint := checkpoints[0].GetCheckpoint()
 			a.postMockBlockEvent(&types.Block{
 				Header: localBlockHeader,
-			}, []*events.TxPointer{}, checkpoints[0].GetCheckpoint())
+			}, []*events.TxPointer{}, &common.Checkpoint{
+				Epoch:  rbftCheckpoint.Epoch,
+				Height: rbftCheckpoint.Height(),
+				Digest: rbftCheckpoint.Digest(),
+			})
 			a.logger.WithFields(logrus.Fields{
 				"remote": digest,
 				"local":  localBlockHeader.Hash().String(),
@@ -135,7 +140,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		panic(fmt.Errorf("retry start sync failed: %v", err))
 	}
 
-	var stateUpdatedCheckpoint *consensus.Checkpoint
+	var stateUpdatedCheckpoint *common.Checkpoint
 	// wait for the sync to finish
 	for {
 		select {
@@ -166,7 +171,12 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 				// if the block is the target block, we should resign the stateUpdatedCheckpoint in CommitEvent
 				// and send the quitSync signal to sync module
 				if commitData.GetHeight() == seqNo {
-					stateUpdatedCheckpoint = checkpoints[0].GetCheckpoint()
+					rbftCkpt := checkpoints[0].GetCheckpoint()
+					stateUpdatedCheckpoint = &common.Checkpoint{
+						Epoch:  rbftCkpt.Epoch,
+						Height: rbftCkpt.Height(),
+						Digest: rbftCkpt.Digest(),
+					}
 					a.quitSync <- struct{}{}
 				}
 				block, ok := commitData.(*synccomm.BlockData)
@@ -198,7 +208,7 @@ func (a *RBFTAdaptor) GetCommitChannel() chan *common.CommitEvent {
 	return a.BlockC
 }
 
-func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *consensus.Checkpoint) {
+func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *common.Checkpoint) {
 	a.MockBlockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
 		TxPointerList:          txHashList,

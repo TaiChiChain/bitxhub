@@ -41,6 +41,11 @@ func (m *MockPipe) EXPECT() *MockPipeMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockPipe) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // Broadcast mocks base method.
 func (m *MockPipe) Broadcast(ctx context.Context, targets []string, data []byte) error {
 	m.ctrl.T.Helper()
@@ -216,6 +221,11 @@ func (m *MockNetwork) EXPECT() *MockNetworkMockRecorder {
 	return m.recorder
 }
 
+// ISGOMOCK indicates that this struct is a gomock mock.
+func (m *MockNetwork) ISGOMOCK() struct{} {
+	return struct{}{}
+}
+
 // CreatePipe mocks base method.
 func (m *MockNetwork) CreatePipe(ctx context.Context, pipeID string) (network.Pipe, error) {
 	m.ctrl.T.Helper()
@@ -251,6 +261,44 @@ func (c *MockNetworkCreatePipeCall) Do(f func(context.Context, string) (network.
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockNetworkCreatePipeCall) DoAndReturn(f func(context.Context, string) (network.Pipe, error)) *MockNetworkCreatePipeCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetConnectedPeers mocks base method.
+func (m *MockNetwork) GetConnectedPeers(peers []string) []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConnectedPeers", peers)
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// GetConnectedPeers indicates an expected call of GetConnectedPeers.
+func (mr *MockNetworkMockRecorder) GetConnectedPeers(peers any) *MockNetworkGetConnectedPeersCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConnectedPeers", reflect.TypeOf((*MockNetwork)(nil).GetConnectedPeers), peers)
+	return &MockNetworkGetConnectedPeersCall{Call: call}
+}
+
+// MockNetworkGetConnectedPeersCall wrap *gomock.Call
+type MockNetworkGetConnectedPeersCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockNetworkGetConnectedPeersCall) Return(arg0 []string) *MockNetworkGetConnectedPeersCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockNetworkGetConnectedPeersCall) Do(f func([]string) []string) *MockNetworkGetConnectedPeersCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockNetworkGetConnectedPeersCall) DoAndReturn(f func([]string) []string) *MockNetworkGetConnectedPeersCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
