@@ -244,10 +244,6 @@ type ParallelExecutor struct {
 	// Worker wait group
 	workerWg sync.WaitGroup
 
-	executeMutex sync.Mutex
-
-	executeMap map[int][]int
-
 	log logrus.FieldLogger
 }
 
@@ -297,7 +293,6 @@ func NewParallelExecutor(tasks []ExecTask, profile bool, metadata bool, numProcs
 		preValidated:        make(map[int]bool),
 		begin:               time.Now(),
 		profile:             profile,
-		executeMap:          make(map[int][]int),
 		log:                 loggers.Logger(loggers.Executor),
 	}
 
@@ -376,16 +371,10 @@ func (pe *ParallelExecutor) Prepare() error {
 				for range pe.chSpeculativeTasks {
 					execVersionView := pe.specTaskQueue.Pop().(ExecVersionView)
 					doWork(execVersionView)
-					pe.executeMutex.Lock()
-					pe.executeMap[procNum] = append(pe.executeMap[procNum], execVersionView.ver.TxnIndex)
-					pe.executeMutex.Unlock()
 				}
 			} else {
 				for task := range pe.chTasks {
 					doWork(task)
-					pe.executeMutex.Lock()
-					pe.executeMap[procNum] = append(pe.executeMap[procNum], task.ver.TxnIndex)
-					pe.executeMutex.Unlock()
 				}
 			}
 		}(i)
@@ -649,7 +638,6 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 		}
 
 		if result.TxIO != nil || err != nil {
-			pe.log.Info(pe.executeMap)
 			return result, err
 		}
 	}
