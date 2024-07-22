@@ -39,9 +39,10 @@ import (
 
 // maxBatchSize defines the maximum size of the data in single batch write operation, which is 64 MB.
 const (
-	maxBatchSize = 64 * 1024 * 1024
-	bls          = "bls"
-	ed25519      = "ed25519"
+	maxBatchSize            = 64 * 1024 * 1024
+	bls                     = "bls"
+	ed25519                 = "ed25519"
+	defaultTxsCountPerBlock = 10000
 )
 
 var ledgerGetBlockArgs = struct {
@@ -69,7 +70,7 @@ var ledgerGenerateTrieArgs = struct {
 var ledgerImportAccountsArgs = struct {
 	TargetFilePath string
 	Balance        string
-	BatchSize      uint
+	BatchSize      int
 }{}
 
 var ledgerGenerateEpochArgs = struct {
@@ -204,10 +205,11 @@ var ledgerCMD = &cli.Command{
 					Required:    true,
 					Destination: &ledgerImportAccountsArgs.Balance,
 				},
-				&cli.UintFlag{
+				&cli.IntFlag{
 					Name:        "batch-size",
 					Usage:       "number of accounts to import in one block",
 					Required:    false,
+					Value:       defaultTxsCountPerBlock,
 					Destination: &ledgerImportAccountsArgs.BatchSize,
 				},
 			},
@@ -281,7 +283,7 @@ func importAccounts(ctx *cli.Context) error {
 	return importAccountsFromFile(rep, rwLdg, ledgerImportAccountsArgs.TargetFilePath, ledgerImportAccountsArgs.Balance, ledgerImportAccountsArgs.BatchSize)
 }
 
-func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balanceStr string, size uint) error {
+func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balanceStr string, batchSize int) error {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("account list file does not exist: %s, error: %v", filePath, err)
 	}
@@ -289,21 +291,17 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 	if err != nil {
 		return fmt.Errorf("failed to count lines in account list file: %v", err)
 	}
-	batchSize := int(size)
-	if batchSize == 0 {
-		batchSize = 10000
+
+	if batchSize <= 0 {
+		return fmt.Errorf("invalid batch size: %d", batchSize)
 	}
-	totalBatches := totalLines / batchSize
-	if totalLines%batchSize > 0 {
-		totalBatches++
-	}
+
+	totalBlockCount := (totalLines + batchSize - 1) / batchSize
+
 	epochSize := r.GenesisConfig.EpochInfo.EpochPeriod
-	currentHeight := lg.ChainLedger.GetChainMeta().Height
-	currentEpochNumber := (currentHeight - 1) / epochSize
-	endOfCurrentEpoch := (currentEpochNumber + 1) * epochSize
-	remainingBlocksInEpoch := endOfCurrentEpoch - currentHeight
-	if totalBatches > int(remainingBlocksInEpoch) {
-		return fmt.Errorf("the number of batches %d is larger than the epoch period %d, please increase the epochsize", totalBatches, r.GenesisConfig.EpochInfo.EpochPeriod)
+
+	if totalBlockCount > int(epochSize) {
+		return fmt.Errorf("the number of batches %d is larger than the epoch period, please increase the epoch period: %d or increase the batch size: %d", totalBlockCount, epochSize, batchSize)
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -314,7 +312,7 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 	}()
 	scanner := bufio.NewScanner(file)
 	currentLine := 0
-	for batch := 0; batch < totalBatches; batch++ {
+	for batch := 0; batch < totalBlockCount; batch++ {
 		currentHeight := lg.ChainLedger.GetChainMeta().Height
 		fmt.Printf("current height: %d\n", currentHeight+1)
 		parentBlockHeader, err := lg.ChainLedger.GetBlockHeader(currentHeight)
