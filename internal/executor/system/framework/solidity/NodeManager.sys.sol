@@ -51,6 +51,8 @@ interface NodeManager {
 
     function updateOperator(uint64 nodeID, address newOperator) external;
 
+    function getInfoByConsensusPubKey(string memory consensusPubKey) external view returns (NodeInfo memory info);
+
     function getInfo(uint64 nodeID) external view returns (NodeInfo memory info);
 
     function getTotalCount() external view returns (uint64);

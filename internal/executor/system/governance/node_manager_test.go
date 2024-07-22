@@ -175,14 +175,23 @@ func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: NodeRemoveExtraArgs{
-				NodeID: 1,
+				NodeIDs: []uint64{1},
 			},
 			ErrHandler: assert.NoError,
 		},
 		{
+			Caller: admin1,
+			Data: NodeRemoveExtraArgs{
+				NodeIDs: []uint64{1},
+			},
+			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.ErrorContains(t, err, "remove node already exist in other proposal")
+			},
+		},
+		{
 			Caller: ethcommon.HexToAddress("0x1200000000000000000000000000000000000000"),
 			Data: NodeRemoveExtraArgs{
-				NodeID: 1,
+				NodeIDs: []uint64{3},
 			},
 			ErrHandler: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.ErrorContains(t, err, ErrNotFoundCouncilMember.Error())
@@ -191,7 +200,7 @@ func TestNodeManager_RunForNodeRemovePropose(t *testing.T) {
 		{
 			Caller: admin1,
 			Data: NodeRemoveExtraArgs{
-				NodeID: 2,
+				NodeIDs: []uint64{2},
 			},
 			PreProposeHook: func(t *testing.T, ctx *common.VMContext) {
 				nodeManagerContract := framework.NodeManagerBuildConfig.Build(ctx)
@@ -386,6 +395,153 @@ func TestNodeManager_RunForRegisterClean(t *testing.T) {
 	})
 }
 
+func TestNodeManager_RunForRemoveClean(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
+
+	// propose
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args := &NodeRemoveExtraArgs{
+			NodeIDs: []uint64{1},
+		}
+
+		data, err := json.Marshal(args)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	proposalID, err := gov.GetLatestProposalID()
+	assert.Nil(t, err)
+
+	// re propose used same data after before
+	testNVM.Call(gov, admin1, func() {
+		proposal, err := gov.Proposal(proposalID)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, proposal.Extra)
+		assert.ErrorContains(t, err, "remove node already exist")
+	})
+
+	// clean proposal, delete pending indexes
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		handler, err := gov.getHandler(NodeRegister)
+		assert.Nil(t, err)
+		proposal, err := gov.Proposal(proposalID)
+		assert.Nil(t, err)
+		err = handler.CleanProposal(proposal)
+		assert.Nil(t, err)
+		return err
+	})
+
+	// re propose used same data after clean
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		proposal, err := gov.Proposal(proposalID)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, proposal.Extra)
+		assert.Nil(t, err)
+		return err
+	})
+}
+
+func TestNodeManager_RemoveFailedFullRevert(t *testing.T) {
+	testNVM, gov := initGovernance(t)
+	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	axcManager := token.AXCBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	testNVM.GenesisInit(axcManager, nodeManager)
+
+	p2pKeystore, err := repo.GenerateP2PKeystore(testNVM.Rep.RepoRoot, "", "")
+	assert.Nil(t, err)
+	consensusKeystore, err := repo.GenerateConsensusKeystore(testNVM.Rep.RepoRoot, "", "")
+	assert.Nil(t, err)
+	operatorAddress := "0xc7F999b83Af6DF9e67d0a37Ee7e900bF38b3D013"
+	var node5ID uint64
+	testNVM.RunSingleTX(nodeManager, ethcommon.Address{}, func() error {
+		node5ID, err = nodeManager.Register(node_manager.NodeInfo{
+			ConsensusPubKey: consensusKeystore.PublicKey.String(),
+			P2PPubKey:       p2pKeystore.PublicKey.String(),
+			P2PID:           p2pKeystore.P2PID(),
+			Operator:        ethcommon.HexToAddress(operatorAddress),
+			MetaData: node_manager.NodeMetaData{
+				Name:       "mockName",
+				Desc:       "mockDesc",
+				ImageURL:   "https://example.com/image.png",
+				WebsiteURL: "https://example.com/",
+			},
+		})
+		assert.Nil(t, err)
+		assert.EqualValues(t, 5, node5ID)
+		return err
+	}, common.TestNVMRunOptionCallFromSystem())
+
+	// propose
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		args := &NodeRemoveExtraArgs{
+			NodeIDs: []uint64{node5ID, 1},
+		}
+
+		data, err := json.Marshal(args)
+		assert.Nil(t, err)
+
+		err = gov.Propose(uint8(NodeRemove), "test", "test desc", 100, data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	proposalID, err := gov.GetLatestProposalID()
+	assert.Nil(t, err)
+
+	testcases := []struct {
+		Caller ethcommon.Address
+		Res    VoteResult
+	}{
+		{
+			Caller: admin2,
+			Res:    Pass,
+		},
+		{
+			Caller: admin3,
+			Res:    Pass,
+		},
+	}
+
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.Caller, func() error {
+				err := gov.Vote(proposalID, uint8(test.Res))
+				assert.Nil(t, err)
+				return err
+			})
+		})
+	}
+
+	proposal, err := gov.Proposal(proposalID)
+	assert.Nil(t, err)
+	assert.EqualValues(t, proposal.Status, Approved)
+	assert.EqualValues(t, proposal.ExecuteSuccess, false)
+	t.Log("proposal execute failed msg", proposal.ExecuteFailedMsg)
+
+	// before node not exited
+	testNVM.Call(nodeManager, ethcommon.Address{}, func() {
+		exitedIDSet, err := nodeManager.GetExitedIDSet()
+		assert.Nil(t, err)
+		assert.EqualValues(t, 0, len(exitedIDSet))
+
+		node1, err := nodeManager.GetInfo(1)
+		assert.Nil(t, err)
+		assert.EqualValues(t, types.NodeStatusActive, node1.Status)
+
+		node5, err := nodeManager.GetInfo(5)
+		assert.Nil(t, err)
+		assert.EqualValues(t, types.NodeStatusDataSyncer, node5.Status)
+	})
+}
+
 func TestNodeManager_RunForRegisterVote_Approved(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 	nodeManager := framework.NodeManagerBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
@@ -470,7 +626,7 @@ func TestNodeManager_RunForRemoveVote(t *testing.T) {
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
 		data, err := json.Marshal(NodeRemoveExtraArgs{
-			NodeID: 5,
+			NodeIDs: []uint64{5},
 		})
 		assert.Nil(t, err)
 
@@ -544,7 +700,7 @@ func TestNodeManager_RunForRemoveVote_Approved(t *testing.T) {
 	// propose
 	testNVM.RunSingleTX(gov, admin1, func() error {
 		data, err := json.Marshal(NodeRemoveExtraArgs{
-			NodeID: 5,
+			NodeIDs: []uint64{5},
 		})
 		assert.Nil(t, err)
 

@@ -247,7 +247,7 @@ func TestEntryPoint_HandleOp_Error(t *testing.T) {
 				userOp.CallData = append(userOp.CallData, ethcommon.LeftPadBytes(big.NewInt(100000).Bytes(), 32)...)
 				userOp.CallGasLimit = big.NewInt(499923)
 			},
-			ErrMsg: "unpack error",
+			ErrMsg: "cannot marshal in to go slice",
 		},
 	}
 
@@ -529,7 +529,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
 				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
-				g, err := sa.getGuardian()
+				g, err := sa.GetGuardian()
 				assert.Nil(t, err)
 				assert.Equal(t, g, guardian)
 			},
@@ -555,7 +555,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
 				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
-				g, err := sa.getGuardian()
+				g, err := sa.GetGuardian()
 				assert.Nil(t, err)
 				assert.Equal(t, g, userOp.Sender)
 			},
@@ -580,7 +580,7 @@ func TestEntryPoint_HandleOp(t *testing.T) {
 			},
 			AfterRun: func(userOp *interfaces.UserOperation) {
 				sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), userOp.Sender).SetRemainingGas(big.NewInt(MaxCallGasLimit))
-				owner, err := sa.getOwner()
+				owner, err := sa.GetOwner()
 				assert.Nil(t, err)
 				assert.Equal(t, owner, newOwner)
 			},
