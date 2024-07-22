@@ -18,6 +18,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/interfaces"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_client"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/saccount/solidity/smart_account_proxy"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -166,7 +167,7 @@ func (sa *SmartAccount) getTotalUsedValue() *big.Int {
 	return sa.totalUsedValue
 }
 
-func (sa *SmartAccount) getOwner() (ethcommon.Address, error) {
+func (sa *SmartAccount) GetOwner() (ethcommon.Address, error) {
 	// if is lock status, return old owner
 	isExist, lockTime, err := sa.status.Get()
 	if err != nil {
@@ -222,6 +223,52 @@ func (sa *SmartAccount) setOwner(owner ethcommon.Address) error {
 	return nil
 }
 
+// GetGuardian return guardian address
+func (sa *SmartAccount) GetGuardian() (ethcommon.Address, error) { return sa.guardian.MustGet() }
+
+// GetStatus return status
+func (sa *SmartAccount) GetStatus() (uint64, error) { return sa.status.MustGet() }
+
+// GetPasskeys return passkey list
+func (sa *SmartAccount) GetPasskeys() ([]smart_account_proxy.PassKey, error) {
+	passkeyList, err := sa.passkeys.MustGet()
+	if err != nil {
+		return nil, err
+	}
+
+	dstPasskeyList := make([]smart_account_proxy.PassKey, 0, len(passkeyList))
+	for _, passkey := range passkeyList {
+		dstPasskeyList = append(dstPasskeyList, smart_account_proxy.PassKey{
+			PubKeyX: passkey.PubKeyX,
+			PubKeyY: passkey.PubKeyY,
+			Algo:    passkey.Algo,
+		})
+	}
+
+	return dstPasskeyList, nil
+}
+
+// GetSessions return session key list
+func (sa *SmartAccount) GetSessions() ([]smart_account_proxy.SessionKey, error) {
+	sessionKeyList, err := sa.sessionKeys.MustGet()
+	if err != nil {
+		return nil, err
+	}
+
+	dstSessionKeyList := make([]smart_account_proxy.SessionKey, 0, len(sessionKeyList))
+	for _, sessionKey := range sessionKeyList {
+		dstSessionKeyList = append(dstSessionKeyList, smart_account_proxy.SessionKey{
+			Addr:          sessionKey.Addr,
+			SpendingLimit: sessionKey.SpendingLimit,
+			SpentAmount:   sessionKey.SpentAmount,
+			ValidUntil:    sessionKey.ValidUntil,
+			ValidAfter:    sessionKey.ValidAfter,
+		})
+	}
+
+	return dstSessionKeyList, nil
+}
+
 // ValidateUserOp implements interfaces.IAccount.
 // ValidateUserOp return SigValidationFailed when validate failed
 // This allows making a "simulation call" without a valid signature
@@ -273,7 +320,7 @@ func (sa *SmartAccount) validateUserOp(userOp *interfaces.UserOperation, userOpH
 		}
 	}
 
-	owner, err := sa.getOwner()
+	owner, err := sa.GetOwner()
 	if err != nil {
 		sa.Logger.Warnf("get owner failed: %v", err)
 		return validationData, nil
@@ -357,19 +404,14 @@ func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte
 
 // SetGuardian set guardian for recover smart account's owner
 func (sa *SmartAccount) SetGuardian(guardian ethcommon.Address) error {
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) && sa.Ctx.From != ethcommon.HexToAddress(common.AccountFactoryContractAddr) {
+		return errors.New("only entrypoint or smart account factory can call smart account setGuardian")
+	}
+
 	if guardian == (ethcommon.Address{}) {
 		return nil
 	}
 	return sa.guardian.Put(guardian)
-}
-
-// nolint
-func (sa *SmartAccount) getGuardian() (ethcommon.Address, error) {
-	_, guardian, err := sa.guardian.Get()
-	if err != nil {
-		return ethcommon.Address{}, err
-	}
-	return guardian, nil
 }
 
 func (sa *SmartAccount) ValidateGuardianSignature(guardianSig []byte, userOpHash [32]byte) error {

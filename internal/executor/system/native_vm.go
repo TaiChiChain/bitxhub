@@ -69,6 +69,7 @@ func New() *NativeVM {
 	nvm.Deploy(saccount.VerifyingPaymasterBuildConfig.StaticConfig())
 	nvm.Deploy(saccount.TokenPaymasterBuildConfig.StaticConfig())
 	nvm.Deploy(saccount.SmartAccountFactoryBuildConfig.StaticConfig())
+	nvm.Deploy(saccount.AccountProxyBuildConfig.StaticConfig())
 
 	return nvm
 }

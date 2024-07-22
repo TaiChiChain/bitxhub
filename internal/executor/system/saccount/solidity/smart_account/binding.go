@@ -21,6 +21,22 @@ var (
 	_ = packer.RevertError{}
 )
 
+// PassKey is an auto generated low-level Go binding around an user-defined struct.
+type PassKey struct {
+	PubKeyX *big.Int
+	PubKeyY *big.Int
+	Algo    uint8
+}
+
+// SessionKey is an auto generated low-level Go binding around an user-defined struct.
+type SessionKey struct {
+	Addr          common.Address
+	SpendingLimit *big.Int
+	SpentAmount   *big.Int
+	ValidUntil    uint64
+	ValidAfter    uint64
+}
+
 // UserOperation is an auto generated low-level Go binding around an user-defined struct.
 type UserOperation struct {
 	Sender               common.Address
@@ -39,11 +55,6 @@ type UserOperation struct {
 }
 
 type SmartAccount interface {
-
-	// AddDeposit is a paid mutator transaction binding the contract method 0x4a58db19.
-	//
-	// Solidity: function addDeposit() payable returns()
-	AddDeposit() error
 
 	// Execute is a paid mutator transaction binding the contract method 0xb61d27f6.
 	//
@@ -85,25 +96,40 @@ type SmartAccount interface {
 	// Solidity: function validateUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 missingAccountFunds) returns(uint256 validationData)
 	ValidateUserOp(userOp UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (*big.Int, error)
 
-	// WithdrawDepositTo is a paid mutator transaction binding the contract method 0x4d44560d.
-	//
-	// Solidity: function withdrawDepositTo(address withdrawAddress, uint256 amount) returns()
-	WithdrawDepositTo(withdrawAddress common.Address, amount *big.Int) error
-
 	// EntryPoint is a free data retrieval call binding the contract method 0xb0d691fe.
 	//
 	// Solidity: function entryPoint() view returns(address)
 	EntryPoint() (common.Address, error)
 
-	// GetDeposit is a free data retrieval call binding the contract method 0xc399ec88.
+	// GetGuardian is a free data retrieval call binding the contract method 0xa75b87d2.
 	//
-	// Solidity: function getDeposit() view returns(uint256)
-	GetDeposit() (*big.Int, error)
+	// Solidity: function getGuardian() view returns(address)
+	GetGuardian() (common.Address, error)
 
 	// GetNonce is a free data retrieval call binding the contract method 0xd087d288.
 	//
 	// Solidity: function getNonce() view returns(uint256)
 	GetNonce() (*big.Int, error)
+
+	// GetOwner is a free data retrieval call binding the contract method 0x893d20e8.
+	//
+	// Solidity: function getOwner() view returns(address)
+	GetOwner() (common.Address, error)
+
+	// GetPasskeys is a free data retrieval call binding the contract method 0xe4093c22.
+	//
+	// Solidity: function getPasskeys() view returns((uint256,uint256,uint8)[])
+	GetPasskeys() ([]PassKey, error)
+
+	// GetSessions is a free data retrieval call binding the contract method 0x61503e45.
+	//
+	// Solidity: function getSessions() view returns((address,uint256,uint256,uint64,uint64)[])
+	GetSessions() ([]SessionKey, error)
+
+	// GetStatus is a free data retrieval call binding the contract method 0x4e69d560.
+	//
+	// Solidity: function getStatus() view returns(uint64)
+	GetStatus() (uint64, error)
 
 	// Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
 	//

@@ -59,6 +59,9 @@ const (
 	// TokenPaymasterContractAddr is the address of token paymaster system contract
 	TokenPaymasterContractAddr = "0x000000000000000000000000000000000000100b"
 
+	// AccountProxyContractAddr is the address of account proxy system contract
+	AccountProxyContractAddr = "0x000000000000000000000000000000000000100c"
+
 	// SystemContractEndAddr is the end address of system contract
 	SystemContractEndAddr = "0x000000000000000000000000000000000000ffff"
 
