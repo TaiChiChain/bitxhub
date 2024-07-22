@@ -17,6 +17,11 @@ const (
 	NoTxBatch timer.TimeoutEvent = "NoTxBatch"
 )
 
+const (
+	Dagbft = "dagbft"
+	Rbft   = "rbft"
+)
+
 var (
 	ErrorPreCheck       = errors.New("precheck failed")
 	ErrorAddTxPool      = errors.New("add txpool failed")
@@ -57,7 +62,9 @@ type TxResp struct {
 
 type CommitEvent struct {
 	Block                  *types.Block
+	RecvConsensusTime      int64
 	StateUpdatedCheckpoint *Checkpoint
+	CommitSequence         uint64
 }
 
 type Checkpoint struct {

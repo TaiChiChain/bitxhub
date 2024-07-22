@@ -11,6 +11,7 @@ import (
 // Config defines the txpool config items.
 type Config struct {
 	RepoRoot               string
+	ConsensusMode          string
 	Logger                 logrus.FieldLogger
 	PoolSize               uint64
 	ToleranceNonceGap      uint64
@@ -29,6 +30,9 @@ type Config struct {
 // sanitize checks the provided user configurations and changes anything that's
 // unreasonable or unworkable.
 func (c *Config) sanitize() {
+	if c.ConsensusMode == "" {
+		c.ConsensusMode = repo.ConsensusTypeDagBft
+	}
 	if c.PoolSize == 0 {
 		c.PoolSize = DefaultPoolSize
 	}

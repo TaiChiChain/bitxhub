@@ -9,6 +9,7 @@ type ExecutedEvent struct {
 	Block                  *types.Block
 	TxPointerList          []*TxPointer
 	StateUpdatedCheckpoint *common.Checkpoint
+	CommitSequence         uint64
 }
 
 type TxPointer struct {

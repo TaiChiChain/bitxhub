@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/components"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -73,6 +74,10 @@ func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
 }
 
 func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.CommitEvent) {
+	if commitEvent.RecvConsensusTime != 0 {
+		cs2ExecutorDuration.Observe(float64(time.Now().UnixNano()-commitEvent.RecvConsensusTime) / float64(time.Second))
+	}
+
 	var txHashList []*types.Hash
 	current := time.Now()
 	block := commitEvent.Block
@@ -81,7 +86,15 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	if block.Header.Number != exec.currentHeight+1 {
 		if block.Header.Number <= exec.currentHeight {
 			exec.logger.WithFields(logrus.Fields{"block height": block.Header.Number,
-				"expectHeight": exec.currentHeight + 1}).Warning("current block height is not matched, will ignore it...")
+				"expectHeight": exec.currentHeight + 1}).Warning("current block height is not matched, will ignore execute it...")
+			if exec.rep.Config.Consensus.Type == repo.ConsensusTypeDagBft {
+				executedBlock, err := exec.ledger.ChainLedger.GetBlock(block.Height())
+				if err != nil {
+					exec.logger.WithFields(logrus.Fields{"block height": block.Height(),
+						"err": err.Error()}).Panic("Get block from ledger error")
+				}
+				exec.postBlockEvent(executedBlock, nil, nil, commitEvent.CommitSequence)
+			}
 			return
 		} else {
 			panic(fmt.Sprintf("block height %d is not matched the current expect height %d", block.Header.Number, exec.currentHeight+1))
@@ -151,10 +164,12 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	block.Header.ReceiptRoot = receiptRoot
 	block.Header.ParentHash = exec.currentBlockHash
 
+	start := time.Now()
 	stateRoot, err := exec.ledger.StateLedger.Commit()
 	if err != nil {
 		panic(fmt.Errorf("commit stateLedger failed: %w", err))
 	}
+	commitBlockDuration.Observe(time.Since(start).Seconds())
 
 	block.Header.StateRoot = stateRoot
 	block.Header.GasUsed = exec.cumulativeGasUsed
@@ -211,6 +226,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	exec.currentHeight = block.Header.Number
 	exec.currentBlockHash = block.Hash()
+
 	exec.chainState.UpdateChainMeta(exec.ledger.ChainLedger.GetChainMeta())
 	exec.chainState.TryUpdateSelfNodeInfo()
 
@@ -223,16 +239,17 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		}
 	})
 
-	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
+	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint, commitEvent.CommitSequence)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensuscommon.Checkpoint) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensuscommon.Checkpoint, commitSequence uint64) {
 	exec.blockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
 		TxPointerList:          txPointerList,
 		StateUpdatedCheckpoint: ckp,
+		CommitSequence:         commitSequence,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
 		Block:         block,

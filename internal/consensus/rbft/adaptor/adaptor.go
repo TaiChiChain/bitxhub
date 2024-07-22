@@ -65,9 +65,9 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 	var store rbft.Storage
 	switch config.Repo.Config.Consensus.StorageType {
 	case repo.ConsensusStorageTypeMinifile:
-		store, err = OpenMinifile(storePath)
+		store, err = common.OpenMinifile(storePath)
 	case repo.ConsensusStorageTypeRosedb:
-		store, err = OpenRosedb(storePath)
+		store, err = common.OpenRosedb(storePath)
 	default:
 		return nil, errors.Errorf("unsupported consensus storage type: %s", config.Repo.Config.Consensus.StorageType)
 	}

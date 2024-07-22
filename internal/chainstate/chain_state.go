@@ -1,8 +1,11 @@
 package chainstate
 
 import (
+	"fmt"
+	"sort"
 	"sync"
 
+	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 
@@ -12,10 +15,17 @@ import (
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 )
 
+const (
+	PrimaryPrefix = "primary-"
+	WorkerPrefix  = "worker-"
+)
+
 type ExpandedNodeInfo struct {
 	node_manager.NodeInfo
 	P2PPubKey       *crypto.Ed25519PublicKey
 	ConsensusPubKey *crypto.Bls12381PublicKey
+	Primary         string
+	Workers         []string
 }
 
 type ValidatorInfo struct {
@@ -34,6 +44,7 @@ type ChainState struct {
 	p2pID2NodeIDCache     map[string]uint64
 	epochInfoCache        map[uint64]*types.EpochInfo
 	selfRegistered        bool
+	latestCheckpoint      *pb.QuorumCheckpoint
 
 	// states
 	EpochInfo *types.EpochInfo
@@ -54,6 +65,7 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 		},
 		P2PPubKey:       p2pPubKey,
 		ConsensusPubKey: consensusPubKey,
+		Workers:         []string{p2pID},
 	}
 	isDataSyncer := true
 	selfNodeID, err := getNodeIDByP2PIDFn(p2pID)
@@ -67,6 +79,9 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 			}
 		}
 	}
+
+	selfNodeInfo.Primary = fmt.Sprintf("%s%d", PrimaryPrefix, selfNodeID)
+	selfNodeInfo.Workers = []string{fmt.Sprintf("%s%d", WorkerPrefix, selfNodeID)}
 
 	return &ChainState{
 		nodeInfoCacheLock:     sync.RWMutex{},
@@ -85,6 +100,21 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 	}
 }
 
+func (c *ChainState) UpdateCheckpoint(checkpoint *pb.QuorumCheckpoint) {
+	c.latestCheckpoint = checkpoint
+}
+
+func (c *ChainState) GetCurrentCheckpointState() pb.ExecuteState {
+	return pb.ExecuteState{
+		Height: c.latestCheckpoint.GetState().GetHeight(),
+		Digest: c.latestCheckpoint.GetState().GetDigest(),
+	}
+}
+
+func (c *ChainState) GetCurrentEpochInfo() types.EpochInfo {
+	return *c.EpochInfo
+}
+
 func (c *ChainState) UpdateChainMeta(chainMeta *types.ChainMeta) {
 	c.ChainMeta = chainMeta
 }
@@ -101,6 +131,9 @@ func (c *ChainState) UpdateByEpochInfo(epochInfo *types.EpochInfo, validatorSet 
 			ID:                   item,
 			ConsensusVotingPower: key,
 		}
+	})
+	sort.Slice(c.ValidatorSet, func(i, j int) bool {
+		return c.ValidatorSet[i].ID < c.ValidatorSet[j].ID
 	})
 	c.IsValidator = isValidator
 	return nil
@@ -149,6 +182,10 @@ func (c *ChainState) GetNodeInfo(nodeID uint64) (*ExpandedNodeInfo, error) {
 		NodeInfo:        *info,
 		P2PPubKey:       &p2pPubKey,
 		ConsensusPubKey: &consensusPubKey,
+		Primary:         fmt.Sprintf("%s%d", PrimaryPrefix, nodeID),
+		Workers: []string{
+			fmt.Sprintf("%s%d", WorkerPrefix, nodeID),
+		},
 	}
 	c.nodeInfoCache[nodeID] = expandedNodeInfo
 	c.p2pID2NodeIDCache[info.P2PID] = nodeID

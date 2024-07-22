@@ -10,6 +10,20 @@ var (
 		Help:      "The total latency of transactions apply",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
 	})
+	commitBlockDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "commit_block_duration_seconds",
+		Help:      "The total latency of block commit",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
+	cs2ExecutorDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "cs_to_executor_duration_seconds",
+		Help:      "The total latency of consensus to executor",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
 	executeBlockDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "executor",
@@ -50,6 +64,8 @@ func init() {
 	prometheus.MustRegister(calcMerkleDuration)
 	prometheus.MustRegister(calcBlockSize)
 	prometheus.MustRegister(executeBlockDuration)
+	prometheus.MustRegister(commitBlockDuration)
+	prometheus.MustRegister(cs2ExecutorDuration)
 	prometheus.MustRegister(txCounter)
 	prometheus.MustRegister(proposedBlockCounter)
 }

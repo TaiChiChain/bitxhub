@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bcds/go-hpc-dagbft/common/utils/channel"
 	"github.com/google/btree"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -40,6 +41,8 @@ var (
 
 // txPoolImpl contains all currently known transactions.
 type txPoolImpl[T any, Constraint types.TXConstraint[T]] struct {
+	consensusMode          string
+	sendWorkerTxsCh        chan []*T
 	logger                 logrus.FieldLogger
 	chainState             *chainstate.ChainState
 	selfID                 uint64
@@ -394,9 +397,86 @@ func (p *txPoolImpl[T, Constraint]) handleLocalRecordTx(req *reqLocalRecordTx[T,
 	})
 }
 
+func (p *txPoolImpl[T, Constraint]) popExecutableTxsForDagBft() []*T {
+	defer func() {
+		p.setPriorityNonBatchSize(0)
+	}()
+	txs := make([]*T, 0)
+	if p.enablePricePriority {
+		for p.txStore.priorityByPrice.size() > 0 {
+			txs = append(txs, p.txStore.priorityByPrice.pop().rawTx)
+		}
+	} else {
+		if p.txStore.priorityByTime.size() > 0 {
+			skippedTxs := make(map[txPointer]*internalTransaction[T, Constraint])
+			removeTxs := make(map[string][]*internalTransaction[T, Constraint])
+			// 1. find all txs that can be included in priority queue
+			p.txStore.priorityByTime.data.Ascend(func(a btree.Item) bool {
+				tx := a.(*orderedIndexKey)
+				ptr := txPointer{account: tx.account, nonce: tx.nonce}
+				poolTx := p.txStore.getPoolTxByTxnPointer(tx.account, tx.nonce)
+				txSeq := tx.nonce
+				commitNonce := p.txStore.nonceCache.getCommitNonce(tx.account)
+				var seenPrevious bool
+				if txSeq >= 1 {
+					_, seenPrevious = p.txStore.batchedTxs[txPointer{account: tx.account, nonce: txSeq - 1}]
+				}
+				// include transaction if it's "next" for given account, or
+				// we've already sent its ancestor to Consensus
+
+				// commitNonce is the nonce of last committed tx for given account,
+				if seenPrevious || (txSeq == commitNonce) {
+					p.txStore.batchedTxs[ptr] = true
+					txs = append(txs, poolTx.rawTx)
+					removeTxs[tx.account] = append(removeTxs[tx.account], poolTx)
+
+					// check if we can now include some txs that were skipped before for given account
+					skippedTxn := txPointer{account: tx.account, nonce: tx.nonce + 1}
+					for {
+						skippedPoolTx, ok := skippedTxs[skippedTxn]
+						if !ok {
+							break
+						}
+						p.txStore.batchedTxs[skippedTxn] = true
+						txs = append(txs, skippedPoolTx.rawTx)
+						removeTxs[tx.account] = append(removeTxs[tx.account], poolTx)
+
+						skippedTxn.nonce++
+					}
+				} else {
+					skippedTxs[ptr] = poolTx
+				}
+				return true
+			})
+
+			// 2. remove all priority txs
+			for account, removeList := range removeTxs {
+				err := p.txStore.priorityByTime.removeBatchKeys(account, removeList)
+				if err != nil {
+					p.logger.Errorf("Failed to remove batch keys: %v", err)
+				}
+			}
+		}
+	}
+	return txs
+}
+
 func (p *txPoolImpl[T, Constraint]) postConsensusSignal(validTxs []*T) {
+	if p.consensusMode == repo.ConsensusTypeDagBft {
+		if p.txStore.priorityNonBatchSize > 0 {
+			p.logger.Infof("send txs to worker pool, count %v", p.txStore.priorityNonBatchSize)
+			txs := p.popExecutableTxsForDagBft()
+			channel.TrySend(p.sendWorkerTxsCh, txs)
+			lo.ForEach(txs, func(tx *T, _ int) {
+				poolTx := p.txStore.getPoolTxByTxnPointer(Constraint(tx).RbftGetFrom(), Constraint(tx).RbftGetNonce())
+				p.txStore.removeTxInPool(poolTx, false, false)
+			})
+		}
+		return
+	}
+
 	// when primary generate batch, reset notifyGenerateBatch flag
-	if p.txStore.priorityNonBatchSize >= p.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum && !p.notifyGenerateBatch {
+	if p.txStore.priorityNonBatchSize >= p.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum && !p.notifyGenerateBatch {
 		p.logger.Infof("notify generate batch")
 		p.notifyGenerateBatchFn(commonpool.GenBatchSizeEvent)
 		p.notifyGenerateBatch = true
@@ -1002,11 +1082,13 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config, chain
 	ctx, cancel := context.WithCancel(context.Background())
 
 	txpoolImp := &txPoolImpl[T, Constraint]{
+		consensusMode:     config.ConsensusMode,
 		logger:            config.Logger,
 		chainState:        chainState,
 		getAccountNonce:   config.GetAccountNonce,
 		getAccountBalance: config.GetAccountBalance,
 		revCh:             make(chan txPoolEvent, maxChanSize),
+		sendWorkerTxsCh:   make(chan []*T, maxChanSize),
 
 		toleranceTime:          config.ToleranceTime,
 		toleranceNonceGap:      config.ToleranceNonceGap,
@@ -1065,9 +1147,10 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config, chain
 
 	txpoolImp.setPriceLimit(config.PriceLimit)
 
+	txpoolImp.logger.Infof("TxPool consensus mode = %s", txpoolImp.consensusMode)
 	txpoolImp.logger.Infof("TxPool pool size = %d", txpoolImp.poolMaxSize)
-	txpoolImp.logger.Infof("TxPool batch size = %d", txpoolImp.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum)
-	txpoolImp.logger.Infof("TxPool enable generate empty batch = %v", txpoolImp.chainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock)
+	txpoolImp.logger.Infof("TxPool batch size = %d", txpoolImp.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum)
+	txpoolImp.logger.Infof("TxPool enable generate empty batch = %v", txpoolImp.chainState.GetCurrentEpochInfo().ConsensusParams.EnableTimedGenEmptyBlock)
 	txpoolImp.logger.Infof("TxPool tolerance time = %v", txpoolImp.toleranceTime)
 	txpoolImp.logger.Infof("TxPool tolerance remove time = %v", txpoolImp.toleranceRemoveTime)
 	txpoolImp.logger.Infof("TxPool tolerance nonce gap = %d", txpoolImp.toleranceNonceGap)
@@ -1078,6 +1161,10 @@ func newTxPoolImpl[T any, Constraint types.TXConstraint[T]](config Config, chain
 	txpoolImp.logger.Infof("TxPool price limit = %v, priceBump = %v", txpoolImp.getPriceLimit(), txpoolImp.PriceBump)
 	txpoolImp.logger.Infof("TxPool enable price priority = %v", txpoolImp.enablePricePriority)
 	return txpoolImp, nil
+}
+
+func (p *txPoolImpl[T, Constraint]) ReceivePriorityTxs() <-chan []*T {
+	return p.sendWorkerTxsCh
 }
 
 func (p *txPoolImpl[T, Constraint]) ReplyBatchSignal() {
@@ -1135,7 +1222,7 @@ func (p *txPoolImpl[T, Constraint]) generateRequestBatch(typ int) (*commonpool.R
 }
 
 func (p *txPoolImpl[T, Constraint]) validateTxData(tx *T) error {
-	minGasPrice := p.chainState.EpochInfo.FinanceParams.MinGasPrice.ToBigInt()
+	minGasPrice := p.chainState.GetCurrentEpochInfo().FinanceParams.MinGasPrice.ToBigInt()
 
 	if !p.enablePricePriority {
 		if Constraint(tx).RbftGetGasPrice().Cmp(minGasPrice) < 0 {
@@ -1261,9 +1348,9 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (
 	map[string]*internalTransaction[T, Constraint], *commonpool.RequestHashBatch[T, Constraint], error) {
 	switch typ {
 	case commonpool.GenBatchSizeEvent, commonpool.GenBatchFirstEvent:
-		if p.txStore.priorityNonBatchSize < p.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum {
+		if p.txStore.priorityNonBatchSize < p.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum {
 			return nil, nil, fmt.Errorf("actual batch size %d is smaller than %d, ignore generate batch",
-				p.txStore.priorityNonBatchSize, p.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum)
+				p.txStore.priorityNonBatchSize, p.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum)
 		}
 	case commonpool.GenBatchTimeoutEvent:
 		if !p.hasPendingRequestInPool() {
@@ -1273,7 +1360,7 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (
 		if p.hasPendingRequestInPool() {
 			return nil, nil, errors.New("there is pending tx, ignore generate no tx batch")
 		}
-		if !p.chainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock {
+		if !p.chainState.GetCurrentEpochInfo().ConsensusParams.EnableTimedGenEmptyBlock {
 			err := errors.New("not supported generate no tx batch")
 			p.logger.Warning(err)
 			return nil, nil, err
@@ -1289,8 +1376,8 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (
 	// txs has lower nonce will be observed first in priority index iterator.
 	p.logger.Debugf("Length of non-batched transactions: %d", p.txStore.priorityNonBatchSize)
 	var batchSize uint64
-	if p.txStore.priorityNonBatchSize > p.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum {
-		batchSize = p.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum
+	if p.txStore.priorityNonBatchSize > p.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum {
+		batchSize = p.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum
 	} else {
 		batchSize = p.txStore.priorityNonBatchSize
 	}
@@ -1298,7 +1385,7 @@ func (p *txPoolImpl[T, Constraint]) handleGenerateRequestBatch(typ int) (
 	// get executable txs
 	removeInvalidTxs := p.popExecutableTxs(batchSize, txBatch)
 
-	if !p.chainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock && txBatch.BatchItemSize() == 0 && len(removeInvalidTxs) == 0 && p.hasPendingRequestInPool() {
+	if !p.chainState.GetCurrentEpochInfo().ConsensusParams.EnableTimedGenEmptyBlock && txBatch.BatchItemSize() == 0 && len(removeInvalidTxs) == 0 && p.hasPendingRequestInPool() {
 		err := fmt.Errorf("===== Note!!! Primary generate a batch with 0 txs, "+
 			"but PriorityNonBatchSize is %d, we need reset PriorityNonBatchSize", p.txStore.priorityNonBatchSize)
 		p.logger.Warning(err.Error())
@@ -1775,7 +1862,7 @@ func (p *txPoolImpl[T, Constraint]) PendingRequestsNumberIsReady() bool {
 }
 
 func (p *txPoolImpl[T, Constraint]) checkPendingRequestsNumberIsReady() bool {
-	return p.txStore.priorityNonBatchSize >= p.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum
+	return p.txStore.priorityNonBatchSize >= p.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum
 }
 
 func (p *txPoolImpl[T, Constraint]) ReceiveMissingRequests(batchHash string, txs map[uint64]*T) error {

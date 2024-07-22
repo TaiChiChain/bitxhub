@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -152,7 +153,7 @@ func (n *Node) Start() error {
 	}
 	n.txsBroadcastMsgPipe = txsBroadcastMsgPipe
 
-	go n.txPreCheck.Start()
+	n.txPreCheck.Start()
 	go n.txCache.ListenEvent()
 
 	go n.listenNewTxToSubmit()
@@ -401,8 +402,9 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *common.Checkpoint, needRemoveTxs bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *common.Checkpoint, needRemoveTxs bool, CommitSequence uint64) {
 	n.logger.Infof("Receive report state: height = %d, blockHash = %s, ckp = %v, needRemoveTxs = %v", height, blockHash, ckp, needRemoveTxs)
+	metrics.ExecutedBlockCounter.WithLabelValues(common.Rbft).Inc()
 
 	var err error
 	if n.switchInBoundNode() {
@@ -425,7 +427,7 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 	// need update cached epoch info, old epochInfo
 	epochInfo := n.stack.EpochInfo
 	epochChanged := false
-	if common.NeedChangeEpoch(height, epochInfo) {
+	if common.NeedChangeEpoch(height, *epochInfo) {
 		err := n.stack.UpdateEpoch()
 		if err != nil {
 			panic(err)
@@ -513,7 +515,7 @@ func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *common.Checkpoint) error
 
 func (n *Node) Quorum(totalNum uint64) uint64 {
 	// N := uint64(len(n.stack.EpochInfo.ValidatorSet))
-	return adaptor.CalQuorum(totalNum)
+	return common.CalQuorum(totalNum)
 }
 
 func (n *Node) checkQuorum() error {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/btree"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -2373,6 +2374,45 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 	}
 }
 
+func TestInsertPriorityTxs(t *testing.T) {
+	ast := assert.New(t)
+	testcase := map[string]*txPoolImpl[types.Transaction, *types.Transaction]{
+		"price_priority": mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByGasPrice),
+		"time":           mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByTime),
+	}
+
+	for _, tc := range testcase {
+		pool := tc
+		pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 100
+		err := pool.Start()
+		defer pool.Stop()
+		ast.Nil(err)
+
+		s, err := types.GenerateSigner()
+		ast.Nil(err)
+		// construct tx1 and tx0, nonce1 > nonce0, time1 < time0
+		tx1 := constructTx(s, 1)
+		err = pool.AddLocalTx(tx1)
+		ast.Nil(err)
+		ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
+
+		time.Sleep(10 * time.Millisecond)
+		tx0 := constructTx(s, 0)
+		err = pool.AddLocalTx(tx0)
+		ast.Nil(err)
+		ast.Equal(uint64(2), getPrioritySize(pool))
+
+		if !pool.enablePricePriority {
+			pool.txStore.priorityByTime.data.Ascend(func(a btree.Item) bool {
+				tx := a.(*orderedIndexKey)
+				ast.Equal(tx.nonce, tx0.RbftGetNonce())
+				return true
+			})
+		}
+
+	}
+}
+
 func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 	s, err := types.GenerateSigner()
 	assert.Nil(t, err)
@@ -2400,7 +2440,7 @@ func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 
 // nolint
 func TestTPSWithLocalTx(t *testing.T) {
-	t.Skip()
+	//t.Skip()
 	ast := assert.New(t)
 	testcase := map[string]*txPoolImpl[types.Transaction, *types.Transaction]{
 		"price_priority": mockTxPoolImplWithTyp[types.Transaction, *types.Transaction](t, repo.GenerateBatchByGasPrice),
@@ -2590,7 +2630,7 @@ func listenBatchCache(total int, endCh chan int64, cacheCh chan *commonpool.Requ
 			fmt.Printf("GetRequestsByHashList: %d, cost: %v\n", newBatch.SeqNo, time.Since(now))
 
 			pool.RemoveBatches([]string{newBatch.BatchHash})
-			if newBatch.SeqNo >= uint64(total)/pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum {
+			if newBatch.SeqNo >= uint64(total)/pool.chainState.GetCurrentEpochInfo().ConsensusParams.BlockMaxTxNum {
 				end := newBatch.Timestamp
 				endCh <- end
 			}

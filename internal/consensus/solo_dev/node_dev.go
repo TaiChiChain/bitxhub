@@ -95,7 +95,7 @@ func (n *NodeDev) Ready() error {
 	return nil
 }
 
-func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {
+func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool, _ uint64) {
 	if height%checkpoint == 0 {
 		n.logger.WithFields(logrus.Fields{
 			"height": height,

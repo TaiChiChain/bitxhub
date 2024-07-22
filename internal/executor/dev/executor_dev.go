@@ -25,6 +25,7 @@ type ExecutorDev struct {
 	logsFeed           event.Feed
 	ctx                context.Context
 	cancel             context.CancelFunc
+	currentBlockHash   *types.Hash
 
 	logger logrus.FieldLogger
 }

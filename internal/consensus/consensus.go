@@ -7,6 +7,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/dagbft"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/solo"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/solo_dev"
@@ -34,7 +35,7 @@ type Consensus interface {
 	Ready() error
 
 	// ReportState means block was persisted and report it to the consensus engine
-	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *common.Checkpoint, needRemoveTxs bool)
+	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *common.Checkpoint, needRemoveTxs bool, commitSequence uint64)
 
 	// Quorum means minimum number of nodes in the cluster that can work, n is the total number of nodes
 	Quorum(n uint64) uint64
@@ -61,6 +62,8 @@ func New(consensusType string, opts ...common.Option) (Consensus, error) {
 		return rbft.NewNode(config)
 	case repo.ConsensusTypeSoloDev:
 		return solo_dev.NewNode(config)
+	case repo.ConsensusTypeDagBft:
+		return dagbft.NewNode(config)
 	default:
 		return nil, fmt.Errorf("unsupport consensus type: %s", consensusType)
 	}

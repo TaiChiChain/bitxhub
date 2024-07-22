@@ -10,10 +10,10 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
@@ -234,10 +234,17 @@ func (s *SnapSync) fillEpochChanges(start, end uint64) ([]*consensus.EpochChange
 		if !ok {
 			return nil, fmt.Errorf("epoch %d not found", epoch)
 		}
+
+		quorumValidators := lo.MapToSlice(epc.ValidatorSet, func(_ uint64, info *consensus.ValidatorInfo) *consensus.QuorumValidator {
+			return &consensus.QuorumValidator{
+				Id:     info.GetId(),
+				PeerId: info.GetP2PId(),
+			}
+		})
+
 		epochChanges = append(epochChanges, &consensus.EpochChange{
-			Checkpoint: &consensus.QuorumCheckpoint{
-				Checkpoint: epc.GetCheckpoint(),
-			},
+			Checkpoint: epc,
+			Validators: &consensus.QuorumValidators{Validators: quorumValidators},
 		})
 	}
 

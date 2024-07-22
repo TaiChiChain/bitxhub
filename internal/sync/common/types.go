@@ -44,8 +44,8 @@ type SyncParams struct {
 	Quorum           uint64
 	CurHeight        uint64
 	TargetHeight     uint64
-	QuorumCheckpoint *consensus.SignedCheckpoint
-	EpochChanges     []*consensus.EpochChange
+	QuorumCheckpoint *pb.QuorumCheckpoint
+	EpochChanges     []*pb.EpochChange
 }
 
 type LocalEvent struct {
@@ -99,7 +99,7 @@ type PrepareData struct {
 }
 
 type WrapEpochChange struct {
-	Epcs  []*consensus.EpochChange
+	Epcs  []*pb.EpochChange
 	Error error
 }
 

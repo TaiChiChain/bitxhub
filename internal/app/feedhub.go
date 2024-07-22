@@ -37,7 +37,7 @@ func (axm *AxiomLedger) listenWaitReportBlock() {
 }
 
 func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool) {
-	axm.Consensus.ReportState(ev.Block.Header.Number, ev.Block.Hash(), ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs)
+	axm.Consensus.ReportState(ev.Block.Header.Number, ev.Block.Hash(), ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs, ev.CommitSequence)
 }
 
 func (axm *AxiomLedger) listenWaitExecuteBlock() {
@@ -47,10 +47,12 @@ func (axm *AxiomLedger) listenWaitExecuteBlock() {
 	for {
 		select {
 		case commitEvent := <-axm.Consensus.Commit():
-			axm.logger.WithFields(logrus.Fields{
-				"height": commitEvent.Block.Header.Number,
-				"count":  len(commitEvent.Block.Transactions),
-			}).Info("Generated block")
+			if len(commitEvent.Block.Transactions) > 0 {
+				axm.logger.WithFields(logrus.Fields{
+					"height": commitEvent.Block.Header.Number,
+					"count":  len(commitEvent.Block.Transactions),
+				}).Info("Generated block")
+			}
 			axm.BlockExecutor.AsyncExecuteBlock(commitEvent)
 		case <-axm.Ctx.Done():
 			return

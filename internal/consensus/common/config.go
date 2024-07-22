@@ -157,11 +157,11 @@ func (lg *Logger) Trace(name string, stage string, content any) {
 }
 
 func (lg *Logger) Critical(v ...any) {
-	lg.Fatal(v...)
+	lg.Warningf("%v", v)
 }
 
 func (lg *Logger) Criticalf(format string, v ...any) {
-	lg.Fatalf(format, v...)
+	lg.Warningf(format, v...)
 }
 
 func (lg *Logger) Notice(v ...any) {
@@ -170,10 +170,6 @@ func (lg *Logger) Notice(v ...any) {
 
 func (lg *Logger) Noticef(format string, v ...any) {
 	lg.Infof(format, v...)
-}
-
-func NeedChangeEpoch(height uint64, epochInfo *types.EpochInfo) bool {
-	return height == (epochInfo.StartBlock + epochInfo.EpochPeriod - 1)
 }
 
 func GetQuorum(consensusType string, N int) uint64 {

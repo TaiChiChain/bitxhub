@@ -125,11 +125,11 @@ func (tp *TxPreCheckMgr) postValidTxs() {
 
 func (tp *TxPreCheckMgr) dispatchTxEvent() {
 	wp := workerpool.New(concurrencyLimit)
-
 	for {
 		select {
 		case <-tp.ctx.Done():
 			wp.StopWait()
+			tp.logger.Errorf("dispatch tx event stopped")
 			return
 		case ev := <-tp.basicCheckCh:
 			wp.Submit(func() {
@@ -290,6 +290,10 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 	}
 }
 
+func (tp *TxPreCheckMgr) VerifySignature(tx *types.Transaction) error {
+	return tp.verifySignature(tx)
+}
+
 func (tp *TxPreCheckMgr) verifySignature(tx *types.Transaction) error {
 	if err := tx.VerifySignature(); err != nil {
 		return errTxSign
@@ -306,13 +310,17 @@ func (tp *TxPreCheckMgr) verifySignature(tx *types.Transaction) error {
 	return nil
 }
 
+func (tp *TxPreCheckMgr) BasicCheckTx(tx *types.Transaction) error {
+	return tp.basicCheckTx(tx)
+}
+
 func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 	// 1. reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > tp.txMaxSize.Load() {
 		return ErrOversizedData
 	}
 
-	minGasPrice := tp.chainState.EpochInfo.FinanceParams.MinGasPrice.ToBigInt()
+	minGasPrice := tp.chainState.GetCurrentEpochInfo().FinanceParams.MinGasPrice.ToBigInt()
 
 	if tx.GetGasPrice() == nil {
 		return errors.New("tx has no gas price")

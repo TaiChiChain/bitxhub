@@ -14,4 +14,8 @@ type PreCheck interface {
 	PostUncheckedTxEvent(ev *common.UncheckedTxEvent)
 
 	UpdateEpochInfo(epoch *types.EpochInfo)
+
+	BasicCheckTx(tx *types.Transaction) error
+
+	VerifySignature(tx *types.Transaction) error
 }
