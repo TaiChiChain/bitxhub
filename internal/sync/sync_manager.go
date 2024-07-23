@@ -338,6 +338,10 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 	}
 
 	if len(invalidReqs) != 0 {
+		// decrease block size
+		for i := 0; i < len(invalidReqs); i++ {
+			sm.decreaseBlockSize()
+		}
 		lo.ForEach(invalidReqs, func(req *common.InvalidMsg, index int) {
 			sm.postInvalidMsg(req)
 			sm.logger.WithFields(logrus.Fields{
@@ -368,6 +372,7 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 			Height: lastR.commitData.GetHeight(),
 			Typ:    common.SyncMsgType_InvalidBlock,
 		}
+		sm.decreaseBlockSize()
 		sm.postInvalidMsg(invalidMsg)
 		return false
 	}
@@ -1374,7 +1379,6 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 		invalidBlockNumber.WithLabelValues("invalid_block").Inc()
 
 		r.clearBlock()
-		sm.decreaseBlockSize()
 
 		newPeer := sm.pickRandomPeer(msg.NodeID)
 		r.retryCh <- newPeer

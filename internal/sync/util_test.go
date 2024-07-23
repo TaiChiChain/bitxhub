@@ -543,7 +543,7 @@ func genGenesisBlock() *types.Block {
 	return genesisBlock
 }
 
-func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager, map[string]*mockLedger) {
+func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager, map[string]*mockLedger, *types.Hash) {
 	ctrl := gomock.NewController(t)
 	syncs := make([]*SyncManager, 0)
 	genesis := genGenesisBlock()
@@ -598,7 +598,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		syncs = append(syncs, blockSync)
 	}
 
-	return syncs, ledgers
+	return syncs, ledgers, genesis.Hash()
 }
 
 func stopSyncs(syncs []*SyncManager) {
@@ -764,8 +764,8 @@ func genSyncParams(peers []*common.Node, latestBlockHash string, quorum uint64, 
 	}
 }
 
-func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int) {
-	blocks := ConstructBlocks(endHeight, genGenesisBlock().Hash())
+func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int, genesisHash *types.Hash) {
+	blocks := ConstructBlocks(endHeight, genesisHash)
 	for id, lg := range ledgers {
 		if id == exceptId {
 			continue
