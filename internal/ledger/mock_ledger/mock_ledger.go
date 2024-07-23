@@ -1964,6 +1964,13 @@ func (m *MockStateLedger) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	return ret0, ret1
 }
 
+
+func  (m *MockStateLedger) Copy() ledger.StateLedger{
+	return nil
+}
+
+
+
 // NewView indicates an expected call of NewView.
 func (mr *MockStateLedgerMockRecorder) NewView(blockHeader, enableSnapshot any) *StateLedgerNewViewCall {
 	mr.mock.ctrl.T.Helper()

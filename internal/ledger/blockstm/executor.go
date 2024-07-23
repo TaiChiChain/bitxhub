@@ -384,7 +384,9 @@ func (pe *ParallelExecutor) Prepare() error {
 
 	go func() {
 		for t := range pe.chSettle {
+			start := time.Now()
 			pe.tasks[t].Settle()
+			blockStmSettleDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
 
 		pe.settleWg.Done()
@@ -427,6 +429,10 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 		// bad (e.g. wrong nonce), and we should exit the execution immediately
 		//err = fmt.Errorf("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
 		pe.log.Error("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
+
+		// to do
+		// check err settle
+		pe.chSettle <- res.ver.TxnIndex
 		// pe.Close(true)
 		// return
 	}

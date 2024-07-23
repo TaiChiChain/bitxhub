@@ -88,6 +88,8 @@ type StateLedger interface {
 	// NewView get a view at specific block. We can enable snapshot if and only if the block were the latest block.
 	NewView(blockHeader *types.BlockHeader, enableSnapshot bool) (StateLedger, error)
 
+	Copy() StateLedger
+
 	IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage, errC chan error)
 
 	GetTrieSnapshotMeta() (*SnapshotMeta, error)

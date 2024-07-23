@@ -174,6 +174,28 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	return lg, nil
 }
 
+func (l *StateLedgerImpl) Copy() StateLedger {
+	lg := &StateLedgerImpl{
+		repo:             l.repo,
+		logger:           l.logger,
+		backend:          l.backend,
+		pruneCache:       l.pruneCache,
+		accountTrieCache: l.accountTrieCache,
+		storageTrieCache: l.storageTrieCache,
+		trieIndexer:      l.trieIndexer,
+		accounts:         make(map[string]IAccount),
+		preimages:        make(map[types.Hash][]byte),
+		changer:          newChanger(),
+		accessList:       NewAccessList(),
+		logs:             newEvmLogs(),
+		blockHeight:      l.blockHeight,
+		revertedKeys:     make(map[blockstm.Key]struct{}),
+		snapshot:         l.snapshot,
+	}
+
+	return lg
+}
+
 func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
 	return l.pruneCache.GetRange()
 }

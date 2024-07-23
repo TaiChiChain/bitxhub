@@ -81,7 +81,6 @@ type ExecutionTask struct {
 	blockHash                  types.Hash
 	tx                         *types.Transaction
 	index                      int
-	ledger                     *ledger.Ledger
 	statedb                    *ledger.StateLedgerImpl // State database that stores the modified values after tx execution.
 	cleanStateDB               *ledger.StateLedgerImpl // A clean copy of the initial statedb. It should not be modified.
 	finalStateDB               *ledger.StateLedgerImpl // The final statedb.
@@ -89,6 +88,7 @@ type ExecutionTask struct {
 	blockChain                 *types.Block
 	evmConfig                  vm.Config
 	result                     *core.ExecutionResult
+	resultErr                  error
 	shouldDelayFeeCal          *bool
 	shouldRerunWithoutFeeDelay bool
 	sender                     types.Address
@@ -106,7 +106,7 @@ type ExecutionTask struct {
 }
 
 func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (err error) {
-	task.statedb = task.ledger.NewView().StateLedger.(*ledger.StateLedgerImpl)
+	task.statedb = task.cleanStateDB.Copy().(*ledger.StateLedgerImpl)
 	task.statedb.SetTxContext(task.tx.GetHash(), task.index)
 	task.statedb.SetMVHashmap(mvh)
 	task.statedb.SetIncarnation(incarnation)
@@ -132,9 +132,9 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 	// Apply the transaction to the current state (included in the env).
 	if *task.shouldDelayFeeCal {
 		currentFromStart := time.Now()
-		task.result, err = core.ApplyMessageNoFeeBurnOrTip(evm, task.msg, new(core.GasPool).AddGas(task.gasLimit))
-		if task.result == nil || err != nil {
-			return blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: err}
+		task.result, task.resultErr = core.ApplyMessageNoFeeBurnOrTip(evm, task.msg, new(core.GasPool).AddGas(task.gasLimit))
+		if task.result == nil || task.resultErr != nil {
+			return blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: task.resultErr}
 		}
 		evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 
@@ -190,6 +190,16 @@ func (task *ExecutionTask) Dependencies() []int {
 }
 
 func (task *ExecutionTask) Settle() {
+	if task.resultErr != nil {
+		receipt := &types.Receipt{
+			TxHash: task.tx.GetHash(),
+		}
+		receipt.Status = types.ReceiptFAILED
+		receipt.Ret = []byte(task.resultErr.Error())
+		*task.receipts = append(*task.receipts, receipt)
+		return
+	}
+
 	task.finalStateDB.SetTxContext(task.tx.GetHash(), task.index)
 
 	//coinbaseBalance := task.finalStateDB.GetBalance(&task.coinbase)
@@ -354,7 +364,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 
 		//cleansdb := statedb.Copy()
 
-		cleansdb := ledgerNow.NewView().StateLedger
+		cleansdb := ledgerNow.StateLedger.Copy()
 		if msg.From.Hex() == coinbase {
 			shouldDelayFeeCal = false
 		}
@@ -368,7 +378,6 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			blockHash:         *blockHash,
 			tx:                tx,
 			index:             i,
-			ledger:            ledgerNow,
 			cleanStateDB:      cleansdb.(*ledger.StateLedgerImpl),
 			finalStateDB:      (ledgerNow.StateLedger).(*ledger.StateLedgerImpl),
 			blockChain:        p.bc,

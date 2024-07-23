@@ -112,7 +112,7 @@ func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage f
 	if !k.IsAddress() {
 		// If we are reading subpath from a deleted account, return default value instead of reading from MVHashmap
 		addr := k.GetAddress()
-		if s.GetOrCreateAccount(addr) == nil {
+		if s.GetAccount(addr) == nil {
 			return defaultV
 		}
 	}
@@ -174,7 +174,7 @@ func MVRead2[T any, V any](s *StateLedgerImpl, k blockstm.Key, defaultV T, defau
 	if !k.IsAddress() {
 		// If we are reading subpath from a deleted account, return default value instead of reading from MVHashmap
 		addr := k.GetAddress()
-		if s.GetOrCreateAccount(addr) == nil {
+		if s.GetAccount(addr) == nil {
 			return defaultV, defaultV2
 		}
 	}
