@@ -113,6 +113,11 @@ type NodeManager interface {
 	// Solidity: function getInfo(uint64 nodeID) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
 	GetInfo(nodeID uint64) (NodeInfo, error)
 
+	// GetInfoByConsensusPubKey is a free data retrieval call binding the contract method 0x706c5cac.
+	//
+	// Solidity: function getInfoByConsensusPubKey(string consensusPubKey) view returns((uint64,string,string,string,address,(string,string,string,string),uint8) info)
+	GetInfoByConsensusPubKey(consensusPubKey string) (NodeInfo, error)
+
 	// GetInfos is a free data retrieval call binding the contract method 0x84e7ee6e.
 	//
 	// Solidity: function getInfos(uint64[] nodeIDs) view returns((uint64,string,string,string,address,(string,string,string,string),uint8)[] info)

@@ -9,7 +9,11 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/governance"
 )
 
-var GovernanceNodeCMDProposeNodeRemoveArgs governance.NodeRemoveExtraArgs
+var GovernanceNodeCMDProposeNodeRemoveArgs = struct {
+	NodeIDs cli.Uint64Slice
+}{
+	NodeIDs: cli.Uint64Slice{},
+}
 
 var GovernanceNodeCMD = &cli.Command{
 	Name:  "governance-node",
@@ -23,9 +27,9 @@ var GovernanceNodeCMD = &cli.Command{
 			Usage:  "Propose node remove",
 			Action: GovernanceActions{}.proposeNodeRemove,
 			Flags: append(GovernanceCMDProposeCommonArgs, []cli.Flag{
-				&cli.Uint64Flag{
-					Name:        "node-id",
-					Destination: &GovernanceNodeCMDProposeNodeRemoveArgs.NodeID,
+				&cli.Uint64SliceFlag{
+					Name:        "node-ids",
+					Destination: &GovernanceNodeCMDProposeNodeRemoveArgs.NodeIDs,
 					Required:    true,
 				},
 				senderFlag,
@@ -36,6 +40,8 @@ var GovernanceNodeCMD = &cli.Command{
 
 func (a GovernanceActions) proposeNodeRemove(ctx *cli.Context) error {
 	return a.doPropose(ctx, uint8(governance.NodeRemove), func(client *ethclient.Client) ([]byte, error) {
-		return json.Marshal(GovernanceNodeCMDProposeNodeRemoveArgs)
+		return json.Marshal(governance.NodeRemoveExtraArgs{
+			NodeIDs: GovernanceNodeCMDProposeNodeRemoveArgs.NodeIDs.Value(),
+		})
 	})
 }

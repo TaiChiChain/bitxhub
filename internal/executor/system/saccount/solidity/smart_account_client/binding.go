@@ -29,6 +29,22 @@ var (
 	_ = abi.ConvertType
 )
 
+// PassKey is an auto generated low-level Go binding around an user-defined struct.
+type PassKey struct {
+	PubKeyX *big.Int
+	PubKeyY *big.Int
+	Algo    uint8
+}
+
+// SessionKey is an auto generated low-level Go binding around an user-defined struct.
+type SessionKey struct {
+	Addr          common.Address
+	SpendingLimit *big.Int
+	SpentAmount   *big.Int
+	ValidUntil    uint64
+	ValidAfter    uint64
+}
+
 // UserOperation is an auto generated low-level Go binding around an user-defined struct.
 type UserOperation struct {
 	Sender               common.Address
@@ -48,8 +64,8 @@ type UserOperation struct {
 
 // BindingContractMetaData contains all meta data concerning the BindingContract contract.
 var BindingContractMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"contractIEntryPoint\",\"name\":\"anEntryPoint\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"contractIEntryPoint\",\"name\":\"entryPoint\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"SmartAccountInitialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"lockedTime\",\"type\":\"uint256\"}],\"name\":\"UserLocked\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"addDeposit\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"entryPoint\",\"outputs\":[{\"internalType\":\"contractIEntryPoint\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"dest\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"func\",\"type\":\"bytes\"}],\"name\":\"execute\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"dest\",\"type\":\"address[]\"},{\"internalType\":\"bytes[]\",\"name\":\"func\",\"type\":\"bytes[]\"}],\"name\":\"executeBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getDeposit\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getNonce\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"anOwner\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"initCode\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"callData\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"callGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"verificationGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"preVerificationGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"paymasterAndData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"authData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"clientData\",\"type\":\"bytes\"}],\"internalType\":\"structUserOperation\",\"name\":\"userOp\",\"type\":\"tuple\"},{\"internalType\":\"bytes32\",\"name\":\"userOpHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"missingAccountFunds\",\"type\":\"uint256\"}],\"name\":\"validateUserOp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"validationData\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"addresspayable\",\"name\":\"withdrawAddress\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"withdrawDepositTo\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
-	Bin: "0x60a060405234801562000010575f80fd5b506040516200143a3803806200143a8339818101604052810190620000369190620000e9565b8073ffffffffffffffffffffffffffffffffffffffff1660808173ffffffffffffffffffffffffffffffffffffffff16815250505062000119565b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f620000a08262000075565b9050919050565b5f620000b38262000094565b9050919050565b620000c581620000a7565b8114620000d0575f80fd5b50565b5f81519050620000e381620000ba565b92915050565b5f6020828403121562000101576200010062000071565b5b5f6200011084828501620000d3565b91505092915050565b608051611301620001395f395f818161044801526109b201526113015ff3fe608060405260043610610094575f3560e01c8063b0fff5ca11610058578063b0fff5ca1461014d578063b61d27f614610189578063c399ec88146101b1578063c4d66de8146101db578063d087d288146102035761009b565b806318dfb3c71461009f5780634a58db19146100c75780634d44560d146100d15780638da5cb5b146100f9578063b0d691fe146101235761009b565b3661009b57005b5f80fd5b3480156100aa575f80fd5b506100c560048036038101906100c09190610ad4565b61022d565b005b6100cf610336565b005b3480156100dc575f80fd5b506100f760048036038101906100f29190610bdf565b6103a7565b005b348015610104575f80fd5b5061010d610422565b60405161011a9190610c3d565b60405180910390f35b34801561012e575f80fd5b50610137610445565b6040516101449190610cb1565b60405180910390f35b348015610158575f80fd5b50610173600480360381019061016e9190610d20565b61046c565b6040516101809190610d9b565b60405180910390f35b348015610194575f80fd5b506101af60048036038101906101aa9190610e33565b61049e565b005b3480156101bc575f80fd5b506101c56104fa565b6040516101d29190610d9b565b60405180910390f35b3480156101e6575f80fd5b5061020160048036038101906101fc9190610ea4565b61057f565b005b34801561020e575f80fd5b5061021761058b565b6040516102249190610d9b565b60405180910390f35b610235610612565b81819050848490501461027d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161027490610f29565b60405180910390fd5b5f5b8484905081101561032f576103228585838181106102a05761029f610f47565b5b90506020020160208101906102b59190610ea4565b5f8585858181106102c9576102c8610f47565b5b90506020028101906102db9190610f80565b8080601f0160208091040260200160405190810160405280939291908181526020018383808284375f81840152601f19601f820116905080830192505050505050506106de565b808060010191505061027f565b5050505050565b61033e610445565b73ffffffffffffffffffffffffffffffffffffffff1663b760faf934306040518363ffffffff1660e01b81526004016103779190610c3d565b5f604051808303818588803b15801561038e575f80fd5b505af11580156103a0573d5f803e3d5ffd5b5050505050565b6103af61075e565b6103b7610445565b73ffffffffffffffffffffffffffffffffffffffff1663205c287883836040518363ffffffff1660e01b81526004016103f1929190610ff1565b5f604051808303815f87803b158015610408575f80fd5b505af115801561041a573d5f803e3d5ffd5b505050505050565b5f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b5f7f0000000000000000000000000000000000000000000000000000000000000000905090565b5f610475610823565b61047f848461089a565b905061048e84602001356108a1565b610497826108a4565b9392505050565b6104a6610612565b6104f4848484848080601f0160208091040260200160405190810160405280939291908181526020018383808284375f81840152601f19601f820116905080830192505050505050506106de565b50505050565b5f610503610445565b73ffffffffffffffffffffffffffffffffffffffff166370a08231306040518263ffffffff1660e01b815260040161053b9190610c3d565b602060405180830381865afa158015610556573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061057a919061102c565b905090565b6105888161093b565b50565b5f610594610445565b73ffffffffffffffffffffffffffffffffffffffff166335567e1a305f6040518363ffffffff1660e01b81526004016105ce9291906110b3565b602060405180830381865afa1580156105e9573d5f803e3d5ffd5b505050506040513d601f19601f8201168201806040525081019061060d919061102c565b905090565b61061a610445565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16148061069d57505f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16145b6106dc576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016106d390611124565b60405180910390fd5b565b5f808473ffffffffffffffffffffffffffffffffffffffff16848460405161070691906111ae565b5f6040518083038185875af1925050503d805f8114610740576040519150601f19603f3d011682016040523d82523d5f602084013e610745565b606091505b50915091508161075757805160208201fd5b5050505050565b5f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614806107e257503073ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16145b610821576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016108189061120e565b60405180910390fd5b565b61082b610445565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610898576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161088f90611276565b60405180910390fd5b565b5f92915050565b50565b5f8114610938575f3373ffffffffffffffffffffffffffffffffffffffff16827fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff906040516108f2906112b7565b5f60405180830381858888f193505050503d805f811461092d576040519150601f19603f3d011682016040523d82523d5f602084013e610932565b606091505b50509050505b50565b805f806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff167f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff167fb7053def2fe3d2a5ecb12939fbfcc30f59b5f3efabd9addbe6537fbea7c2739860405160405180910390a350565b5f80fd5b5f80fd5b5f80fd5b5f80fd5b5f80fd5b5f8083601f840112610a3f57610a3e610a1e565b5b8235905067ffffffffffffffff811115610a5c57610a5b610a22565b5b602083019150836020820283011115610a7857610a77610a26565b5b9250929050565b5f8083601f840112610a9457610a93610a1e565b5b8235905067ffffffffffffffff811115610ab157610ab0610a22565b5b602083019150836020820283011115610acd57610acc610a26565b5b9250929050565b5f805f8060408587031215610aec57610aeb610a16565b5b5f85013567ffffffffffffffff811115610b0957610b08610a1a565b5b610b1587828801610a2a565b9450945050602085013567ffffffffffffffff811115610b3857610b37610a1a565b5b610b4487828801610a7f565b925092505092959194509250565b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f610b7b82610b52565b9050919050565b610b8b81610b71565b8114610b95575f80fd5b50565b5f81359050610ba681610b82565b92915050565b5f819050919050565b610bbe81610bac565b8114610bc8575f80fd5b50565b5f81359050610bd981610bb5565b92915050565b5f8060408385031215610bf557610bf4610a16565b5b5f610c0285828601610b98565b9250506020610c1385828601610bcb565b9150509250929050565b5f610c2782610b52565b9050919050565b610c3781610c1d565b82525050565b5f602082019050610c505f830184610c2e565b92915050565b5f819050919050565b5f610c79610c74610c6f84610b52565b610c56565b610b52565b9050919050565b5f610c8a82610c5f565b9050919050565b5f610c9b82610c80565b9050919050565b610cab81610c91565b82525050565b5f602082019050610cc45f830184610ca2565b92915050565b5f80fd5b5f6101a08284031215610ce457610ce3610cca565b5b81905092915050565b5f819050919050565b610cff81610ced565b8114610d09575f80fd5b50565b5f81359050610d1a81610cf6565b92915050565b5f805f60608486031215610d3757610d36610a16565b5b5f84013567ffffffffffffffff811115610d5457610d53610a1a565b5b610d6086828701610cce565b9350506020610d7186828701610d0c565b9250506040610d8286828701610bcb565b9150509250925092565b610d9581610bac565b82525050565b5f602082019050610dae5f830184610d8c565b92915050565b610dbd81610c1d565b8114610dc7575f80fd5b50565b5f81359050610dd881610db4565b92915050565b5f8083601f840112610df357610df2610a1e565b5b8235905067ffffffffffffffff811115610e1057610e0f610a22565b5b602083019150836001820283011115610e2c57610e2b610a26565b5b9250929050565b5f805f8060608587031215610e4b57610e4a610a16565b5b5f610e5887828801610dca565b9450506020610e6987828801610bcb565b935050604085013567ffffffffffffffff811115610e8a57610e89610a1a565b5b610e9687828801610dde565b925092505092959194509250565b5f60208284031215610eb957610eb8610a16565b5b5f610ec684828501610dca565b91505092915050565b5f82825260208201905092915050565b7f77726f6e67206172726179206c656e67746873000000000000000000000000005f82015250565b5f610f13601383610ecf565b9150610f1e82610edf565b602082019050919050565b5f6020820190508181035f830152610f4081610f07565b9050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b5f80fd5b5f80fd5b5f80fd5b5f8083356001602003843603038112610f9c57610f9b610f74565b5b80840192508235915067ffffffffffffffff821115610fbe57610fbd610f78565b5b602083019250600182023603831315610fda57610fd9610f7c565b5b509250929050565b610feb81610b71565b82525050565b5f6040820190506110045f830185610fe2565b6110116020830184610d8c565b9392505050565b5f8151905061102681610bb5565b92915050565b5f6020828403121561104157611040610a16565b5b5f61104e84828501611018565b91505092915050565b5f819050919050565b5f77ffffffffffffffffffffffffffffffffffffffffffffffff82169050919050565b5f61109d61109861109384611057565b610c56565b611060565b9050919050565b6110ad81611083565b82525050565b5f6040820190506110c65f830185610c2e565b6110d360208301846110a4565b9392505050565b7f6163636f756e743a206e6f74204f776e6572206f7220456e747279506f696e745f82015250565b5f61110e602083610ecf565b9150611119826110da565b602082019050919050565b5f6020820190508181035f83015261113b81611102565b9050919050565b5f81519050919050565b5f81905092915050565b5f5b83811015611173578082015181840152602081019050611158565b5f8484015250505050565b5f61118882611142565b611192818561114c565b93506111a2818560208601611156565b80840191505092915050565b5f6111b9828461117e565b915081905092915050565b7f6f6e6c79206f776e6572000000000000000000000000000000000000000000005f82015250565b5f6111f8600a83610ecf565b9150611203826111c4565b602082019050919050565b5f6020820190508181035f830152611225816111ec565b9050919050565b7f6163636f756e743a206e6f742066726f6d20456e747279506f696e74000000005f82015250565b5f611260601c83610ecf565b915061126b8261122c565b602082019050919050565b5f6020820190508181035f83015261128d81611254565b9050919050565b50565b5f6112a25f8361114c565b91506112ad82611294565b5f82019050919050565b5f6112c182611297565b915081905091905056fea2646970667358221220af562dc50bb1150213a550cf90b8ea5e59756d4ccb02a315b8d2736c8313ac2664736f6c63430008170033",
+	ABI: "[{\"inputs\":[{\"internalType\":\"contractIEntryPoint\",\"name\":\"anEntryPoint\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"contractIEntryPoint\",\"name\":\"entryPoint\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"SmartAccountInitialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"lockedTime\",\"type\":\"uint256\"}],\"name\":\"UserLocked\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"entryPoint\",\"outputs\":[{\"internalType\":\"contractIEntryPoint\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"dest\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"func\",\"type\":\"bytes\"}],\"name\":\"execute\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"dest\",\"type\":\"address[]\"},{\"internalType\":\"bytes[]\",\"name\":\"func\",\"type\":\"bytes[]\"}],\"name\":\"executeBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getGuardian\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getNonce\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getOwner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getPasskeys\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"pubKeyX\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"pubKeyY\",\"type\":\"uint256\"},{\"internalType\":\"uint8\",\"name\":\"algo\",\"type\":\"uint8\"}],\"internalType\":\"structPassKey[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getSessions\",\"outputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"spendingLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"spentAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"validUntil\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"validAfter\",\"type\":\"uint64\"}],\"internalType\":\"structSessionKey[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getStatus\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"anOwner\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"resetOwner\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"setGuardian\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"},{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"name\":\"setPasskey\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"name\":\"setSession\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"initCode\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"callData\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"callGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"verificationGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"preVerificationGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"maxPriorityFeePerGas\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"paymasterAndData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"signature\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"authData\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"clientData\",\"type\":\"bytes\"}],\"internalType\":\"structUserOperation\",\"name\":\"userOp\",\"type\":\"tuple\"},{\"internalType\":\"bytes32\",\"name\":\"userOpHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"missingAccountFunds\",\"type\":\"uint256\"}],\"name\":\"validateUserOp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"validationData\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
+	Bin: "0x60a060405234801562000010575f80fd5b50604051620017a7380380620017a78339818101604052810190620000369190620000e9565b8073ffffffffffffffffffffffffffffffffffffffff1660808173ffffffffffffffffffffffffffffffffffffffff16815250505062000119565b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f620000a08262000075565b9050919050565b5f620000b38262000094565b9050919050565b620000c581620000a7565b8114620000d0575f80fd5b50565b5f81519050620000e381620000ba565b92915050565b5f6020828403121562000101576200010062000071565b5b5f6200011084828501620000d3565b91505092915050565b60805161166e620001395f395f81816105160152610a00015261166e5ff3fe6080604052600436106100f6575f3560e01c8063a3ca5fe311610089578063b61d27f611610058578063b61d27f614610301578063c4d66de814610329578063d087d28814610351578063e4093c221461037b576100fd565b8063a3ca5fe314610249578063a75b87d214610271578063b0d691fe1461029b578063b0fff5ca146102c5576100fd565b806373cc802a116100c557806373cc802a146101a5578063893d20e8146101cd5780638a0dac4a146101f75780638da5cb5b1461021f576100fd565b806318dfb3c71461010157806339d8bab5146101295780634e69d5601461015157806361503e451461017b576100fd565b366100fd57005b5f80fd5b34801561010c575f80fd5b5061012760048036038101906101229190610b22565b6103a5565b005b348015610134575f80fd5b5061014f600480360381019061014a9190610c2b565b6104ae565b005b34801561015c575f80fd5b506101656104bb565b6040516101729190610caa565b60405180910390f35b348015610186575f80fd5b5061018f6104bf565b60405161019c9190610e37565b60405180910390f35b3480156101b0575f80fd5b506101cb60048036038101906101c69190610e81565b6104c4565b005b3480156101d8575f80fd5b506101e16104cf565b6040516101ee9190610ebb565b60405180910390f35b348015610202575f80fd5b5061021d60048036038101906102189190610e81565b6104d3565b005b34801561022a575f80fd5b506102336104de565b6040516102409190610ebb565b60405180910390f35b348015610254575f80fd5b5061026f600480360381019061026a9190610f28565b610501565b005b34801561027c575f80fd5b5061028561050f565b6040516102929190610ebb565b60405180910390f35b3480156102a6575f80fd5b506102af610513565b6040516102bc9190610fe7565b60405180910390f35b3480156102d0575f80fd5b506102eb60048036038101906102e69190611056565b61053a565b6040516102f891906110d1565b60405180910390f35b34801561030c575f80fd5b50610327600480360381019061032291906110ea565b61056c565b005b348015610334575f80fd5b5061034f600480360381019061034a9190610e81565b6105c8565b005b34801561035c575f80fd5b506103656105d4565b60405161037291906110d1565b60405180910390f35b348015610386575f80fd5b5061038f61065b565b60405161039c9190611252565b60405180910390f35b6103ad610660565b8181905084849050146103f5576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016103ec906112cc565b60405180910390fd5b5f5b848490508110156104a75761049a858583818110610418576104176112ea565b5b905060200201602081019061042d9190610e81565b5f858585818110610441576104406112ea565b5b90506020028101906104539190611323565b8080601f0160208091040260200160405190810160405280939291908181526020018383808284375f81840152601f19601f8201169050808301925050505050505061072c565b80806001019150506103f7565b5050505050565b6104b66107ac565b505050565b5f90565b606090565b6104cc6107ac565b50565b5f90565b6104db6107ac565b50565b5f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b6105096107ac565b50505050565b5f90565b5f7f0000000000000000000000000000000000000000000000000000000000000000905090565b5f610543610871565b61054d84846108e8565b905061055c84602001356108ef565b610565826108f2565b9392505050565b610574610660565b6105c2848484848080601f0160208091040260200160405190810160405280939291908181526020018383808284375f81840152601f19601f8201169050808301925050505050505061072c565b50505050565b6105d181610989565b50565b5f6105dd610513565b73ffffffffffffffffffffffffffffffffffffffff166335567e1a305f6040518363ffffffff1660e01b81526004016106179291906113e1565b602060405180830381865afa158015610632573d5f803e3d5ffd5b505050506040513d601f19601f82011682018060405250810190610656919061141c565b905090565b606090565b610668610513565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614806106eb57505f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16145b61072a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161072190611491565b60405180910390fd5b565b5f808473ffffffffffffffffffffffffffffffffffffffff168484604051610754919061151b565b5f6040518083038185875af1925050503d805f811461078e576040519150601f19603f3d011682016040523d82523d5f602084013e610793565b606091505b5091509150816107a557805160208201fd5b5050505050565b5f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16148061083057503073ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16145b61086f576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016108669061157b565b60405180910390fd5b565b610879610513565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146108e6576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016108dd906115e3565b60405180910390fd5b565b5f92915050565b50565b5f8114610986575f3373ffffffffffffffffffffffffffffffffffffffff16827fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9060405161094090611624565b5f60405180830381858888f193505050503d805f811461097b576040519150601f19603f3d011682016040523d82523d5f602084013e610980565b606091505b50509050505b50565b805f806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505f8054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff167f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff167fb7053def2fe3d2a5ecb12939fbfcc30f59b5f3efabd9addbe6537fbea7c2739860405160405180910390a350565b5f80fd5b5f80fd5b5f80fd5b5f80fd5b5f80fd5b5f8083601f840112610a8d57610a8c610a6c565b5b8235905067ffffffffffffffff811115610aaa57610aa9610a70565b5b602083019150836020820283011115610ac657610ac5610a74565b5b9250929050565b5f8083601f840112610ae257610ae1610a6c565b5b8235905067ffffffffffffffff811115610aff57610afe610a70565b5b602083019150836020820283011115610b1b57610b1a610a74565b5b9250929050565b5f805f8060408587031215610b3a57610b39610a64565b5b5f85013567ffffffffffffffff811115610b5757610b56610a68565b5b610b6387828801610a78565b9450945050602085013567ffffffffffffffff811115610b8657610b85610a68565b5b610b9287828801610acd565b925092505092959194509250565b5f8083601f840112610bb557610bb4610a6c565b5b8235905067ffffffffffffffff811115610bd257610bd1610a70565b5b602083019150836001820283011115610bee57610bed610a74565b5b9250929050565b5f60ff82169050919050565b610c0a81610bf5565b8114610c14575f80fd5b50565b5f81359050610c2581610c01565b92915050565b5f805f60408486031215610c4257610c41610a64565b5b5f84013567ffffffffffffffff811115610c5f57610c5e610a68565b5b610c6b86828701610ba0565b93509350506020610c7e86828701610c17565b9150509250925092565b5f67ffffffffffffffff82169050919050565b610ca481610c88565b82525050565b5f602082019050610cbd5f830184610c9b565b92915050565b5f81519050919050565b5f82825260208201905092915050565b5f819050602082019050919050565b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f610d1582610cec565b9050919050565b610d2581610d0b565b82525050565b5f819050919050565b610d3d81610d2b565b82525050565b610d4c81610c88565b82525050565b60a082015f820151610d665f850182610d1c565b506020820151610d796020850182610d34565b506040820151610d8c6040850182610d34565b506060820151610d9f6060850182610d43565b506080820151610db26080850182610d43565b50505050565b5f610dc38383610d52565b60a08301905092915050565b5f602082019050919050565b5f610de582610cc3565b610def8185610ccd565b9350610dfa83610cdd565b805f5b83811015610e2a578151610e118882610db8565b9750610e1c83610dcf565b925050600181019050610dfd565b5085935050505092915050565b5f6020820190508181035f830152610e4f8184610ddb565b905092915050565b610e6081610d0b565b8114610e6a575f80fd5b50565b5f81359050610e7b81610e57565b92915050565b5f60208284031215610e9657610e95610a64565b5b5f610ea384828501610e6d565b91505092915050565b610eb581610d0b565b82525050565b5f602082019050610ece5f830184610eac565b92915050565b610edd81610d2b565b8114610ee7575f80fd5b50565b5f81359050610ef881610ed4565b92915050565b610f0781610c88565b8114610f11575f80fd5b50565b5f81359050610f2281610efe565b92915050565b5f805f8060808587031215610f4057610f3f610a64565b5b5f610f4d87828801610e6d565b9450506020610f5e87828801610eea565b9350506040610f6f87828801610f14565b9250506060610f8087828801610f14565b91505092959194509250565b5f819050919050565b5f610faf610faa610fa584610cec565b610f8c565b610cec565b9050919050565b5f610fc082610f95565b9050919050565b5f610fd182610fb6565b9050919050565b610fe181610fc7565b82525050565b5f602082019050610ffa5f830184610fd8565b92915050565b5f80fd5b5f6101a0828403121561101a57611019611000565b5b81905092915050565b5f819050919050565b61103581611023565b811461103f575f80fd5b50565b5f813590506110508161102c565b92915050565b5f805f6060848603121561106d5761106c610a64565b5b5f84013567ffffffffffffffff81111561108a57611089610a68565b5b61109686828701611004565b93505060206110a786828701611042565b92505060406110b886828701610eea565b9150509250925092565b6110cb81610d2b565b82525050565b5f6020820190506110e45f8301846110c2565b92915050565b5f805f806060858703121561110257611101610a64565b5b5f61110f87828801610e6d565b945050602061112087828801610eea565b935050604085013567ffffffffffffffff81111561114157611140610a68565b5b61114d87828801610ba0565b925092505092959194509250565b5f81519050919050565b5f82825260208201905092915050565b5f819050602082019050919050565b61118d81610bf5565b82525050565b606082015f8201516111a75f850182610d34565b5060208201516111ba6020850182610d34565b5060408201516111cd6040850182611184565b50505050565b5f6111de8383611193565b60608301905092915050565b5f602082019050919050565b5f6112008261115b565b61120a8185611165565b935061121583611175565b805f5b8381101561124557815161122c88826111d3565b9750611237836111ea565b925050600181019050611218565b5085935050505092915050565b5f6020820190508181035f83015261126a81846111f6565b905092915050565b5f82825260208201905092915050565b7f77726f6e67206172726179206c656e67746873000000000000000000000000005f82015250565b5f6112b6601383611272565b91506112c182611282565b602082019050919050565b5f6020820190508181035f8301526112e3816112aa565b9050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b5f80fd5b5f80fd5b5f80fd5b5f808335600160200384360303811261133f5761133e611317565b5b80840192508235915067ffffffffffffffff8211156113615761136061131b565b5b60208301925060018202360383131561137d5761137c61131f565b5b509250929050565b5f819050919050565b5f77ffffffffffffffffffffffffffffffffffffffffffffffff82169050919050565b5f6113cb6113c66113c184611385565b610f8c565b61138e565b9050919050565b6113db816113b1565b82525050565b5f6040820190506113f45f830185610eac565b61140160208301846113d2565b9392505050565b5f8151905061141681610ed4565b92915050565b5f6020828403121561143157611430610a64565b5b5f61143e84828501611408565b91505092915050565b7f6163636f756e743a206e6f74204f776e6572206f7220456e747279506f696e745f82015250565b5f61147b602083611272565b915061148682611447565b602082019050919050565b5f6020820190508181035f8301526114a88161146f565b9050919050565b5f81519050919050565b5f81905092915050565b5f5b838110156114e05780820151818401526020810190506114c5565b5f8484015250505050565b5f6114f5826114af565b6114ff81856114b9565b935061150f8185602086016114c3565b80840191505092915050565b5f61152682846114eb565b915081905092915050565b7f6f6e6c79206f776e6572000000000000000000000000000000000000000000005f82015250565b5f611565600a83611272565b915061157082611531565b602082019050919050565b5f6020820190508181035f83015261159281611559565b9050919050565b7f6163636f756e743a206e6f742066726f6d20456e747279506f696e74000000005f82015250565b5f6115cd601c83611272565b91506115d882611599565b602082019050919050565b5f6020820190508181035f8301526115fa816115c1565b9050919050565b50565b5f61160f5f836114b9565b915061161a82611601565b5f82019050919050565b5f61162e82611604565b915081905091905056fea2646970667358221220b01667695bfbd93b9a17ef5a8970cd9483e75301f0d2ea73c718be8c7fbf864364736f6c63430008170033",
 }
 
 // BindingContractABI is the input ABI used to generate the binding from.
@@ -250,35 +266,35 @@ func (_BindingContract *BindingContractCallerSession) EntryPoint() (common.Addre
 	return _BindingContract.Contract.EntryPoint(&_BindingContract.CallOpts)
 }
 
-// GetDeposit is a free data retrieval call binding the contract method 0xc399ec88.
+// GetGuardian is a free data retrieval call binding the contract method 0xa75b87d2.
 //
-// Solidity: function getDeposit() view returns(uint256)
-func (_BindingContract *BindingContractCaller) GetDeposit(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function getGuardian() view returns(address)
+func (_BindingContract *BindingContractCaller) GetGuardian(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _BindingContract.contract.Call(opts, &out, "getDeposit")
+	err := _BindingContract.contract.Call(opts, &out, "getGuardian")
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new(common.Address), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 
 	return out0, err
 
 }
 
-// GetDeposit is a free data retrieval call binding the contract method 0xc399ec88.
+// GetGuardian is a free data retrieval call binding the contract method 0xa75b87d2.
 //
-// Solidity: function getDeposit() view returns(uint256)
-func (_BindingContract *BindingContractSession) GetDeposit() (*big.Int, error) {
-	return _BindingContract.Contract.GetDeposit(&_BindingContract.CallOpts)
+// Solidity: function getGuardian() view returns(address)
+func (_BindingContract *BindingContractSession) GetGuardian() (common.Address, error) {
+	return _BindingContract.Contract.GetGuardian(&_BindingContract.CallOpts)
 }
 
-// GetDeposit is a free data retrieval call binding the contract method 0xc399ec88.
+// GetGuardian is a free data retrieval call binding the contract method 0xa75b87d2.
 //
-// Solidity: function getDeposit() view returns(uint256)
-func (_BindingContract *BindingContractCallerSession) GetDeposit() (*big.Int, error) {
-	return _BindingContract.Contract.GetDeposit(&_BindingContract.CallOpts)
+// Solidity: function getGuardian() view returns(address)
+func (_BindingContract *BindingContractCallerSession) GetGuardian() (common.Address, error) {
+	return _BindingContract.Contract.GetGuardian(&_BindingContract.CallOpts)
 }
 
 // GetNonce is a free data retrieval call binding the contract method 0xd087d288.
@@ -312,6 +328,130 @@ func (_BindingContract *BindingContractCallerSession) GetNonce() (*big.Int, erro
 	return _BindingContract.Contract.GetNonce(&_BindingContract.CallOpts)
 }
 
+// GetOwner is a free data retrieval call binding the contract method 0x893d20e8.
+//
+// Solidity: function getOwner() view returns(address)
+func (_BindingContract *BindingContractCaller) GetOwner(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getOwner")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// GetOwner is a free data retrieval call binding the contract method 0x893d20e8.
+//
+// Solidity: function getOwner() view returns(address)
+func (_BindingContract *BindingContractSession) GetOwner() (common.Address, error) {
+	return _BindingContract.Contract.GetOwner(&_BindingContract.CallOpts)
+}
+
+// GetOwner is a free data retrieval call binding the contract method 0x893d20e8.
+//
+// Solidity: function getOwner() view returns(address)
+func (_BindingContract *BindingContractCallerSession) GetOwner() (common.Address, error) {
+	return _BindingContract.Contract.GetOwner(&_BindingContract.CallOpts)
+}
+
+// GetPasskeys is a free data retrieval call binding the contract method 0xe4093c22.
+//
+// Solidity: function getPasskeys() view returns((uint256,uint256,uint8)[])
+func (_BindingContract *BindingContractCaller) GetPasskeys(opts *bind.CallOpts) ([]PassKey, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getPasskeys")
+
+	if err != nil {
+		return *new([]PassKey), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]PassKey)).(*[]PassKey)
+
+	return out0, err
+
+}
+
+// GetPasskeys is a free data retrieval call binding the contract method 0xe4093c22.
+//
+// Solidity: function getPasskeys() view returns((uint256,uint256,uint8)[])
+func (_BindingContract *BindingContractSession) GetPasskeys() ([]PassKey, error) {
+	return _BindingContract.Contract.GetPasskeys(&_BindingContract.CallOpts)
+}
+
+// GetPasskeys is a free data retrieval call binding the contract method 0xe4093c22.
+//
+// Solidity: function getPasskeys() view returns((uint256,uint256,uint8)[])
+func (_BindingContract *BindingContractCallerSession) GetPasskeys() ([]PassKey, error) {
+	return _BindingContract.Contract.GetPasskeys(&_BindingContract.CallOpts)
+}
+
+// GetSessions is a free data retrieval call binding the contract method 0x61503e45.
+//
+// Solidity: function getSessions() view returns((address,uint256,uint256,uint64,uint64)[])
+func (_BindingContract *BindingContractCaller) GetSessions(opts *bind.CallOpts) ([]SessionKey, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getSessions")
+
+	if err != nil {
+		return *new([]SessionKey), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]SessionKey)).(*[]SessionKey)
+
+	return out0, err
+
+}
+
+// GetSessions is a free data retrieval call binding the contract method 0x61503e45.
+//
+// Solidity: function getSessions() view returns((address,uint256,uint256,uint64,uint64)[])
+func (_BindingContract *BindingContractSession) GetSessions() ([]SessionKey, error) {
+	return _BindingContract.Contract.GetSessions(&_BindingContract.CallOpts)
+}
+
+// GetSessions is a free data retrieval call binding the contract method 0x61503e45.
+//
+// Solidity: function getSessions() view returns((address,uint256,uint256,uint64,uint64)[])
+func (_BindingContract *BindingContractCallerSession) GetSessions() ([]SessionKey, error) {
+	return _BindingContract.Contract.GetSessions(&_BindingContract.CallOpts)
+}
+
+// GetStatus is a free data retrieval call binding the contract method 0x4e69d560.
+//
+// Solidity: function getStatus() view returns(uint64)
+func (_BindingContract *BindingContractCaller) GetStatus(opts *bind.CallOpts) (uint64, error) {
+	var out []interface{}
+	err := _BindingContract.contract.Call(opts, &out, "getStatus")
+
+	if err != nil {
+		return *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+
+	return out0, err
+
+}
+
+// GetStatus is a free data retrieval call binding the contract method 0x4e69d560.
+//
+// Solidity: function getStatus() view returns(uint64)
+func (_BindingContract *BindingContractSession) GetStatus() (uint64, error) {
+	return _BindingContract.Contract.GetStatus(&_BindingContract.CallOpts)
+}
+
+// GetStatus is a free data retrieval call binding the contract method 0x4e69d560.
+//
+// Solidity: function getStatus() view returns(uint64)
+func (_BindingContract *BindingContractCallerSession) GetStatus() (uint64, error) {
+	return _BindingContract.Contract.GetStatus(&_BindingContract.CallOpts)
+}
+
 // Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
 //
 // Solidity: function owner() view returns(address)
@@ -341,27 +481,6 @@ func (_BindingContract *BindingContractSession) Owner() (common.Address, error) 
 // Solidity: function owner() view returns(address)
 func (_BindingContract *BindingContractCallerSession) Owner() (common.Address, error) {
 	return _BindingContract.Contract.Owner(&_BindingContract.CallOpts)
-}
-
-// AddDeposit is a paid mutator transaction binding the contract method 0x4a58db19.
-//
-// Solidity: function addDeposit() payable returns()
-func (_BindingContract *BindingContractTransactor) AddDeposit(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "addDeposit")
-}
-
-// AddDeposit is a paid mutator transaction binding the contract method 0x4a58db19.
-//
-// Solidity: function addDeposit() payable returns()
-func (_BindingContract *BindingContractSession) AddDeposit() (*types.Transaction, error) {
-	return _BindingContract.Contract.AddDeposit(&_BindingContract.TransactOpts)
-}
-
-// AddDeposit is a paid mutator transaction binding the contract method 0x4a58db19.
-//
-// Solidity: function addDeposit() payable returns()
-func (_BindingContract *BindingContractTransactorSession) AddDeposit() (*types.Transaction, error) {
-	return _BindingContract.Contract.AddDeposit(&_BindingContract.TransactOpts)
 }
 
 // Execute is a paid mutator transaction binding the contract method 0xb61d27f6.
@@ -427,6 +546,90 @@ func (_BindingContract *BindingContractTransactorSession) Initialize(anOwner com
 	return _BindingContract.Contract.Initialize(&_BindingContract.TransactOpts, anOwner)
 }
 
+// ResetOwner is a paid mutator transaction binding the contract method 0x73cc802a.
+//
+// Solidity: function resetOwner(address ) returns()
+func (_BindingContract *BindingContractTransactor) ResetOwner(opts *bind.TransactOpts, arg0 common.Address) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "resetOwner", arg0)
+}
+
+// ResetOwner is a paid mutator transaction binding the contract method 0x73cc802a.
+//
+// Solidity: function resetOwner(address ) returns()
+func (_BindingContract *BindingContractSession) ResetOwner(arg0 common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.ResetOwner(&_BindingContract.TransactOpts, arg0)
+}
+
+// ResetOwner is a paid mutator transaction binding the contract method 0x73cc802a.
+//
+// Solidity: function resetOwner(address ) returns()
+func (_BindingContract *BindingContractTransactorSession) ResetOwner(arg0 common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.ResetOwner(&_BindingContract.TransactOpts, arg0)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address ) returns()
+func (_BindingContract *BindingContractTransactor) SetGuardian(opts *bind.TransactOpts, arg0 common.Address) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "setGuardian", arg0)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address ) returns()
+func (_BindingContract *BindingContractSession) SetGuardian(arg0 common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.SetGuardian(&_BindingContract.TransactOpts, arg0)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address ) returns()
+func (_BindingContract *BindingContractTransactorSession) SetGuardian(arg0 common.Address) (*types.Transaction, error) {
+	return _BindingContract.Contract.SetGuardian(&_BindingContract.TransactOpts, arg0)
+}
+
+// SetPasskey is a paid mutator transaction binding the contract method 0x39d8bab5.
+//
+// Solidity: function setPasskey(bytes , uint8 ) returns()
+func (_BindingContract *BindingContractTransactor) SetPasskey(opts *bind.TransactOpts, arg0 []byte, arg1 uint8) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "setPasskey", arg0, arg1)
+}
+
+// SetPasskey is a paid mutator transaction binding the contract method 0x39d8bab5.
+//
+// Solidity: function setPasskey(bytes , uint8 ) returns()
+func (_BindingContract *BindingContractSession) SetPasskey(arg0 []byte, arg1 uint8) (*types.Transaction, error) {
+	return _BindingContract.Contract.SetPasskey(&_BindingContract.TransactOpts, arg0, arg1)
+}
+
+// SetPasskey is a paid mutator transaction binding the contract method 0x39d8bab5.
+//
+// Solidity: function setPasskey(bytes , uint8 ) returns()
+func (_BindingContract *BindingContractTransactorSession) SetPasskey(arg0 []byte, arg1 uint8) (*types.Transaction, error) {
+	return _BindingContract.Contract.SetPasskey(&_BindingContract.TransactOpts, arg0, arg1)
+}
+
+// SetSession is a paid mutator transaction binding the contract method 0xa3ca5fe3.
+//
+// Solidity: function setSession(address , uint256 , uint64 , uint64 ) returns()
+func (_BindingContract *BindingContractTransactor) SetSession(opts *bind.TransactOpts, arg0 common.Address, arg1 *big.Int, arg2 uint64, arg3 uint64) (*types.Transaction, error) {
+	return _BindingContract.contract.Transact(opts, "setSession", arg0, arg1, arg2, arg3)
+}
+
+// SetSession is a paid mutator transaction binding the contract method 0xa3ca5fe3.
+//
+// Solidity: function setSession(address , uint256 , uint64 , uint64 ) returns()
+func (_BindingContract *BindingContractSession) SetSession(arg0 common.Address, arg1 *big.Int, arg2 uint64, arg3 uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.SetSession(&_BindingContract.TransactOpts, arg0, arg1, arg2, arg3)
+}
+
+// SetSession is a paid mutator transaction binding the contract method 0xa3ca5fe3.
+//
+// Solidity: function setSession(address , uint256 , uint64 , uint64 ) returns()
+func (_BindingContract *BindingContractTransactorSession) SetSession(arg0 common.Address, arg1 *big.Int, arg2 uint64, arg3 uint64) (*types.Transaction, error) {
+	return _BindingContract.Contract.SetSession(&_BindingContract.TransactOpts, arg0, arg1, arg2, arg3)
+}
+
 // ValidateUserOp is a paid mutator transaction binding the contract method 0xb0fff5ca.
 //
 // Solidity: function validateUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 missingAccountFunds) returns(uint256 validationData)
@@ -446,27 +649,6 @@ func (_BindingContract *BindingContractSession) ValidateUserOp(userOp UserOperat
 // Solidity: function validateUserOp((address,uint256,bytes,bytes,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes) userOp, bytes32 userOpHash, uint256 missingAccountFunds) returns(uint256 validationData)
 func (_BindingContract *BindingContractTransactorSession) ValidateUserOp(userOp UserOperation, userOpHash [32]byte, missingAccountFunds *big.Int) (*types.Transaction, error) {
 	return _BindingContract.Contract.ValidateUserOp(&_BindingContract.TransactOpts, userOp, userOpHash, missingAccountFunds)
-}
-
-// WithdrawDepositTo is a paid mutator transaction binding the contract method 0x4d44560d.
-//
-// Solidity: function withdrawDepositTo(address withdrawAddress, uint256 amount) returns()
-func (_BindingContract *BindingContractTransactor) WithdrawDepositTo(opts *bind.TransactOpts, withdrawAddress common.Address, amount *big.Int) (*types.Transaction, error) {
-	return _BindingContract.contract.Transact(opts, "withdrawDepositTo", withdrawAddress, amount)
-}
-
-// WithdrawDepositTo is a paid mutator transaction binding the contract method 0x4d44560d.
-//
-// Solidity: function withdrawDepositTo(address withdrawAddress, uint256 amount) returns()
-func (_BindingContract *BindingContractSession) WithdrawDepositTo(withdrawAddress common.Address, amount *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.WithdrawDepositTo(&_BindingContract.TransactOpts, withdrawAddress, amount)
-}
-
-// WithdrawDepositTo is a paid mutator transaction binding the contract method 0x4d44560d.
-//
-// Solidity: function withdrawDepositTo(address withdrawAddress, uint256 amount) returns()
-func (_BindingContract *BindingContractTransactorSession) WithdrawDepositTo(withdrawAddress common.Address, amount *big.Int) (*types.Transaction, error) {
-	return _BindingContract.Contract.WithdrawDepositTo(&_BindingContract.TransactOpts, withdrawAddress, amount)
 }
 
 // Receive is a paid mutator transaction binding the contract receive function.

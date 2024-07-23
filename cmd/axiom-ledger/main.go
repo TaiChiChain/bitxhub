@@ -49,6 +49,7 @@ func main() {
 		sys_contract.NodeCMD,
 		sys_contract.StakingCMD,
 		sys_contract.StakingLSTCMD,
+		sys_contract.SmartAccountProxyCMD,
 		{
 			Name:   "start",
 			Usage:  "Start a long-running daemon process",

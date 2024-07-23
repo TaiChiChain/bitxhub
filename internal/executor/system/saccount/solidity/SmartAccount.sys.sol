@@ -6,6 +6,8 @@ pragma solidity ^0.8.12;
 /* solhint-disable reason-string */
 
 import "./BaseAccount.sol";
+import "./PassKey.sol";
+import "./SessionKey.sol";
 
 /**
   * minimal account.
@@ -101,32 +103,31 @@ contract SmartAccount is BaseAccount {
         }
     }
 
-    /**
-     * check current account deposit in the entryPoint
-     */
-    function getDeposit() public view returns (uint256) {
-        return entryPoint().balanceOf(address(this));
+    function setGuardian(address) public onlyOwner {
     }
 
-    /**
-     * deposit more funds for this account in the entryPoint
-     */
-    function addDeposit() public payable {
-        entryPoint().depositTo{value : msg.value}(address(this));
+    function resetOwner(address) public onlyOwner {
     }
 
-    /**
-     * withdraw value from the account's deposit
-     * @param withdrawAddress target to send to
-     * @param amount to withdraw
-     */
-    function withdrawDepositTo(address payable withdrawAddress, uint256 amount) public onlyOwner {
-        entryPoint().withdrawTo(withdrawAddress, amount);
+    function setSession(address ,uint256, uint64, uint64) public onlyOwner {
     }
 
-    function _authorizeUpgrade(address newImplementation) internal view {
-        (newImplementation);
-        _onlyOwner();
+    function setPasskey(bytes calldata, uint8) public onlyOwner {
+    }
+
+    function getOwner() public view returns (address) {
+    }
+
+    function getStatus() public view returns (uint64) {
+    }
+
+    function getGuardian() public view returns (address) {
+    }
+
+    function getPasskeys() public view returns (PassKey[] memory) {
+    }
+
+    function getSessions() public view returns (SessionKey[] memory) {
     }
 }
 

@@ -470,8 +470,7 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, userOp *interfaces.UserOpe
 			})
 		}
 
-		sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), mUserOp.Sender).SetRemainingGas(mUserOp.CallGasLimit)
-		isInnerMethod, callGas, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
+		callReturnRes, err := ep.CallSmartAccount(mUserOp.Sender, callData, mUserOp.CallGasLimit)
 		if err != nil {
 			if !strings.Contains(err.Error(), "execute smart account callWithValue failed") {
 				return nil, ep.Revert(&ientry_point.ErrorFailedOp{
@@ -488,25 +487,9 @@ func (ep *EntryPoint) innerHandleOp(opIndex *big.Int, userOp *interfaces.UserOpe
 			mode = interfaces.OpReverted
 		}
 
-		if totalUsedValue != nil {
-			totalValue.Add(totalValue, totalUsedValue)
-		}
-
-		usedGas.Add(usedGas, big.NewInt(int64(callGas)))
-		if !isInnerMethod {
-			// call evm if not inner method
-			_, callGas, err := ep.CrossCallEVMContract(mUserOp.CallGasLimit, mUserOp.Sender, callData)
-			if err != nil {
-				ep.EmitEvent(&ientry_point.EventUserOperationRevertReason{
-					UserOpHash:   opInfo.UserOpHash,
-					Sender:       mUserOp.Sender,
-					Nonce:        mUserOp.Nonce,
-					RevertReason: []byte(err.Error()),
-				})
-				mode = interfaces.OpReverted
-			}
-
-			usedGas.Add(usedGas, big.NewInt(int64(callGas)))
+		if callReturnRes != nil {
+			totalValue.Add(totalValue, callReturnRes.TotalUsedValue)
+			usedGas.Add(usedGas, big.NewInt(int64(callReturnRes.UsedGas)))
 		}
 	}
 
@@ -873,6 +856,17 @@ func (ep *EntryPoint) subBalance(account ethcommon.Address, value *big.Int) erro
 	ep.Ctx.StateLedger.SubBalance(types.NewAddress(account.Bytes()), value)
 	ep.StateAccount.AddBalance(value)
 	return nil
+}
+
+func (ep *EntryPoint) CallSmartAccount(account ethcommon.Address, callData []byte, callGasLimit *big.Int) (*CallReturnResult, error) {
+	sa := SmartAccountBuildConfig.BuildWithAddress(ep.CrossCallSystemContractContext(), account).SetRemainingGas(callGasLimit)
+
+	callReturnRes, err := CallMethod(callData, sa)
+	if err != nil {
+		return nil, err
+	}
+
+	return &callReturnRes, nil
 }
 
 // TODO: use evm context gas price?

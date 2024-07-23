@@ -196,6 +196,7 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 func (axm *AxiomLedger) genSnapSyncParams(peers []*common.Node, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
 	latestBlockHash := ethcommon.Hash{}.String()
+
 	if axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash != nil {
 		latestBlockHash = axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
 	} else {
