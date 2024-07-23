@@ -108,6 +108,44 @@ var (
 		Help:      "The total latency of get a transaction from db",
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
+
+	getOrCreateAccountDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "get_or_create_account_duration",
+		Help:      "The total latency of get or create account",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
+
+	getBalanceDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "get_balance_duration",
+		Help:      "The total latency of get balance",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
+
+	setBalanceDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "set_balance_duration",
+		Help:      "The total latency of set balance",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
+
+	cacheHit = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "cache_hit",
+		Help:      "The total number of cache hit",
+	})
+
+	snapHit = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "snap_hit",
+		Help:      "The total number of snap hit",
+	})
 )
 
 func init() {
@@ -125,4 +163,10 @@ func init() {
 	prometheus.MustRegister(storageTrieCacheSize)
 	prometheus.MustRegister(getTransactionCounter)
 	prometheus.MustRegister(getTransactionDuration)
+
+	prometheus.MustRegister(getOrCreateAccountDuration)
+	prometheus.MustRegister(getBalanceDuration)
+	prometheus.MustRegister(setBalanceDuration)
+	prometheus.MustRegister(cacheHit)
+	prometheus.MustRegister(snapHit)
 }

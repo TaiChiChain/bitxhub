@@ -27,8 +27,14 @@ const MinJournalHeight = 10
 
 var Log = loggers.Logger(loggers.Executor)
 
+var cacheHintLock sync.Mutex
+var cacheHint = 0
+var snapshotHintLock sync.Mutex
+var snapshotHint = 0
+
 // GetOrCreateAccount get the account, if not exist, create a new account
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
+	start := time.Now()
 	account := l.GetAccount(addr)
 	if account == nil {
 		account = NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, addr, l.changer, l.snapshot)
@@ -37,11 +43,12 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 		l.accounts[addr.String()] = account
 
 		MVWrite(l, blockstm.NewAddressKey(*addr))
-		MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
 	} else {
 		l.logger.Debugf("[GetOrCreateAccount] get account, addr: %v", addr)
 	}
+
+	getOrCreateAccountDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 
 	return account
 }
@@ -82,6 +89,9 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		addr := address.String()
 		value, ok := l.accounts[addr]
 		if ok {
+			// cacheHintLock.Lock()
+			// cacheHint++
+			// cacheHintLock.Unlock()
 			l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
 			return value
 		}
@@ -101,6 +111,9 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 					account.dirtyCode = code
 				}
 				l.accounts[addr] = account
+				// snapshotHintLock.Lock()
+				// snapshotHint++
+				// snapshotHintLock.Unlock()
 				l.logger.Debugf("[GetAccount] get account from snapshot, addr: %v, account: %v", addr, account)
 				return account
 			}
@@ -140,15 +153,23 @@ func (l *StateLedgerImpl) setAccount(account IAccount) {
 
 // GetBalance get account balance using account Address
 func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
+	start := time.Now()
+	defer func() {
+		getBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	}()
 	return MVRead(l, blockstm.NewSubpathKey(*addr, BalancePath), common.Big0, func(l *StateLedgerImpl) *big.Int {
-		account := l.GetOrCreateAccount(addr)
-		res := account.GetBalance()
-		return res
+		account := l.GetAccount(addr)
+		if account != nil {
+			return account.GetBalance()
+		}
+
+		return common.Big0
 	})
 }
 
 // SetBalance set account balance
 func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
+	start := time.Now()
 	account := l.GetOrCreateAccount(addr)
 	if l.mvHashmap != nil {
 		// ensure a read balance operation is recorded in mvHashmap
@@ -157,6 +178,7 @@ func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
 	account = l.mvRecordWritten(account)
 	account.SetBalance(value)
 	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+	setBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 }
 
 func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {
@@ -165,7 +187,7 @@ func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {
 		// ensure a read balance operation is recorded in mvHashmap
 		l.GetBalance(addr)
 	}
-	if !account.IsEmpty() {
+	if account != nil {
 		account = l.mvRecordWritten(account)
 		account.SubBalance(value)
 		MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
@@ -186,8 +208,12 @@ func (l *StateLedgerImpl) AddBalance(addr *types.Address, value *big.Int) {
 // GetState get account state value using account Address and key
 func (l *StateLedgerImpl) GetState(addr *types.Address, key []byte) (bool, []byte) {
 	return MVRead2(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), true, (&types.Hash{}).Bytes(), func(s *StateLedgerImpl) (bool, []byte) {
-		account := l.GetOrCreateAccount(addr)
-		return account.GetState(key)
+		account := l.GetAccount(addr)
+		if account != nil {
+			return account.GetState(key)
+		}
+		return false, []byte{}
+
 	})
 }
 
@@ -197,11 +223,12 @@ func (l *StateLedgerImpl) setTransientState(addr types.Address, key, value []byt
 
 func (l *StateLedgerImpl) GetCommittedState(addr *types.Address, key []byte) []byte {
 	return MVRead(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), (&types.Hash{}).Bytes(), func(l *StateLedgerImpl) []byte {
-		account := l.GetOrCreateAccount(addr)
-		if account.IsEmpty() {
-			return (&types.Hash{}).Bytes()
+
+		account := l.GetAccount(addr)
+		if account != nil {
+			return account.GetCommittedState(key)
 		}
-		return account.GetCommittedState(key)
+		return (&types.Hash{}).Bytes()
 	})
 
 }
@@ -225,26 +252,31 @@ func (l *StateLedgerImpl) SetCode(addr *types.Address, code []byte) {
 // GetCode get contract code
 func (l *StateLedgerImpl) GetCode(addr *types.Address) []byte {
 	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), nil, func(l *StateLedgerImpl) []byte {
-		account := l.GetOrCreateAccount(addr)
-		return account.Code()
+		account := l.GetAccount(addr)
+		if account != nil {
+			return account.Code()
+		}
+		return nil
 	})
 }
 
 func (l *StateLedgerImpl) GetCodeHash(addr *types.Address) *types.Hash {
 	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), &types.Hash{}, func(l *StateLedgerImpl) *types.Hash {
-		account := l.GetOrCreateAccount(addr)
-		if account.IsEmpty() {
-			return &types.Hash{}
+		account := l.GetAccount(addr)
+		if account != nil && !account.IsEmpty() {
+			return types.NewHash(account.CodeHash())
 		}
-		return types.NewHash(account.CodeHash())
+		return &types.Hash{}
+
 	})
 
 }
 
 func (l *StateLedgerImpl) GetCodeSize(addr *types.Address) int {
 	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), 0, func(l *StateLedgerImpl) int {
-		account := l.GetOrCreateAccount(addr)
-		if !account.IsEmpty() {
+		account := l.GetAccount(addr)
+
+		if account != nil && !account.IsEmpty() {
 			if code := account.Code(); code != nil {
 				return len(code)
 			}
@@ -274,8 +306,11 @@ func (l *StateLedgerImpl) GetRefund() uint64 {
 // GetNonce get account nonce
 func (l *StateLedgerImpl) GetNonce(addr *types.Address) uint64 {
 	return MVRead(l, blockstm.NewSubpathKey(*addr, NoncePath), 0, func(l *StateLedgerImpl) uint64 {
-		account := l.GetOrCreateAccount(addr)
-		return account.GetNonce()
+		account := l.GetAccount(addr)
+		if account != nil {
+			return account.GetNonce()
+		}
+		return 0
 	})
 
 }
@@ -516,7 +551,11 @@ func (l *StateLedgerImpl) RollbackState(height uint64, stateRoot *types.Hash) er
 }
 
 func (l *StateLedgerImpl) SelfDestruct(addr *types.Address) bool {
-	account := l.GetOrCreateAccount(addr)
+	account := l.GetAccount(addr)
+	if account == nil {
+		return false
+	}
+
 	l.changer.append(suicideChange{
 		account:     addr,
 		prev:        account.SelfDestructed(),
@@ -535,13 +574,13 @@ func (l *StateLedgerImpl) SelfDestruct(addr *types.Address) bool {
 
 func (l *StateLedgerImpl) HasSelfDestructed(addr *types.Address) bool {
 	return MVRead(l, blockstm.NewSubpathKey(*addr, SuicidePath), false, func(l *StateLedgerImpl) bool {
-		account := l.GetOrCreateAccount(addr)
-		if account.IsEmpty() {
-			l.logger.Debugf("[HasSelfDestructed] addr: %v, is empty, selfDestructed: false", addr)
-			return false
+		account := l.GetAccount(addr)
+		if account != nil {
+			l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
+			return account.SelfDestructed()
 		}
-		l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
-		return account.SelfDestructed()
+		l.logger.Debugf("[HasSelfDestructed] addr: %v, is empty, selfDestructed: false", addr)
+		return false
 	})
 }
 
@@ -557,13 +596,16 @@ func (l *StateLedgerImpl) Selfdestruct6780(addr *types.Address) {
 }
 
 func (l *StateLedgerImpl) Exist(addr *types.Address) bool {
-	exist := !l.GetOrCreateAccount(addr).IsEmpty()
+	exist := l.GetAccount(addr) != nil
+
 	l.logger.Debugf("[Exist] addr: %v, exist: %v", addr, exist)
 	return exist
 }
 
 func (l *StateLedgerImpl) Empty(addr *types.Address) bool {
-	empty := l.GetOrCreateAccount(addr).IsEmpty()
+	account := l.GetAccount(addr)
+	empty := account == nil || account.IsEmpty()
+
 	l.logger.Debugf("[Empty] addr: %v, empty: %v", addr, empty)
 	return empty
 }
@@ -682,6 +724,10 @@ func (l *StateLedgerImpl) exportMetrics() {
 	storageTrieCacheMissCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheMissCounter))
 	storageTrieCacheHitCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheHitCounter))
 	storageTrieCacheSize.Set(float64(storageTrieCacheMetrics.CacheSize / 1024 / 1024))
+
+	cacheHit.Set(float64(cacheHint))
+	snapHit.Set(float64(snapshotHint))
+
 }
 
 func (l *StateLedgerImpl) refreshAccountTrie(lastStateRoot *types.Hash) {
