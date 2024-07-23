@@ -2,6 +2,7 @@ package prune
 
 import (
 	"github.com/axiomesh/axiom-kit/jmt"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -147,13 +148,18 @@ func (p *prunner) pruning() {
 				delNodes = append(delNodes, v)
 			}
 		}
-		p.trieCache.(*jmt.JMTCache).Update(insertNodes, delNodes)
-
-		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(to+1))
 
 		current := time.Now()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.trieCache.(*jmt.JMTCache).Update(insertNodes, delNodes)
+		}()
+		pendingBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(to+1))
 		pendingBatch.Commit()
-		p.logger.Infof("[Prune] prune state from block %v to block %v, total size (bytes) = %v, time = %v", from, to, pendingFlushSize, time.Since(current))
+		wg.Wait()
+		p.logger.Infof("[Prune] prune state and update cache from block %v to block %v, total size (bytes) = %v, total time = %v", from, to, pendingFlushSize, time.Since(current))
 
 		// reset states diff
 		p.states.lock.Lock()
