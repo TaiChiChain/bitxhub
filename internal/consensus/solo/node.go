@@ -310,6 +310,8 @@ func (n *Node) listenEvent() {
 				if err = n.batchMgr.RestartTimer(common.Batch); err != nil {
 					n.logger.Errorf("restart batch timeout failed: %v", err)
 				}
+
+				n.txpool.ReplyBatchSignal()
 			}
 		}
 	}

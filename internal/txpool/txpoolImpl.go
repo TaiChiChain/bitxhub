@@ -546,7 +546,6 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveInvalidTxs(removeTxsM map[string
 			removePriorityCount += len(removePriorityTxs)
 		}
 
-		p.decreasePriorityNonBatchSize(uint64(removePriorityCount))
 		// 3. because we remove GasTooLow txs from priority minNonceQueue, we need to revert the pending nonce
 		p.revertPendingNonce(&txPointer{account: account, nonce: revertNonce}, updateAccounts)
 	}
