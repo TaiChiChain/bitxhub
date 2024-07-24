@@ -429,10 +429,11 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 		// bad (e.g. wrong nonce), and we should exit the execution immediately
 		//err = fmt.Errorf("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
 		pe.log.Error("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
-
 		// to do
 		// check err settle
+		pe.log.Error("lastSettle:", pe.lastSettled, ",txIndex:", res.ver.TxnIndex)
 		pe.chSettle <- res.ver.TxnIndex
+		return
 		// pe.Close(true)
 		// return
 	}

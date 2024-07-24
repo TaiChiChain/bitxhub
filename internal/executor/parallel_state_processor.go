@@ -191,6 +191,7 @@ func (task *ExecutionTask) Dependencies() []int {
 
 func (task *ExecutionTask) Settle() {
 	if task.resultErr != nil {
+		task.logger.Error("Error while executing transaction", "Error:", task.resultErr)
 		receipt := &types.Receipt{
 			TxHash: task.tx.GetHash(),
 		}
