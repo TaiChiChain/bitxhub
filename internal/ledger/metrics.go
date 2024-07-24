@@ -117,6 +117,30 @@ var (
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
 
+	getAccountDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "get_account_duration",
+		Help:      "The total latency of get account",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
+
+	mvReadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "mv_read_duration",
+		Help:      "The total latency of mv read",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
+
+	mvRecordWrittenDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "mv_record_written_duration",
+		Help:      "The total latency of mv record written",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
+	})
+
 	getBalanceDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
@@ -133,18 +157,20 @@ var (
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
 
-	cacheHit = prometheus.NewGauge(prometheus.GaugeOpts{
+	getFromStorageDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
-		Name:      "cache_hit",
-		Help:      "The total number of cache hit",
+		Name:      "get_from_storage_duration",
+		Help:      "The total latency of get from storage",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
 
-	snapHit = prometheus.NewGauge(prometheus.GaugeOpts{
+	getFromMvReadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
-		Name:      "snap_hit",
-		Help:      "The total number of snap hit",
+		Name:      "get_from_mvread_duration",
+		Help:      "The total latency of get from mvread",
+		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
 )
 
@@ -167,6 +193,10 @@ func init() {
 	prometheus.MustRegister(getOrCreateAccountDuration)
 	prometheus.MustRegister(getBalanceDuration)
 	prometheus.MustRegister(setBalanceDuration)
-	prometheus.MustRegister(cacheHit)
-	prometheus.MustRegister(snapHit)
+	prometheus.MustRegister(getFromStorageDuration)
+	prometheus.MustRegister(getFromMvReadDuration)
+	prometheus.MustRegister(getAccountDuration)
+	prometheus.MustRegister(mvReadDuration)
+	prometheus.MustRegister(mvRecordWrittenDuration)
+
 }

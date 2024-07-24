@@ -2,6 +2,8 @@ package ledger
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 )
@@ -18,6 +20,11 @@ const BalancePath = 1
 const NoncePath = 2
 const CodePath = 3
 const SuicidePath = 4
+
+var mvreadLock sync.Mutex
+var mvreadHint = 0
+var mvreadStorageLock sync.Mutex
+var mvreadStorageHint = 0
 
 func (s *StateLedgerImpl) SetMVHashmap(mvhm *blockstm.MVHashMap) {
 	s.mvHashmap = mvhm
@@ -97,6 +104,10 @@ func (s *StateLedgerImpl) SetIncarnation(inc int) {
 }
 
 func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage func(s *StateLedgerImpl) T) (v T) {
+	start := time.Now()
+	defer func() {
+		mvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	}()
 	if s.mvHashmap == nil {
 		return readStorage(s)
 	}
@@ -131,8 +142,13 @@ func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage f
 	switch res.Status() {
 	case blockstm.MVReadResultDone:
 		{
+			start := time.Now()
 			v = readStorage(res.Value().(*StateLedgerImpl))
 			rd.Kind = blockstm.ReadKindMap
+			getFromMvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+			mvreadLock.Lock()
+			mvreadHint++
+			mvreadLock.Unlock()
 		}
 	case blockstm.MVReadResultDependency:
 		{
@@ -142,8 +158,13 @@ func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage f
 		}
 	case blockstm.MVReadResultNone:
 		{
+			start := time.Now()
 			v = readStorage(s)
 			rd.Kind = blockstm.ReadKindStorage
+			getFromStorageDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+			mvreadStorageLock.Lock()
+			mvreadStorageHint++
+			mvreadStorageLock.Unlock()
 		}
 	default:
 		return defaultV

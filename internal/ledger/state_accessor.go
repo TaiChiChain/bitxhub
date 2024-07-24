@@ -27,11 +27,6 @@ const MinJournalHeight = 10
 
 var Log = loggers.Logger(loggers.Executor)
 
-var cacheHintLock sync.Mutex
-var cacheHint = 0
-var snapshotHintLock sync.Mutex
-var snapshotHint = 0
-
 // GetOrCreateAccount get the account, if not exist, create a new account
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 	start := time.Now()
@@ -57,6 +52,10 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 // If yes, it returns the object directly.
 // If not, it clones the object and inserts it into the writeMap before returning it.
 func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
+	start := time.Now()
+	defer func() {
+		mvRecordWrittenDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	}()
 	if s.mvHashmap == nil {
 		return object
 	}
@@ -85,13 +84,15 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 
 // GetAccount get account info using account Address
 func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
+	start := time.Now()
+	defer func() {
+		getAccountDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	}()
+
 	return MVRead(l, blockstm.NewAddressKey(*address), nil, func(l *StateLedgerImpl) IAccount {
 		addr := address.String()
 		value, ok := l.accounts[addr]
 		if ok {
-			// cacheHintLock.Lock()
-			// cacheHint++
-			// cacheHintLock.Unlock()
 			l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
 			return value
 		}
@@ -111,9 +112,6 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 					account.dirtyCode = code
 				}
 				l.accounts[addr] = account
-				// snapshotHintLock.Lock()
-				// snapshotHint++
-				// snapshotHintLock.Unlock()
 				l.logger.Debugf("[GetAccount] get account from snapshot, addr: %v, account: %v", addr, account)
 				return account
 			}
@@ -724,9 +722,6 @@ func (l *StateLedgerImpl) exportMetrics() {
 	storageTrieCacheMissCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheMissCounter))
 	storageTrieCacheHitCounterPerBlock.Set(float64(storageTrieCacheMetrics.CacheHitCounter))
 	storageTrieCacheSize.Set(float64(storageTrieCacheMetrics.CacheSize / 1024 / 1024))
-
-	cacheHit.Set(float64(cacheHint))
-	snapHit.Set(float64(snapshotHint))
 
 }
 
