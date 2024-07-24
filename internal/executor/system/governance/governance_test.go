@@ -275,6 +275,72 @@ func TestGovernance_Vote(t *testing.T) {
 	}
 }
 
+func TestGovernance_VoteOfWeight(t *testing.T) {
+	testNVM, gov := initGovernance(t, func(rep *repo.Repo) {
+		rep.GenesisConfig.CouncilMembers[0].Weight = 1
+		rep.GenesisConfig.CouncilMembers[1].Weight = 2
+		rep.GenesisConfig.CouncilMembers[2].Weight = 3
+		rep.GenesisConfig.CouncilMembers[3].Weight = 10
+	})
+
+	testNVM.RunSingleTX(gov, admin1, func() error {
+		arg := NodeUpgradeExtraArgs{
+			DownloadUrls: []string{"http://127.0.0.1:10000"},
+			CheckHash:    "",
+		}
+		data, err := json.Marshal(arg)
+		assert.Nil(t, err)
+		err = gov.Propose(uint8(NodeUpgrade), "test title", "test desc", uint64(10000), data)
+		assert.Nil(t, err)
+		return err
+	})
+
+	testcases := []struct {
+		from   ethcommon.Address
+		id     uint64
+		result uint8
+		err    error
+		hasErr bool
+	}{
+		{
+			from:   admin2,
+			id:     1,
+			result: uint8(Reject),
+			hasErr: false,
+		},
+		{
+			from:   admin3,
+			id:     1,
+			result: uint8(Reject),
+			hasErr: false,
+		},
+		{
+			from:   admin4,
+			id:     1,
+			result: uint8(Pass),
+			hasErr: false,
+		},
+	}
+
+	for i, test := range testcases {
+		t.Run(fmt.Sprintf("testcase %d", i), func(t *testing.T) {
+			testNVM.RunSingleTX(gov, test.from, func() error {
+				err := gov.Vote(test.id, test.result)
+				if test.err != nil {
+					assert.Contains(t, err.Error(), test.err.Error())
+				} else {
+					if test.hasErr {
+						assert.NotNil(t, err)
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+				return err
+			})
+		})
+	}
+}
+
 func TestGovernance_GetLatestProposalID(t *testing.T) {
 	testNVM, gov := initGovernance(t)
 
