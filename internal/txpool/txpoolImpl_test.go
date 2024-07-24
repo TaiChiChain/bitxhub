@@ -192,7 +192,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -217,6 +216,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			all, err := GetAllTxRecords(pool.txRecordsFile)
 			assert.Nil(t, err)
 			assert.Equal(t, 1, len(all))
+			pool.Stop()
 		}
 	})
 
@@ -232,7 +232,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			pool.poolMaxSize = 1
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 			ast.False(pool.statusMgr.In(PoolFull))
 
@@ -250,6 +249,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			err = pool.AddLocalTx(tx1)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), ErrTxPoolFull.Error())
+			pool.Stop()
 		}
 	})
 
@@ -263,7 +263,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -293,6 +292,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			ast.Equal(2, pool.txStore.removeTTLIndex.size())
 			ast.Equal(2, getPrioritySize(pool))
 			ast.Equal(1, pool.txStore.parkingLotIndex.size(), "decrease it when we trigger removeBatch")
+			pool.Stop()
 		}
 	})
 
@@ -306,7 +306,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -330,6 +329,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			err = pool.AddLocalTx(lowTx)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), ErrBelowPriceBump.Error())
+			pool.Stop()
 		}
 	})
 
@@ -343,7 +343,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -359,6 +358,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			err = pool.AddLocalTx(highTx)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), ErrDuplicateTx.Error())
+			pool.Stop()
 		}
 	})
 
@@ -372,7 +372,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -457,6 +456,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			}
 			v = pool.txStore.localTTLIndex.data.Get(localKey)
 			ast.NotNil(v)
+			pool.Stop()
 		}
 	})
 
@@ -471,7 +471,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			pool := tc
 			pool.toleranceNonceGap = 1
 			err := pool.Start()
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			tx0 := constructTx(s, 0)
@@ -499,6 +498,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			ast.Equal(0, pool.txStore.parkingLotIndex.size())
 			ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx2 and tx3 had been removed from parking lot")
+			pool.Stop()
 		}
 	})
 
@@ -514,7 +514,6 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -524,6 +523,7 @@ func TestTxPoolImpl_AddLocalTx(t *testing.T) {
 			err = pool.AddLocalTx(tx)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), ErrGasPriceTooLow.Error())
+			pool.Stop()
 		}
 	})
 }
@@ -541,7 +541,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			pool := tc
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -562,6 +561,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			ast.Equal(0, pool.txStore.parkingLotIndex.size())
 			poolTx := pool.txStore.allTxs[from].items[0]
 			ast.Equal(tx.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash())
+			pool.Stop()
 		}
 	})
 
@@ -577,7 +577,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			pool.poolMaxSize = 2
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 			ast.False(pool.statusMgr.In(PoolFull))
 
@@ -593,6 +592,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			tx6 := constructTx(s, 6)
 			pool.AddRemoteTxs([]*types.Transaction{tx6})
 			ast.Nil(pool.GetPendingTxByHash(tx6.RbftGetTxHash()), "tx6 is not exit in txpool, because pool is full")
+			pool.Stop()
 		}
 	})
 
@@ -606,7 +606,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -643,6 +642,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx6-tx9 status is not in parking lot")
 			ast.Equal(0, pool.txStore.localTTLIndex.size())
 			ast.Equal(10, pool.txStore.removeTTLIndex.size())
+			pool.Stop()
 		}
 	})
 
@@ -656,7 +656,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -706,6 +705,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize, "tx6-tx9 status is not in parking lot")
 			ast.Equal(0, pool.txStore.localTTLIndex.size())
 			ast.Equal(10, pool.txStore.removeTTLIndex.size())
+			pool.Stop()
 		}
 	})
 
@@ -719,7 +719,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -744,6 +743,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			// so we need to send getPendingTxByHash event to ensure last event is handled
 			ast.Equal(txs[0].RbftGetTxHash(), pool.GetPendingTxByHash(txs[0].RbftGetTxHash()).RbftGetTxHash())
 			ast.Equal(10, len(pool.txStore.allTxs[from].items), "add remote tx failed because tx nonce is lower")
+			pool.Stop()
 		}
 	})
 
@@ -757,7 +757,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -779,6 +778,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			pool.AddRemoteTxs([]*types.Transaction{highTx})
 			ast.Equal(tx.RbftGetTxHash(), pool.GetPendingTxByHash(tx.RbftGetTxHash()).RbftGetTxHash())
 			ast.Equal(2, pool.txStore.localTTLIndex.size(), "remote tx not replace it")
+			pool.Stop()
 		}
 	})
 
@@ -792,7 +792,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -860,6 +859,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			ast.Equal(0, pool.txStore.localTTLIndex.size(), "tx0 and tx2 are belong to remote tx")
 			ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 			ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx22 exist in parking lot")
+			pool.Stop()
 		}
 	})
 
@@ -873,7 +873,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 		for _, tc := range testcase {
 			pool := tc
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -927,6 +926,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			ast.Equal(2, pool.txStore.removeTTLIndex.size())
 			ast.Equal(uint64(1), pool.txStore.priorityNonBatchSize)
 			ast.Equal(uint64(1), pool.txStore.parkingLotSize, "tx25 exist in parking lot")
+			pool.Stop()
 		}
 	})
 
@@ -942,7 +942,6 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			pool.toleranceNonceGap = 1
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 500 // make sure not to trigger generate batch
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s1, err := types.GenerateSigner()
@@ -976,6 +975,7 @@ func TestTxPoolImpl_AddRemoteTxs(t *testing.T) {
 			ast.Equal(0, len(pool.GetAccountMeta(from2, false).SimpleTxs), "from2 trigger remove all high nonce tx, so its tx count should be 0")
 			ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize, "from3 exist tx0-tx3 in txpool")
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize)
+			pool.Stop()
 		}
 	})
 }
@@ -993,7 +993,6 @@ func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
 			pool := tc
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1013,6 +1012,7 @@ func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
 			ast.Equal(0, pool.txStore.parkingLotIndex.size())
 			poolTx := pool.txStore.allTxs[from].items[0]
 			ast.Equal(tx.RbftGetTxHash(), poolTx.rawTx.RbftGetTxHash())
+			pool.Stop()
 		}
 	})
 
@@ -1028,7 +1028,6 @@ func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			pool.poolMaxSize = 1
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 			ast.False(pool.statusMgr.In(PoolFull))
 
@@ -1046,6 +1045,7 @@ func TestTxPoolImpl_AddRebroadcastTxs(t *testing.T) {
 			ast.NotNil(pool.GetPendingTxByHash(tx1.RbftGetTxHash()), "tx1 is added to pool even if pool is full")
 			actualPoolSize := pool.GetTotalPendingTxCount()
 			ast.True(actualPoolSize > pool.poolMaxSize, "pool actual size is bigger than poolMaxSize")
+			pool.Stop()
 		}
 	})
 }
@@ -1084,7 +1084,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			// ensure not notify generate batch
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 500
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1110,6 +1109,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			err = pool.ReceiveMissingRequests(batchDigest, txsM)
 			ast.Nil(err)
 			ast.Equal(0, len(pool.txStore.missingBatch), "missingBatch had been removed")
+			pool.Stop()
 		}
 	})
 
@@ -1125,7 +1125,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			// ensure not notify generate batch
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 500
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1155,6 +1154,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			completedDigest := <-notifySignalCh
 			ast.Equal(batchDigest, completedDigest)
 			ast.Equal(0, len(pool.txStore.missingBatch), "missingBatch had been removed")
+			pool.Stop()
 		}
 	})
 
@@ -1170,7 +1170,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			// ensure not notify generate batch
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 500
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1195,6 +1194,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			ast.Nil(pool.GetPendingTxByHash(oldTx0.RbftGetTxHash()))
 			ast.Equal(0, pool.txStore.localTTLIndex.size())
 			ast.Equal(0, len(pool.txStore.missingBatch), "missingBatch had been removed")
+			pool.Stop()
 		}
 	})
 
@@ -1211,7 +1211,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 500
 			pool.poolMaxSize = 1
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1234,6 +1233,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 
 			err = pool.ReceiveMissingRequests(batchDigest, txsM)
 			ast.Nil(err, "receive missing requests from primary, ignore pool full status")
+			pool.Stop()
 		}
 	})
 
@@ -1249,7 +1249,6 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			// ensure not notify generate batch
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 500
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1276,6 +1275,7 @@ func TestTxPoolImpl_ReceiveMissingRequests(t *testing.T) {
 			ast.Equal(0, pool.txStore.localTTLIndex.size())
 			ast.Equal(uint64(0), pool.txStore.parkingLotSize)
 			ast.Equal(0, len(pool.txStore.missingBatch), "missingBatch had been removed")
+			pool.Stop()
 		}
 	})
 }
@@ -1293,7 +1293,6 @@ func TestTxPoolImpl_AddLocalRecordTxs(t *testing.T) {
 			pool := tc
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1309,6 +1308,7 @@ func TestTxPoolImpl_AddLocalRecordTxs(t *testing.T) {
 			ast.Equal(10, getPrioritySize(pool))
 			ast.Equal(0, pool.txStore.parkingLotIndex.size())
 			ast.Equal(10, pool.txStore.localTTLIndex.size())
+			pool.Stop()
 		}
 	})
 }
@@ -1326,12 +1326,12 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool := tc
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			wrongTyp := 1000
 			_, err = pool.GenerateRequestBatch(wrongTyp)
 			ast.NotNil(err)
+			pool.Stop()
 		}
 	})
 
@@ -1350,7 +1350,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ch <- typ
 			}
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1374,6 +1373,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			lo.ForEach(pool.GetMeta(true).Batches[batch.BatchHash].Txs, func(tx *commonpool.TxSimpleInfo, index int) {
 				ast.Equal(txHashList[index], tx.Hash)
 			})
+			pool.Stop()
 		}
 	})
 
@@ -1388,7 +1388,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool := tc
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1398,6 +1397,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			_, err = pool.GenerateRequestBatch(commonpool.GenBatchSizeEvent)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), "ignore generate batch")
+			pool.Stop()
 		}
 	})
 
@@ -1413,7 +1413,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -1436,6 +1435,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			batch := <-ch
 			ast.Equal(1, len(batch.TxList))
 			ast.Equal(tx.RbftGetTxHash(), batch.TxHashList[0])
+			pool.Stop()
 		}
 	})
 
@@ -1451,7 +1451,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			batchTimer := timer.NewTimerManager(pool.logger)
 			ch := make(chan *commonpool.RequestHashBatch[types.Transaction, *types.Transaction], 1)
@@ -1468,6 +1467,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 
 			batch := <-ch
 			ast.Nil(batch)
+			pool.Stop()
 		}
 	})
 
@@ -1483,7 +1483,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -1495,6 +1494,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.NotNil(err)
 			ast.Contains(err.Error(), "there is pending tx, ignore generate no tx batch")
 			ast.Nil(batch)
+			pool.Stop()
 		}
 	})
 
@@ -1510,11 +1510,11 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			_, err = pool.GenerateRequestBatch(commonpool.GenBatchNoTxTimeoutEvent)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), "not supported generate no tx batch")
+			pool.Stop()
 		}
 	})
 
@@ -1531,7 +1531,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool.chainState.EpochInfo.ConsensusParams.EnableTimedGenEmptyBlock = true
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			noTxBatchTimer := timer.NewTimerManager(pool.logger)
 			ch := make(chan *commonpool.RequestHashBatch[types.Transaction, *types.Transaction], 1)
@@ -1548,6 +1547,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			batch := <-ch
 			ast.NotNil(batch)
 			ast.Equal(0, len(batch.TxList))
+			pool.Stop()
 		}
 	})
 
@@ -1562,7 +1562,8 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			pool := tc
 			// disable this case in price priority mode
 			if pool.enablePricePriority {
-				return
+				pool.Stop()
+				continue
 			}
 			pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 			ch := make(chan int, 1)
@@ -1570,7 +1571,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ch <- typ
 			}
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1597,6 +1597,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			// trigger generate batch with GenBatchSizeEvent
 			typ := <-ch
 			ast.Equal(commonpool.GenBatchSizeEvent, typ)
+
+			// handle GenerateBatchSizeEvent
+			pool.ReplyBatchSignal()
 			batch, err := pool.GenerateRequestBatch(typ)
 			ast.NotNil(err)
 			ast.Contains(err.Error(), "there is no valid tx to generate batch")
@@ -1631,6 +1634,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.Equal(uint64(14), pool.GetTotalPendingTxCount(), "remove tx2")
 			ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 			ast.Equal(uint64(2), pool.GetAccountMeta(from2, false).PendingNonce)
+			pool.Stop()
 		}
 	})
 
@@ -1654,7 +1658,6 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ch <- typ
 			}
 			err := pool.Start()
-			defer pool.Stop()
 			ast.Nil(err)
 
 			s, err := types.GenerateSigner()
@@ -1681,6 +1684,7 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 			ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
 			ast.Equal(0, getPrioritySize(pool))
 			ast.Equal(uint64(0), pool.GetAccountMeta(from, false).PendingNonce, "remove tx0, revert pendingNonce")
+			pool.Stop()
 		}
 	})
 }
@@ -1696,7 +1700,6 @@ func TestTxPoolImpl_ReConstructBatchByOrder(t *testing.T) {
 		pool := tc
 		err := pool.Start()
 		ast.Nil(err)
-		defer pool.Stop()
 
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
@@ -1775,6 +1778,7 @@ func TestTxPoolImpl_ReConstructBatchByOrder(t *testing.T) {
 		ast.Equal(2, len(dupTxHashes))
 		ast.Equal(duTxs[0].RbftGetTxHash(), dupTxHashes[0])
 		ast.Equal(duTxs[1].RbftGetTxHash(), dupTxHashes[1])
+		pool.Stop()
 	}
 }
 
@@ -1792,7 +1796,6 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 			pool := tc
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -1833,6 +1836,7 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 			ast.Equal(0, len(localList))
 			ast.Equal(1, len(missingTxsHash))
 			ast.Equal(txs[0].RbftGetTxHash(), missingTxsHash[0])
+			pool.Stop()
 		}
 	})
 
@@ -1847,7 +1851,6 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 			pool := tc
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -1875,6 +1878,7 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 			ast.Equal(0, len(getTxs))
 			ast.Equal(0, len(localList))
 			ast.Equal(4, len(missingTxsHash))
+			pool.Stop()
 		}
 	})
 
@@ -1889,7 +1893,6 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 			pool := tc
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -1934,6 +1937,7 @@ func TestTxPoolImpl_GetRequestsByHashList(t *testing.T) {
 			lo.ForEach(localList, func(local bool, index int) {
 				ast.False(local)
 			})
+			pool.Stop()
 		}
 	})
 }
@@ -1949,7 +1953,6 @@ func TestTxPoolImpl_SendMissingRequests(t *testing.T) {
 		pool := tc
 		err := pool.Start()
 		ast.Nil(err)
-		defer pool.Stop()
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
 
@@ -1995,6 +1998,7 @@ func TestTxPoolImpl_SendMissingRequests(t *testing.T) {
 		ast.Nil(err)
 		ast.Equal(1, len(getTxs))
 		ast.Equal(txs[0].RbftGetTxHash(), getTxs[0].RbftGetTxHash())
+		pool.Stop()
 	}
 }
 
@@ -2012,7 +2016,6 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 			pool.toleranceTime = 1 * time.Millisecond
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -2040,6 +2043,7 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 			ast.Equal(tx0.RbftGetTxHash(), rebroadcastTxs[0].RbftGetTxHash())
 			ast.Equal(tx1.RbftGetTxHash(), rebroadcastTxs[1].RbftGetTxHash())
 			ast.True(poolTx.lifeTime > firstTime)
+			pool.Stop()
 		}
 	})
 
@@ -2056,7 +2060,6 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 			pool.toleranceTime = 100 * time.Second
 			err := pool.Start()
 			ast.Nil(err)
-			defer pool.Stop()
 
 			s, err := types.GenerateSigner()
 			ast.Nil(err)
@@ -2074,6 +2077,7 @@ func TestTxPoolImpl_FilterOutOfDateRequests(t *testing.T) {
 			txs = pool.FilterOutOfDateRequests(false)
 			ast.Equal(1, len(txs))
 			ast.True(poolTx.lifeTime > firstTime)
+			pool.Stop()
 		}
 	})
 }
@@ -2090,7 +2094,6 @@ func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
 		pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 100
 		err := pool.Start()
 		ast.Nil(err)
-		defer pool.Stop()
 
 		err = pool.RestoreOneBatch("wrong batch")
 		ast.NotNil(err)
@@ -2149,6 +2152,7 @@ func TestTxPoolImpl_RestoreOneBatch(t *testing.T) {
 			ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
 			ast.Equal(pool.txStore.priorityByPrice.accountsM[from].lastNonce, uint64(3))
 			ast.Equal(pool.txStore.priorityByPrice.size(), uint64(4))
+			pool.Stop()
 		}
 	}
 }
@@ -2164,7 +2168,6 @@ func TestTxPoolImpl_RestorePool(t *testing.T) {
 		pool := tc
 		err := pool.Start()
 		ast.Nil(err)
-		defer pool.Stop()
 
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
@@ -2189,6 +2192,7 @@ func TestTxPoolImpl_RestorePool(t *testing.T) {
 		ast.Equal(0, len(pool.txStore.batchedTxs))
 		ast.Equal(0, len(pool.txStore.batchesCache))
 		ast.Equal(uint64(4), pool.txStore.nonceCache.pendingNonces[tx3.RbftGetFrom()])
+		pool.Stop()
 	}
 }
 
@@ -2203,7 +2207,6 @@ func TestTxPoolImpl_GetInfo(t *testing.T) {
 		pool := tc
 		err := pool.Start()
 		ast.Nil(err)
-		defer pool.Stop()
 
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
@@ -2281,7 +2284,6 @@ func TestTxPoolImpl_RemoveBatches(t *testing.T) {
 		pool := tc
 		pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
 
 		pool.RemoveBatches([]string{"wrong batch"})
@@ -2305,6 +2307,7 @@ func TestTxPoolImpl_RemoveBatches(t *testing.T) {
 		ast.Equal(uint64(4), pool.GetPendingTxCountByAccount(from))
 		ast.Equal(0, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(4), pool.txStore.nonceCache.commitNonces[from])
+		pool.Stop()
 	}
 }
 
@@ -2319,7 +2322,6 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 		pool := tc
 		pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 100
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
 
 		s, err := types.GenerateSigner()
@@ -2367,6 +2369,7 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 		ast.Equal(uint64(4), pool.GetPendingTxCountByAccount(from2))
 		ast.Equal(0, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(4), pool.txStore.nonceCache.commitNonces[from2])
+		pool.Stop()
 	}
 }
 
@@ -2383,7 +2386,6 @@ func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 		pool := tc
 		err = pool.Start()
 		assert.Nil(t, err)
-		defer pool.Stop()
 		_, err = pool.addTx(tx, true)
 		localTxs := pool.GetLocalTxs()
 		tx2 := &types.Transaction{}
@@ -2392,6 +2394,7 @@ func TestTxPoolImpl_GetLocalTxs(t *testing.T) {
 		assert.Equal(t, tx.RbftGetTxHash(), tx2.RbftGetTxHash())
 		assert.Equal(t, tx.RbftGetNonce(), tx2.RbftGetNonce())
 		assert.Equal(t, tx.RbftGetFrom(), tx2.RbftGetFrom())
+		pool.Stop()
 	}
 }
 
@@ -2419,7 +2422,6 @@ func TestTPSWithLocalTx(t *testing.T) {
 			}()
 		}
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
 
 		round := 5000
@@ -2450,6 +2452,7 @@ func TestTPSWithLocalTx(t *testing.T) {
 		dur := end - start
 		fmt.Printf("=========================duration: %v\n", time.Duration(dur).Seconds())
 		fmt.Printf("=========================tps: %v\n", float64(total)/time.Duration(dur).Seconds())
+		pool.Stop()
 	}
 }
 
@@ -2484,7 +2487,6 @@ func TestTPSWithRemoteTxs(t *testing.T) {
 			}()
 		}
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
 
 		endCh := make(chan int64, 1)
@@ -2506,6 +2508,7 @@ func TestTPSWithRemoteTxs(t *testing.T) {
 		dur := end - start
 		fmt.Printf("=========================duration: %v\n", time.Duration(dur).Seconds())
 		fmt.Printf("=========================tps: %v\n", float64(total)/time.Duration(dur).Seconds())
+		pool.Stop()
 	}
 }
 

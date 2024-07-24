@@ -74,12 +74,11 @@ func TestNewSyncManager(t *testing.T) {
 func TestStartSync(t *testing.T) {
 	t.Logf("Test start sync")
 	n := 4
-	syncs, ledgers := newMockBlockSyncs(t, n)
-	defer stopSyncs(syncs)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 
 	localId := "0"
 	// store blocks expect node 0
-	prepareLedger(t, ledgers, localId, 10)
+	prepareLedger(t, ledgers, localId, 10, genesisHash)
 
 	for _, sync := range syncs {
 		sync.conf.TimeoutCountLimit = 1
@@ -141,17 +140,17 @@ func TestStartSync(t *testing.T) {
 		require.Equal(t, 9, len(blocks))
 		require.Equal(t, uint64(10), blocks[len(blocks)-1].GetHeight())
 	})
+	stopSyncs(syncs)
 }
 
 func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 	t.Logf("Test start sync with remote send block response error")
 	n := 4
-	syncs, ledgers := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockResponse, 0, 2)
-	defer stopSyncs(syncs)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockResponse, 0, 2)
 
 	localId := "0"
 	// store blocks expect node 0
-	prepareLedger(t, ledgers, localId, 10)
+	prepareLedger(t, ledgers, localId, 10, genesisHash)
 
 	// start sync model
 	for i := 0; i < n; i++ {
@@ -200,17 +199,17 @@ func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 		require.Equal(t, 9, len(blocks))
 		require.Equal(t, uint64(10), blocks[len(blocks)-1].GetHeight())
 	})
+	stopSyncs(syncs)
 }
 
 func TestMultiEpochSync(t *testing.T) {
 	t.Logf("Test multi epoch sync")
 	n := 4
-	syncs, ledgers := newMockBlockSyncs(t, n)
-	defer stopSyncs(syncs)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 
 	localId := "0"
 	// store blocks expect node 0
-	prepareLedger(t, ledgers, localId, 300)
+	prepareLedger(t, ledgers, localId, 300, genesisHash)
 
 	// start sync model
 	for i := 0; i < n; i++ {
@@ -314,12 +313,11 @@ func TestMultiEpochSync(t *testing.T) {
 func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	t.Logf("TestMultiEpochSyncWithWrongBlock")
 	n := 4
-	syncs, ledgers := newMockBlockSyncs(t, n)
-	defer stopSyncs(syncs)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 
 	localId := "0"
 	// store blocks expect node 0
-	prepareLedger(t, ledgers, localId, 200)
+	prepareLedger(t, ledgers, localId, 200, genesisHash)
 
 	// start sync model
 	for i := 0; i < n; i++ {
@@ -469,13 +467,14 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	err = ledgers[strconv.FormatUint(wrongRemoteId.Id, 10)].PersistExecutionResult(oldRightBlock, genReceipts(oldRightBlock))
 	require.Nil(t, err)
 	require.False(t, syncs[0].syncStatus.Load())
+	stopSyncs(syncs)
 }
 
 func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 	n := 4
 	testCases := []struct {
 		name         string
-		setMocks     func(localId string, peers []*common.Node, ledgers map[string]*mockLedger) *common.SyncParams
+		setMocks     func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, genesisHash *types.Hash) *common.SyncParams
 		exceptErr    bool
 		exceptResult string
 	}{
@@ -483,9 +482,9 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 			name:         "wrong checkpoint in first epoch",
 			exceptResult: "quorum checkpoint is not equal to current hash",
 			exceptErr:    true,
-			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger) *common.SyncParams {
+			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, genesisHash *types.Hash) *common.SyncParams {
 				// store blocks expect node 0
-				prepareLedger(t, ledgers, localId, 100)
+				prepareLedger(t, ledgers, localId, 100, genesisHash)
 
 				latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
@@ -507,8 +506,8 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 			name:         "wrong checkpoint in second epoch",
 			exceptResult: "quorum checkpoint is not equal to current hash",
 			exceptErr:    true,
-			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger) *common.SyncParams {
-				prepareLedger(t, ledgers, localId, 200)
+			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, genesisHash *types.Hash) *common.SyncParams {
+				prepareLedger(t, ledgers, localId, 200, genesisHash)
 				remoteId := "1"
 
 				latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
@@ -543,7 +542,7 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 	for _, tc := range testCases {
 		t.Logf("test case: %s", tc.name)
 
-		syncs, ledgers := newMockBlockSyncs(t, n)
+		syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 
 		localId := "0"
 
@@ -571,7 +570,7 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 		}
 
 		syncTaskDoneCh := make(chan error, 1)
-		param := tc.setMocks(localId, peers, ledgers)
+		param := tc.setMocks(localId, peers, ledgers, genesisHash)
 		err := syncs[0].StartSync(param, syncTaskDoneCh)
 		require.Nil(t, err)
 		err = waitSyncTaskDone(syncTaskDoneCh)
@@ -588,15 +587,15 @@ func TestMultiEpochSyncWithWrongCheckpoint(t *testing.T) {
 func TestHandleTimeoutBlockMsg(t *testing.T) {
 	testCases := []struct {
 		name         string
-		setMocks     func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, syncs []*SyncManager) *common.SyncParams
+		setMocks     func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, syncs []*SyncManager, genesisHash *types.Hash) *common.SyncParams
 		expectResult int
 	}{
 		{
 			name:         "sync TimeoutBlock with one time",
 			expectResult: 3,
-			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, syncs []*SyncManager) *common.SyncParams {
+			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, syncs []*SyncManager, genesisHash *types.Hash) *common.SyncParams {
 				// store blocks expect node 0
-				prepareLedger(t, ledgers, localId, 200)
+				prepareLedger(t, ledgers, localId, 200, genesisHash)
 				latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
 				// timeout with one time
@@ -624,8 +623,8 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		{
 			name:         "sync TimeoutBlock with many time, bigger than remove count",
 			expectResult: 2,
-			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, syncs []*SyncManager) *common.SyncParams {
-				prepareLedger(t, ledgers, localId, 200)
+			setMocks: func(localId string, peers []*common.Node, ledgers map[string]*mockLedger, syncs []*SyncManager, genesisHash *types.Hash) *common.SyncParams {
+				prepareLedger(t, ledgers, localId, 200, genesisHash)
 				latestBlockHash := ledgers[localId].GetChainMeta().BlockHash.String()
 
 				remoteId := "1"
@@ -663,8 +662,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		t.Logf("test case: %s", tc.name)
 		n := 4
 		// mock syncs[0] which send sync request error
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		defer stopSyncs(syncs)
+		syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 
 		localId := "0"
 
@@ -692,7 +690,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 
 		// start sync
 		syncTaskDoneCh := make(chan error, 1)
-		param := tc.setMocks(localId, peers, ledgers, syncs)
+		param := tc.setMocks(localId, peers, ledgers, syncs, genesisHash)
 		err := syncs[0].StartSync(param, syncTaskDoneCh)
 		require.Nil(t, err)
 		progress := syncs[0].GetSyncProgress()
@@ -710,6 +708,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		})
 
 		require.False(t, syncs[0].syncStatus.Load())
+		stopSyncs(syncs)
 	}
 }
 
@@ -717,11 +716,10 @@ func TestHandleSyncErrMsg(t *testing.T) {
 	t.Logf("test case: handle sync error msg")
 	n := 4
 	// mock syncs[0] which send sync request error
-	syncs, ledgers := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockRequest, 0, 1)
-	defer stopSyncs(syncs)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockRequest, 0, 1)
 	localId := "0"
 	// store blocks expect node 0
-	prepareLedger(t, ledgers, localId, 100)
+	prepareLedger(t, ledgers, localId, 100, genesisHash)
 
 	// start sync model
 	for i := 0; i < n; i++ {
@@ -764,6 +762,7 @@ func TestHandleSyncErrMsg(t *testing.T) {
 		require.Equal(t, 99, len(blocks))
 		require.Equal(t, uint64(100), blocks[len(blocks)-1].GetHeight())
 	})
+	stopSyncs(syncs)
 }
 
 func TestValidateChunk(t *testing.T) {
@@ -903,7 +902,7 @@ func TestValidateChunk(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Log(testCase.name)
-		syncs, ledgers := newMockBlockSyncs(t, 4)
+		syncs, ledgers, _ := newMockBlockSyncs(t, 4)
 		localId := 0
 		sync, ledger := syncs[localId], ledgers[fmt.Sprintf("%d", localId)]
 
@@ -928,7 +927,7 @@ func TestValidateChunk(t *testing.T) {
 				require.True(t, reflect.DeepEqual(*testCase.expectResult[i], *invalidMsgs[i]))
 			}
 		}
-
+		stopSyncs(syncs)
 	}
 }
 
@@ -945,9 +944,9 @@ func TestRequestState(t *testing.T) {
 			expectErr:    true,
 			setupMocks: func(localId string, n int, peers []*common.Node) ([]*SyncManager, *common.SyncParams) {
 				// mock syncs[0] which send sync request error
-				syncs, ledgers := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockRequest, 0, 1)
+				syncs, ledgers, genesisHash := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockRequest, 0, 1)
 				// store blocks expect node 0
-				prepareLedger(t, ledgers, localId, 10)
+				prepareLedger(t, ledgers, localId, 10, genesisHash)
 
 				remoteId := "1"
 				wrongLatestBlockHash := "wrong hash"
@@ -972,13 +971,12 @@ func TestRequestState(t *testing.T) {
 			expectErr: false,
 			setupMocks: func(localId string, n int, peers []*common.Node) ([]*SyncManager, *common.SyncParams) {
 				// peer1 will latency send state request
-				syncs, ledgers := newMockBlockSyncs(t, n, latencyTypeSendState, 0, 1)
-				defer stopSyncs(syncs)
+				syncs, ledgers, genesisHash := newMockBlockSyncs(t, n, latencyTypeSendState, 0, 1)
 
 				// peer2 will send wrong state request
 				wrongRemoteId := uint64(2)
 				// store blocks expect node 0
-				prepareLedger(t, ledgers, localId, 10)
+				prepareLedger(t, ledgers, localId, 10, genesisHash)
 				wrongGenesisBlock := &types.Block{
 					Header: &types.BlockHeader{
 						Number: 1,
@@ -1045,124 +1043,14 @@ func TestRequestState(t *testing.T) {
 		} else {
 			require.Nil(t, err)
 		}
+		stopSyncs(syncs)
 	}
-
-	//t.Run("test request state with wrong localState", func(t *testing.T) {
-	//	n := 4
-	//	// mock syncs[0] which send sync request error
-	//	syncs, ledgers := newMockBlockSyncs(t, n, wrongTypeSendSyncBlockRequest, 0, 1)
-	//	defer stopSyncs(syncs)
-	//	localId := "0"
-	//	// store blocks expect node 0
-	//	prepareLedger(t, ledgers, localId, 10)
-	//
-	//	// start sync model
-	//	for i := 0; i < n; i++ {
-	//		_, err := syncs[i].Prepare()
-	//		require.Nil(t, err)
-	//		syncs[i].Start()
-	//	}
-	//	// node0 start sync commitData
-	//	peers := []*common.Node{
-	//		{
-	//			Id:     1,
-	//			PeerID: "1",
-	//		},
-	//		{
-	//			Id:     2,
-	//			PeerID: "2",
-	//		},
-	//		{
-	//			Id:     3,
-	//			PeerID: "3",
-	//		},
-	//	}
-	//	remoteId := "1"
-	//	wrongLatestBlockHash := "wrong hash"
-	//	block10, err := ledgers[remoteId].GetBlock(10)
-	//	require.Nil(t, err)
-	//	quorumCkpt10 := &consensus.SignedCheckpoint{
-	//		Checkpoint: &consensus.Checkpoint{
-	//			ExecuteState: &consensus.Checkpoint_ExecuteState{
-	//				Height: block10.Height(),
-	//				Digest: block10.Hash().String(),
-	//			},
-	//		},
-	//	}
-	//	// start sync
-	//	syncTaskDoneCh := make(chan error, 1)
-	//	err = syncs[0].StartSync(genSyncParams(peers, wrongLatestBlockHash, 2, 2, 10, quorumCkpt10), syncTaskDoneCh)
-	//	require.NotNil(t, err)
-	//	require.Contains(t, err.Error(), "quorum state is not equal to current state")
-	//})
-	//
-	//t.Run("request state with different state", func(t *testing.T) {
-	//	n := 4
-	//	// peer1 will latency send state request
-	//	syncs, ledgers := newMockBlockSyncs(t, n, latencyTypeSendState, 0, 1)
-	//	defer stopSyncs(syncs)
-	//
-	//	// peer2 will send wrong state request
-	//	wrongRemoteId := uint64(2)
-	//	localId := "0"
-	//	// store blocks expect node 0
-	//	prepareLedger(t, ledgers, localId, 10)
-	//	wrongGensisBlock := &types.Block{
-	//		Header: &types.BlockHeader{
-	//			Number: 1,
-	//		},
-	//	}
-	//	err := ledgers[strconv.FormatUint(wrongRemoteId, 10)].PersistExecutionResult(wrongGensisBlock, genReceipts(wrongGensisBlock))
-	//	require.Nil(t, err)
-	//
-	//	// start sync model
-	//	for i := 0; i < n; i++ {
-	//		_, err := syncs[i].Prepare()
-	//		require.Nil(t, err)
-	//		syncs[i].Start()
-	//	}
-	//	// node0 start sync commitData
-	//	peers := []*common.Node{
-	//		{
-	//			Id:     1,
-	//			PeerID: "1",
-	//		},
-	//		{
-	//			Id:     2,
-	//			PeerID: "2",
-	//		},
-	//		{
-	//			Id:     3,
-	//			PeerID: "3",
-	//		},
-	//	}
-	//	remoteId := "1"
-	//	latestBlockHash := ledgers[localId].GetChainMeta().BlockHash
-	//	block10, err := ledgers[remoteId].GetBlock(10)
-	//	require.Nil(t, err)
-	//	quorumCkpt10 := &consensus.SignedCheckpoint{
-	//		Checkpoint: &consensus.Checkpoint{
-	//			ExecuteState: &consensus.Checkpoint_ExecuteState{
-	//				Height: block10.Height(),
-	//				Digest: block10.Hash().String(),
-	//			},
-	//		},
-	//	}
-	//	// start sync
-	//	syncTaskDoneCh := make(chan error, 1)
-	//	err = syncs[0].StartSync(genSyncParams(peers, latestBlockHash.String(), 2, 2, 10, quorumCkpt10), syncTaskDoneCh)
-	//	require.Nil(t, err)
-	//
-	//	err = waitSyncTaskDone(syncTaskDoneCh)
-	//	require.Nil(t, err)
-	//})
 }
 
 func TestSwitchMode(t *testing.T) {
 	t.Logf("TestSwitchMode")
 	n := 1
-	syncs, _ := newMockBlockSyncs(t, n)
-	defer stopSyncs(syncs)
+	syncs, _, _ := newMockBlockSyncs(t, n)
 
 	originMode := syncs[0].mode
 	require.Equal(t, common.SyncModeFull, originMode)
@@ -1189,17 +1077,17 @@ func TestSwitchMode(t *testing.T) {
 	err = syncs[0].SwitchMode(common.SyncModeFull)
 	require.Nil(t, err)
 	require.Equal(t, syncs[0].mode, common.SyncModeFull)
+	stopSyncs(syncs)
 }
 
 func TestStartSyncWithSnapshotMode(t *testing.T) {
 	t.Logf("TestStartSyncWithSnapshotMode")
 	n := 4
 	// mock syncs[0] which send sync request error
-	syncs, ledgers := newMockBlockSyncs(t, n)
-	defer stopSyncs(syncs)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 	localId := "0"
 	// store blocks expect node 0
-	prepareLedger(t, ledgers, localId, 300)
+	prepareLedger(t, ledgers, localId, 300, genesisHash)
 
 	// node0 start sync commitData
 	peers := []*common.Node{
@@ -1270,6 +1158,7 @@ func TestStartSyncWithSnapshotMode(t *testing.T) {
 		require.NotNil(t, chainData)
 		require.Equal(t, uint64(300), chainData.(*common.SnapCommitData).EpochState.Checkpoint.Height())
 	})
+	stopSyncs(syncs)
 }
 
 func TestPickPeer(t *testing.T) {
@@ -1422,9 +1311,8 @@ func TestUpdatePeers(t *testing.T) {
 			},
 		}
 		latestHeight := 10
-		syncs, ledgers := newMockBlockSyncs(t, n)
-		defer stopSyncs(syncs)
-		prepareLedger(t, ledgers, localId, latestHeight)
+		syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
+		prepareLedger(t, ledgers, localId, latestHeight, genesisHash)
 
 		for i := 0; i < n; i++ {
 			_, err := syncs[i].Prepare()
@@ -1460,6 +1348,7 @@ func TestUpdatePeers(t *testing.T) {
 				require.NotEqual(t, matchPeerId, illegalPeer)
 			})
 		}
+		stopSyncs(syncs)
 	}
 }
 
