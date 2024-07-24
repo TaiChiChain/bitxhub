@@ -24,18 +24,38 @@ func (d *DefaultProposalPermissionManager) ProposePermissionCheck(_ ProposalType
 }
 
 func (d *DefaultProposalPermissionManager) TotalVotes(_ ProposalType) (uint64, error) {
+	return d.totalVotes(nil, true)
+}
+
+func (d *DefaultProposalPermissionManager) totalVotes(members []string, ignoreMembers bool) (uint64, error) {
 	council, err := d.gov.council.MustGet()
 	if err != nil {
 		return 0, err
 	}
 
 	return lo.Sum(lo.Map(council.Members, func(item CouncilMember, index int) uint64 {
-		return item.Weight
+		if ignoreMembers {
+			// count all council members's votes
+			return item.Weight
+		}
+
+		if lo.Contains(members, item.Address) {
+			return item.Weight
+		}
+		return 0
 	})), nil
 }
 
 func (d *DefaultProposalPermissionManager) UpdateVoteStatus(proposal *Proposal) error {
-	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, uint64(len(proposal.PassVotes)), uint64(len(proposal.RejectVotes)))
+	totalPassVotesWeight, err := d.totalVotes(proposal.PassVotes, false)
+	if err != nil {
+		return err
+	}
+	totalRejectVotesWeight, err := d.totalVotes(proposal.RejectVotes, false)
+	if err != nil {
+		return err
+	}
+	proposal.Status = CalcProposalStatus(proposal.Strategy, proposal.TotalVotes, totalPassVotesWeight, totalRejectVotesWeight)
 	return nil
 }
 
