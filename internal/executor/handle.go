@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -42,34 +41,6 @@ func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height ui
 	exec.logger.Debugf("executor executed %d txs", len(txs))
 
 	return receipts
-}
-
-func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
-	if newBlock.Height() == 0 {
-		return errors.New("cannot rollback genesis block")
-	}
-
-	// rollback from stateLedger、chainLedger and blockFile
-	err := exec.ledger.Rollback(newBlock.Height() - 1)
-	if err != nil {
-		return errors.Wrapf(err, "rollback block error, begin height: %d, end height: %d", newBlock.Height()-1, exec.currentHeight)
-	}
-
-	// query last checked block for generating right parent blockHash
-	lastCheckedBlockHeader, err := exec.ledger.ChainLedger.GetBlockHeader(newBlock.Height() - 1)
-	if err != nil {
-		return errors.Wrapf(err, "get last checked block from ledger error at height: %d", newBlock.Height()-1)
-	}
-	// rollback currentHeight and currentBlockHash
-	exec.currentHeight = newBlock.Height() - 1
-	exec.currentBlockHash = lastCheckedBlockHeader.Hash()
-
-	exec.logger.WithFields(logrus.Fields{
-		"height": lastCheckedBlockHeader.Number,
-		"hash":   lastCheckedBlockHeader.Hash().String(),
-	}).Infof("rollback block success")
-
-	return nil
 }
 
 func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.CommitEvent) {
