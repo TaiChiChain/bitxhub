@@ -448,13 +448,11 @@ func (l *StateLedgerImpl) SelfDestruct(addr *types.Address) bool {
 }
 
 func (l *StateLedgerImpl) HasSelfDestructed(addr *types.Address) bool {
-	account := l.GetOrCreateAccount(addr)
-	if account.IsEmpty() {
-		l.logger.Debugf("[HasSelfDestructed] addr: %v, is empty, selfDestructed: false", addr)
-		return false
+	account := l.GetAccount(addr)
+	if account != nil {
+		return account.SelfDestructed()
 	}
-	l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
-	return account.SelfDestructed()
+	return false
 }
 
 func (l *StateLedgerImpl) Selfdestruct6780(addr *types.Address) {
