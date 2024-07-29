@@ -63,3 +63,39 @@ func TestEvmStateDBAdaptor_Selfdestruct6780(t *testing.T) {
 	sa := iAccount.(*SimpleAccount)
 	assert.Equal(t, sa.selfDestructed, true)
 }
+
+func TestDeleteCreateRevert(t *testing.T) {
+	lg, _ := initLedger(t, "", "pebble")
+	sl := lg.StateLedger.(*StateLedgerImpl)
+	addr := types.NewAddress(LeftPadBytes([]byte{100}, 20))
+	sl.blockHeight = 1
+	sl.Finalise()
+	_, err := sl.Commit()
+	assert.Nil(t, err)
+
+	code := RightPadBytes([]byte{100}, 100)
+	lg.StateLedger.SetCode(addr, code)
+	sl.blockHeight = 2
+	sl.Finalise()
+	_, err = sl.Commit()
+	assert.Nil(t, err)
+
+	acc := sl.GetAccount(addr)
+	assert.NotNil(t, acc)
+	// Simulate self-destructing in one transaction, then create-reverting in another
+	evmLg := &EvmStateDBAdaptor{StateLedger: lg.StateLedger}
+	evmLg.SelfDestruct(addr.ETHAddress())
+	sl.Finalise()
+
+	id := evmLg.Snapshot()
+	evmLg.AddBalance(addr.ETHAddress(), uint256.NewInt(1))
+	evmLg.RevertToSnapshot(id)
+	sl.blockHeight = 3
+	sl.Finalise()
+	_, err = sl.Commit()
+	assert.Nil(t, err)
+	t.Logf("account == nil %v", sl.GetAccount(addr) == nil)
+	t.Logf("self-destructed has finished %v", sl.HasSelfDestructed(addr))
+	assert.True(t, sl.GetAccount(addr) == nil)
+	assert.Equal(t, sl.HasSelfDestructed(addr), false)
+}
