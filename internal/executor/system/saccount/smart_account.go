@@ -74,7 +74,7 @@ var (
 		{Name: "algo", Type: common.UInt8Type},
 	}
 
-	LockedTime = time.Minute //24 * time.Hour
+	LockedTime = time.Minute // 24 * time.Hour
 )
 
 type CallReturnResult struct {
@@ -402,6 +402,25 @@ func (sa *SmartAccount) ExecuteBatch(dest []ethcommon.Address, callFunc [][]byte
 	return nil
 }
 
+func (sa *SmartAccount) ExecuteBatch0(dest []ethcommon.Address, value []*big.Int, callFunc [][]byte) error {
+	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) {
+		return errors.New("only entrypoint can call smart account execute")
+	}
+
+	if len(dest) != len(callFunc) || len(dest) != len(value) {
+		return errors.New("dest, value and callFunc length mismatch")
+	}
+
+	for i := 0; i < len(dest); i++ {
+		err := sa.Execute(dest[i], value[i], callFunc[i])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SetGuardian set guardian for recover smart account's owner
 func (sa *SmartAccount) SetGuardian(guardian ethcommon.Address) error {
 	if sa.Ctx.From != ethcommon.HexToAddress(common.EntryPointContractAddr) && sa.Ctx.From != ethcommon.HexToAddress(common.AccountFactoryContractAddr) {
@@ -604,7 +623,7 @@ func (sa *SmartAccount) postUserOp(validateData *interfaces.Validation, actualGa
 
 func recoveryAddrFromSignature(hash [32]byte, signature []byte) (ethcommon.Address, error) {
 	if len(signature) != 65 {
-		return ethcommon.Address{}, fmt.Errorf("invalid signature length")
+		return ethcommon.Address{}, errors.New("invalid signature length")
 	}
 
 	ethHash := accounts.TextHash(hash[:])

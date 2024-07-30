@@ -66,6 +66,11 @@ type SmartAccount interface {
 	// Solidity: function executeBatch(address[] dest, bytes[] func) returns()
 	ExecuteBatch(dest []common.Address, arg1 [][]byte) error
 
+	// ExecuteBatch0 is a paid mutator transaction binding the contract method 0x47e1da2a.
+	//
+	// Solidity: function executeBatch(address[] dest, uint256[] value, bytes[] func) returns()
+	ExecuteBatch0(dest []common.Address, value []*big.Int, arg2 [][]byte) error
+
 	// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
 	//
 	// Solidity: function initialize(address anOwner) returns()
