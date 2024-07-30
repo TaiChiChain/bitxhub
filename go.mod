@@ -1,6 +1,6 @@
 module github.com/axiomesh/axiom-ledger
 
-go 1.20
+go 1.21
 
 replace github.com/ethereum/go-ethereum v1.13.14 => github.com/axiomesh/go-ethereum v1.13.14-3
 

@@ -142,7 +142,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 	})
 
 	// need mint erc20 to sa before call
-	// test sa2 batch system contract and solilidity
+	// test sa batch system contract and solilidity
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
 		setSessionFunc, err := sa.Abi.Pack("setSession", ethcommon.HexToAddress("82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc"), big.NewInt(100), uint64(time.Now().Unix()), uint64(time.Now().Add(time.Minute).Unix()))
 		assert.Nil(t, err)
@@ -160,6 +160,25 @@ func TestSmartAccount_Execute(t *testing.T) {
 		res, err := CallMethod(callData, sa)
 		assert.Nil(t, err)
 		assert.Equal(t, uint64(100), res.TotalUsedValue.Uint64())
+		return err
+	})
+
+	// need mint erc20 to sa before call
+	// test sa call executeBatch0 function
+	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
+		transferFunc := append([]byte{}, transferSig...)
+		transferFunc = append(transferFunc, ethcommon.LeftPadBytes(ethcommon.HexToAddress("82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc").Bytes(), 32)...)
+		transferFunc = append(transferFunc, ethcommon.LeftPadBytes(big.NewInt(10).Bytes(), 32)...)
+
+		callData, err := sa.Abi.Pack("executeBatch0", []ethcommon.Address{sa2.EthAddress, sa2.EthAddress, erc20ContractAddr}, []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(0)}, [][]byte{nil, nil, transferFunc})
+		assert.Nil(t, err)
+
+		// set balance to sa
+		entrypoint.Ctx.StateLedger.SetBalance(sa.Address, types.CoinNumberByAxc(10).ToBigInt())
+
+		res, err := CallMethod(callData, sa)
+		assert.Nil(t, err)
+		assert.Equal(t, uint64(1+2+10), res.TotalUsedValue.Uint64())
 		return err
 	})
 }

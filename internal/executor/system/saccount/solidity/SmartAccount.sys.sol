@@ -129,5 +129,8 @@ contract SmartAccount is BaseAccount {
 
     function getSessions() public view returns (SessionKey[] memory) {
     }
+
+    function executeBatch(address[] calldata dest, uint256[] calldata value, bytes[] calldata func) external {
+    }
 }
 
