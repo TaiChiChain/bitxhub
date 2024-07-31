@@ -429,17 +429,17 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 		// bad (e.g. wrong nonce), and we should exit the execution immediately
 		//err = fmt.Errorf("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
 		pe.log.Error("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
-		// to do
-		// check err settle
-		pe.log.Error("lastSettle:", pe.lastSettled, ",txIndex:", res.ver.TxnIndex)
-		pe.chSettle <- res.ver.TxnIndex
-		return
+
+		pe.validateTasks.pushPending(tx)
+		pe.execTasks.markComplete(tx)
+
+		pe.diagExecSuccess[tx]++
+		pe.cntSuccess++
+
+		pe.execTasks.removeDependency(tx)
 		// pe.Close(true)
 		// return
-	}
-
-	// nolint: nestif
-	if execErr, ok := res.err.(ErrExecAbortError); ok {
+	} else if execErr, ok := res.err.(ErrExecAbortError); ok {
 		addedDependencies := false
 
 		if execErr.Dependency >= 0 {

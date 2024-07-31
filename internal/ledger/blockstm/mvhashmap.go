@@ -1,292 +1,296 @@
 package blockstm
 
-import (
-	"fmt"
-	"sync"
-	"time"
+// import (
+// 	"fmt"
+// 	"sync"
+// 	"time"
 
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/emirpasic/gods/maps/treemap"
+// 	"github.com/axiomesh/axiom-kit/types"
+// 	"github.com/emirpasic/gods/maps/treemap"
 
-	"github.com/ethereum/go-ethereum/common"
-)
+// 	"github.com/ethereum/go-ethereum/common"
+// )
 
-const FlagDone = 0
-const FlagEstimate = 1
+// const FlagDone = 0
+// const FlagEstimate = 1
 
-const addressType = 1
-const stateType = 2
-const subpathType = 3
+// const addressType = 1
+// const stateType = 2
+// const subpathType = 3
 
-const KeyLength = common.AddressLength + common.HashLength + 2
+// const KeyLength = common.AddressLength + common.HashLength + 2
 
-type Key [KeyLength]byte
+// type Key [KeyLength]byte
 
-func (k Key) IsAddress() bool {
-	return k[KeyLength-1] == addressType
-}
+// func (k Key) IsAddress() bool {
+// 	return k[KeyLength-1] == addressType
+// }
 
-func (k Key) IsState() bool {
-	return k[KeyLength-1] == stateType
-}
+// func (k Key) IsState() bool {
+// 	return k[KeyLength-1] == stateType
+// }
 
-func (k Key) IsSubpath() bool {
-	return k[KeyLength-1] == subpathType
-}
+// func (k Key) IsSubpath() bool {
+// 	return k[KeyLength-1] == subpathType
+// }
 
-func (k Key) GetAddress() *types.Address {
-	return types.NewAddress(common.BytesToAddress(k[:common.AddressLength]).Bytes())
-}
+// func (k Key) GetAddress() *types.Address {
+// 	return types.NewAddress(common.BytesToAddress(k[:common.AddressLength]).Bytes())
+// }
 
-func (k Key) GetStateKey() *types.Hash {
-	return types.NewHash(common.BytesToHash(k[common.AddressLength : KeyLength-2]).Bytes())
-}
+// func (k Key) GetStateKey() *types.Hash {
+// 	return types.NewHash(common.BytesToHash(k[common.AddressLength : KeyLength-2]).Bytes())
+// }
 
-func (k Key) GetSubpath() byte {
-	return k[KeyLength-2]
-}
+// func (k Key) GetKeyType() byte {
+// 	return k[KeyLength-1]
+// }
 
-func newKey(addr types.Address, hash types.Hash, subpath byte, keyType byte) Key {
-	var k Key
+// func (k Key) GetSubpath() byte {
+// 	return k[KeyLength-2]
+// }
 
-	copy(k[:common.AddressLength], addr.Bytes())
-	copy(k[common.AddressLength:KeyLength-2], hash.Bytes())
-	k[KeyLength-2] = subpath
-	k[KeyLength-1] = keyType
+// func newKey(addr types.Address, hash types.Hash, subpath byte, keyType byte) Key {
+// 	var k Key
 
-	return k
-}
+// 	copy(k[:common.AddressLength], addr.Bytes())
+// 	copy(k[common.AddressLength:KeyLength-2], hash.Bytes())
+// 	k[KeyLength-2] = subpath
+// 	k[KeyLength-1] = keyType
 
-func NewAddressKey(addr types.Address) Key {
-	return newKey(addr, types.Hash{}, 0, addressType)
-}
+// 	return k
+// }
 
-func NewStateKey(addr types.Address, hash types.Hash) Key {
-	k := newKey(addr, hash, 0, stateType)
-	if !k.IsState() {
-		panic(fmt.Errorf("key is not a state key"))
-	}
+// func NewAddressKey(addr types.Address) Key {
+// 	return newKey(addr, types.Hash{}, 0, addressType)
+// }
 
-	return k
-}
+// func NewStateKey(addr types.Address, hash types.Hash) Key {
+// 	k := newKey(addr, hash, 0, stateType)
+// 	if !k.IsState() {
+// 		panic(fmt.Errorf("key is not a state key"))
+// 	}
 
-func NewSubpathKey(addr types.Address, subpath byte) Key {
-	return newKey(addr, types.Hash{}, subpath, subpathType)
-}
+// 	return k
+// }
 
-type MVHashMap struct {
-	m sync.Map
-	s sync.Map
-}
+// func NewSubpathKey(addr types.Address, subpath byte) Key {
+// 	return newKey(addr, types.Hash{}, subpath, subpathType)
+// }
 
-func MakeMVHashMap() *MVHashMap {
-	return &MVHashMap{}
-}
+// type MVHashMap struct {
+// 	m sync.Map
+// 	s sync.Map
+// }
 
-type WriteCell struct {
-	flag        uint
-	incarnation int
-	data        interface{}
-}
+// func MakeMVHashMap() *MVHashMap {
+// 	return &MVHashMap{}
+// }
 
-type TxnIndexCells struct {
-	rw sync.RWMutex
-	tm *treemap.Map
-}
+// type WriteCell struct {
+// 	flag        uint
+// 	incarnation int
+// 	data        interface{}
+// }
 
-type Version struct {
-	TxnIndex    int
-	Incarnation int
-}
+// type TxnIndexCells struct {
+// 	rw sync.RWMutex
+// 	tm *treemap.Map
+// }
 
-func (mv *MVHashMap) getKeyCells(k Key, fNoKey func(kenc Key) *TxnIndexCells) (cells *TxnIndexCells) {
-	val, ok := mv.m.Load(k)
+// type Version struct {
+// 	TxnIndex    int
+// 	Incarnation int
+// }
 
-	if !ok {
-		cells = fNoKey(k)
-	} else {
-		cells = val.(*TxnIndexCells)
-	}
+// func (mv *MVHashMap) getKeyCells(k Key, fNoKey func(kenc Key) *TxnIndexCells) (cells *TxnIndexCells) {
+// 	val, ok := mv.m.Load(k)
 
-	return
-}
+// 	if !ok {
+// 		cells = fNoKey(k)
+// 	} else {
+// 		cells = val.(*TxnIndexCells)
+// 	}
 
-func (mv *MVHashMap) Write(k Key, v Version, data interface{}) {
-	start := time.Now()
-	defer func() {
-		mvHashmapWriteDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
-	cells := mv.getKeyCells(k, func(kenc Key) (cells *TxnIndexCells) {
-		n := &TxnIndexCells{
-			rw: sync.RWMutex{},
-			tm: treemap.NewWithIntComparator(),
-		}
-		val, _ := mv.m.LoadOrStore(kenc, n)
-		cells = val.(*TxnIndexCells)
+// 	return
+// }
 
-		return
-	})
+// func (mv *MVHashMap) Write(k Key, v Version, data interface{}) {
+// 	start := time.Now()
+// 	defer func() {
+// 		mvHashmapWriteDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+// 	}()
+// 	cells := mv.getKeyCells(k, func(kenc Key) (cells *TxnIndexCells) {
+// 		n := &TxnIndexCells{
+// 			rw: sync.RWMutex{},
+// 			tm: treemap.NewWithIntComparator(),
+// 		}
+// 		val, _ := mv.m.LoadOrStore(kenc, n)
+// 		cells = val.(*TxnIndexCells)
 
-	cells.rw.Lock()
-	if ci, ok := cells.tm.Get(v.TxnIndex); !ok {
-		cells.tm.Put(v.TxnIndex, &WriteCell{
-			flag:        FlagDone,
-			incarnation: v.Incarnation,
-			data:        data,
-		})
-	} else {
-		if ci.(*WriteCell).incarnation > v.Incarnation {
-			panic(fmt.Errorf("existing transaction value does not have lower incarnation: %v, %v",
-				k, v.TxnIndex))
-		}
-		ci.(*WriteCell).flag = FlagDone
-		ci.(*WriteCell).incarnation = v.Incarnation
-		ci.(*WriteCell).data = data
-	}
-	cells.rw.Unlock()
-}
+// 		return
+// 	})
 
-func (mv *MVHashMap) ReadStorage(k Key, fallBack func() any) any {
-	data, ok := mv.s.Load(string(k[:]))
-	if !ok {
-		data = fallBack()
-		data, _ = mv.s.LoadOrStore(string(k[:]), data)
-	}
+// 	cells.rw.Lock()
+// 	if ci, ok := cells.tm.Get(v.TxnIndex); !ok {
+// 		cells.tm.Put(v.TxnIndex, &WriteCell{
+// 			flag:        FlagDone,
+// 			incarnation: v.Incarnation,
+// 			data:        data,
+// 		})
+// 	} else {
+// 		if ci.(*WriteCell).incarnation > v.Incarnation {
+// 			panic(fmt.Errorf("existing transaction value does not have lower incarnation: %v, %v",
+// 				k, v.TxnIndex))
+// 		}
+// 		ci.(*WriteCell).flag = FlagDone
+// 		ci.(*WriteCell).incarnation = v.Incarnation
+// 		ci.(*WriteCell).data = data
+// 	}
+// 	cells.rw.Unlock()
+// }
 
-	return data
-}
+// func (mv *MVHashMap) ReadStorage(k Key, fallBack func() any) any {
+// 	data, ok := mv.s.Load(string(k[:]))
+// 	if !ok {
+// 		data = fallBack()
+// 		data, _ = mv.s.LoadOrStore(string(k[:]), data)
+// 	}
 
-func (mv *MVHashMap) MarkEstimate(k Key, txIdx int) {
-	cells := mv.getKeyCells(k, func(_ Key) *TxnIndexCells {
-		panic(fmt.Errorf("path must already exist"))
-	})
+// 	return data
+// }
 
-	cells.rw.Lock()
-	if ci, ok := cells.tm.Get(txIdx); !ok {
-		panic(fmt.Sprintf("should not happen - cell should be present for path. TxIdx: %v, path, %x, cells keys: %v", txIdx, k, cells.tm.Keys()))
-	} else {
-		ci.(*WriteCell).flag = FlagEstimate
-	}
-	cells.rw.Unlock()
-}
+// func (mv *MVHashMap) MarkEstimate(k Key, txIdx int) {
+// 	cells := mv.getKeyCells(k, func(_ Key) *TxnIndexCells {
+// 		panic(fmt.Errorf("path must already exist"))
+// 	})
 
-func (mv *MVHashMap) Delete(k Key, txIdx int) {
-	cells := mv.getKeyCells(k, func(_ Key) *TxnIndexCells {
-		panic(fmt.Errorf("path must already exist"))
-	})
+// 	cells.rw.Lock()
+// 	if ci, ok := cells.tm.Get(txIdx); !ok {
+// 		panic(fmt.Sprintf("should not happen - cell should be present for path. TxIdx: %v, path, %x, cells keys: %v", txIdx, k, cells.tm.Keys()))
+// 	} else {
+// 		ci.(*WriteCell).flag = FlagEstimate
+// 	}
+// 	cells.rw.Unlock()
+// }
 
-	cells.rw.Lock()
-	defer cells.rw.Unlock()
-	cells.tm.Remove(txIdx)
-}
+// func (mv *MVHashMap) Delete(k Key, txIdx int) {
+// 	cells := mv.getKeyCells(k, func(_ Key) *TxnIndexCells {
+// 		panic(fmt.Errorf("path must already exist"))
+// 	})
 
-const (
-	MVReadResultDone       = 0
-	MVReadResultDependency = 1
-	MVReadResultNone       = 2
-)
+// 	cells.rw.Lock()
+// 	defer cells.rw.Unlock()
+// 	cells.tm.Remove(txIdx)
+// }
 
-type MVReadResult struct {
-	depIdx      int
-	incarnation int
-	value       interface{}
-}
+// const (
+// 	MVReadResultDone       = 0
+// 	MVReadResultDependency = 1
+// 	MVReadResultNone       = 2
+// )
 
-func (res *MVReadResult) DepIdx() int {
-	return res.depIdx
-}
+// type MVReadResult struct {
+// 	depIdx      int
+// 	incarnation int
+// 	value       interface{}
+// }
 
-func (res *MVReadResult) Incarnation() int {
-	return res.incarnation
-}
+// func (res *MVReadResult) DepIdx() int {
+// 	return res.depIdx
+// }
 
-func (res *MVReadResult) Value() interface{} {
-	return res.value
-}
+// func (res *MVReadResult) Incarnation() int {
+// 	return res.incarnation
+// }
 
-func (mvr MVReadResult) Status() int {
-	if mvr.depIdx != -1 {
-		if mvr.incarnation == -1 {
-			return MVReadResultDependency
-		} else {
-			return MVReadResultDone
-		}
-	}
+// func (res *MVReadResult) Value() interface{} {
+// 	return res.value
+// }
 
-	return MVReadResultNone
-}
+// func (mvr MVReadResult) Status() int {
+// 	if mvr.depIdx != -1 {
+// 		if mvr.incarnation == -1 {
+// 			return MVReadResultDependency
+// 		} else {
+// 			return MVReadResultDone
+// 		}
+// 	}
 
-func (mv *MVHashMap) Read(k Key, txIdx int) (res MVReadResult) {
-	start := time.Now()
-	defer func() {
-		mvHashmapReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+// 	return MVReadResultNone
+// }
 
-	res.depIdx = -1
-	res.incarnation = -1
+// func (mv *MVHashMap) Read(k Key, txIdx int) (res MVReadResult) {
+// 	start := time.Now()
+// 	defer func() {
+// 		mvHashmapReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+// 	}()
 
-	cells := mv.getKeyCells(k, func(_ Key) *TxnIndexCells {
-		return nil
-	})
-	if cells == nil {
-		return
-	}
+// 	res.depIdx = -1
+// 	res.incarnation = -1
 
-	cells.rw.RLock()
+// 	cells := mv.getKeyCells(k, func(_ Key) *TxnIndexCells {
+// 		return nil
+// 	})
+// 	if cells == nil {
+// 		return
+// 	}
 
-	fk, fv := cells.tm.Floor(txIdx - 1)
+// 	cells.rw.RLock()
 
-	if fk != nil && fv != nil {
-		c := fv.(*WriteCell)
-		switch c.flag {
-		case FlagEstimate:
-			res.depIdx = fk.(int)
-			res.value = c.data
-		case FlagDone:
-			{
-				res.depIdx = fk.(int)
-				res.incarnation = c.incarnation
-				res.value = c.data
-			}
-		default:
-			panic(fmt.Errorf("should not happen - unknown flag value"))
-		}
-	}
+// 	fk, fv := cells.tm.Floor(txIdx - 1)
 
-	cells.rw.RUnlock()
+// 	if fk != nil && fv != nil {
+// 		c := fv.(*WriteCell)
+// 		switch c.flag {
+// 		case FlagEstimate:
+// 			res.depIdx = fk.(int)
+// 			res.value = c.data
+// 		case FlagDone:
+// 			{
+// 				res.depIdx = fk.(int)
+// 				res.incarnation = c.incarnation
+// 				res.value = c.data
+// 			}
+// 		default:
+// 			panic(fmt.Errorf("should not happen - unknown flag value"))
+// 		}
+// 	}
 
-	return
-}
+// 	cells.rw.RUnlock()
 
-func (mv *MVHashMap) FlushMVWriteSet(writes []WriteDescriptor) {
-	for _, v := range writes {
-		mv.Write(v.Path, v.V, v.Val)
-	}
-}
+// 	return
+// }
 
-func ValidateVersion(txIdx int, lastInputOutput *TxnInputOutput, versionedData *MVHashMap) (valid bool) {
-	valid = true
+// func (mv *MVHashMap) FlushMVWriteSet(writes []WriteDescriptor) {
+// 	for _, v := range writes {
+// 		mv.Write(v.Path, v.V, v.Val)
+// 	}
+// }
 
-	for _, rd := range lastInputOutput.ReadSet(txIdx) {
-		mvResult := versionedData.Read(rd.Path, txIdx)
-		switch mvResult.Status() {
-		case MVReadResultDone:
-			valid = rd.Kind == ReadKindMap && rd.V == Version{
-				TxnIndex:    mvResult.depIdx,
-				Incarnation: mvResult.incarnation,
-			}
-		case MVReadResultDependency:
-			valid = false
-		case MVReadResultNone:
-			valid = rd.Kind == ReadKindStorage // feels like an assertion?
-		default:
-			panic(fmt.Errorf("should not happen - undefined mv read status: %ver", mvResult.Status()))
-		}
+// func ValidateVersion(txIdx int, lastInputOutput *TxnInputOutput, versionedData *MVHashMap) (valid bool) {
+// 	valid = true
 
-		if !valid {
-			break
-		}
-	}
+// 	for _, rd := range lastInputOutput.ReadSet(txIdx) {
+// 		mvResult := versionedData.Read(rd.Path, txIdx)
+// 		switch mvResult.Status() {
+// 		case MVReadResultDone:
+// 			valid = rd.Kind == ReadKindMap && rd.V == Version{
+// 				TxnIndex:    mvResult.depIdx,
+// 				Incarnation: mvResult.incarnation,
+// 			}
+// 		case MVReadResultDependency:
+// 			valid = false
+// 		case MVReadResultNone:
+// 			valid = rd.Kind == ReadKindStorage // feels like an assertion?
+// 		default:
+// 			panic(fmt.Errorf("should not happen - undefined mv read status: %ver", mvResult.Status()))
+// 		}
 
-	return
-}
+// 		if !valid {
+// 			break
+// 		}
+// 	}
+
+// 	return
+// }

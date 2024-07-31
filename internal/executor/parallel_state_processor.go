@@ -152,15 +152,14 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 		// 	task.shouldRerunWithoutFeeDelay = true
 		// }
 	} else {
-		task.result, err = core.ApplyMessage(evm, &task.msg, new(core.GasPool).AddGas(task.gasLimit))
+		task.result, task.resultErr = core.ApplyMessage(evm, &task.msg, new(core.GasPool).AddGas(task.gasLimit))
 	}
 
-	if task.statedb.HadInvalidRead() || err != nil {
+	if task.statedb.HadInvalidRead() || task.resultErr != nil {
 		err = blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: err}
 		return
 	}
 
-	//task.statedb.Finalise(task.config.IsEIP158(task.blockNumber))
 	task.statedb.Finalise()
 	return
 }

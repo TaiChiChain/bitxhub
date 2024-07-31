@@ -26,6 +26,20 @@ var (
 		Help:      "The total latency of mv_hashmap read",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
 	})
+	mvHashmapReadNullDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "mv_hashmap_read_null_duration_second",
+		Help:      "The total latency of mv_hashmap read null",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
+	mvHashmapReadWithOutLockDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "mv_hashmap_read_without_lock_duration_second",
+		Help:      "The total latency of mv_hashmap read without lock",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
 
 	mvHashmapWriteDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
@@ -41,4 +55,6 @@ func init() {
 	prometheus.MustRegister(blockStmSettleDuration)
 	prometheus.MustRegister(mvHashmapReadDuration)
 	prometheus.MustRegister(mvHashmapWriteDuration)
+	prometheus.MustRegister(mvHashmapReadWithOutLockDuration)
+	prometheus.MustRegister(mvHashmapReadNullDuration)
 }
