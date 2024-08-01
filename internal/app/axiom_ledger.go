@@ -166,9 +166,11 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 
 	logger := loggers.Logger(loggers.App)
-
+	var vl *ledger.Ledger
 	// 0. load ledger
 	var snap *snapMeta
+	verifiedCh := make(chan bool, 1)
+
 	if rep.StartArgs.SnapshotMode {
 		stateLg, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Ledger), storagemgr.Ledger)
 		if err != nil {
@@ -182,23 +184,49 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		if err != nil {
 			return nil, err
 		}
-		snap, err = loadSnapMeta(rwLdg, rep.SyncArgs)
+
+		// 1. load header of snap target block
+		meta, err := rwLdg.StateLedger.GetTrieSnapshotMeta()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("get snapshot meta hash: %w", err)
 		}
-		if snap.snapBlockHeader.Number == 0 {
+		if meta.BlockHeader.Number == 0 {
 			return nil, errors.New("cannot start snap mode at block 0")
 		}
-		// verify whether trie snapshot is legal
-		verified, err := rwLdg.StateLedger.VerifyTrie(snap.snapBlockHeader)
+
+		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlockHeader: meta.BlockHeader.Clone()})
+		vl = rwLdg.NewView()
+
+		// 2. wait for generating snapshot of target block
+		errC := make(chan error)
+		go vl.StateLedger.GenerateSnapshot(meta.BlockHeader, errC)
+		err = <-errC
+		if err != nil {
+			return nil, fmt.Errorf("snap-sync generate snapshot failed: %w", err)
+		}
+
+		// 3. verify whether trie snapshot is legal (async with snap sync)
+		go func(resultCh chan bool) {
+			now := time.Now()
+			verified, err := vl.StateLedger.VerifyTrie(meta.BlockHeader)
+			if err != nil {
+				resultCh <- false
+				return
+			}
+			logger.WithFields(logrus.Fields{
+				"cost":   time.Since(now),
+				"height": meta.BlockHeader.Number,
+				"result": verified,
+			}).Info("end verify trie snapshot")
+			resultCh <- verified
+		}(verifiedCh)
+
+		// 4. load snap meta of peers, epoch, etc.
+		snap, err = loadSnapMeta(vl, meta.BlockHeader, rep.P2PKeystore.P2PID(), rep.SyncArgs)
 		if err != nil {
 			return nil, err
 		}
-		if !verified {
-			return nil, errors.New("verify snapshot trie failed")
-		}
 
-		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlockHeader: snap.snapBlockHeader.Clone()})
 	} else {
 		rwLdg, err = ledger.NewLedger(rep)
 		if err != nil {
@@ -213,9 +241,9 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 				"genesis block hash": rwLdg.ChainLedger.GetChainMeta().BlockHash,
 			}).Info("Initialize genesis")
 		}
+		vl = rwLdg.NewView()
 	}
 
-	vl := rwLdg.NewView()
 	var net network.Network
 	if !rep.StartArgs.ReadonlyMode {
 		net, err = network.New(rep, loggers.Logger(loggers.P2P))
@@ -301,38 +329,13 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 					return nil, fmt.Errorf("prepare sync: %w", err)
 				}
 
-				// 2. verify whether trie snapshot is legal (async with snap sync)
-				verifiedCh := make(chan bool, 1)
-				go func(resultCh chan bool) {
-					now := time.Now()
-					verified, err := axm.ViewLedger.StateLedger.VerifyTrie(axm.snapMeta.snapBlockHeader)
-					if err != nil {
-						resultCh <- false
-						return
-					}
-					axm.logger.WithFields(logrus.Fields{
-						"cost":   time.Since(now),
-						"height": axm.snapMeta.snapBlockHeader.Number,
-						"result": verified,
-					}).Info("end verify trie snapshot")
-					resultCh <- verified
-				}(verifiedCh)
-
-				// 3. start chain data sync
+				// 2. start chain data sync
 				err = axm.startSnapSync(verifiedCh, snapCheckpoint, axm.snapMeta.snapPeers, latestHeight+1, prepareRes.Data.([]*consensuspb.EpochChange))
 				if err != nil {
 					return nil, fmt.Errorf("snap sync err: %w", err)
 				}
 
-				// 4. wait for generating snapshot of target block
-				errC := make(chan error)
-				go axm.ViewLedger.StateLedger.GenerateSnapshot(axm.snapMeta.snapBlockHeader, errC)
-				err = <-errC
-				if err != nil {
-					return nil, fmt.Errorf("snap-sync generate snapshot failed: %w", err)
-				}
-
-				// 5. end snapshot sync, change to full mode
+				// 3. end snapshot sync, change to full mode
 				err = axm.Sync.SwitchMode(synccomm.SyncModeFull)
 				if err != nil {
 					return nil, fmt.Errorf("switch mode err: %w", err)
