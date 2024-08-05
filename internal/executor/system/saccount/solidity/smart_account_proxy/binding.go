@@ -23,9 +23,8 @@ var (
 
 // PassKey is an auto generated low-level Go binding around an user-defined struct.
 type PassKey struct {
-	PubKeyX *big.Int
-	PubKeyY *big.Int
-	Algo    uint8
+	PublicKey []byte
+	Algo      uint8
 }
 
 // SessionKey is an auto generated low-level Go binding around an user-defined struct.
@@ -51,7 +50,7 @@ type SmartAccountProxy interface {
 
 	// GetPasskeys is a free data retrieval call binding the contract method 0xbc6f15ea.
 	//
-	// Solidity: function getPasskeys(address ) view returns((uint256,uint256,uint8)[])
+	// Solidity: function getPasskeys(address ) view returns((bytes,uint8)[])
 	GetPasskeys(arg0 common.Address) ([]PassKey, error)
 
 	// GetSessions is a free data retrieval call binding the contract method 0x13625e2e.

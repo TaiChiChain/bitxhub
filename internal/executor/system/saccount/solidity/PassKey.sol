@@ -2,7 +2,6 @@
 pragma solidity ^0.8.12;
 
 struct PassKey {
-    uint256 pubKeyX;
-    uint256 pubKeyY;
+    bytes publicKey;
     uint8 algo;
 }

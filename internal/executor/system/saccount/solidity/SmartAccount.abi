@@ -189,14 +189,9 @@
         "components":
         [
           {
-            "internalType": "uint256",
-            "name": "pubKeyX",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "pubKeyY",
-            "type": "uint256"
+            "internalType": "bytes",
+            "name": "publicKey",
+            "type": "bytes"
           },
           {
             "internalType": "uint8",

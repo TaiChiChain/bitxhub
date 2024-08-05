@@ -182,3 +182,30 @@ func TestSmartAccount_Execute(t *testing.T) {
 		return err
 	})
 }
+
+func TestSmartAccount_GetPasskeys(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	factory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+
+	owner := ethcommon.HexToAddress(testNVM.Rep.GenesisConfig.SmartAccountAdmin)
+	entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(owner.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+	accountAddr, _ := factory.GetAddress(owner, big.NewInt(1))
+	sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), accountAddr).SetRemainingGas(big.NewInt(MaxCallGasLimit))
+	entrypoint.Ctx.StateLedger.SetBalance(sa.Address, types.CoinNumberByAxc(3).ToBigInt())
+
+	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
+		pub := ethcommon.Hex2Bytes("a5010203262001215820d60c30d70d20f157137415303627fe1d0bbc5ccd13a4edf5a67151fc87b4f37522582086a8c83194750eb38ab4341b268958b574d62ea130bcd2f53868e844c5099b0e")
+
+		sa.SetPasskey(pub, AlgoSecp256R1)
+
+		passkeyList, err := sa.GetPasskeys()
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(passkeyList))
+		assert.Equal(t, len(pub), len(passkeyList[0].PublicKey))
+		assert.EqualValues(t, pub, passkeyList[0].PublicKey)
+		return nil
+	})
+}

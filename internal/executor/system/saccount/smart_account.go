@@ -238,10 +238,21 @@ func (sa *SmartAccount) GetPasskeys() ([]smart_account_proxy.PassKey, error) {
 
 	dstPasskeyList := make([]smart_account_proxy.PassKey, 0, len(passkeyList))
 	for _, passkey := range passkeyList {
+		var pk webauthncose.EC2PublicKeyData
+		pk.KeyType = int64(webauthncose.EllipticKey)
+		pk.Algorithm = int64(webauthncose.AlgES256)
+		pk.Curve = int64(webauthncose.P256)
+		pk.XCoord = passkey.PubKeyX.Bytes()
+		pk.YCoord = passkey.PubKeyY.Bytes()
+
+		pkBytes, err := webauthncbor.Marshal(pk)
+		if err != nil {
+			return nil, err
+		}
+
 		dstPasskeyList = append(dstPasskeyList, smart_account_proxy.PassKey{
-			PubKeyX: passkey.PubKeyX,
-			PubKeyY: passkey.PubKeyY,
-			Algo:    passkey.Algo,
+			PublicKey: pkBytes,
+			Algo:      passkey.Algo,
 		})
 	}
 
@@ -531,7 +542,7 @@ func (sa *SmartAccount) SetPasskey(publicKey []byte, algo uint8) error {
 		Algo:    algo,
 	}
 	// reset passkeys
-	sa.Logger.Infof("sender %s set passkey successfully", sa.EthAddress.Hex())
+	sa.Logger.Infof("sender %s set passkey successfully, public key: %x", sa.EthAddress.Hex(), publicKey)
 	return sa.passkeys.Put([]Passkey{newPasskey})
 }
 
