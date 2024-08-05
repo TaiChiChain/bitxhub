@@ -751,7 +751,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 							if stateResp.Status == pb.Status_ERROR && strings.Contains(stateResp.Error, ledger.ErrNotFound.Error()) {
 								sm.logger.WithFields(logrus.Fields{
 									"height": height,
-									"peerID": p.Id,
+									"peer":   p.Id,
 								}).Error("Block not found")
 								sm.updatePeers(resp.From, stateResp.CheckpointState.LatestHeight)
 								return errors.New("block not found")

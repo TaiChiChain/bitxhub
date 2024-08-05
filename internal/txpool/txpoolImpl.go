@@ -2020,8 +2020,9 @@ func (p *txPoolImpl[T, Constraint]) handleRestorePool() {
 
 	for _, batch := range p.txStore.batchesCache {
 		if err := p.putBackBatchedTxs(batch); err != nil {
-			p.logger.Errorf("Failed to put back batched txs: %s", err)
-			return
+			p.logger.Errorf("Failed to put back batched[batchHash: %s]: %s, just remove the batch from cache", batch.BatchHash, err)
+			delete(p.txStore.batchesCache, batch.BatchHash)
+			continue
 		}
 	}
 
@@ -2041,6 +2042,9 @@ func (p *txPoolImpl[T, Constraint]) handleRestorePool() {
 func (p *txPoolImpl[T, Constraint]) putBackBatchedTxs(batch *commonpool.RequestHashBatch[T, Constraint]) error {
 	// remove from batchedTxs and batchStore
 	p.logger.Infof("put back batched txs: %s", batch.BatchHash)
+	putBachTxPtrs := make(map[txPointer]*internalTransaction[T, Constraint], 0)
+
+	// basic check
 	for i := len(batch.TxList) - 1; i >= 0; i-- {
 		tx := batch.TxList[i]
 		hash := Constraint(tx).RbftGetTxHash()
@@ -2052,22 +2056,32 @@ func (p *txPoolImpl[T, Constraint]) putBackBatchedTxs(batch *commonpool.RequestH
 		if !p.txStore.batchedTxs[*ptr] {
 			return fmt.Errorf("can't find tx from batchedTxs:[txHash:%s]", hash)
 		}
-		delete(p.txStore.batchedTxs, *ptr)
 
-		// check if the given tx exist in priority
 		poolTx := p.txStore.getPoolTxByTxnPointer(ptr.account, ptr.nonce)
-		if p.enablePricePriority {
-			p.txStore.priorityByPrice.pushBack(poolTx)
-		} else {
+		if poolTx == nil {
+			return fmt.Errorf("can't find tx from pool:[txHash:%s, account:%s, nonce:%d]", hash, ptr.account, ptr.nonce)
+		}
+		// check if the given tx exist in priority
+		putBachTxPtrs[*ptr] = poolTx
+		if !p.enablePricePriority {
 			key := &orderedIndexKey{time: poolTx.getRawTimestamp(), account: ptr.account, nonce: ptr.nonce}
 			if poolTransaction := p.txStore.priorityByTime.data.Get(key); poolTransaction == nil {
 				return fmt.Errorf("can't find tx from priorityByTime:[txHash:%s]", hash)
 			}
 		}
 	}
-	// 1. increase nonBatchSize
+
+	// 1. delete tx from batchedTxs list
+	for ptr, pTx := range putBachTxPtrs {
+		if p.enablePricePriority {
+			p.txStore.priorityByPrice.pushBack(pTx)
+		}
+		delete(p.txStore.batchedTxs, ptr)
+	}
+
+	// 2. increase nonBatchSize
 	p.increasePriorityNonBatchSize(uint64(len(batch.TxList)))
-	// 2. remove batchCache
+	// 3. remove batchCache
 	delete(p.txStore.batchesCache, batch.BatchHash)
 	return nil
 }

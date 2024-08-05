@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
@@ -26,20 +27,37 @@ type snapMeta struct {
 	snapPeers        []*common.Node
 }
 
-func loadSnapMeta(lg *ledger.Ledger, args *repo.SyncArgs) (*snapMeta, error) {
-	meta, err := lg.StateLedger.GetTrieSnapshotMeta()
+func loadSnapMeta(lg *ledger.Ledger, header *types.BlockHeader, selfPeerId string, args *repo.SyncArgs) (*snapMeta, error) {
+	epochContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+	currentEpochInfo, err := epochContract.CurrentEpoch()
 	if err != nil {
-		return nil, fmt.Errorf("get snapshot meta hash: %w", err)
+		return nil, fmt.Errorf("get current epoch info: %w", err)
 	}
 
-	snapPersistedEpoch := meta.EpochInfo.Epoch - 1
-	if meta.EpochInfo.EpochPeriod+meta.EpochInfo.StartBlock-1 == meta.BlockHeader.Number {
-		snapPersistedEpoch = meta.EpochInfo.Epoch
+	snapPersistedEpoch := currentEpochInfo.Epoch - 1
+	if currentEpochInfo.EpochPeriod+currentEpochInfo.StartBlock-1 == header.Number {
+		snapPersistedEpoch = currentEpochInfo.Epoch
 	}
 
 	// if local node is started with specified nodes for synchronization,
 	// the specified nodes will be used instead of the snapshot meta
-	rawPeers := meta.Nodes
+	nodeContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+	nodeInfos, _, err := nodeContract.GetActiveValidatorSet()
+	if err != nil {
+		return nil, fmt.Errorf("get node info: %w", err)
+	}
+
+	p := lo.FilterMap(nodeInfos, func(info node_manager.NodeInfo, _ int) (*consensus.QuorumValidator, bool) {
+		if info.P2PID == selfPeerId {
+			return nil, false
+		}
+		return &consensus.QuorumValidator{
+			Id:     info.ID,
+			PeerId: info.P2PID,
+		}, true
+	})
+	rawPeers := &consensus.QuorumValidators{Validators: p}
+
 	if args.RemotePeers != nil && len(args.RemotePeers.Validators) != 0 {
 		rawPeers = args.RemotePeers
 	}
@@ -54,7 +72,7 @@ func loadSnapMeta(lg *ledger.Ledger, args *repo.SyncArgs) (*snapMeta, error) {
 	})
 
 	return &snapMeta{
-		snapBlockHeader:  meta.BlockHeader,
+		snapBlockHeader:  header,
 		snapPeers:        peers,
 		snapPersistEpoch: snapPersistedEpoch,
 	}, nil

@@ -64,7 +64,6 @@ var ledgerSimpleRollbackArgs = struct {
 var ledgerGenerateTrieArgs = struct {
 	TargetBlockNumber uint64
 	TargetStoragePath string
-	remotePeers       cli.StringSlice
 }{}
 
 var ledgerImportAccountsArgs = struct {
@@ -176,13 +175,6 @@ var ledgerCMD = &cli.Command{
 					Aliases:     []string{"t"},
 					Usage:       "directory to store trie instance",
 					Destination: &ledgerGenerateTrieArgs.TargetStoragePath,
-					Required:    true,
-				},
-				&cli.StringSliceFlag{
-					Name:        "peers",
-					Usage:       `list peers which have the same state, format: "1:p2pID"`,
-					Aliases:     []string{`p`},
-					Destination: &ledgerGenerateTrieArgs.remotePeers,
 					Required:    true,
 				},
 			},
@@ -706,11 +698,6 @@ func generateTrie(ctx *cli.Context) error {
 	logger := loggers.Logger(loggers.App)
 	logger.Infof("start generating trie at height: %v\n", ledgerGenerateTrieArgs.TargetBlockNumber)
 
-	peers, err := common.DecodePeers(ledgerGenerateTrieArgs.remotePeers.Value())
-	if err != nil {
-		return fmt.Errorf("decode peers failed: %w", err)
-	}
-
 	r, err := common.PrepareRepo(ctx)
 	if err != nil {
 		return err
@@ -742,17 +729,9 @@ func generateTrie(ctx *cli.Context) error {
 		}
 	}
 
-	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(originStateLedger))
-	epochInfo, err := epochManagerContract.HistoryEpoch(blockHeader.Epoch)
-	if err != nil {
-		return fmt.Errorf("get epoch info failed: %w", err)
-	}
-
 	errC := make(chan error)
 	go originStateLedger.IterateTrie(&ledger.SnapshotMeta{
 		BlockHeader: blockHeader,
-		EpochInfo:   epochInfo.ToTypesEpoch(),
-		Nodes:       peers,
 	}, targetStateStorage, errC)
 	err = <-errC
 
