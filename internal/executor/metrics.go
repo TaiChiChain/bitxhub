@@ -57,6 +57,27 @@ var (
 		Name:      "proposed_block_counter",
 		Help:      "the total number of node proposed blocks",
 	})
+	settleStepOneDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "settle_step_one_duration_seconds",
+		Help:      "The total latency of settle step one",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
+	settleStepTwoDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "settle_step_two_duration_seconds",
+		Help:      "The total latency of settle step two",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
+	settleStepThreeDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "settle_step_three_duration_seconds",
+		Help:      "The total latency of settle step three",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
 )
 
 func init() {
@@ -68,4 +89,8 @@ func init() {
 	prometheus.MustRegister(executeBlockDuration)
 	prometheus.MustRegister(txCounter)
 	prometheus.MustRegister(proposedBlockCounter)
+
+	prometheus.MustRegister(settleStepOneDuration)
+	prometheus.MustRegister(settleStepTwoDuration)
+	prometheus.MustRegister(settleStepThreeDuration)
 }

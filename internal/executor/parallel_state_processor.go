@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 )
@@ -244,7 +243,7 @@ func (task *ExecutionTask) Settle() {
 		*task.receipts = append(*task.receipts, receipt)
 		return
 	}
-
+	time1 := time.Now()
 	task.finalStateDB.SetTxContext(task.tx.GetHash(), task.index)
 	task.finalStateDB.ApplyMVWriteSet(task.statedb.MVFullWriteList())
 
@@ -253,10 +252,10 @@ func (task *ExecutionTask) Settle() {
 	}
 
 	if *task.shouldDelayFeeCal {
-
 		task.finalStateDB.AddBalance(&task.coinbase, task.result.FeeTipped)
 	}
-
+	settleStepOneDuration.Observe(float64(time.Since(time1)) / float64(time.Second))
+	time2 := time.Now()
 	for k, v := range task.statedb.Preimages() {
 		task.finalStateDB.AddPreimage(k, v)
 	}
@@ -264,11 +263,15 @@ func (task *ExecutionTask) Settle() {
 	// Update the state with pending changes.
 	//var root []byte
 
-	if task.config.IsByzantium(task.blockNumber) {
-		task.finalStateDB.Finalise()
-	} else {
-		//root = task.finalStateDB.IntermediateRoot(task.config.IsEIP158(task.blockNumber)).Bytes()
-	}
+	// if task.config.IsByzantium(task.blockNumber) {
+	// 	task.finalStateDB.Finalise()
+	// } else {
+	// 	//root = task.finalStateDB.IntermediateRoot(task.config.IsEIP158(task.blockNumber)).Bytes()
+	// }
+
+	settleStepTwoDuration.Observe(float64(time.Since(time2)) / float64(time.Second))
+
+	time3 := time.Now()
 
 	*task.totalUsedGas += task.result.UsedGas
 
@@ -322,9 +325,9 @@ func (task *ExecutionTask) Settle() {
 
 	*task.receipts = append(*task.receipts, receipt)
 	*task.allLogs = append(*task.allLogs, receipt.EvmLogs...)
-}
 
-var parallelizabilityTimer = metrics.NewRegisteredTimer("block/parallelizability", nil)
+	settleStepThreeDuration.Observe(float64(time.Since(time3)) / float64(time.Second))
+}
 
 // Process processes the state changes according to the Ethereum rules by running
 // the transaction messages using the statedb and applying any rewards to both
