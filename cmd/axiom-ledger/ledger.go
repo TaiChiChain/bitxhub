@@ -28,6 +28,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/cmd/axiom-ledger/common"
 	"github.com/axiomesh/axiom-ledger/internal/app"
+	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
@@ -304,6 +305,7 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 	}()
 	scanner := bufio.NewScanner(file)
 	currentLine := 0
+	lg.StateLedger.UpdateChainState(&chainstate.ChainState{IsDataSyncer: true})
 	for batch := 0; batch < totalBlockCount; batch++ {
 		currentHeight := lg.ChainLedger.GetChainMeta().Height
 		fmt.Printf("current height: %d\n", currentHeight+1)
@@ -659,7 +661,7 @@ func rollback(ctx *cli.Context) error {
 		// write stale ledger state deltas
 		_, maxHeight := originStateLedger.GetHistoryRange()
 		for i := maxHeight; i > targetBlockNumber; i-- {
-			stateDelta := originStateLedger.GetStateDelta(i)
+			stateDelta := originStateLedger.GetStateJournal(i)
 			batch.Put(utils.CompositeKey(utils.RollbackStateKey, i), stateDelta.Encode())
 			if batch.Size() > maxBatchSize {
 				batch.Commit()
