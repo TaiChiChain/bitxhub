@@ -257,14 +257,14 @@ func TestPrepare(t *testing.T) {
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
 		Status: rbft.InViewChange,
 	}).Times(1)
-	err = node.Ready()
-	ast.Error(err)
+	ready, _ := node.Status()
+	assert.False(t, ready)
 
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
 		Status: rbft.Normal,
 	}).AnyTimes()
-	err = node.Ready()
-	ast.Nil(err)
+	ready, _ = node.Status()
+	assert.True(t, ready)
 
 	err = node.Prepare(tx1)
 	ast.Nil(err)

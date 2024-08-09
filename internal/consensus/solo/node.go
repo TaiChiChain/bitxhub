@@ -144,8 +144,8 @@ func (n *Node) Stop() {
 
 func (n *Node) Prepare(tx *types.Transaction) error {
 	defer n.txFeed.Send([]*types.Transaction{tx})
-	if err := n.Ready(); err != nil {
-		return fmt.Errorf("node get ready failed: %w", err)
+	if ready, status := n.getStatus(); !ready {
+		return fmt.Errorf("node get ready failed: %s", status)
 	}
 	txWithResp := &common.TxWithResp{
 		Tx:      tx,
@@ -173,11 +173,15 @@ func (n *Node) Step([]byte) error {
 	return nil
 }
 
-func (n *Node) Ready() error {
+func (n *Node) Status() (bool, string) {
+	return n.getStatus()
+}
+
+func (n *Node) getStatus() (bool, string) {
 	if !n.started.Load() {
-		return common.ErrorConsensusStart
+		return false, common.ErrorConsensusStart.Error()
 	}
-	return nil
+	return true, "normal"
 }
 
 func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {

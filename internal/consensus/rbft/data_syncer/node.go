@@ -26,6 +26,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 )
 
+const InCommitStatus = rbft.StatusType(1024)
+
 type Node[T any, Constraint types.TXConstraint[T]] struct {
 	selfP2PNodeID            string
 	config                   rbft.Config
@@ -218,6 +220,8 @@ func (n *Node[T, Constraint]) Status() (status rbft.NodeStatus) {
 		status.Status = rbft.InSyncState
 	case n.statusMgr.In(Pending):
 		status.Status = rbft.Pending
+	case n.statusMgr.In(InCommit):
+		status.Status = InCommitStatus
 	default:
 		status.Status = rbft.Normal
 	}
@@ -330,6 +334,9 @@ func (n *Node[T, Constraint]) trySyncState() {
 func (n *Node[T, Constraint]) existSyncState() {
 	n.statusMgr.Off(NeedSyncState)
 	n.timeMgr.StopTimer(syncStateRestart)
+	n.statusMgr.Off(InSyncState)
+	n.timeMgr.StopTimer(syncStateResp)
+	n.logger.Infof("Replica %d stop sync state progress", n.chainState.SelfNodeInfo.ID)
 }
 
 func (n *Node[T, Constraint]) dispatchConsensusMsg(msg *consensus.ConsensusMessage) *localEvent {
@@ -1040,6 +1047,10 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 	}
 
 	n.statusMgr.On(InEpochSyncing)
+	// if we're turning into syncing epoch status, we should stop sync state until we reach the target epoch
+	if n.statusMgr.InOne(NeedSyncState, InSyncState) {
+		n.existSyncState()
+	}
 	for _, ec := range proof.GetEpochChanges() {
 		n.epochProofCache[ec.Checkpoint.Epoch()] = ec
 	}

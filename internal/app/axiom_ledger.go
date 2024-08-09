@@ -461,8 +461,7 @@ func (axm *AxiomLedger) printLogo() {
 	if !axm.Repo.StartArgs.ReadonlyMode {
 		for {
 			time.Sleep(100 * time.Millisecond)
-			err := axm.Consensus.Ready()
-			if err == nil {
+			if ready, _ := axm.Consensus.Status(); ready {
 				break
 			}
 		}
