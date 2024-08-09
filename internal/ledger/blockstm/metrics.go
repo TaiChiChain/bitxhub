@@ -48,6 +48,28 @@ var (
 		Help:      "The total latency of mv_hashmap write",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
 	})
+
+	blockStmExecuteDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "block_stm_execute_duration_second",
+		Help:      "The total latency of blockstm execute",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
+	blockStmValidateDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "block_stm_validate_duration_second",
+		Help:      "The total latency of blockstm validate",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
+	blockStmFlushDataDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "block_stm_flush_data_duration_second",
+		Help:      "The total latency of blockstm flush data",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
+	})
 )
 
 func init() {
@@ -57,4 +79,7 @@ func init() {
 	prometheus.MustRegister(mvHashmapWriteDuration)
 	prometheus.MustRegister(mvHashmapReadWithOutLockDuration)
 	prometheus.MustRegister(mvHashmapReadNullDuration)
+	prometheus.MustRegister(blockStmExecuteDuration)
+	prometheus.MustRegister(blockStmValidateDuration)
+	prometheus.MustRegister(blockStmFlushDataDuration)
 }
