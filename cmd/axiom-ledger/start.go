@@ -29,6 +29,8 @@ var startArgs = struct {
 }{}
 
 func start(ctx *cli.Context) error {
+	cpuNum := runtime.NumCPU()
+	runtime.GOMAXPROCS(cpuNum)
 	p, err := common.GetRootPath(ctx)
 	if err != nil {
 		return err
@@ -72,6 +74,7 @@ func start(ctx *cli.Context) error {
 	defer cancel()
 
 	log := loggers.Logger(loggers.App)
+	log.Info(fmt.Sprintf("GOMAXPROCS: %d", cpuNum))
 	printVersion(func(c string) {
 		log.Info(c)
 	})
