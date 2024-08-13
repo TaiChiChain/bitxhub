@@ -55,6 +55,8 @@ type BlockExecutor struct {
 	afterBlockHooks []AfterBlockHook
 
 	enableParallelExecute bool
+
+	stateDbPool *StateDbPool
 }
 
 // New creates executor instance
@@ -75,6 +77,7 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 		rep:                   rep,
 		gasLimit:              rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit,
 		enableParallelExecute: rep.Config.EnableParallel,
+		stateDbPool:           NewStateDbPool(),
 	}
 
 	blockExecutor.evm = newEvm(1, uint64(0), blockExecutor.evmChainCfg, blockExecutor.ledger.StateLedger, blockExecutor.ledger.ChainLedger, "")

@@ -294,7 +294,7 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 	processor := NewParallelStateProcessor(exec.evmChainCfg, block, exec.rep.Config.Worker, exec.rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit)
 	exec.logger.Info("parallelStateProcessor start")
 	currentFromStart := time.Now()
-	receipts, _, gasUsed, err := processor.Process(block, exec.ledger, vmCfg, ctx)
+	receipts, _, gasUsed, err := processor.Process(block, exec.ledger, exec.stateDbPool, vmCfg, ctx)
 	if err != nil {
 		panic(err)
 	}

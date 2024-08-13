@@ -100,6 +100,8 @@ type ExecutionTask struct {
 	execRes     blockstm.ExecResult
 	incarnation int
 
+	stateDbPool *StateDbPool
+
 	// length of dependencies          -> 2 + k (k = a whole number)
 	// first 2 element in dependencies -> transaction index, and flag representing if delay is allowed or not
 	//                                       (0 -> delay is not allowed, 1 -> delay is allowed)
@@ -116,7 +118,8 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap) (err error) {
 			TxnIndex:    task.index,
 		},
 	}
-	task.statedb = task.cleanStateDB.Copy().(*ledger.StateLedgerImpl)
+	//task.statedb = task.cleanStateDB.Copy().(*ledger.StateLedgerImpl)
+	task.statedb = task.stateDbPool.GetStateDb(task.cleanStateDB)
 	task.statedb.SetTxContext(task.tx.GetHash(), task.index)
 	task.statedb.SetMVHashmap(mvh)
 	task.statedb.SetIncarnation(task.incarnation)
@@ -233,6 +236,9 @@ func (task *ExecutionTask) Dependencies() []int {
 }
 
 func (task *ExecutionTask) Settle() {
+	defer func() {
+		task.stateDbPool.PutBackToPool(task.statedb)
+	}()
 	if task.execRes.Err != nil {
 		task.logger.Error("Error while executing transaction", "Error:", task.execRes.Err)
 		receipt := &types.Receipt{
@@ -337,7 +343,7 @@ func (task *ExecutionTask) Settle() {
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
 // nolint:gocognit
-func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.Ledger, cfg vm.Config, interruptCtx context.Context) (ledger.EvmReceipts, []*types.EvmLog, uint64, error) {
+func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.Ledger, sp *StateDbPool, cfg vm.Config, interruptCtx context.Context) (ledger.EvmReceipts, []*types.EvmLog, uint64, error) {
 	var (
 		receipts    ledger.EvmReceipts
 		header      = block.Header
@@ -356,11 +362,13 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 	deps := make(map[int][]int)
 
 	blockContext := NewEVMBlockContextAdaptor(block.Height(), uint64(block.Header.Timestamp), syscommon.StakingManagerContractAddr, getBlockHashFunc(ledgerNow.ChainLedger))
+	//cleansdb := ledgerNow.StateLedger.Copy()
+
+	cleansdb := sp.GetStateDb(ledgerNow.StateLedger.(*ledger.StateLedgerImpl))
 
 	for i, tx := range block.Transactions {
 		msg := TransactionToMessage(tx)
 
-		cleansdb := ledgerNow.StateLedger.Copy()
 		if msg.From.Hex() == coinbase {
 			shouldDelayFeeCal = false
 		}
@@ -374,7 +382,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			blockHash:         *blockHash,
 			tx:                tx,
 			index:             i,
-			cleanStateDB:      cleansdb.(*ledger.StateLedgerImpl),
+			cleanStateDB:      cleansdb,
 			finalStateDB:      (ledgerNow.StateLedger).(*ledger.StateLedgerImpl),
 			blockChain:        p.bc,
 			header:            header,
@@ -390,6 +398,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			status:            blockstm.StatusPending,
 			execRes:           blockstm.ExecResult{},
 			incarnation:       0,
+			stateDbPool:       sp,
 		}
 
 		tasks = append(tasks, task)
