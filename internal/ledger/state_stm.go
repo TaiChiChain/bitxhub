@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 )
@@ -98,10 +97,10 @@ func (s *StateLedgerImpl) SetIncarnation(inc int) {
 }
 
 func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage func(s *StateLedgerImpl) T) (v T) {
-	start := time.Now()
-	defer func() {
-		mvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	mvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	// }()
 	if s.mvHashmap == nil {
 		return readStorage(s)
 	}
@@ -136,10 +135,10 @@ func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage f
 	switch res.Status() {
 	case blockstm.MVReadResultDone:
 		{
-			start := time.Now()
+			//start := time.Now()
 			v = readStorage(res.Value().(*StateLedgerImpl))
 			rd.Kind = blockstm.ReadKindMap
-			getFromMvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+			//getFromMvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
 	case blockstm.MVReadResultDependency:
 		{
@@ -149,10 +148,10 @@ func MVRead[T any](s *StateLedgerImpl, k blockstm.Key, defaultV T, readStorage f
 		}
 	case blockstm.MVReadResultNone:
 		{
-			start := time.Now()
+			//start := time.Now()
 			v = readStorage(s)
 			rd.Kind = blockstm.ReadKindStorage
-			getFromStorageDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+			//getFromStorageDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
 	default:
 		return defaultV

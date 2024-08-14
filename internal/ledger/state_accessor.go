@@ -29,7 +29,6 @@ var Log = loggers.Logger(loggers.Executor)
 
 // GetOrCreateAccount get the account, if not exist, create a new account
 func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
-	start := time.Now()
 	account := l.GetAccount(addr)
 	if account == nil {
 		account = NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, addr, l.changer, l.snapshot)
@@ -43,8 +42,6 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 		l.logger.Debugf("[GetOrCreateAccount] get account, addr: %v", addr)
 	}
 
-	getOrCreateAccountDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-
 	return account
 }
 
@@ -52,10 +49,10 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 // If yes, it returns the object directly.
 // If not, it clones the object and inserts it into the writeMap before returning it.
 func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
-	start := time.Now()
-	defer func() {
-		mvRecordWrittenDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	mvRecordWrittenDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	// }()
 	if s.mvHashmap == nil {
 		return object
 	}
@@ -84,10 +81,10 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 
 // GetAccount get account info using account Address
 func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
-	start := time.Now()
-	defer func() {
-		getAccountDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	getAccountDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	// }()
 
 	return MVRead(l, blockstm.NewAddressKey(*address), nil, func(l *StateLedgerImpl) IAccount {
 		addr := address.String()
@@ -167,7 +164,6 @@ func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
 
 // SetBalance set account balance
 func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
-	start := time.Now()
 	account := l.GetOrCreateAccount(addr)
 	if l.mvHashmap != nil {
 		// ensure a read balance operation is recorded in mvHashmap
@@ -176,7 +172,6 @@ func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
 	account = l.mvRecordWritten(account)
 	account.SetBalance(value)
 	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
-	setBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 }
 
 func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {

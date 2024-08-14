@@ -2,6 +2,7 @@ package blockstm
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,12 +61,11 @@ type ErrExecAbortError struct {
 }
 
 func (e ErrExecAbortError) Error() string {
-	// if e.Dependency >= 0 {
-	// 	return fmt.Sprintf("Execution aborted due to dependency %d", e.Dependency)
-	// } else {
-	// 	return "Execution aborted"
-	// }
-	return e.OriginError.Error()
+	if e.Dependency >= 0 {
+		return fmt.Sprintf("Execution aborted due to dependency %d", e.Dependency)
+	} else {
+		return e.OriginError.Error()
+	}
 }
 
 type ParallelExecutor struct {

@@ -3,7 +3,6 @@ package blockstm
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/emirpasic/gods/maps/treemap"
@@ -124,10 +123,10 @@ func (mv *MVHashMap) getKeyCells(k Key, fNoKey func(kenc Key) *TxnIndexCells) (c
 }
 
 func (mv *MVHashMap) Write(k Key, v Version, data interface{}) {
-	start := time.Now()
-	defer func() {
-		mvHashmapWriteDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	mvHashmapWriteDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	// }()
 	cells := mv.getKeyCells(k, func(kenc Key) (cells *TxnIndexCells) {
 		mv.lock.Lock()
 		if val, ok := mv.m.Get(k.String()); !ok {
@@ -225,10 +224,10 @@ func (mvr MVReadResult) Status() int {
 }
 
 func (mv *MVHashMap) Read(k Key, txIdx int) (res MVReadResult) {
-	start := time.Now()
-	defer func() {
-		mvHashmapReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	mvHashmapReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	// }()
 
 	res.depIdx = -1
 	res.incarnation = -1
