@@ -34,7 +34,7 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 		account = NewAccount(l.blockHeight, l.backend, l.storageTrieCache, l.pruneCache, addr, l.changer, l.snapshot)
 		account.SetCreated(true)
 		l.changer.append(createObjectChange{account: addr})
-		l.accounts[addr.String()] = account
+		l.accounts[addr.ETHAddress()] = account
 
 		MVWrite(l, blockstm.NewAddressKey(*addr))
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
@@ -65,10 +65,10 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 
 	// todo
 	// check
-	s.accounts[object.GetAddress().String()] = DeepCopy(object.(*SimpleAccount))
+	s.accounts[object.GetAddress().ETHAddress()] = DeepCopy(object.(*SimpleAccount))
 	MVWrite(s, addrKey)
 
-	return s.accounts[object.GetAddress().String()]
+	return s.accounts[object.GetAddress().ETHAddress()]
 
 	// Deepcopy is needed to ensure that objects are not written by multiple transactions at the same time, because
 	// the input state object can come from a different transaction.
@@ -87,7 +87,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 	// }()
 
 	return MVRead(l, blockstm.NewAddressKey(*address), nil, func(l *StateLedgerImpl) IAccount {
-		addr := address.String()
+		addr := address.ETHAddress()
 		value, ok := l.accounts[addr]
 		if ok {
 			l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
@@ -142,16 +142,16 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 
 // nolint
 func (l *StateLedgerImpl) setAccount(account IAccount) {
-	l.accounts[account.GetAddress().String()] = account
+	l.accounts[account.GetAddress().ETHAddress()] = account
 	l.logger.Debugf("[Revert setAccount] addr: %v, account: %v", account.GetAddress(), account)
 }
 
 // GetBalance get account balance using account Address
 func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
-	start := time.Now()
-	defer func() {
-		getBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	}()
+	// start := time.Now()
+	// defer func() {
+	// 	getBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+	// }()
 	return MVRead(l, blockstm.NewSubpathKey(*addr, BalancePath), common.Big0, func(l *StateLedgerImpl) *big.Int {
 		account := l.GetAccount(addr)
 		if account != nil {
@@ -317,12 +317,12 @@ func (l *StateLedgerImpl) SetNonce(addr *types.Address, nonce uint64) {
 }
 
 func (l *StateLedgerImpl) Clear() {
-	l.accounts = make(map[string]IAccount)
+	l.accounts = make(map[common.Address]IAccount)
 }
 
 // collectDirtyData gets dirty accounts and snapshot journals
-func (l *StateLedgerImpl) collectDirtyData() (map[string]IAccount, *types.SnapshotJournal) {
-	dirtyAccounts := make(map[string]IAccount)
+func (l *StateLedgerImpl) collectDirtyData() (map[common.Address]IAccount, *types.SnapshotJournal) {
+	dirtyAccounts := make(map[common.Address]IAccount)
 	var journals []*types.SnapshotJournalEntry
 
 	for addr, acc := range l.accounts {

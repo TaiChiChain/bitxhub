@@ -112,7 +112,6 @@ type ExecutionTask struct {
 }
 
 func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap) (err error) {
-	time.Sleep(1 * time.Second)
 	task.execRes = blockstm.ExecResult{
 		Ver: blockstm.Version{
 			Incarnation: task.incarnation,
