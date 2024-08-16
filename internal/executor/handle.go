@@ -38,9 +38,7 @@ func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height ui
 	receipts := make([]*types.Receipt, 0, len(txs))
 
 	for i, tx := range txs {
-		currentFromStart := time.Now()
 		receipts = append(receipts, exec.applyTransaction(i, tx, height))
-		evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 	}
 
 	exec.logger.Debugf("executor executed %d txs", len(txs))
@@ -479,6 +477,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	txContext := core.NewEVMTxContext(msg)
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
+	currentFromStart := time.Now()
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
@@ -487,6 +486,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		receipt.Ret = []byte(err.Error())
 		return receipt
 	}
+	evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 	if result.Failed() {
 		if len(result.Revert()) > 0 {
 			reason, errUnpack := abi.UnpackRevert(result.Revert())

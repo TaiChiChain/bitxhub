@@ -148,7 +148,7 @@ type (
 )
 
 func (ch createObjectChange) revert(l *StateLedgerImpl) {
-	delete(l.accounts, ch.account.String())
+	delete(l.accounts, ch.account.ETHAddress())
 	RevertWrite(l, blockstm.NewAddressKey(*ch.account))
 }
 

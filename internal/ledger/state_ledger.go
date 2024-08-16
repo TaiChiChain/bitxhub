@@ -50,7 +50,7 @@ type StateLedgerImpl struct {
 	storageTrieCache *storagemgr.CacheWrapper
 
 	triePreloader *triePreloaderManager
-	accounts      map[string]IAccount
+	accounts      map[common.Address]IAccount
 	repo          *repo.Repo
 	blockHeight   uint64
 	thash         *types.Hash
@@ -159,7 +159,7 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 		accountTrieCache: l.accountTrieCache,
 		storageTrieCache: l.storageTrieCache,
 		trieIndexer:      l.trieIndexer,
-		accounts:         make(map[string]IAccount),
+		accounts:         make(map[common.Address]IAccount),
 		preimages:        make(map[types.Hash][]byte),
 		changer:          newChanger(),
 		accessList:       NewAccessList(),
@@ -183,7 +183,7 @@ func (l *StateLedgerImpl) Copy() StateLedger {
 		accountTrieCache: l.accountTrieCache,
 		storageTrieCache: l.storageTrieCache,
 		trieIndexer:      l.trieIndexer,
-		accounts:         make(map[string]IAccount),
+		accounts:         make(map[common.Address]IAccount),
 		preimages:        make(map[types.Hash][]byte),
 		changer:          newChanger(),
 		accessList:       NewAccessList(),
@@ -387,7 +387,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 		storageTrieCache: storageTrieCache,
 		pruneCache:       prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
 		trieIndexer:      trie_indexer.NewTrieIndexer(rep, trieIndexerKv, loggers.Logger(loggers.Storage)),
-		accounts:         make(map[string]IAccount),
+		accounts:         make(map[common.Address]IAccount),
 		preimages:        make(map[types.Hash][]byte),
 		changer:          newChanger(),
 		accessList:       NewAccessList(),
