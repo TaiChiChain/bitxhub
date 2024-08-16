@@ -384,9 +384,9 @@ func (pe *ParallelExecutor) Prepare() error {
 
 	go func() {
 		for t := range pe.chSettle {
-			start := time.Now()
+			//start := time.Now()
 			pe.tasks[t].Settle()
-			blockStmSettleDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+			//blockStmSettleDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
 
 		pe.settleWg.Done()
@@ -632,9 +632,9 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 		}
 
 		res := pe.resultQueue.Pop().(ExecResult)
-		start := time.Now()
+		//start := time.Now()
 		result, err = pe.Step(&res)
-		blockStmStepDuration.Observe(float64(time.Since(start)) / float64(time.Second))
+		//blockStmStepDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 
 		if err != nil {
 			return result, err

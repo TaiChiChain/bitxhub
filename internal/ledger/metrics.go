@@ -109,14 +109,6 @@ var (
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
 
-	getOrCreateAccountDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "get_or_create_account_duration",
-		Help:      "The total latency of get or create account",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
 	getAccountDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
@@ -130,14 +122,6 @@ var (
 		Subsystem: "ledger",
 		Name:      "mv_read_duration",
 		Help:      "The total latency of mv read",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
-	mvRecordWrittenDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "mv_record_written_duration",
-		Help:      "The total latency of mv record written",
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
 
@@ -190,13 +174,9 @@ func init() {
 	prometheus.MustRegister(getTransactionCounter)
 	prometheus.MustRegister(getTransactionDuration)
 
-	prometheus.MustRegister(getOrCreateAccountDuration)
-	prometheus.MustRegister(getBalanceDuration)
-	prometheus.MustRegister(setBalanceDuration)
-	prometheus.MustRegister(getFromStorageDuration)
-	prometheus.MustRegister(getFromMvReadDuration)
-	prometheus.MustRegister(getAccountDuration)
-	prometheus.MustRegister(mvReadDuration)
-	prometheus.MustRegister(mvRecordWrittenDuration)
+	//prometheus.MustRegister(setBalanceDuration)
+	//prometheus.MustRegister(getAccountDuration)
+	//prometheus.MustRegister(mvReadDuration)
+	//prometheus.MustRegister(mvRecordWrittenDuration)
 
 }

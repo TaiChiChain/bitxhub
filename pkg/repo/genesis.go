@@ -83,7 +83,7 @@ func GenesisEpochInfo() *types.EpochInfo {
 			HighWatermarkCheckpointPeriod: 10,
 			MinValidatorNum:               4,
 			MaxValidatorNum:               10,
-			BlockMaxTxNum:                 500,
+			BlockMaxTxNum:                 2000,
 			EnableTimedGenEmptyBlock:      false,
 			NotActiveWeight:               1,
 			AbnormalNodeExcludeView:       10,
