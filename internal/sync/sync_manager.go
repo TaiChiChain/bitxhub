@@ -432,7 +432,17 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 		}
 	}
 
+	sm.logger.WithFields(logrus.Fields{
+		"start":  sm.curHeight,
+		"target": sm.curHeight + sm.chunk.ChunkSize - 1,
+		"cost":   time.Since(sm.chunk.Time),
+	}).Info("chunk task has done")
+	syncChunkDuration.WithLabelValues(strconv.Itoa(int(sm.chunk.ChunkSize))).Observe(time.Since(sm.chunk.Time).Seconds())
+
+	// post commitData to Executor
+	start := time.Now()
 	sm.modeConstructor.PostCommitData(sm.commitDataCache)
+	pushBlock2ExecutorDuration.WithLabelValues(strconv.Itoa(int(sm.chunk.ChunkSize))).Observe(time.Since(start).Seconds())
 
 	if sm.curHeight+sm.chunk.ChunkSize-1 == sm.targetHeight {
 		if err = sm.stopSync(); err != nil {
@@ -449,11 +459,6 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 		syncTaskDoneCh <- nil
 		return true
 	} else {
-		sm.logger.WithFields(logrus.Fields{
-			"start":  sm.curHeight,
-			"target": sm.curHeight + sm.chunk.ChunkSize - 1,
-			"cost":   time.Since(sm.chunk.Time),
-		}).Info("chunk task has done")
 		sm.updateStatus()
 		// produce many new requesters for new chunk
 		sm.produceRequester(sm.getConcurrencyLimit())

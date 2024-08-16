@@ -22,6 +22,26 @@ var (
 		},
 	)
 
+	syncChunkDuration = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Namespace: "axiom_ledger",
+			Subsystem: "sync",
+			Name:      "sync_chunk_duration_seconds",
+			Help:      "The total latency of per chunk",
+		},
+		[]string{"chunk_size"},
+	)
+
+	pushBlock2ExecutorDuration = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Namespace: "axiom_ledger",
+			Subsystem: "sync",
+			Name:      "push_block_to_executor_duration_seconds",
+			Help:      "The total latency of push block to executor",
+		},
+		[]string{"chunk_size"},
+	)
+
 	requesterNumber = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "axiom_ledger",
@@ -58,4 +78,5 @@ func init() {
 	prometheus.MustRegister(requesterNumber)
 	prometheus.MustRegister(invalidBlockNumber)
 	prometheus.MustRegister(recvBlockNumber)
+	prometheus.MustRegister(syncChunkDuration)
 }
