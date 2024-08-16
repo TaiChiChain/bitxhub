@@ -242,11 +242,11 @@ func (task *ExecutionTask) Settle() {
 	// Update the state with pending changes.
 	//var root []byte
 
-	if task.config.IsByzantium(task.blockNumber) {
-		task.finalStateDB.Finalise()
-	} else {
-		//root = task.finalStateDB.IntermediateRoot(task.config.IsEIP158(task.blockNumber)).Bytes()
-	}
+	// if task.config.IsByzantium(task.blockNumber) {
+	// 	task.finalStateDB.Finalise()
+	// } else {
+	// 	//root = task.finalStateDB.IntermediateRoot(task.config.IsEIP158(task.blockNumber)).Bytes()
+	// }
 
 	*task.totalUsedGas += task.result.UsedGas
 
@@ -353,6 +353,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 	//blockContext := NewEVMBlockContext(header, p.bc, nil)
 
 	blockContext := NewEVMBlockContextAdaptor(block.Height(), uint64(block.Header.Timestamp), syscommon.StakingManagerContractAddr, getBlockHashFunc(ledgerNow.ChainLedger))
+	cleansdb := ledgerNow.StateLedger.Copy()
 
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions {
@@ -364,7 +365,6 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 
 		//cleansdb := statedb.Copy()
 
-		cleansdb := ledgerNow.StateLedger.Copy()
 		if msg.From.Hex() == coinbase {
 			shouldDelayFeeCal = false
 		}
