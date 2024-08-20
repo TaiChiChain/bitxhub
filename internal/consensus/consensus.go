@@ -30,8 +30,7 @@ type Consensus interface {
 	// Step send msg to the consensus engine
 	Step(msg []byte) error
 
-	// Ready means whether consensus has finished electing leader
-	Ready() error
+	Status() (bool, string)
 
 	// ReportState means block was persisted and report it to the consensus engine
 	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *common.Checkpoint, needRemoveTxs bool)

@@ -37,7 +37,7 @@ type BrokerAPI interface {
 	GetReceipts(blockNum uint64) ([]*types.Receipt, error)
 	GetViewStateLedger() ledger.StateLedger
 	GetEvm(mes *core.Message, vmConfig *vm.Config) (*vm.EVM, error)
-	ConsensusReady() error
+	ConsensusReady() (bool, string)
 
 	ChainConfig() *params.ChainConfig
 	StateAtTransaction(block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *ledger.StateLedger, error)

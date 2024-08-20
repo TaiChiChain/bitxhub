@@ -91,8 +91,8 @@ func (n *NodeDev) Step(_ []byte) error {
 	return nil
 }
 
-func (n *NodeDev) Ready() error {
-	return nil
+func (n *NodeDev) Status() (bool, string) {
+	return true, "normal"
 }
 
 func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {

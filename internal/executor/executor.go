@@ -65,7 +65,7 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 		ctx:               ctx,
 		chainState:        chainState,
 		cancel:            cancel,
-		blockC:            make(chan *common.CommitEvent, blockChanNumber),
+		blockC:            make(chan *common.CommitEvent, 1),
 		cumulativeGasUsed: 0,
 		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
 		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,

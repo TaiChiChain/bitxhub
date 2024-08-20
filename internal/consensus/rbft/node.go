@@ -388,13 +388,18 @@ func (n *Node) Step(msg []byte) error {
 	return nil
 }
 
-func (n *Node) Ready() error {
+func (n *Node) Status() (isNormal bool, currentStatus string) {
 	status := n.n.Status().Status
-	isNormal := status == rbft.Normal
-	if !isNormal {
-		return fmt.Errorf("%s", status2String(status))
+	isNormal = status == rbft.Normal || status == data_syncer.InCommitStatus
+	switch status {
+	case rbft.Normal:
+		currentStatus = "normal"
+	case data_syncer.InCommitStatus:
+		currentStatus = "system is in committing block"
+	default:
+		currentStatus = status2String(status)
 	}
-	return nil
+	return
 }
 
 func (n *Node) GetLowWatermark() uint64 {

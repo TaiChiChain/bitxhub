@@ -82,12 +82,12 @@ func (b *BrokerAPI) GetBlockTxList(height uint64) ([]*types.Transaction, error) 
 	return b.axiomLedger.ViewLedger.ChainLedger.GetBlockTxList(height)
 }
 
-func (b *BrokerAPI) ConsensusReady() error {
+func (b *BrokerAPI) ConsensusReady() (bool, string) {
 	if b.axiomLedger.Repo.StartArgs.ReadonlyMode {
-		return nil
+		return true, "read-only mode"
 	}
 
-	return b.axiomLedger.Consensus.Ready()
+	return b.axiomLedger.Consensus.Status()
 }
 
 func (b *BrokerAPI) GetViewStateLedger() ledger.StateLedger {

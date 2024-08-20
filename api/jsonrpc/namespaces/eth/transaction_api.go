@@ -316,18 +316,18 @@ func (api *TransactionAPI) SendRawTransaction(data hexutil.Bytes) (ret common.Ha
 		}
 
 		whitelistContract := access.WhitelistBuildConfig.Build(syscommon.NewViewVMContext(stateLedger))
-		if err := whitelistContract.Verify(from.ETHAddress()); err != nil {
+		if err = whitelistContract.Verify(from.ETHAddress()); err != nil {
 			return [32]byte{}, err
 		}
 	}
 
-	if err := checkTransaction(tx); err != nil {
+	if err = checkTransaction(tx); err != nil {
 		return [32]byte{}, fmt.Errorf("check transaction fail for %s", err.Error())
 	}
 
-	if err := api.api.Broker().ConsensusReady(); err != nil {
+	if ready, status := api.api.Broker().ConsensusReady(); !ready {
 		if api.rep.Config.JsonRPC.RejectTxsIfConsensusAbnormal {
-			return [32]byte{}, fmt.Errorf("the system is temporarily unavailable %s, tx: %s", err.Error(), tx.GetHash().String())
+			return [32]byte{}, fmt.Errorf("the system is temporarily unavailable %s, tx: %s", status, tx.GetHash().String())
 		}
 	} else {
 		api.logger.Debugf("Receive new eth tx: %s", tx.GetHash().String())

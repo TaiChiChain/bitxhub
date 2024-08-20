@@ -67,8 +67,8 @@ func TestNode_Start(t *testing.T) {
 
 	for {
 		time.Sleep(200 * time.Millisecond)
-		err := solo.Ready()
-		if err == nil {
+		ready, _ := solo.getStatus()
+		if ready {
 			break
 		}
 	}

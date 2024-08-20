@@ -50,6 +50,7 @@ const (
 	eventType_stateUpdated
 	eventType_executed
 	eventType_epochSync
+	eventType_syncState
 	eventType_consensusMessage
 )
 
@@ -59,6 +60,7 @@ var eventTypes = map[int]string{
 	eventType_stateUpdated:     "stateUpdated",
 	eventType_executed:         "executed",
 	eventType_epochSync:        "epochSync",
+	eventType_syncState:        "syncState",
 	eventType_consensusMessage: "consensusMessage",
 }
 

@@ -26,6 +26,8 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 )
 
+const InCommitStatus = rbft.StatusType(1024)
+
 type Node[T any, Constraint types.TXConstraint[T]] struct {
 	selfP2PNodeID            string
 	config                   rbft.Config
@@ -218,6 +220,8 @@ func (n *Node[T, Constraint]) Status() (status rbft.NodeStatus) {
 		status.Status = rbft.InSyncState
 	case n.statusMgr.In(Pending):
 		status.Status = rbft.Pending
+	case n.statusMgr.In(InCommit):
+		status.Status = InCommitStatus
 	default:
 		status.Status = rbft.Normal
 	}
@@ -330,6 +334,9 @@ func (n *Node[T, Constraint]) trySyncState() {
 func (n *Node[T, Constraint]) existSyncState() {
 	n.statusMgr.Off(NeedSyncState)
 	n.timeMgr.StopTimer(syncStateRestart)
+	n.statusMgr.Off(InSyncState)
+	n.timeMgr.StopTimer(syncStateResp)
+	n.logger.Infof("Replica %d stop sync state progress", n.chainState.SelfNodeInfo.ID)
 }
 
 func (n *Node[T, Constraint]) dispatchConsensusMsg(msg *consensus.ConsensusMessage) *localEvent {
@@ -400,6 +407,15 @@ func (n *Node[T, Constraint]) processEvent(event *localEvent) []*localEvent {
 		}
 		if ev.Type != consensus.Type_NULL_REQUEST {
 			n.logger.Debugf("process consensus message: %s from %d, cost: %s", consensus.Type_name[int32(ev.Type)], ev.From, time.Since(start))
+		}
+	case eventType_syncState:
+		if n.statusMgr.InOne(StateTransferring, InSyncState, InCommit) {
+			n.logger.Infof("current status is %s, ignore sync state event", statusTypes[n.getCurrentStatus()])
+			return nil
+		}
+		if err := n.initSyncState(); err != nil {
+			n.logger.Error(err)
+			return nil
 		}
 	case eventType_commitToExecutor:
 		if n.statusMgr.InOne(StateTransferring, InSyncState, InCommit) {
@@ -710,11 +726,11 @@ func (n *Node[T, Constraint]) ReportStateUpdated(state *rbfttypes.ServiceSyncSta
 	n.postEvent(ev)
 }
 
+func (n *Node[T, Constraint]) genSyncStateEvent() *localEvent {
+	return &localEvent{EventType: eventType_syncState}
+}
+
 func (n *Node[T, Constraint]) initSyncState() error {
-	if n.statusMgr.In(InSyncState) {
-		n.logger.Warningf("Replica %d try to send syncStateRestart, but it's already in sync state", n.chainState.SelfNodeInfo.ID)
-		return nil
-	}
 	n.statusMgr.On(InSyncState)
 
 	n.logger.Infof("Replica %d now init sync state", n.chainState.SelfNodeInfo.ID)
@@ -873,7 +889,6 @@ func (n *Node[T, Constraint]) fetchMissingTxs(fetch *consensus.FetchMissingReque
 }
 
 func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMissingResponse) *localEvent {
-	n.timeMgr.StopTimer(fetchMissingTxsResp)
 	defer func() {
 		n.missingTxsInFetchingLock.Lock()
 		n.missingBatchesInFetching = nil
@@ -883,30 +898,21 @@ func (n *Node[T, Constraint]) recvFetchMissingResponse(resp *consensus.FetchMiss
 	n.missingTxsInFetchingLock.RLock()
 	request := n.missingBatchesInFetching
 	n.missingTxsInFetchingLock.RUnlock()
-	if request == nil {
-		n.logger.Debugf("Replica %d ignore fetchMissingResponse with batch hash %s", n.chainState.SelfNodeInfo.ID, resp.BatchDigest)
+	if request == nil || resp.SequenceNumber <= n.lastCommitHeight {
+		n.logger.Warningf("Replica %d ignore fetchMissingResponse with batch hash %s, height: %d", n.chainState.SelfNodeInfo.ID, resp.BatchDigest, resp.SequenceNumber)
 		return nil
 	}
 	requests, err := n.checkFetchMissingResponse(resp, request)
 	if err != nil {
 		n.logger.Warningf("Replica %d fetchMissingResponse from node %d failed, need sync state, err: %v", n.chainState.SelfNodeInfo.ID, request.proposer, err)
-		if err = n.initSyncState(); err != nil {
-			n.logger.Errorf("init sync state failed: %s", err)
-			return nil
-		}
-		return nil
+		return n.genSyncStateEvent()
 	}
 
 	if err = n.txpool.ReceiveMissingRequests(resp.BatchDigest, requests); err != nil {
 		n.logger.Warningf("Replica %d find something wrong with fetchMissingResponse, error: %v", n.chainState.SelfNodeInfo.ID, err)
 		// there is something wrong with primary for it propose a transaction with mismatched hash,
 		// so that we should send sync state request directly to expect the new checkpoint.
-		err = n.initSyncState()
-		if err != nil {
-			n.logger.Errorf("init sync state failed: %s", err)
-			return nil
-		}
-		return nil
+		return n.genSyncStateEvent()
 	}
 
 	n.logger.Infof("Replica %d received fetchMissingResponse for view=%d/seqNo=%d/digest=%s", n.chainState.SelfNodeInfo.ID, resp.View, resp.SequenceNumber, resp.BatchDigest)
@@ -921,10 +927,6 @@ func (n *Node[T, Constraint]) checkFetchMissingResponse(resp *consensus.FetchMis
 	if resp.ReplicaId != request.proposer {
 		return nil, fmt.Errorf("replica %d received fetchMissingResponse from replica %d which is not "+
 			"primary, ignore it", n.chainState.SelfNodeInfo.ID, resp.ReplicaId)
-	}
-	if resp.SequenceNumber <= n.lastCommitHeight {
-		return nil, fmt.Errorf("replica %d ignore fetchMissingResponse with lower seqNo %d than "+
-			"lastCommitHeight %d", n.chainState.SelfNodeInfo.ID, resp.SequenceNumber, n.lastCommitHeight)
 	}
 
 	if len(resp.MissingRequests) != len(resp.MissingRequestHashes) {
@@ -1045,6 +1047,10 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 	}
 
 	n.statusMgr.On(InEpochSyncing)
+	// if we're turning into syncing epoch status, we should stop sync state until we reach the target epoch
+	if n.statusMgr.InOne(NeedSyncState, InSyncState) {
+		n.existSyncState()
+	}
 	for _, ec := range proof.GetEpochChanges() {
 		n.epochProofCache[ec.Checkpoint.Epoch()] = ec
 	}
