@@ -164,12 +164,12 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 		if err = axc.Mint(reward); err != nil {
 			return err
 		}
-		// add gas to the reward
-		reward = reward.Add(reward, gasReward)
 
 		// transfer token to staking manager contract
 		axc.StateAccount.SubBalance(reward)
 		s.StateAccount.AddBalance(reward)
+		// add gas to the reward
+		reward = reward.Add(reward, gasReward)
 		if err = s.LoadPool(poolID).TurnIntoNewEpoch(oldEpoch, newEpoch, reward); err != nil {
 			return err
 		}
