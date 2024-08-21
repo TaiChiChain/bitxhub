@@ -385,6 +385,18 @@ func (s *SystemContractBase) CrossCallEVMContractWithValue(gas, value *big.Int, 
 		return nil, 0, err
 	}
 
+	// check caller and to if is in access list
+	callerAccess := s.Ctx.StateLedger.AddressInAccessList(*s.Address)
+	if !callerAccess {
+		s.Ctx.StateLedger.AddAddressToAccessList(*s.Address)
+	}
+
+	toAddr := types.NewAddress(to.Bytes())
+	toAccess := s.Ctx.StateLedger.AddressInAccessList(*toAddr)
+	if !toAccess {
+		s.Ctx.StateLedger.AddAddressToAccessList(*toAddr)
+	}
+
 	result, gasLeft, err := s.Ctx.CurrentEVM.Call(vm.AccountRef(s.EthAddress), to, callData, gas.Uint64(), val)
 	if errors.Is(err, vm.ErrExecutionReverted) {
 		err = errors.Errorf("%s, reason: %x", err.Error(), result)
