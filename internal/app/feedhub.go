@@ -37,7 +37,7 @@ func (axm *AxiomLedger) listenWaitReportBlock() {
 }
 
 func (axm *AxiomLedger) reportBlock(ev events.ExecutedEvent, needRemoveTxs bool) {
-	axm.Consensus.ReportState(ev.Block.Header.Number, ev.Block.Hash(), ev.TxPointerList, ev.StateUpdatedCheckpoint, needRemoveTxs)
+	axm.Consensus.ReportState(ev.Block.Header.Number, ev.Block.Hash(), ev.TxPointerList, needRemoveTxs)
 }
 
 func (axm *AxiomLedger) listenWaitExecuteBlock() {

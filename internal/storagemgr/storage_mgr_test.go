@@ -21,8 +21,6 @@ func TestInitializeWrongType(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	dir := t.TempDir()
-
 	testcase := map[string]struct {
 		kvType string
 	}{
@@ -30,24 +28,25 @@ func TestGet(t *testing.T) {
 		"pebble":  {kvType: "pebble"},
 	}
 	for name, tc := range testcase {
-		t.Run(name, func(t *testing.T) {
-			repoConfig := &repo.Config{Storage: repo.Storage{
-				KvType:      tc.kvType,
-				Sync:        false,
-				KVCacheSize: repo.KVStorageCacheSize,
-				Pebble:      repo.Pebble{},
-			}, Monitor: repo.Monitor{Enable: false}}
-			err := Initialize(repoConfig)
-			require.Nil(t, err)
+		t.Logf("Test %s", name)
+		dir := t.TempDir()
 
-			rep := &repo.Repo{
-				RepoRoot: dir,
-				Config:   repoConfig,
-			}
+		repoConfig := &repo.Config{Storage: repo.Storage{
+			KvType:      tc.kvType,
+			Sync:        false,
+			KVCacheSize: repo.KVStorageCacheSize,
+			Pebble:      repo.Pebble{},
+		}, Monitor: repo.Monitor{Enable: false}}
+		err := Initialize(repoConfig)
+		require.Nil(t, err)
 
-			s, err := Open(GetLedgerComponentPath(rep, BlockChain))
-			require.Nil(t, err)
-			require.NotNil(t, s)
-		})
+		rep := &repo.Repo{
+			RepoRoot: dir,
+			Config:   repoConfig,
+		}
+
+		s, err := Open(GetLedgerComponentPath(rep, BlockChain))
+		require.Nil(t, err)
+		require.NotNil(t, s)
 	}
 }

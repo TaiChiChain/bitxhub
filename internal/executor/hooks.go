@@ -1,13 +1,11 @@
 package executor
 
 import (
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
-	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 )
 
 func (exec *BlockExecutor) tryTurnIntoNewEpoch(block *types.Block) error {
@@ -28,17 +26,6 @@ func (exec *BlockExecutor) tryTurnIntoNewEpoch(block *types.Block) error {
 			return err
 		}
 		if err := nodeManagerContract.TurnIntoNewEpoch(epochInfo, typesNewEpoch); err != nil {
-			return err
-		}
-
-		votingPowers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
-		if err != nil {
-			return err
-		}
-
-		if err := exec.chainState.UpdateByEpochInfo(typesNewEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
-			return item.NodeID, item.ConsensusVotingPower
-		})); err != nil {
 			return err
 		}
 

@@ -176,6 +176,7 @@ type Sync struct {
 	TimeoutCountLimit     uint64   `mapstructure:"timeout_count_limit" toml:"timeout_count_limit"`
 	ConcurrencyLimit      uint64   `mapstructure:"concurrency_limit" toml:"concurrency_limit"`
 	MaxChunkSize          uint64   `mapstructure:"max_chunk_size" toml:"max_chunk_size"`
+	ArchiveLimit          uint64   `mapstructure:"archive_limit" toml:"archive_limit"`
 }
 
 type Consensus struct {
@@ -323,9 +324,10 @@ func defaultConfig() *Config {
 			WaitStatesTimeout:     Duration(30 * time.Second),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
-			ConcurrencyLimit:      100,
-			MaxChunkSize:          1000,
+			ConcurrencyLimit:      10,
+			MaxChunkSize:          50,
 			FullValidation:        true,
+			ArchiveLimit:          1000,
 		},
 		Consensus: Consensus{
 			Type:        ConsensusTypeRbft,

@@ -380,29 +380,14 @@ func TestReportState(t *testing.T) {
 	block := testutil.ConstructBlock("blockHash", uint64(20))
 	node.stack.StateUpdating = true
 	node.stack.StateUpdateHeight = 20
-	node.ReportState(uint64(10), block.Hash(), nil, nil, false)
+	node.ReportState(uint64(10), block.Hash(), nil, false)
 	ast.Equal(true, node.stack.StateUpdating)
 
-	node.ReportState(uint64(20), block.Hash(), nil, nil, false)
+	node.ReportState(uint64(20), block.Hash(), nil, false)
 	ast.Equal(false, node.stack.StateUpdating)
 
-	node.ReportState(uint64(21), block.Hash(), nil, nil, false)
+	node.ReportState(uint64(21), block.Hash(), nil, false)
 	ast.Equal(false, node.stack.StateUpdating)
-
-	t.Run("ReportStateUpdating with checkpoint", func(t *testing.T) {
-		node.stack.StateUpdating = true
-		node.stack.StateUpdateHeight = 30
-		block30 := testutil.ConstructBlock("blockHash", uint64(30))
-		testutil.SetMockBlockLedger(block30, true)
-		defer testutil.ResetMockBlockLedger()
-
-		ckp := &common.Checkpoint{
-			Height: 30,
-			Digest: block30.Hash().String(),
-		}
-		node.ReportState(uint64(30), block.Hash(), nil, ckp, false)
-		ast.Equal(false, node.stack.StateUpdating)
-	})
 }
 
 func TestNotifyStop(t *testing.T) {
@@ -416,7 +401,7 @@ func TestNotifyStop(t *testing.T) {
 	node.config.ChainState.IsDataSyncer = true
 
 	block := testutil.ConstructBlock("blockHash", uint64(2))
-	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, nil, false)
+	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, false)
 	err := <-stopCh
 	ast.Contains(err.Error(), "not support switch candidate/validator to data syncer")
 
@@ -424,7 +409,7 @@ func TestNotifyStop(t *testing.T) {
 	mockRbft.EXPECT().ArchiveMode().Return(true).AnyTimes()
 	node.n = mockRbft
 	node.config.ChainState.IsDataSyncer = false
-	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, nil, false)
+	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, false)
 	err = <-stopCh
 	ast.Contains(err.Error(), "switch inbound node from data syncer to candidate")
 }

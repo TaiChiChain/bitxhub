@@ -15,6 +15,8 @@ type Sync interface {
 	StartSync(params *SyncParams, syncTaskDoneCh chan error) error
 
 	GetSyncProgress() *SyncProgress
+
+	CurrentMode() SyncMode
 }
 
 type ISyncConstructor interface {

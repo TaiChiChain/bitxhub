@@ -15,6 +15,9 @@ const (
 	SyncChainDataRequestPipe  = "sync_chain_data_pipe_v1_request"
 	SyncChainDataResponsePipe = "sync_chain_data_pipe_v1_response"
 
+	SyncDiffRequestPipe  = "sync_diff_pipe_v1_request"
+	SyncDiffResponsePipe = "sync_diff_pipe_v1_response"
+
 	MaxRetryCount = 5
 )
 
@@ -31,11 +34,13 @@ type SyncMode int
 const (
 	SyncModeFull SyncMode = iota
 	SyncModeSnapshot
+	SyncModeDiff
 )
 
 var SyncModeMap = map[SyncMode]string{
 	SyncModeFull:     "full",
 	SyncModeSnapshot: "snapshot",
+	SyncModeDiff:     "diff",
 }
 
 type SyncParams struct {
@@ -77,9 +82,10 @@ type WrapperStateResp struct {
 }
 
 type Chunk struct {
-	Time       time.Time
-	ChunkSize  uint64
-	CheckPoint *pb.CheckpointState
+	Time            time.Time
+	ChunkSize       uint64
+	ChunkLastHeight uint64
+	CheckPoint      *pb.CheckpointState
 }
 
 type Node struct {
@@ -139,6 +145,9 @@ var CommitDataRequestConstructor = map[SyncMode]func() SyncRequestMessage{
 	SyncModeSnapshot: func() SyncRequestMessage {
 		return &pb.SyncChainDataRequest{}
 	},
+	SyncModeDiff: func() SyncRequestMessage {
+		return &pb.SyncDiffRequest{}
+	},
 }
 
 var CommitDataResponseConstructor = map[SyncMode]func() SyncResponseMessage{
@@ -148,17 +157,19 @@ var CommitDataResponseConstructor = map[SyncMode]func() SyncResponseMessage{
 	SyncModeSnapshot: func() SyncResponseMessage {
 		return &pb.SyncChainDataResponse{}
 	},
+	SyncModeDiff: func() SyncResponseMessage {
+		return &pb.SyncDiffResponse{}
+	},
 }
 
 var CommitDataResponseType = map[SyncMode]pb.Message_Type{
 	SyncModeFull:     pb.Message_SYNC_BLOCK_RESPONSE,
 	SyncModeSnapshot: pb.Message_SYNC_CHAIN_DATA_RESPONSE,
+	SyncModeDiff:     pb.Message_SYNC_DIFF_RESPONSE,
 }
 
 type BlockData struct {
-	Block        *types.Block
-	Receipts     []*types.Receipt
-	StateJournal *types.StateJournal
+	Block *types.Block
 }
 
 func (b *BlockData) GetParentHash() string {
@@ -206,8 +217,34 @@ func (c *ChainData) GetBlock() *types.Block {
 	return c.Block
 }
 
-func (c *Chunk) FillCheckPoint(chunkMaxHeight uint64, checkpoint *pb.CheckpointState) {
-	if chunkMaxHeight >= checkpoint.Height {
+type DiffData struct {
+	Block        *types.Block
+	Receipts     []*types.Receipt
+	StateJournal *types.StateJournal
+}
+
+func (d *DiffData) GetParentHash() string {
+	return d.Block.Header.ParentHash.String()
+}
+
+func (d *DiffData) GetHash() string {
+	return d.Block.Hash().String()
+}
+
+func (d *DiffData) GetHeight() uint64 {
+	return d.Block.Height()
+}
+
+func (d *DiffData) GetEpoch() uint64 {
+	return d.Block.Header.Epoch
+}
+
+func (d *DiffData) GetBlock() *types.Block {
+	return d.Block
+}
+
+func (c *Chunk) FillCheckPoint(checkpoint *pb.CheckpointState) {
+	if c.CheckPoint == nil {
 		c.CheckPoint = checkpoint
 	}
 }

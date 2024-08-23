@@ -29,19 +29,10 @@ func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, s
 	}
 }
 
-func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, checkpoints []*consensus.SignedCheckpoint, epochChanges ...*consensus.EpochChange) {
-	a.StateUpdating = true
-	a.StateUpdateHeight = seqNo
-
-	chain := a.config.ChainState.ChainMeta
-
-	startHeight := chain.Height + 1
-	latestBlockHash := chain.BlockHash.String()
-
+func (a *RBFTAdaptor) getPeers(stateUpdateByDiff bool, epochChanges ...*consensus.EpochChange) map[uint64]*synccomm.Node {
 	peersM := make(map[uint64]*synccomm.Node)
-	// todo: simplify condition here
 	// if current node is a new archive node (data syncer), use other archive nodes as peers
-	if a.config.ChainState.IsArchiveMode && a.config.ChainState.IsDataSyncer && seqNo-startHeight >= 5 {
+	if stateUpdateByDiff {
 		for _, v := range a.config.Repo.SyncArgs.RemotePeers.Validators {
 			peersM[v.Id] = &synccomm.Node{Id: v.Id, PeerID: v.PeerId}
 		}
@@ -65,7 +56,30 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			})
 		}
 	}
+	return peersM
+}
 
+func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, checkpoints []*consensus.SignedCheckpoint, epochChanges ...*consensus.EpochChange) {
+	a.StateUpdating = true
+	a.StateUpdateHeight = seqNo
+	syncMode := synccomm.SyncModeFull
+
+	chain := a.config.ChainState.ChainMeta
+
+	startHeight := chain.Height + 1
+	latestBlockHash := chain.BlockHash.String()
+
+	// the condition for state update by diff
+	stateUpdateByDiff := func() bool {
+		return a.config.ChainState.IsArchiveMode && a.config.ChainState.IsDataSyncer &&
+			seqNo-startHeight >= a.config.Repo.Config.Sync.ArchiveLimit
+	}
+
+	if stateUpdateByDiff() {
+		syncMode = synccomm.SyncModeDiff
+	}
+
+	peersM := a.getPeers(stateUpdateByDiff(), epochChanges...)
 	// flatten peersM
 	peers := lo.Values(peersM)
 
@@ -115,11 +129,12 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	a.currentSyncHeight = startHeight
 
 	a.logger.WithFields(logrus.Fields{
-		"target":       a.StateUpdateHeight,
-		"target_hash":  digest,
-		"start":        startHeight,
-		"checkpoints":  checkpoints,
-		"epochChanges": epochChanges,
+		"mode":                synccomm.SyncModeMap[syncMode],
+		"target":              a.StateUpdateHeight,
+		"target_hash":         digest,
+		"start":               startHeight,
+		"checkpoints length":  len(checkpoints),
+		"epochChanges length": len(epochChanges),
 	}).Info("State update start")
 
 	syncTaskDoneCh := make(chan error, 1)
@@ -133,6 +148,11 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			TargetHeight:     seqNo,
 			QuorumCheckpoint: checkpoints[0],
 			EpochChanges:     epochChanges,
+		}
+		if syncMode != a.sync.CurrentMode() {
+			if err := a.sync.SwitchMode(syncMode); err != nil {
+				panic(fmt.Errorf("switch mode from %v to %v failed: %v", a.sync.CurrentMode(), syncMode, err))
+			}
 		}
 		err := a.sync.StartSync(params, syncTaskDoneCh)
 		if err != nil {
@@ -148,7 +168,6 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		panic(fmt.Errorf("retry start sync failed: %v", err))
 	}
 
-	var stateUpdatedCheckpoint *common.Checkpoint
 	// wait for the sync to finish
 	for {
 		select {
@@ -159,7 +178,6 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			if syncErr != nil {
 				panic(syncErr)
 			}
-		case <-a.quitSync:
 			a.logger.WithFields(logrus.Fields{
 				"target":      seqNo,
 				"target_hash": digest,
@@ -174,29 +192,34 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 				"chunk start": blockCache[0].GetHeight(),
 				"chunk end":   blockCache[len(blockCache)-1].GetHeight(),
 			}).Info("fetch chunk")
-			// todo: validate epoch state not StateUpdatedCheckpoint
 			for _, commitData := range blockCache {
-				// if the block is the target block, we should resign the stateUpdatedCheckpoint in CommitEvent
-				// and send the quitSync signal to sync module
-				if commitData.GetHeight() == seqNo {
-					rbftCkpt := checkpoints[0].GetCheckpoint()
-					stateUpdatedCheckpoint = &common.Checkpoint{
-						Epoch:  rbftCkpt.Epoch,
-						Height: rbftCkpt.Height(),
-						Digest: rbftCkpt.Digest(),
+				commitEv := &common.CommitEvent{}
+				switch commitData.(type) {
+				case *synccomm.BlockData:
+					block, ok := commitData.(*synccomm.BlockData)
+					if !ok {
+						panic("state update failed: invalid commit data")
 					}
-					a.quitSync <- struct{}{}
+					commitEv.Block = block.Block
+					commitEv.SyncMeta = common.SyncMeta{
+						Mode:                         synccomm.SyncModeFull,
+						QuorumStateUpdatedCheckpoint: &common.Checkpoint{Height: block.GetHeight(), Digest: block.GetHash()},
+					}
+
+				case *synccomm.DiffData:
+					diffData, ok := commitData.(*synccomm.DiffData)
+					if !ok {
+						panic("state update failed: invalid commit data")
+					}
+					commitEv.Block = diffData.Block
+					commitEv.SyncMeta = common.SyncMeta{
+						Mode:                         synccomm.SyncModeDiff,
+						QuorumStateUpdatedCheckpoint: &common.Checkpoint{Height: diffData.GetHeight(), Digest: diffData.GetHash()},
+						StateJournal:                 diffData.StateJournal,
+						Receipts:                     diffData.Receipts,
+					}
 				}
-				block, ok := commitData.(*synccomm.BlockData)
-				if !ok {
-					panic("state update failed: invalid commit data")
-				}
-				a.postCommitEvent(&common.CommitEvent{
-					Block:                  block.Block,
-					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
-					StateJournal:           block.StateJournal,
-					Receipts:               block.Receipts,
-				})
+				a.postCommitEvent(commitEv)
 			}
 		}
 	}
@@ -220,9 +243,8 @@ func (a *RBFTAdaptor) GetCommitChannel() chan *common.CommitEvent {
 
 func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *common.Checkpoint) {
 	a.MockBlockFeed.Send(events.ExecutedEvent{
-		Block:                  block,
-		TxPointerList:          txHashList,
-		StateUpdatedCheckpoint: ckp,
+		Block:         block,
+		TxPointerList: txHashList,
 	})
 }
 

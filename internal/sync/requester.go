@@ -67,6 +67,9 @@ OUTER_LOOP:
 		case common.SyncModeSnapshot:
 			req := &pb.SyncChainDataRequest{Height: r.blockHeight}
 			data, err = req.MarshalVT()
+		case common.SyncModeDiff:
+			req := &pb.SyncDiffRequest{Height: r.blockHeight}
+			data, err = req.MarshalVT()
 		}
 
 		if err != nil {

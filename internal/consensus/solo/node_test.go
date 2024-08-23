@@ -96,7 +96,7 @@ func TestNode_Start(t *testing.T) {
 
 	txPointerList := make([]*events.TxPointer, 0)
 	txPointerList = append(txPointerList, &events.TxPointer{Hash: tx.GetHash(), Account: tx.RbftGetFrom(), Nonce: tx.RbftGetNonce()})
-	solo.ReportState(commitEvent.Block.Height(), blockHash, txPointerList, nil, false)
+	solo.ReportState(commitEvent.Block.Height(), blockHash, txPointerList, false)
 	solo.Stop()
 }
 
@@ -133,7 +133,7 @@ func TestNode_ReportState(t *testing.T) {
 	ast.Nil(err)
 	defer node.Stop()
 	node.batchDigestM[9] = "test"
-	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{}, nil, false)
+	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{}, false)
 	// ensure last event(report state) had been processed
 	node.GetLowWatermark()
 	ast.Equal(0, len(node.batchDigestM))
@@ -161,7 +161,7 @@ func TestNode_ReportState(t *testing.T) {
 	}
 	node.config.ChainState.EpochInfo = &types.EpochInfo{Epoch: 2, StartBlock: 10, EpochPeriod: 10, ConsensusParams: types.ConsensusParams{EnableTimedGenEmptyBlock: true}}
 	node.epcCnf.epochPeriod = 10
-	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, nil, false)
+	node.ReportState(9, types.NewHashByStr("0x123"), []*events.TxPointer{pointer9}, false)
 	node.GetLowWatermark()
 	ast.Nil(node.txpool.GetPendingTxByHash(txList[9].RbftGetTxHash()), "tx10 should be removed from txpool")
 	ast.Equal(0, len(node.batchDigestM))

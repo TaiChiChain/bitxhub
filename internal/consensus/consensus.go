@@ -33,7 +33,7 @@ type Consensus interface {
 	Status() (bool, string)
 
 	// ReportState means block was persisted and report it to the consensus engine
-	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *common.Checkpoint, needRemoveTxs bool)
+	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, needRemoveTxs bool)
 
 	// Quorum means minimum number of nodes in the cluster that can work, n is the total number of nodes
 	Quorum(n uint64) uint64

@@ -362,6 +362,7 @@ func mockSyncInStack(t *testing.T, node *Node[types.Transaction, *types.Transact
 	blocks = append(blocks, d)
 	blockChan <- blocks
 
+	mockSync.EXPECT().CurrentMode().Return(sync_comm.SyncModeFull).AnyTimes()
 	mockSync.EXPECT().Commit().Return(blockChan).AnyTimes()
 	cnf.BlockSync = mockSync
 

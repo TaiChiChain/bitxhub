@@ -254,20 +254,6 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		}
 	}
 
-	var syncMgr *sync.SyncManager
-	var epochStore kv.Storage
-	if !rep.StartArgs.ReadonlyMode {
-		epochStore, err = storagemgr.OpenWithMetrics(storagemgr.GetLedgerComponentPath(rep, storagemgr.Epoch), storagemgr.Epoch)
-		if err != nil {
-			return nil, err
-		}
-		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock, vl.ChainLedger.GetBlockHeader,
-			vl.ChainLedger.GetBlockReceipts, epochStore.Get, vl.StateLedger.GetStateJournal, net, rep.Config.Sync)
-		if err != nil {
-			return nil, fmt.Errorf("create block sync: %w", err)
-		}
-	}
-
 	chainState := chainstate.NewChainState(rep.StartArgs.ArchiveMode, rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*node_manager.NodeInfo, error) {
 		lg := vl.NewView()
 		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
@@ -289,6 +275,23 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		}
 		return epochInfo.ToTypesEpoch(), nil
 	})
+
+	var syncMgr *sync.SyncManager
+	var epochStore kv.Storage
+	if !rep.StartArgs.ReadonlyMode {
+		epochStore, err = storagemgr.OpenWithMetrics(storagemgr.GetLedgerComponentPath(rep, storagemgr.Epoch), storagemgr.Epoch)
+		if err != nil {
+			return nil, err
+		}
+		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock, vl.ChainLedger.GetBlockHeader,
+			vl.ChainLedger.GetBlockReceipts, epochStore.Get, vl.StateLedger.GetStateJournal,
+			func() bool {
+				return chainState.IsDataSyncer
+			}, net, rep.Config.Sync)
+		if err != nil {
+			return nil, fmt.Errorf("create block sync: %w", err)
+		}
+	}
 
 	axm := &AxiomLedger{
 		Ctx:        ctx,

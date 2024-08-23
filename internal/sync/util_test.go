@@ -352,6 +352,8 @@ type mockMiniNetwork struct {
 	blockRespPipeDb     chan *network.PipeMsg
 	chainDataReqPipeDb  chan *network.PipeMsg
 	chainDataRespPipeDb chan *network.PipeMsg
+	diffReqPipeDb       chan *network.PipeMsg
+	diffRespPipeDb      chan *network.PipeMsg
 }
 
 func newMockMiniNetworks(n int) map[string]*mockMiniNetwork {
@@ -362,6 +364,8 @@ func newMockMiniNetworks(n int) map[string]*mockMiniNetwork {
 			blockRespPipeDb:     make(chan *network.PipeMsg, 1000),
 			chainDataReqPipeDb:  make(chan *network.PipeMsg, 1000),
 			chainDataRespPipeDb: make(chan *network.PipeMsg, 1000),
+			diffReqPipeDb:       make(chan *network.PipeMsg, 1000),
+			diffRespPipeDb:      make(chan *network.PipeMsg, 1000),
 		}
 		nets[strconv.Itoa(i)] = mock
 	}
@@ -414,19 +418,25 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 	mock.EXPECT().CreatePipe(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, pipeID string) (network.Pipe, error) {
 			switch pipeID {
-			case common.SyncBlockRequestPipe, common.SyncChainDataRequestPipe:
+			case common.SyncBlockRequestPipe, common.SyncChainDataRequestPipe, common.SyncDiffRequestPipe:
 				mode := common.SyncModeFull
-				if pipeID == common.SyncChainDataRequestPipe {
+				switch pipeID {
+				case common.SyncChainDataRequestPipe:
 					mode = common.SyncModeSnapshot
+				case common.SyncDiffRequestPipe:
+					mode = common.SyncModeDiff
 				}
 				if !wrongSendBlockRequest {
 					return mock.newMockBlockRequestPipe(nets, mode, ctrl, localId), nil
 				}
 				return mock.newMockBlockRequestPipe(nets, mode, ctrl, localId, wrong...), nil
-			case common.SyncBlockResponsePipe, common.SyncChainDataResponsePipe:
+			case common.SyncBlockResponsePipe, common.SyncChainDataResponsePipe, common.SyncDiffResponsePipe:
 				mode := common.SyncModeFull
-				if pipeID == common.SyncChainDataResponsePipe {
+				switch pipeID {
+				case common.SyncChainDataResponsePipe:
 					mode = common.SyncModeSnapshot
+				case common.SyncDiffResponsePipe:
+					mode = common.SyncModeDiff
 				}
 				if !wrongSendBlockResponse {
 					return mock.newMockBlockResponsePipe(nets, mode, ctrl, localId), nil
@@ -593,7 +603,11 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 			return val
 		}
 
-		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, nets[strconv.Itoa(i)], conf)
+		getStateJournalFunc := func(uint642 uint64) *types.StateJournal {
+			return nil
+		}
+		isDataSyncer := func() bool { return false }
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, isDataSyncer, nets[strconv.Itoa(i)], conf)
 		require.Nil(t, err)
 		syncs = append(syncs, blockSync)
 	}
@@ -728,7 +742,11 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count, txCount in
 			FullValidation:        true,
 		}
 
-		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, nets[localId], conf)
+		getStateJournalFunc := func(uint642 uint64) *types.StateJournal {
+			return nil
+		}
+		isDataSyncer := func() bool { return false }
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, isDataSyncer, nets[localId], conf)
 		require.Nil(t, err)
 		localIndex, err := strconv.Atoi(localId)
 		require.Nil(t, err)

@@ -1,8 +1,6 @@
 package common
 
 import (
-	"context"
-
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-ledger/internal/network"
@@ -46,7 +44,6 @@ func WithSnapCurrentEpoch(epoch uint64) Option {
 type ModeConfig struct {
 	Logger  logrus.FieldLogger
 	Network network.Network
-	Ctx     context.Context
 }
 
 type ModeOption func(config *ModeConfig)
@@ -60,11 +57,5 @@ func WithLogger(logger logrus.FieldLogger) ModeOption {
 func WithNetwork(network network.Network) ModeOption {
 	return func(config *ModeConfig) {
 		config.Network = network
-	}
-}
-
-func WithContext(ctx context.Context) ModeOption {
-	return func(config *ModeConfig) {
-		config.Ctx = ctx
 	}
 }

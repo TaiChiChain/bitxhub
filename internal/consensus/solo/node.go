@@ -184,7 +184,7 @@ func (n *Node) getStatus() (bool, string) {
 	return true, "normal"
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ bool) {
 	txHashList := make([]*types.Hash, len(txPointerList))
 	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
 		txHashList[i] = item.Hash

@@ -406,8 +406,8 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *common.Checkpoint, needRemoveTxs bool) {
-	n.logger.Infof("Receive report state: height = %d, blockHash = %s, ckp = %v, needRemoveTxs = %v", height, blockHash, ckp, needRemoveTxs)
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, needRemoveTxs bool) {
+	n.logger.Infof("Receive report state: height = %d, blockHash = %s, needRemoveTxs = %v", height, blockHash, needRemoveTxs)
 
 	var err error
 	if n.switchInBoundNode() {
@@ -445,13 +445,6 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 	// skip the block before the target height
 	if n.stack.StateUpdating {
 		if epochChanged || n.stack.StateUpdateHeight == height {
-			// when we end state updating, we need to verify the checkpoint from quorum nodes
-			if n.stack.StateUpdateHeight == height && ckp != nil {
-				if err := n.verifyStateUpdatedCheckpoint(ckp); err != nil {
-					n.logger.WithField("err", err).Errorf("verify state updated checkpoint failed")
-					panic(err)
-				}
-			}
 			// notify consensus update epoch and accept epoch proof
 			state := &rbfttypes.ServiceSyncState{
 				ServiceState: rbfttypes.ServiceState{

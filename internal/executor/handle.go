@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/components"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -43,11 +46,180 @@ func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height ui
 	return receipts
 }
 
-func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.CommitEvent) {
-	var txHashList []*types.Hash
+func (exec *BlockExecutor) executeInDiffMode(commitEvent *consensuscommon.CommitEvent) (*ledger.BlockData, *types.StateJournal, error) {
 	current := time.Now()
-	block := commitEvent.Block
-	blockHeader := block.Header.Clone()
+	block := commitEvent.Block.Clone()
+	receipts := commitEvent.SyncMeta.Receipts
+	stateJournal := commitEvent.SyncMeta.StateJournal
+
+	// 1. update state ledger from diff
+	if err := exec.ledger.StateLedger.ApplyStateJournal(block.Height(), stateJournal); err != nil {
+		return nil, nil, err
+	}
+	txCount := len(commitEvent.Block.Transactions)
+	exec.ledger.StateLedger.SetTxContext(commitEvent.Block.Transactions[txCount-1].GetHash(), txCount-1)
+
+	// 2. get txs hash
+	txHashList := make([]*types.Hash, 0)
+	for _, tx := range block.Transactions {
+		txHashList = append(txHashList, tx.GetHash())
+	}
+
+	exec.logger.WithFields(logrus.Fields{
+		"hash":             block.Hash().String(),
+		"height":           block.Header.Number,
+		"epoch":            block.Header.Epoch,
+		"coinbase":         syscommon.StakingManagerContractAddr,
+		"proposer_node_id": block.Header.ProposerNodeID,
+		"gas_used":         block.Header.GasUsed,
+		"parent_hash":      block.Header.ParentHash.String(),
+		"tx_root":          block.Header.TxRoot.String(),
+		"receipt_root":     block.Header.ReceiptRoot.String(),
+		"state_root":       block.Header.StateRoot.String(),
+	}).Info("[Execute-Block-Diff] Block meta")
+
+	exec.logger.WithFields(logrus.Fields{
+		"height": block.Header.Number,
+		"count":  len(block.Transactions),
+		"elapse": time.Since(current),
+	}).Info("[Execute-Block-Diff] Executed block")
+
+	calcBlockSize.Observe(float64(block.Size()))
+	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
+
+	return &ledger.BlockData{
+		Block:      block,
+		Receipts:   receipts,
+		TxHashList: txHashList,
+	}, stateJournal, nil
+}
+
+func (exec *BlockExecutor) executeInFullMode(block *types.Block) (*ledger.BlockData, *types.StateJournal, error) {
+	current := time.Now()
+	receipts := make([]*types.Receipt, 0)
+	receipts = exec.applyTransactions(block.Transactions, block.Height())
+
+	totalGasFee := new(big.Int)
+	for i, receipt := range receipts {
+		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(big.NewInt(0))
+		txGasFee := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
+		totalGasFee = totalGasFee.Add(totalGasFee, txGasFee)
+	}
+	block.Header.TotalGasFee = totalGasFee
+	block.Header.GasFeeReward = totalGasFee
+	block.Header.GasPrice = 0
+	for _, hook := range exec.afterBlockHooks {
+		if err := hook.Func(block); err != nil {
+			exec.logger.WithFields(logrus.Fields{
+				"height": block.Height(),
+				"err":    err.Error(),
+				"hook":   hook.Name,
+			}).Panic("Execute afterBlock hook failed")
+			return nil, nil, err
+		}
+	}
+
+	exec.ledger.StateLedger.Finalise()
+
+	applyTxsDuration.Observe(float64(time.Since(current)) / float64(time.Second))
+	exec.logger.WithFields(logrus.Fields{
+		"time":  time.Since(current),
+		"count": len(block.Transactions),
+	}).Info("[Execute-Block] Apply transactions elapsed")
+
+	calcMerkleStart := time.Now()
+	txRoot, err := components.CalcTxsMerkleRoot(block.Transactions)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	receiptRoot, err := components.CalcReceiptMerkleRoot(receipts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	calcMerkleDuration.Observe(float64(time.Since(calcMerkleStart)) / float64(time.Second))
+
+	block.Header.TxRoot = txRoot
+	block.Header.ReceiptRoot = receiptRoot
+	block.Header.ParentHash = exec.currentBlockHash
+
+	stateJournal, err := exec.ledger.StateLedger.Commit()
+	if err != nil {
+		return nil, nil, fmt.Errorf("commit stateLedger failed: %w", err)
+	}
+	block.Header.StateRoot = stateJournal.RootHash
+	block.Header.GasUsed = exec.cumulativeGasUsed
+
+	block.Header.CalculateHash()
+
+	exec.logger.WithFields(logrus.Fields{
+		"hash":             block.Hash().String(),
+		"height":           block.Header.Number,
+		"epoch":            block.Header.Epoch,
+		"coinbase":         syscommon.StakingManagerContractAddr,
+		"proposer_node_id": block.Header.ProposerNodeID,
+		"gas_used":         block.Header.GasUsed,
+		"parent_hash":      block.Header.ParentHash.String(),
+		"tx_root":          block.Header.TxRoot.String(),
+		"receipt_root":     block.Header.ReceiptRoot.String(),
+		"state_root":       block.Header.StateRoot.String(),
+	}).Info("[Execute-Block] Block meta")
+
+	calcBlockSize.Observe(float64(block.Size()))
+	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
+
+	exec.updateLogsBlockHash(receipts, block.Hash())
+	block.Header.Bloom = ledger.CreateBloom(receipts)
+
+	txHashList := make([]*types.Hash, 0)
+	for _, tx := range block.Transactions {
+		txHashList = append(txHashList, tx.GetHash())
+	}
+	exec.logger.WithFields(logrus.Fields{
+		"height": block.Header.Number,
+		"count":  len(block.Transactions),
+		"elapse": time.Since(current),
+	}).Info("[Execute-Block] Executed block")
+
+	return &ledger.BlockData{
+		Block:      block,
+		Receipts:   receipts,
+		TxHashList: txHashList,
+	}, stateJournal, nil
+}
+
+func (exec *BlockExecutor) updateChainState(updateEpoch bool) error {
+	exec.chainState.UpdateChainMeta(exec.ledger.ChainLedger.GetChainMeta())
+	exec.chainState.TryUpdateSelfNodeInfo()
+	if updateEpoch {
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+		info, err := epochManagerContract.CurrentEpoch()
+		if err != nil {
+			return err
+		}
+		newEpoch := info.ToTypesEpoch()
+		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewVMContextByExecutor(exec.ledger.StateLedger))
+		votingPowers, err := nodeManagerContract.GetActiveValidatorVotingPowers()
+		if err != nil {
+			return err
+		}
+		if err = exec.chainState.UpdateByEpochInfo(newEpoch, lo.SliceToMap(votingPowers, func(item node_manager.ConsensusVotingPower) (uint64, int64) {
+			return item.NodeID, item.ConsensusVotingPower
+		})); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.CommitEvent) {
+	block := commitEvent.Block.Clone()
+
+	var updateEpoch bool
+	if block.Header.Number == (exec.chainState.EpochInfo.StartBlock + exec.chainState.EpochInfo.EpochPeriod - 1) {
+		updateEpoch = true
+	}
 
 	// check executor handle the right block
 	if block.Header.Number != exec.currentHeight+1 {
@@ -73,114 +245,19 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	}
 	exec.ledger.StateLedger.PrepareBlock(parentBlockHeader.StateRoot, block.Height())
 
-	receipts := make([]*types.Receipt, 0)
-	// if current node is a new archive node (data syncer), then skip executing txs
-	if !exec.chainState.IsDataSyncer || !exec.chainState.IsArchiveMode || commitEvent.StateJournal == nil || commitEvent.StateJournal.SnapshotJournal == nil {
-		receipts = exec.applyTransactions(block.Transactions, block.Height())
-	}
+	var (
+		data         *ledger.BlockData
+		stateJournal *types.StateJournal
+	)
 
-	totalGasFee := new(big.Int)
-	for i, receipt := range receipts {
-		receipt.EffectiveGasPrice = block.Transactions[i].Inner.EffectiveGasPrice(big.NewInt(0))
-		txGasFee := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
-		totalGasFee = totalGasFee.Add(totalGasFee, txGasFee)
-	}
-	block.Header.TotalGasFee = totalGasFee
-	block.Header.GasFeeReward = totalGasFee
-	block.Header.GasPrice = 0
-	for _, hook := range exec.afterBlockHooks {
-		if err := hook.Func(block); err != nil {
-			exec.logger.WithFields(logrus.Fields{
-				"height": block.Height(),
-				"err":    err.Error(),
-				"hook":   hook.Name,
-			}).Panic("Execute afterBlock hook failed")
-			return
-		}
-	}
-
-	exec.ledger.StateLedger.Finalise()
-
-	applyTxsDuration.Observe(float64(time.Since(current)) / float64(time.Second))
-	exec.logger.WithFields(logrus.Fields{
-		"time":  time.Since(current),
-		"count": len(block.Transactions),
-	}).Info("[Execute-Block] Apply transactions elapsed")
-
-	calcMerkleStart := time.Now()
-	txRoot, err := components.CalcTxsMerkleRoot(block.Transactions)
-	if err != nil {
-		panic(err)
-	}
-
-	receiptRoot, err := components.CalcReceiptMerkleRoot(receipts)
-	if err != nil {
-		panic(err)
-	}
-
-	calcMerkleDuration.Observe(float64(time.Since(calcMerkleStart)) / float64(time.Second))
-
-	block.Header.TxRoot = txRoot
-	block.Header.ReceiptRoot = receiptRoot
-	block.Header.ParentHash = exec.currentBlockHash
-
-	var stateJournal *types.StateJournal
-	// If current node is a new archive node (data syncer), then update ledger with state journal directly.
-	// Otherwise, update ledger with the result of executing txs.
-	// todo: simplify condition here
-	if exec.chainState.IsDataSyncer && exec.chainState.IsArchiveMode && commitEvent.StateJournal != nil && commitEvent.StateJournal.SnapshotJournal != nil {
-		if err = exec.ledger.StateLedger.ApplyStateJournal(block.Height(), commitEvent.StateJournal); err != nil {
-			panic(err)
-		}
-		stateJournal = commitEvent.StateJournal
-		txCount := len(commitEvent.Block.Transactions)
-		exec.ledger.StateLedger.SetTxContext(commitEvent.Block.Transactions[txCount-1].GetHash(), txCount-1)
-		// in this mode, don't need to update block header
-		block.Header = blockHeader
+	if commitEvent.SyncMeta.Mode == synccomm.SyncModeDiff {
+		data, stateJournal, err = exec.executeInDiffMode(commitEvent)
 	} else {
-		stateJournal, err = exec.ledger.StateLedger.Commit()
-		if err != nil {
-			panic(fmt.Errorf("commit stateLedger failed: %w", err))
-		}
-		block.Header.StateRoot = stateJournal.RootHash
-		block.Header.GasUsed = exec.cumulativeGasUsed
+		data, stateJournal, err = exec.executeInFullMode(block)
 	}
-
-	block.Header.CalculateHash()
-
-	exec.logger.WithFields(logrus.Fields{
-		"hash":             block.Hash().String(),
-		"height":           block.Header.Number,
-		"epoch":            block.Header.Epoch,
-		"coinbase":         syscommon.StakingManagerContractAddr,
-		"proposer_node_id": block.Header.ProposerNodeID,
-		"gas_used":         block.Header.GasUsed,
-		"parent_hash":      block.Header.ParentHash.String(),
-		"tx_root":          block.Header.TxRoot.String(),
-		"receipt_root":     block.Header.ReceiptRoot.String(),
-		"state_root":       block.Header.StateRoot.String(),
-	}).Info("[Execute-Block] Block meta")
-
-	calcBlockSize.Observe(float64(block.Size()))
-	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
-
-	exec.updateLogsBlockHash(receipts, block.Hash())
-	block.Header.Bloom = ledger.CreateBloom(receipts)
-
-	for _, tx := range block.Transactions {
-		txHashList = append(txHashList, tx.GetHash())
+	if err != nil {
+		panic(fmt.Errorf("execute block failed: %w", err))
 	}
-	data := &ledger.BlockData{
-		Block:      block,
-		Receipts:   receipts,
-		TxHashList: txHashList,
-	}
-
-	exec.logger.WithFields(logrus.Fields{
-		"height": commitEvent.Block.Header.Number,
-		"count":  len(commitEvent.Block.Transactions),
-		"elapse": time.Since(current),
-	}).Info("[Execute-Block] Executed block")
 
 	now := time.Now()
 	exec.ledger.PersistBlockData(data)
@@ -205,8 +282,10 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	exec.currentHeight = block.Header.Number
 	exec.currentBlockHash = block.Hash()
-	exec.chainState.UpdateChainMeta(exec.ledger.ChainLedger.GetChainMeta())
-	exec.chainState.TryUpdateSelfNodeInfo()
+
+	if err := exec.updateChainState(updateEpoch); err != nil {
+		panic(fmt.Errorf("update chain state failed: %w", err))
+	}
 	exec.ledger.StateLedger.UpdateChainState(exec.chainState)
 
 	txPointerList := make([]*events.TxPointer, len(data.Block.Transactions))
@@ -218,16 +297,26 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		}
 	})
 
-	exec.postBlockEvent(data.Block, txPointerList, commitEvent.StateUpdatedCheckpoint)
+	// validate local checkpoint with quorum checkpoint
+	if commitEvent.SyncMeta.QuorumStateUpdatedCheckpoint != nil {
+		if block.Header.Number != commitEvent.SyncMeta.QuorumStateUpdatedCheckpoint.Height {
+			panic(fmt.Errorf("local checkpoint height %d not match quorum checkpoint height %d",
+				block.Header.Number, commitEvent.SyncMeta.QuorumStateUpdatedCheckpoint.Height))
+		}
+		if exec.currentBlockHash.String() != commitEvent.SyncMeta.QuorumStateUpdatedCheckpoint.Digest {
+			panic(fmt.Errorf("local checkpoint %s not match quorum checkpoint %s in height %d",
+				exec.currentBlockHash.String(), commitEvent.SyncMeta.QuorumStateUpdatedCheckpoint.Digest, block.Header.Number))
+		}
+	}
+	exec.postBlockEvent(data.Block, txPointerList)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensuscommon.Checkpoint) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer) {
 	exec.blockFeed.Send(events.ExecutedEvent{
-		Block:                  block,
-		TxPointerList:          txPointerList,
-		StateUpdatedCheckpoint: ckp,
+		Block:         block,
+		TxPointerList: txPointerList,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
 		Block:         block,

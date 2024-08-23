@@ -109,6 +109,7 @@ func MockMiniBlockSync(ctrl *gomock.Controller) *mock_sync.MockSync {
 		}).AnyTimes()
 
 	mock.EXPECT().Commit().Return(blockCacheChan).AnyTimes()
+	mock.EXPECT().CurrentMode().Return(synccomm.SyncModeFull).AnyTimes()
 	return mock
 }
 

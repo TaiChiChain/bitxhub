@@ -1,6 +1,7 @@
 package common
 
 import (
+	sync_comm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -56,10 +57,15 @@ type TxResp struct {
 }
 
 type CommitEvent struct {
-	Block                  *types.Block
-	StateUpdatedCheckpoint *Checkpoint
-	StateJournal           *types.StateJournal
-	Receipts               []*types.Receipt
+	Block    *types.Block
+	SyncMeta SyncMeta
+}
+
+type SyncMeta struct {
+	Mode                         sync_comm.SyncMode
+	QuorumStateUpdatedCheckpoint *Checkpoint
+	StateJournal                 *types.StateJournal
+	Receipts                     []*types.Receipt
 }
 
 type Checkpoint struct {
