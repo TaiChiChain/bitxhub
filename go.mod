@@ -5,7 +5,7 @@ go 1.21
 replace github.com/ethereum/go-ethereum v1.13.14 => github.com/axiomesh/go-ethereum v1.13.14-3
 
 replace (
-	github.com/bcds/go-hpc-dagbft => /Users/liruoxin/goproject/github.com/bcds/go-hpc-dagbft
+	github.com/bcds/go-hpc-dagbft => ../go-hpc-dagbft
 	github.com/cockroachdb/pebble => github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 )
 
