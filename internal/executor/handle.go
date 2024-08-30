@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -190,7 +192,6 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"state_root":       block.Header.StateRoot.String(),
 	}).Info("[Execute-Block] Block meta")
 
-	calcBlockSize.Observe(float64(block.Size()))
 	executeBlockDuration.Observe(float64(time.Since(current)) / float64(time.Second))
 
 	exec.updateLogsBlockHash(receipts, block.Hash())
@@ -208,6 +209,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 		"elapse": time.Since(current),
 	}).Info("[Execute-Block] Executed block")
 
+	// persist block
 	now := time.Now()
 	exec.ledger.PersistBlockData(data)
 
@@ -216,6 +218,8 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	if block.Header.ProposerNodeID == exec.chainState.SelfNodeInfo.ID {
 		proposedBlockCounter.Inc()
 	}
+
+	perBlockTxCounter.With(prometheus.Labels{"epoch": strconv.FormatUint(block.Header.Epoch, 10)}).Observe(float64(len(data.Block.Transactions)))
 
 	exec.logger.WithFields(logrus.Fields{
 		"height": data.Block.Header.Number,

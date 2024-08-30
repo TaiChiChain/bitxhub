@@ -18,11 +18,11 @@ import (
 
 var (
 	defaultPort = &ClusterNodePort{
-		JsonRpc:   8181,
-		WebSocket: 9191,
-		P2P:       4101,
-		PProf:     51121,
-		Monitor:   41011,
+		JsonRpc:   8881,
+		WebSocket: 9991,
+		P2P:       4001,
+		PProf:     53121,
+		Monitor:   40011,
 	}
 
 	defaultCouncilMemberNames = []string{

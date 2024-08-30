@@ -101,6 +101,18 @@ var (
 		},
 	)
 
+	calcBlockSize = prometheus.NewSummary(prometheus.SummaryOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "ledger",
+		Name:      "calc_block_size",
+		Help:      "block size",
+		Objectives: map[float64]float64{
+			0.5:  0.05,
+			0.9:  0.01,
+			0.99: 0.001,
+		},
+	})
+
 	getTransactionDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "ledger",
@@ -125,4 +137,5 @@ func init() {
 	prometheus.MustRegister(storageTrieCacheSize)
 	prometheus.MustRegister(getTransactionCounter)
 	prometheus.MustRegister(getTransactionDuration)
+	prometheus.MustRegister(calcBlockSize)
 }

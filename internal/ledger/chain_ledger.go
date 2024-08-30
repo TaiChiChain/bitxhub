@@ -467,6 +467,7 @@ func (l *ChainLedgerImpl) prepareBlock(batcher kv.Batch, block *types.Block) (he
 		block.Extra = &types.BlockExtra{}
 	}
 	block.Extra.Size = block.CalculateSize()
+	calcBlockSize.Observe(float64(block.Extra.Size))
 	header, err = block.Header.Marshal()
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal block header error: %w", err)

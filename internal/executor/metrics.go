@@ -38,13 +38,6 @@ var (
 		Help:      "The total latency of merkle calc",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 10),
 	})
-	calcBlockSize = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "executor",
-		Name:      "calc_block_size",
-		Help:      "The size of current block calc",
-		Buckets:   prometheus.ExponentialBuckets(1024, 2, 12),
-	})
 	txCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "executor",
@@ -57,15 +50,22 @@ var (
 		Name:      "proposed_block_counter",
 		Help:      "the total number of node proposed blocks",
 	})
+	perBlockTxCounter = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "executor",
+		Name:      "per_block_tx_counter",
+		Help:      "the total number of transactions per block",
+		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+	}, []string{"epoch"})
 )
 
 func init() {
 	prometheus.MustRegister(applyTxsDuration)
 	prometheus.MustRegister(calcMerkleDuration)
-	prometheus.MustRegister(calcBlockSize)
 	prometheus.MustRegister(executeBlockDuration)
 	prometheus.MustRegister(commitBlockDuration)
 	prometheus.MustRegister(cs2ExecutorDuration)
 	prometheus.MustRegister(txCounter)
 	prometheus.MustRegister(proposedBlockCounter)
+	prometheus.MustRegister(perBlockTxCounter)
 }

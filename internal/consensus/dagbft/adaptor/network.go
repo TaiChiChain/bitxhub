@@ -13,6 +13,7 @@ import (
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	p2p "github.com/axiomesh/axiom-p2p"
 	dagbft "github.com/bcds/go-hpc-dagbft"
@@ -27,6 +28,7 @@ import (
 	"github.com/bcds/go-hpc-dagbft/protocol/layer"
 	"github.com/gammazero/workerpool"
 	"github.com/gogo/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 )
@@ -520,6 +522,7 @@ func (n *Network) listenRequestToSubmit() {
 			wp.Submit(func() {
 				var result protocol.MessageResult
 				if err := retry.Retry(func(attempt uint) error {
+					now := time.Now()
 					responseMsg, err := n.Send(req.to, req.msg)
 					if err != nil {
 						if strings.Contains(err.Error(), p2p.WaitMsgTimeout.Error()) {
@@ -546,6 +549,7 @@ func (n *Network) listenRequestToSubmit() {
 						Index:  req.index,
 						Result: results.OK(resp),
 					}
+					metrics.ProcessConsensusMessageDuration.With(prometheus.Labels{"consensus": common.Dagbft, "event": req.msg.Type.String()}).Observe(time.Since(now).Seconds())
 					return nil
 				}, strategy.Limit(uint(n.networkConfig.RetryTimeout)), strategy.Wait(200*time.Millisecond)); err != nil {
 					result = genWrongResponse(err, req.index)

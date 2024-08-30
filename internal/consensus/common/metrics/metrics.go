@@ -51,6 +51,14 @@ var (
 		Help:      "The latency of batch commit",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
 	}, []string{"consensus", "type"})
+	// ProcessConsensusMessageDuration monitor the time from network request to consensus return result.
+	ProcessConsensusMessageDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "consensus",
+		Name:      "process_consensus_message_duration",
+		Help:      "The latency of process consensus message",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
+	}, []string{"consensus", "event"})
 )
 
 func init() {
@@ -61,4 +69,5 @@ func init() {
 	prometheus.MustRegister(ExecutedBlockCounter)
 	prometheus.MustRegister(Consensus2ExecutorBlockCounter)
 	prometheus.MustRegister(BatchCommitLatency)
+	prometheus.MustRegister(ProcessConsensusMessageDuration)
 }
