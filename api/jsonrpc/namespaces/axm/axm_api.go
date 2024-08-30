@@ -29,10 +29,10 @@ func (api *AxmAPI) GetIncentiveAddress() (res common.Address, err error) {
 
 func (api *AxmAPI) Status() any {
 	syncStatus := make(map[string]string)
-	err := api.api.Broker().ConsensusReady()
-	if err != nil {
+	ready, status := api.api.Broker().ConsensusReady()
+	if !ready {
 		syncStatus["status"] = "abnormal"
-		syncStatus["error_msg"] = err.Error()
+		syncStatus["error_msg"] = status
 		return syncStatus
 	}
 	syncStatus["status"] = "normal"
