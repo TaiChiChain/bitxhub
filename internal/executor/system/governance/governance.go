@@ -525,10 +525,9 @@ func (g *Governance) Vote(proposalID uint64, voteRes uint8) error {
 		if err = g.proposals.Put(proposal.ID, proposal); err != nil {
 			return err
 		}
-	} else {
-		if err = handler.CleanProposal(&proposal); err != nil {
-			return errors.Wrapf(err, "failed to clean proposal, id: %d, type: %d", proposal.ID, proposal.Type)
-		}
+	}
+	if err = handler.CleanProposal(&proposal); err != nil {
+		return errors.Wrapf(err, "failed to clean proposal, id: %d, type: %d", proposal.ID, proposal.Type)
 	}
 
 	g.EmitVoteEvent(&proposal)
@@ -555,6 +554,31 @@ func (g *Governance) Proposal(proposalID uint64) (*Proposal, error) {
 		return nil, ErrNotFoundProposal
 	}
 	return &proposal, nil
+}
+
+func (g *Governance) GetCouncilMembers() ([]governance.CouncilMember, error) {
+	council, err := g.council.MustGet()
+	if err != nil {
+		return nil, err
+	}
+
+	return lo.Map(council.Members, func(item CouncilMember, index int) governance.CouncilMember {
+		return governance.CouncilMember{
+			Addr:   ethcommon.HexToAddress(item.Address),
+			Weight: item.Weight,
+			Name:   item.Name,
+		}
+	}), nil
+}
+
+func (g *Governance) GetNotFinishedProposalIDs() ([]uint64, error) {
+	_, notFinishedProposals, err := g.notFinishedProposals.Get()
+	if err != nil {
+		return nil, err
+	}
+	return lo.Map(notFinishedProposals, func(item NotFinishedProposal, index int) uint64 {
+		return item.ID
+	}), nil
 }
 
 func (g *Governance) checkFinishedAllProposal() (bool, error) {
@@ -642,7 +666,7 @@ func (g *Governance) removeNotFinishedProposal(id uint64) error {
 		return ErrNotFoundProposal
 	}
 
-	if err := g.notFinishedProposals.Put(proposals); err != nil {
+	if err := g.notFinishedProposals.Put(newProposals); err != nil {
 		return err
 	}
 	return nil

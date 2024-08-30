@@ -149,7 +149,7 @@ type (
 
 func (ch createObjectChange) revert(l *StateLedgerImpl) {
 	delete(l.accounts, ch.account.ETHAddress())
-	RevertWrite(l, blockstm.NewAddressKey(*ch.account))
+	RevertWrite(l, blockstm.NewAddressKey(ch.account))
 }
 
 func (ch createObjectChange) deepcopy() stateChange {
@@ -166,7 +166,7 @@ func (ch createObjectChange) dirtied() *types.Address {
 // nolint
 func (ch resetObjectChange) revert(l *StateLedgerImpl) {
 	l.setAccount(ch.prev)
-	RevertWrite(l, blockstm.NewAddressKey(*ch.prev.GetAddress()))
+	RevertWrite(l, blockstm.NewAddressKey(ch.prev.GetAddress()))
 }
 
 func (ch resetObjectChange) deepcopy() stateChange {
@@ -186,7 +186,7 @@ func (ch suicideChange) revert(l *StateLedgerImpl) {
 	account := acc.(*SimpleAccount)
 	account.selfDestructed = ch.prev
 	account.setBalance(ch.prevbalance)
-	RevertWrite(l, blockstm.NewSubpathKey(*ch.account, SuicidePath))
+	RevertWrite(l, blockstm.NewSubpathKey(ch.account, SuicidePath))
 }
 
 func (ch suicideChange) deepcopy() stateChange {
@@ -249,7 +249,7 @@ func (ch nonceChange) deepcopy() stateChange {
 
 func (ch codeChange) revert(l *StateLedgerImpl) {
 	l.GetOrCreateAccount(ch.account).(*SimpleAccount).setCodeAndHash(ch.prevcode)
-	RevertWrite(l, blockstm.NewSubpathKey(*ch.account, CodePath))
+	RevertWrite(l, blockstm.NewSubpathKey(ch.account, CodePath))
 }
 
 func (ch codeChange) dirtied() *types.Address {
@@ -266,7 +266,7 @@ func (ch codeChange) deepcopy() stateChange {
 
 func (ch storageChange) revert(l *StateLedgerImpl) {
 	l.GetOrCreateAccount(ch.account).(*SimpleAccount).setState(ch.key, ch.prevalue)
-	RevertWrite(l, blockstm.NewStateKey(*ch.account, *types.NewHash(ch.key)))
+	RevertWrite(l, blockstm.NewStateKey(ch.account, *types.NewHash(ch.key)))
 }
 
 func (ch storageChange) dirtied() *types.Address {

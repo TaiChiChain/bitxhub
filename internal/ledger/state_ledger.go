@@ -217,18 +217,20 @@ func (l *StateLedgerImpl) Finalise() {
 	l.ClearChangerAndRefund()
 }
 
+// IterateTrie iterate the whole account trie and all contract storage tries of target block, and store them in kv.
 func (l *StateLedgerImpl) IterateTrie(snapshotMeta *SnapshotMeta, kv kv.Storage, errC chan error) {
 	stateRoot := snapshotMeta.BlockHeader.StateRoot.ETHHash()
 	l.logger.Infof("[IterateTrie] blockhash: %v, rootHash: %v", snapshotMeta.BlockHeader.Hash(), stateRoot)
 	batch := kv.NewBatch()
 
+	// in validate node, we should rebuild prune cache before iterate trie
 	if l.pruneCache != nil {
 		if err := l.pruneCache.Rollback(snapshotMeta.BlockHeader.Number, false); err != nil {
 			errC <- err
 		}
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
-		batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
 	}
+	batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
+	batch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
 
 	queue := []common.Hash{stateRoot}
 	for len(queue) > 0 {
@@ -300,9 +302,18 @@ func (l *StateLedgerImpl) GetTrieSnapshotMeta() (*SnapshotMeta, error) {
 	return snapshotMeta, nil
 }
 
+// GenerateSnapshot generate the snapshot by iterating state trie leaves.
 func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC chan error) {
 	stateRoot := blockHeader.StateRoot.ETHHash()
 	l.logger.Infof("[GenerateSnapshot] blockNum: %v, blockhash: %v, rootHash: %v", blockHeader.Number, blockHeader.Hash(), stateRoot)
+
+	// in validate node, we should rebuild prune cache before iterate trie
+	if l.repo.Config.Ledger.EnablePrune {
+		if err := l.pruneCache.Rollback(blockHeader.Number, false); err != nil {
+			errC <- err
+			return
+		}
+	}
 
 	queue := []common.Hash{stateRoot}
 	batch := l.snapshot.Batch()
@@ -342,8 +353,9 @@ func (l *StateLedgerImpl) GenerateSnapshot(blockHeader *types.BlockHeader, errC 
 			}
 		}
 		queue = queue[1:]
-		batch.Put(trieRoot[:], l.backend.Get(trieRoot[:]))
 	}
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MinHeightStr), utils.MarshalUint64(blockHeader.Number))
+	batch.Put(utils.CompositeKey(utils.SnapshotKey, utils.MaxHeightStr), utils.MarshalUint64(blockHeader.Number))
 	batch.Commit()
 	l.logger.Infof("[GenerateSnapshot] generate snapshot successfully")
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/epoch_manager"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/liquid_staking_token"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/staking_manager_client"
@@ -24,15 +25,16 @@ var (
 )
 
 const (
-	blocksPerYear                          = uint64(63072000)
-	rewardPerBlockStorageKey               = "stakeRewardPerBlock"
-	availablePoolsStorageKey               = "availablePools"
-	proposeBlockCountTableStorageKey       = "proposeBlockCountTable"
-	gasRewardTableStorageKey               = "gasRewardTable"
-	totalStakeStorageKey                   = "totalStake"
-	lastEpochTotalStakeStorageKey          = "lsatEpochTotalStake"
-	currentEpochTotalAddStakeStorageKey    = "currentEpochTotalAddStake"
-	currentEpochTotalUnlockStakeStorageKey = "currentEpochTotalUnlockStake"
+	blocksPerYear                                       = uint64(63072000)
+	rewardPerBlockStorageKey                            = "stakeRewardPerBlock"
+	availablePoolsStorageKey                            = "availablePools"
+	proposeBlockCountTableStorageKey                    = "proposeBlockCountTable"
+	gasRewardTableStorageKey                            = "gasRewardTable"
+	totalStakeStorageKey                                = "totalStake"
+	lastEpochTotalStakeStorageKey                       = "lsatEpochTotalStake"
+	currentEpochTotalAddStakeStorageKey                 = "currentEpochTotalAddStake"
+	currentEpochTotalUnlockStakeStorageKey              = "currentEpochTotalUnlockStake"
+	currentEpochTotalStakeNotEnoughValidatorsStorageKey = "currentEpochTotalStakeNotEnoughValidators"
 )
 
 var StakingManagerBuildConfig = &common.SystemContractBuildConfig[*StakingManager]{
@@ -59,6 +61,8 @@ type StakingManager struct {
 	lastEpochTotalStake          *common.VMSlot[*big.Int]
 	currentEpochTotalAddStake    *common.VMSlot[*big.Int]
 	currentEpochTotalUnlockStake *common.VMSlot[*big.Int]
+
+	currentEpochTotalStakeNotEnoughValidators *common.VMSlot[[]uint64]
 }
 
 func (s *StakingManager) GenesisInit(genesis *repo.GenesisConfig) error {
@@ -123,6 +127,7 @@ func (s *StakingManager) SetContext(ctx *common.VMContext) {
 	s.lastEpochTotalStake = common.NewVMSlot[*big.Int](s.StateAccount, lastEpochTotalStakeStorageKey)
 	s.currentEpochTotalAddStake = common.NewVMSlot[*big.Int](s.StateAccount, currentEpochTotalAddStakeStorageKey)
 	s.currentEpochTotalUnlockStake = common.NewVMSlot[*big.Int](s.StateAccount, currentEpochTotalUnlockStakeStorageKey)
+	s.currentEpochTotalStakeNotEnoughValidators = common.NewVMSlot[[]uint64](s.StateAccount, currentEpochTotalStakeNotEnoughValidatorsStorageKey)
 }
 
 func (s *StakingManager) LoadPool(poolID uint64) *StakingPool {
@@ -159,12 +164,12 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 		if err = axc.Mint(reward); err != nil {
 			return err
 		}
-		// add gas to the reward
-		reward = reward.Add(reward, gasReward)
 
 		// transfer token to staking manager contract
 		axc.StateAccount.SubBalance(reward)
 		s.StateAccount.AddBalance(reward)
+		// add gas to the reward
+		reward = reward.Add(reward, gasReward)
 		if err = s.LoadPool(poolID).TurnIntoNewEpoch(oldEpoch, newEpoch, reward); err != nil {
 			return err
 		}
@@ -181,6 +186,9 @@ func (s *StakingManager) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *t
 		return err
 	}
 	if err := s.currentEpochTotalUnlockStake.Put(new(big.Int)); err != nil {
+		return err
+	}
+	if err := s.currentEpochTotalStakeNotEnoughValidators.Put([]uint64{}); err != nil {
 		return err
 	}
 	totalStake, err := s.totalStake.MustGet()
@@ -323,11 +331,24 @@ func (s *StakingManager) AddStake(poolID uint64, owner ethcommon.Address, amount
 		})
 	}
 
+	involvedValidators := map[uint64]struct{}{}
+	validatorIDSetMap, pendingInactiveIDSetMap, err := s.getActiveValidatorIDSetMap()
+	if err != nil {
+		return err
+	}
+	if _, ok := validatorIDSetMap[poolID]; ok {
+		involvedValidators[poolID] = struct{}{}
+	}
+
 	if err := s.updateTotalStake(true, amount); err != nil {
 		return err
 	}
 
 	if err := s.LoadPool(poolID).AddStake(owner, amount); err != nil {
+		return err
+	}
+
+	if err := s.checkNextEpochValidatorActiveStake(currentEpoch, len(validatorIDSetMap), involvedValidators, pendingInactiveIDSetMap); err != nil {
 		return err
 	}
 
@@ -408,6 +429,11 @@ func (s *StakingManager) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts [
 		})
 	}
 
+	involvedValidators := make(map[uint64]struct{})
+	validatorIDSetMap, pendingInactiveIDSetMap, err := s.getActiveValidatorIDSetMap()
+	if err != nil {
+		return err
+	}
 	for i, liquidStakingTokenID := range liquidStakingTokenIDs {
 		liquidStakingTokenInfo, err := s.checkLiquidStakingTokenPermission(liquidStakingTokenID)
 		if err != nil {
@@ -416,6 +442,12 @@ func (s *StakingManager) BatchUnlock(liquidStakingTokenIDs []*big.Int, amounts [
 		if err := s.LoadPool(liquidStakingTokenInfo.PoolID).UnlockStake(liquidStakingTokenID, liquidStakingTokenInfo, amounts[i]); err != nil {
 			return err
 		}
+		if _, ok := validatorIDSetMap[liquidStakingTokenInfo.PoolID]; ok {
+			involvedValidators[liquidStakingTokenInfo.PoolID] = struct{}{}
+		}
+	}
+	if err := s.checkNextEpochValidatorActiveStake(currentEpoch, len(validatorIDSetMap), involvedValidators, pendingInactiveIDSetMap); err != nil {
+		return err
 	}
 
 	if err := s.updateTotalStake(false, totalAmount); err != nil {
@@ -497,6 +529,91 @@ func (s *StakingManager) GetPoolHistoryLiquidStakingTokenRates(poolIDs []uint64,
 		rates[i] = info
 	}
 	return rates, nil
+}
+
+func (s *StakingManager) GetCurrentEpochTotalUnlockStake() (*big.Int, error) {
+	_, res, err := s.currentEpochTotalUnlockStake.Get()
+	return res, err
+}
+
+func (s *StakingManager) GetCurrentEpochTotalAddStake() (*big.Int, error) {
+	_, res, err := s.currentEpochTotalAddStake.Get()
+	return res, err
+}
+
+func (s *StakingManager) GetLastEpochTotalStake() (*big.Int, error) {
+	_, res, err := s.lastEpochTotalStake.Get()
+	return res, err
+}
+
+func (s *StakingManager) GetTotalStake() (*big.Int, error) {
+	_, res, err := s.totalStake.Get()
+	return res, err
+}
+
+func (s *StakingManager) GetCurrentEpochTotalStakeNotEnoughValidators() ([]uint64, error) {
+	_, res, err := s.currentEpochTotalStakeNotEnoughValidators.Get()
+	return res, err
+}
+
+func (s *StakingManager) getActiveValidatorIDSetMap() (validatorIDSetMap map[uint64]struct{}, pendingInactiveIDSetMap map[uint64]struct{}, err error) {
+	nodeManagerContract := NodeManagerBuildConfig.Build(s.CrossCallSystemContractContext())
+	validatorIDSet, err := nodeManagerContract.GetActiveValidatorIDSet()
+	if err != nil {
+		return nil, nil, err
+	}
+	pendingInactiveIDSet, err := nodeManagerContract.GetPendingInactiveIDSet()
+	if err != nil {
+		return nil, nil, err
+	}
+	return lo.SliceToMap(validatorIDSet, func(i uint64) (uint64, struct{}) {
+			return i, struct{}{}
+		}), lo.SliceToMap(pendingInactiveIDSet, func(i uint64) (uint64, struct{}) {
+			return i, struct{}{}
+		}), nil
+}
+
+func (s *StakingManager) checkNextEpochValidatorActiveStake(currentEpoch epoch_manager.EpochInfo, currentValidatorNum int, needCheckValidators map[uint64]struct{}, pendingInactiveIDSetMap map[uint64]struct{}) error {
+	_, currentEpochTotalStakeNotEnoughValidators, err := s.currentEpochTotalStakeNotEnoughValidators.Get()
+	if err != nil {
+		return err
+	}
+
+	needRemoveValidators := make(map[uint64]struct{})
+	// check if validator will turn into a candidate in the next epoch
+	for poolID := range needCheckValidators {
+		poolInfo, err := s.LoadPool(poolID).info.MustGet()
+		if err != nil {
+			return err
+		}
+
+		nextEpochActiveStake := new(big.Int)
+		nextEpochActiveStake = nextEpochActiveStake.Add(poolInfo.ActiveStake, poolInfo.PendingActiveStake)
+		nextEpochActiveStake = nextEpochActiveStake.Sub(nextEpochActiveStake, poolInfo.PendingInactiveStake)
+		if nextEpochActiveStake.Cmp(currentEpoch.StakeParams.MinValidatorStake) < 0 {
+			currentEpochTotalStakeNotEnoughValidators = append(currentEpochTotalStakeNotEnoughValidators, poolID)
+		} else {
+			needRemoveValidators[poolID] = struct{}{}
+		}
+	}
+	currentEpochTotalStakeNotEnoughValidators = lo.Uniq(currentEpochTotalStakeNotEnoughValidators)
+	currentEpochTotalStakeNotEnoughValidators = lo.Reject(currentEpochTotalStakeNotEnoughValidators, func(item uint64, index int) bool {
+		_, ok := needRemoveValidators[item]
+		return ok
+	})
+	for _, poolID := range currentEpochTotalStakeNotEnoughValidators {
+		pendingInactiveIDSetMap[poolID] = struct{}{}
+	}
+	// check remain validators number
+	if uint64(currentValidatorNum-len(pendingInactiveIDSetMap)) < currentEpoch.ConsensusParams.MinValidatorNum {
+		return errors.Errorf("remain validator number %d less than min validator number %d", currentValidatorNum-len(pendingInactiveIDSetMap), currentEpoch.ConsensusParams.MinValidatorNum)
+	}
+
+	if err := s.currentEpochTotalStakeNotEnoughValidators.Put(currentEpochTotalStakeNotEnoughValidators); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *StakingManager) updateTotalStake(isAdd bool, amount *big.Int) error {

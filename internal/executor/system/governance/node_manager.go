@@ -3,6 +3,7 @@ package governance
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -22,6 +23,8 @@ const (
 	pendingNameIndexStorageKey            = "pendingNameIndex"
 	pendingP2PIDIndexStorageKey           = "pendingP2PIDIndex"
 	pendingConsensusPubKeyIndexStorageKey = "pendingConsensusPubKeyIndex"
+
+	pendingRemoveNodeIDIndexStorageKey = "pendingRemoveNodeIDIndex"
 )
 
 var _ ProposalHandler = (*NodeManager)(nil)
@@ -41,7 +44,7 @@ type NodeRegisterExtraArgs struct {
 }
 
 type NodeRemoveExtraArgs struct {
-	NodeID uint64 `json:"node_id"`
+	NodeIDs []uint64 `json:"node_ids"`
 }
 
 type NodeUpgradeExtraArgs struct {
@@ -56,6 +59,8 @@ type NodeManager struct {
 	pendingNameIndex            *common.VMMap[string, struct{}]
 	pendingP2PIDIndex           *common.VMMap[string, struct{}]
 	pendingConsensusPubKeyIndex *common.VMMap[string, struct{}]
+
+	pendingRemoveNodeIDIndex *common.VMMap[uint64, struct{}]
 }
 
 func NewNodeManager(gov *Governance) *NodeManager {
@@ -78,6 +83,9 @@ func (nm *NodeManager) SetContext(ctx *common.VMContext) {
 	})
 	nm.pendingConsensusPubKeyIndex = common.NewVMMap[string, struct{}](nm.gov.StateAccount, fmt.Sprintf("%s_%s", nodeManagerNamespace, pendingConsensusPubKeyIndexStorageKey), func(key string) string {
 		return key
+	})
+	nm.pendingRemoveNodeIDIndex = common.NewVMMap[uint64, struct{}](nm.gov.StateAccount, fmt.Sprintf("%s_%s", nodeManagerNamespace, pendingRemoveNodeIDIndexStorageKey), func(key uint64) string {
+		return strconv.FormatUint(key, 10)
 	})
 }
 
@@ -203,12 +211,21 @@ func (nm *NodeManager) removeProposeArgsCheck(proposalType ProposalType, title, 
 
 	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
 
-	nodeInfo, err := nodeManagerContract.GetInfo(nodeExtraArgs.NodeID)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node info %d", nodeExtraArgs.NodeID)
-	}
-	if nodeInfo.Status == uint8(types.NodeStatusExited) {
-		return errors.Errorf("node already exited: %d[%s]", nodeExtraArgs.NodeID, nodeInfo.MetaData.Name)
+	for _, nodeID := range nodeExtraArgs.NodeIDs {
+		nodeInfo, err := nodeManagerContract.GetInfo(nodeID)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get node info %d", nodeID)
+		}
+		if nodeInfo.Status == uint8(types.NodeStatusExited) {
+			return errors.Errorf("node already exited: %d[%s]", nodeID, nodeInfo.MetaData.Name)
+		}
+
+		if nm.pendingRemoveNodeIDIndex.Has(nodeID) {
+			return errors.Errorf("remove node already exist in other proposal: %d[%s]", nodeID, nodeInfo.MetaData.Name)
+		}
+		if err := nm.pendingRemoveNodeIDIndex.Put(nodeID, struct{}{}); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -256,17 +273,6 @@ func (nm *NodeManager) executeRegister(proposal *Proposal) error {
 	if err != nil {
 		return err
 	}
-
-	// clean pending index
-	if err := nm.pendingNameIndex.Delete(nodeExtraArgs.MetaData.Name); err != nil {
-		return err
-	}
-	if err := nm.pendingP2PIDIndex.Delete(p2pID); err != nil {
-		return err
-	}
-	if err := nm.pendingConsensusPubKeyIndex.Delete(nodeExtraArgs.ConsensusPubKey); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -276,8 +282,19 @@ func (nm *NodeManager) executeRemove(proposal *Proposal) error {
 		return errors.Wrap(err, "unmarshal node remove extra arguments error")
 	}
 
-	nodeManagerContract := framework.NodeManagerBuildConfig.Build(nm.gov.CrossCallSystemContractContext())
-	if err := nodeManagerContract.Exit(nodeExtraArgs.NodeID); err != nil {
+	ctx, snapshot := nm.gov.CrossCallSystemContractContextWithSnapshot()
+	nodeManagerContract := framework.NodeManagerBuildConfig.Build(ctx)
+	err := func() error {
+		for _, nodeID := range nodeExtraArgs.NodeIDs {
+			if err := nodeManagerContract.Exit(nodeID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}()
+	if err != nil {
+		// revert all changes
+		ctx.StateLedger.RevertToSnapshot(snapshot)
 		return err
 	}
 
@@ -313,6 +330,17 @@ func (nm *NodeManager) CleanProposal(proposal *Proposal) error {
 		}
 		if err := nm.pendingConsensusPubKeyIndex.Delete(nodeExtraArgs.ConsensusPubKey); err != nil {
 			return err
+		}
+	case NodeRemove:
+		nodeExtraArgs := &NodeRemoveExtraArgs{}
+		if err := json.Unmarshal(proposal.Extra, nodeExtraArgs); err != nil {
+			return errors.Wrap(err, "unmarshal node register extra arguments error")
+		}
+		// clean pending index
+		for _, nodeID := range nodeExtraArgs.NodeIDs {
+			if err := nm.pendingRemoveNodeIDIndex.Delete(nodeID); err != nil {
+				return err
+			}
 		}
 	default:
 		return nil

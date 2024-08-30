@@ -22,6 +22,10 @@ type MiniNetwork struct {
 	logger      logrus.FieldLogger
 }
 
+func (m *MiniNetwork) GetConnectedPeers(peers []string) []string {
+	return peers
+}
+
 func NewMiniNetwork(id uint64, p2pNodeId string, manager *p2p.MockHostManager) (*MiniNetwork, error) {
 	p2pLog := log.NewWithModule(fmt.Sprintf("p2p%d", id))
 	p2p, err := p2p.NewMockP2P(p2pNodeId, manager, p2pLog)

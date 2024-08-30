@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
@@ -17,6 +18,10 @@ import (
 type StartArgs struct {
 	ReadonlyMode bool
 	SnapshotMode bool
+}
+
+type SyncArgs struct {
+	RemotePeers *consensus.QuorumValidators
 }
 
 type Config struct {
@@ -171,6 +176,7 @@ type Sync struct {
 	RequesterRetryTimeout Duration `mapstructure:"requester_retry_timeout" toml:"requester_retry_timeout"`
 	TimeoutCountLimit     uint64   `mapstructure:"timeout_count_limit" toml:"timeout_count_limit"`
 	ConcurrencyLimit      uint64   `mapstructure:"concurrency_limit" toml:"concurrency_limit"`
+	MaxChunkSize          uint64   `mapstructure:"max_chunk_size" toml:"max_chunk_size"`
 }
 
 type Consensus struct {
@@ -310,7 +316,8 @@ func defaultConfig() *Config {
 			WaitStatesTimeout:     Duration(30 * time.Second),
 			RequesterRetryTimeout: Duration(5 * time.Second),
 			TimeoutCountLimit:     uint64(10),
-			ConcurrencyLimit:      1000,
+			ConcurrencyLimit:      100,
+			MaxChunkSize:          1000,
 			FullValidation:        true,
 		},
 		Consensus: Consensus{

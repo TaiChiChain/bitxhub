@@ -757,9 +757,7 @@ func TestNode_Status(t *testing.T) {
 			tc.setupMocks(node, pipes, consensusMsgPipes, cnf, ctrl)
 			status := node.Status()
 			assert.Equal(t, tc.expectResult, status.Status)
-			if node.started.Load() {
-				node.Stop()
-			}
+			node.Stop()
 		})
 	}
 }
@@ -1379,14 +1377,21 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 		{
 			name: "failed status",
 			input: &consensus.FetchMissingResponse{
-				Status: consensus.FetchMissingResponse_Failure,
+				Status:         consensus.FetchMissingResponse_Failure,
+				ReplicaId:      proposer,
+				View:           2,
+				SequenceNumber: 2,
+				BatchDigest:    poolBatch.BatchHash,
 			},
 			expectResult: "received fetchMissingResponse with failed status",
 		},
 		{
 			name: "wrong proposer",
 			input: &consensus.FetchMissingResponse{
-				ReplicaId: proposer + 1,
+				ReplicaId:      proposer + 1,
+				View:           2,
+				SequenceNumber: 2,
+				BatchDigest:    poolBatch.BatchHash,
 			},
 			expectResult: "replica 2 which is not primary, ignore it",
 		},
@@ -1397,7 +1402,7 @@ func TestNode_FetchMissingTxs(t *testing.T) {
 				View:           1,
 				SequenceNumber: 1,
 			},
-			expectResult: "ignore fetchMissingResponse with lower seqNo 1 than lastCommitHeight 1",
+			expectResult: "ignore fetchMissingResponse",
 		},
 		{
 			name: "wrong missing txs length",

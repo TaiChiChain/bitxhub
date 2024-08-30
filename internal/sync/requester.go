@@ -22,6 +22,7 @@ type requester struct {
 
 	commitDataRequestPipe network.Pipe
 	commitData            common.CommitData
+	inRetryStatus         bool
 
 	ctx context.Context
 }
@@ -36,6 +37,7 @@ func newRequester(mode common.SyncMode, ctx context.Context, peerID string, heig
 		retryCh:               make(chan string, 1),
 		gotCommitDataCh:       make(chan struct{}, 1),
 		commitDataRequestPipe: pipe,
+		inRetryStatus:         false,
 		ctx:                   ctx,
 	}
 }
@@ -50,6 +52,7 @@ func (r *requester) requestRoutine(requestRetryTimeout time.Duration) {
 OUTER_LOOP:
 	for {
 		r.gotBlock = false
+		r.inRetryStatus = false
 		ticker := time.NewTicker(requestRetryTimeout)
 		// Send request and wait
 
@@ -61,18 +64,19 @@ OUTER_LOOP:
 		case common.SyncModeFull:
 			req := &pb.SyncBlockRequest{Height: r.blockHeight}
 			data, err = req.MarshalVT()
-			if err != nil {
-				r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
-			}
 		case common.SyncModeSnapshot:
 			req := &pb.SyncChainDataRequest{Height: r.blockHeight}
 			data, err = req.MarshalVT()
-			if err != nil {
-				r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
-			}
+		}
+
+		if err != nil {
+			r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
+			r.inRetryStatus = true
+			goto WAIT_LOOP
 		}
 		if err = r.commitDataRequestPipe.Send(r.ctx, r.peerID, data); err != nil {
 			r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, ErrMsg: err, Typ: common.SyncMsgType_ErrorMsg})
+			r.inRetryStatus = true
 		}
 
 	WAIT_LOOP:
@@ -87,12 +91,13 @@ OUTER_LOOP:
 				r.peerID = newPeer
 				continue OUTER_LOOP
 			case <-ticker.C:
-				if r.gotBlock {
+				// ensure last retry signal has been processed
+				if r.gotBlock || r.inRetryStatus {
 					continue WAIT_LOOP
 				}
 				// Timeout
 				r.postInvalidMsg(&common.InvalidMsg{NodeID: r.peerID, Height: r.blockHeight, Typ: common.SyncMsgType_TimeoutBlock})
-
+				r.inRetryStatus = true
 			case <-r.gotCommitDataCh:
 				// We got a commitData!
 				// Continue the for-loop and wait til Quit.

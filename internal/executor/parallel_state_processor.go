@@ -76,25 +76,24 @@ type ExecutionTask struct {
 	msg    core.Message
 	config *params.ChainConfig
 
-	gasLimit                   uint64
-	blockNumber                *big.Int
-	blockHash                  types.Hash
-	tx                         *types.Transaction
-	index                      int
-	statedb                    *ledger.StateLedgerImpl // State database that stores the modified values after tx execution.
-	cleanStateDB               *ledger.StateLedgerImpl // A clean copy of the initial statedb. It should not be modified.
-	finalStateDB               *ledger.StateLedgerImpl // The final statedb.
-	header                     *types.BlockHeader
-	blockChain                 *types.Block
-	evmConfig                  vm.Config
-	result                     *core.ExecutionResult
-	resultErr                  error
-	shouldDelayFeeCal          *bool
-	shouldRerunWithoutFeeDelay bool
-	sender                     types.Address
-	totalUsedGas               *uint64
-	receipts                   *ledger.EvmReceipts
-	allLogs                    *[]*types.EvmLog
+	gasLimit          uint64
+	blockNumber       *big.Int
+	blockHash         types.Hash
+	tx                *types.Transaction
+	index             int
+	statedb           *ledger.StateLedgerImpl // State database that stores the modified values after tx execution.
+	cleanStateDB      *ledger.StateLedgerImpl // A clean copy of the initial statedb. It should not be modified.
+	finalStateDB      *ledger.StateLedgerImpl // The final statedb.
+	header            *types.BlockHeader
+	blockChain        *types.Block
+	evmConfig         vm.Config
+	result            *core.ExecutionResult
+	resultErr         error
+	shouldDelayFeeCal *bool
+	sender            types.Address
+	totalUsedGas      *uint64
+	receipts          *ledger.EvmReceipts
+	allLogs           *[]*types.EvmLog
 
 	// length of dependencies          -> 2 + k (k = a whole number)
 	// first 2 element in dependencies -> transaction index, and flag representing if delay is allowed or not
@@ -138,13 +137,13 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 		}
 		evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 
-		reads := task.statedb.MVReadMap()
+		// reads := task.statedb.MVReadMap()
 
-		if _, ok := reads[blockstm.NewSubpathKey(*types.NewAddress(task.blockContext.Coinbase.Bytes()), ledger.BalancePath)]; ok {
-			log.Info("Coinbase is in MVReadMap", "address", task.blockContext.Coinbase)
+		// if _, ok := reads[blockstm.NewSubpathKey(types.NewAddress(task.blockContext.Coinbase.Bytes()), ledger.BalancePath)]; ok {
+		// 	log.Info("Coinbase is in MVReadMap", "address", task.blockContext.Coinbase)
 
-			task.shouldRerunWithoutFeeDelay = true
-		}
+		// 	task.shouldRerunWithoutFeeDelay = true
+		// }
 
 		// if _, ok := reads[blockstm.NewSubpathKey(task.result.BurntContractAddress, ledger.BalancePath)]; ok {
 		// 	log.Info("BurntContractAddress is in MVReadMap", "address", task.result.BurntContractAddress)
@@ -396,7 +395,7 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 		tasks = append(tasks, task)
 	}
 
-	backupStateDB := ledgerNow.NewView().StateLedger
+	//backupStateDB := ledgerNow.NewView().StateLedger
 
 	profile := false
 
@@ -414,34 +413,34 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 		parallelizabilityTimer.Update(time.Duration(serialWeight * 100 / weight))
 	}
 
-	for _, task := range tasks {
-		task := task.(*ExecutionTask)
-		if task.shouldRerunWithoutFeeDelay {
-			shouldDelayFeeCal = false
+	// for _, task := range tasks {
+	// 	task := task.(*ExecutionTask)
+	// 	if task.shouldRerunWithoutFeeDelay {
+	// 		shouldDelayFeeCal = false
 
-			// statedb.StopPrefetcher()
-			ledgerNow.StateLedger = backupStateDB
+	// 		// statedb.StopPrefetcher()
+	// 		ledgerNow.StateLedger = backupStateDB
 
-			allLogs = []*types.EvmLog{}
-			receipts = ledger.EvmReceipts{}
-			usedGas = new(uint64)
+	// 		allLogs = []*types.EvmLog{}
+	// 		receipts = ledger.EvmReceipts{}
+	// 		usedGas = new(uint64)
 
-			for _, t := range tasks {
-				t := t.(*ExecutionTask)
-				t.finalStateDB = backupStateDB.(*ledger.StateLedgerImpl)
-				t.allLogs = &allLogs
-				t.receipts = &receipts
-				t.totalUsedGas = usedGas
-			}
+	// 		for _, t := range tasks {
+	// 			t := t.(*ExecutionTask)
+	// 			t.finalStateDB = backupStateDB.(*ledger.StateLedgerImpl)
+	// 			t.allLogs = &allLogs
+	// 			t.receipts = &receipts
+	// 			t.totalUsedGas = usedGas
+	// 		}
 
-			_, err = blockstm.ExecuteParallel(tasks, false, metadata, p.parallelSpeculativeProcesses, interruptCtx)
-			break
-		}
-	}
+	// 		_, err = blockstm.ExecuteParallel(tasks, false, metadata, p.parallelSpeculativeProcesses, interruptCtx)
+	// 		break
+	// 	}
+	// }
 
-	if err != nil {
-		return nil, nil, 0, err
-	}
+	// if err != nil {
+	// 	return nil, nil, 0, err
+	// }
 
 	// // Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	// p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), nil)

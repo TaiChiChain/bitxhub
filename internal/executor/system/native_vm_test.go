@@ -182,17 +182,6 @@ func TestContractRun(t *testing.T) {
 	}
 }
 
-func TestNativeVM_PackOutputArgs(t *testing.T) {
-	nvm := New()
-
-	data := "0x8e604d15a98b7f944a25c1d8e463c1583fb7a24bf222ad76ac3aae3079b135b2"
-	hash := crypto.Keccak256Hash([]byte(data))
-
-	outputs, err := nvm.packOutputArgs(saccount.EntryPointBuildConfig.StaticConfig(), "getUserOpHash", hash)
-	assert.Nil(t, err)
-	assert.NotNil(t, outputs)
-}
-
 func generateVoteData(t *testing.T, proposalID uint64, voteResult governance.VoteResult) []byte {
 	gabi := governance.BuildConfig.StaticConfig().GetAbi()
 
@@ -276,7 +265,7 @@ func Test_convertInputArgs(t *testing.T) {
 	inputs = append(inputs, reflect.ValueOf(op))
 	inputs = append(inputs, reflect.ValueOf(ethcommon.Address{}))
 	inputs = append(inputs, reflect.ValueOf([]byte("")))
-	outputs := convertInputArgs(method, inputs)
+	outputs := common.ConvertInputArgs(method, inputs)
 	assert.Equal(t, len(inputs), len(outputs))
 	assert.Equal(t, reflect.TypeOf(interfaces.UserOperation{}).Kind(), outputs[0].Type().Kind())
 	assert.Equal(t, reflect.TypeOf(ethcommon.Address{}), outputs[1].Type())
@@ -321,7 +310,7 @@ func Test_convertInputArgs(t *testing.T) {
 	inputArgs = append(inputArgs, reflect.ValueOf(ops))
 	inputArgs = append(inputArgs, reflect.ValueOf(ethcommon.Address{}))
 
-	outputArgs := convertInputArgs(method, inputArgs)
+	outputArgs := common.ConvertInputArgs(method, inputArgs)
 	assert.Equal(t, len(inputArgs), len(outputArgs))
 	assert.Equal(t, reflect.TypeOf([]interfaces.UserOperation{}), outputArgs[0].Type())
 	assert.Equal(t, reflect.TypeOf(ethcommon.Address{}), outputArgs[1].Type())

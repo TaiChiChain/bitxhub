@@ -50,8 +50,8 @@ func TestVerifyingPaymaster_ValidatePaymasterUserOp(t *testing.T) {
 		{Name: "validUntil", Type: common.UInt48Type},
 		{Name: "validAfter", Type: common.UInt48Type},
 	}
-	validUntil := new(big.Int).SetInt64(int64(time.Now().Add(time.Hour).Second()))
-	validAfter := new(big.Int).SetInt64(int64(time.Now().Second()))
+	validUntil := new(big.Int).SetInt64(int64(time.Now().Add(time.Hour).Unix()))
+	validAfter := new(big.Int).SetInt64(int64(time.Now().Unix()))
 	argBytes, err := arg.Pack(validUntil, validAfter)
 	assert.Nil(t, err)
 

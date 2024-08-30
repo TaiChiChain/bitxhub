@@ -16,6 +16,7 @@ import (
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
 	"github.com/axiomesh/axiom-ledger/internal/components"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/gammazero/workerpool"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -51,6 +52,7 @@ type SyncManager struct {
 	latestCheckedState  *pb.CheckpointState // latest checked commitData state
 	requesters          sync.Map            // requester map
 	requesterLen        atomic.Int64        // requester length
+	idleRequesterLen    atomic.Uint64       // idle requester length
 
 	quorumCheckpoint   *consensus.SignedCheckpoint // latest checkpoint from remote
 	epochChanges       []*consensus.EpochChange    // every epoch change which the node behind
@@ -152,10 +154,20 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 	sm.syncCtx = syncCtx
 	sm.syncCancel = syncCancel
 
-	// 1. update commitData sync info
-	sm.InitBlockSyncInfo(params.Peers, params.LatestBlockHash, params.Quorum, params.CurHeight, params.TargetHeight, params.QuorumCheckpoint, params.EpochChanges...)
-	// 2. send sync state request to all validators, waiting for Quorum response
-	if sm.curHeight != 1 {
+	// 1. filter active peers
+	activePIds := sm.network.GetConnectedPeers(lo.FlatMap(params.Peers, func(p *common.Node, _ int) []string {
+		return []string{p.PeerID}
+	}))
+
+	activePeers := lo.Filter(params.Peers, func(p *common.Node, _ int) bool {
+		return lo.Contains(activePIds, p.PeerID)
+	})
+
+	// 2. update commitData sync info
+	sm.InitBlockSyncInfo(activePeers, params.LatestBlockHash, params.Quorum, params.CurHeight, params.TargetHeight, params.QuorumCheckpoint, params.EpochChanges...)
+
+	// 3. send sync state request to all validators, waiting for Quorum response
+	if params.LatestBlockHash != (ethcommon.Hash{}).String() {
 		err := sm.requestSyncState(sm.curHeight-1, params.LatestBlockHash)
 		if err != nil {
 			syncTaskDoneCh <- err
@@ -167,47 +179,87 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 		}).Info("Receive Quorum response")
 	}
 
-	// 3. switch sync status to true, if switch failed, return error
+	// 4. switch sync status to true, if switch failed, return error
 	if err := sm.switchSyncStatus(true); err != nil {
 		syncTaskDoneCh <- err
 		return err
 	}
 
-	// 4. start listen sync commitData response
+	// 5. start listen sync commitData response
 	go sm.listenSyncCommitDataResponse()
 
 	// 5. produce requesters for first chunk
-	sm.produceRequester(sm.chunk.ChunkSize)
+	sm.produceRequester(sm.getConcurrencyLimit())
 
 	// 6. start sync commitData task
 	go func() {
 		for {
-			select {
-			case <-sm.syncCtx.Done():
-				return
-			case ev := <-sm.recvEventCh:
-				switch ev.EventType {
-				case common.EventType_InvalidMsg:
-					req, ok := ev.Event.(*common.InvalidMsg)
-					if !ok {
-						sm.logger.Errorf("invalid event type: %v", ev)
-						continue
+			pendingRequester := uint64(sm.requesterLen.Load())
+			switch {
+			case pendingRequester >= sm.chunk.ChunkSize:
+				sm.resetIdleRequester()
+			WAIT_LOOP:
+				for {
+					select {
+					case <-sm.syncCtx.Done():
+						return
+					case ev := <-sm.recvEventCh:
+						switch ev.EventType {
+						case common.EventType_InvalidMsg:
+							req, ok := ev.Event.(*common.InvalidMsg)
+							if !ok {
+								sm.logger.Errorf("invalid event type: %v", ev)
+								continue
+							}
+							sm.handleInvalidRequest(req)
+						case common.EventType_GetSyncProgress:
+							req, ok := ev.Event.(*common.GetSyncProgressReq)
+							if !ok {
+								sm.logger.Errorf("invalid event type: %v", ev)
+								continue
+							}
+							req.Resp <- sm.handleSyncProgress()
+						}
+					case <-sm.validChunkTaskCh:
+						// end sync if all task done
+						if allTaskDone := sm.processChunkTask(syncCount, now, syncTaskDoneCh); allTaskDone {
+							return
+						}
+						break WAIT_LOOP
 					}
-					sm.handleInvalidRequest(req)
-				case common.EventType_GetSyncProgress:
-					req, ok := ev.Event.(*common.GetSyncProgressReq)
-					if !ok {
-						sm.logger.Errorf("invalid event type: %v", ev)
-						continue
-					}
-					req.Resp <- sm.handleSyncProgress()
 				}
-			case <-sm.validChunkTaskCh:
-				sm.processChunkTask(syncCount, now, syncTaskDoneCh)
-			case <-sm.consumeRequester():
+			case sm.consumeIdleRequester():
 				sm.makeRequesters(sm.curHeight + uint64(sm.requesterLen.Load()))
+			default:
+			LOCAL_LOOP:
+				for {
+					select {
+					case ev := <-sm.recvEventCh:
+						switch ev.EventType {
+						case common.EventType_InvalidMsg:
+							req, ok := ev.Event.(*common.InvalidMsg)
+							if !ok {
+								sm.logger.Errorf("invalid event type: %v", ev)
+								continue
+							}
+							sm.handleInvalidRequest(req)
+						case common.EventType_GetSyncProgress:
+							req, ok := ev.Event.(*common.GetSyncProgressReq)
+							if !ok {
+								sm.logger.Errorf("invalid event type: %v", ev)
+								continue
+							}
+							req.Resp <- sm.handleSyncProgress()
+						}
+					default:
+						break LOCAL_LOOP
+					}
+				}
+
+				time.Sleep(2 * time.Millisecond)
 			}
 		}
+
 	}()
 
 	return nil
@@ -261,13 +313,19 @@ func newModeConstructor(mode common.SyncMode, opt ...common.ModeOption) common.I
 }
 
 func (sm *SyncManager) produceRequester(count uint64) {
-	for i := 0; i < int(count); i++ {
-		sm.requesterCh <- struct{}{}
-	}
+	sm.idleRequesterLen.Add(count)
 }
 
-func (sm *SyncManager) consumeRequester() chan struct{} {
-	return sm.requesterCh
+func (sm *SyncManager) consumeIdleRequester() bool {
+	idleNum := sm.idleRequesterLen.Load()
+	if idleNum > 0 {
+		sm.idleRequesterLen.Store(sm.idleRequesterLen.Load() - 1)
+	}
+	return idleNum > 0
+}
+
+func (sm *SyncManager) resetIdleRequester() {
+	sm.idleRequesterLen.Store(0)
 }
 
 func (sm *SyncManager) postInvalidMsg(msg *common.InvalidMsg) {
@@ -275,20 +333,26 @@ func (sm *SyncManager) postInvalidMsg(msg *common.InvalidMsg) {
 		EventType: common.EventType_InvalidMsg,
 		Event:     msg,
 	}
-	sm.recvEventCh <- ev
+	go func() {
+		sm.recvEventCh <- ev
+	}()
 }
 
-func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, syncTaskDoneCh chan error) {
+func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, syncTaskDoneCh chan error) bool {
 	invalidReqs, err := sm.validateChunk()
 	if err != nil {
 		sm.logger.WithFields(logrus.Fields{
 			"err": err,
 		}).Error("Validate chunk failed")
 		syncTaskDoneCh <- err
-		return
+		return true
 	}
 
 	if len(invalidReqs) != 0 {
+		// decrease block size
+		for i := 0; i < len(invalidReqs); i++ {
+			sm.decreaseBlockSize()
+		}
 		lo.ForEach(invalidReqs, func(req *common.InvalidMsg, index int) {
 			sm.postInvalidMsg(req)
 			sm.logger.WithFields(logrus.Fields{
@@ -297,7 +361,7 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 				"err":    req.ErrMsg,
 			}).Warning("Receive Invalid commitData")
 		})
-		return
+		return false
 	}
 
 	lastR := sm.getRequester(sm.curHeight + sm.chunk.ChunkSize - 1)
@@ -307,7 +371,7 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 			"height": sm.curHeight + sm.chunk.ChunkSize - 1,
 		}).Error(err.Error())
 		syncTaskDoneCh <- err
-		return
+		return true
 	}
 	err = sm.validateChunkState(lastR.commitData.GetHeight(), lastR.commitData.GetHash())
 	if err != nil {
@@ -319,8 +383,9 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 			Height: lastR.commitData.GetHeight(),
 			Typ:    common.SyncMsgType_InvalidBlock,
 		}
+		sm.decreaseBlockSize()
 		sm.postInvalidMsg(invalidMsg)
-		return
+		return false
 	}
 
 	// release requester and send commitData to commitDataCh
@@ -340,7 +405,7 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 
 	// if commitDataCache is not full, continue to receive commitDataCache
 	if len(sm.commitDataCache) != int(sm.chunk.ChunkSize) {
-		return
+		return false
 	}
 
 	blocksLen := len(sm.commitDataCache)
@@ -356,17 +421,28 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 		if idx < 0 || idx > blocksLen-1 {
 			sm.logger.Errorf("chunk checkpoint index out of range, checkpoint height:%d, current Height:%d, "+
 				"commitData len:%d", sm.chunk.CheckPoint.Height, sm.curHeight, blocksLen)
-			return
+			return false
 		}
 
 		// if checkpoint is not equal to last commitDataCache, it means we sync wrong commitDataCache, panic it
 		if err = sm.verifyChunkCheckpoint(sm.commitDataCache[idx]); err != nil {
 			sm.logger.Errorf("verify chunk checkpoint failed: %s", err)
 			syncTaskDoneCh <- err
+			return false
 		}
 	}
 
+	sm.logger.WithFields(logrus.Fields{
+		"start":  sm.curHeight,
+		"target": sm.curHeight + sm.chunk.ChunkSize - 1,
+		"cost":   time.Since(sm.chunk.Time),
+	}).Info("chunk task has done")
+	syncChunkDuration.WithLabelValues(strconv.Itoa(int(sm.chunk.ChunkSize))).Observe(time.Since(sm.chunk.Time).Seconds())
+
+	// post commitData to Executor
+	start := time.Now()
 	sm.modeConstructor.PostCommitData(sm.commitDataCache)
+	pushBlock2ExecutorDuration.WithLabelValues(strconv.Itoa(int(sm.chunk.ChunkSize))).Observe(time.Since(start).Seconds())
 
 	if sm.curHeight+sm.chunk.ChunkSize-1 == sm.targetHeight {
 		if err = sm.stopSync(); err != nil {
@@ -381,16 +457,13 @@ func (sm *SyncManager) processChunkTask(syncCount uint64, startTime time.Time, s
 		}).Info("Block sync done")
 		blockSyncDuration.WithLabelValues(strconv.Itoa(int(syncCount))).Observe(time.Since(startTime).Seconds())
 		syncTaskDoneCh <- nil
+		return true
 	} else {
-		sm.logger.WithFields(logrus.Fields{
-			"start":  sm.curHeight,
-			"target": sm.curHeight + sm.chunk.ChunkSize - 1,
-			"cost":   time.Since(sm.chunk.Time),
-		}).Info("chunk task has done")
 		sm.updateStatus()
 		// produce many new requesters for new chunk
-		sm.produceRequester(sm.chunk.ChunkSize)
+		sm.produceRequester(sm.getConcurrencyLimit())
 	}
+	return false
 }
 
 func (sm *SyncManager) validateChunkState(localHeight uint64, localHash string) error {
@@ -536,8 +609,8 @@ func (sm *SyncManager) InitBlockSyncInfo(peers []*common.Node, latestBlockHash s
 
 func (sm *SyncManager) initChunk() {
 	chunkSize := sm.targetHeight - sm.curHeight + 1
-	if chunkSize > sm.conf.ConcurrencyLimit {
-		chunkSize = sm.conf.ConcurrencyLimit
+	if chunkSize > sm.conf.MaxChunkSize {
+		chunkSize = sm.conf.MaxChunkSize
 	}
 
 	// if we have epoch change, chunk size need smaller than epoch size
@@ -683,7 +756,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 							if stateResp.Status == pb.Status_ERROR && strings.Contains(stateResp.Error, ledger.ErrNotFound.Error()) {
 								sm.logger.WithFields(logrus.Fields{
 									"height": height,
-									"peerID": p.Id,
+									"peer":   p.Id,
 								}).Error("Block not found")
 								sm.updatePeers(resp.From, stateResp.CheckpointState.LatestHeight)
 								return errors.New("block not found")
@@ -749,83 +822,117 @@ func (sm *SyncManager) isValidSyncResponse(msg *pb.Message, id string) error {
 }
 
 func (sm *SyncManager) handleCommitDataRequest(msg *network2.PipeMsg, mode common.SyncMode) ([]byte, uint64, error) {
-	var (
-		requestHeight uint64
-		data          []byte
-		resp          *pb.Message
-	)
+	generateResp := func(mode common.SyncMode, data []byte) ([]byte, error) {
+		msgTyp := common.CommitDataResponseType[mode]
+		resp := &pb.Message{
+			From: sm.network.PeerID(),
+			Type: msgTyp,
+			Data: data,
+		}
+
+		return resp.MarshalVT()
+	}
+
+	genFailedResp := func(height uint64, err error) ([]byte, error) {
+		var resp common.SyncResponseMessage
+		switch mode {
+		case common.SyncModeFull:
+			resp = &pb.SyncBlockResponse{
+				Height: height,
+				Status: pb.Status_ERROR,
+				Error:  err.Error(),
+			}
+		case common.SyncModeSnapshot:
+			resp = &pb.SyncChainDataResponse{
+				Height: height,
+				Status: pb.Status_ERROR,
+				Error:  err.Error(),
+			}
+		}
+
+		val, err := resp.MarshalVT()
+		if err != nil {
+			return nil, err
+		}
+		return generateResp(mode, val)
+	}
+
+	var respErr error
 
 	req := common.CommitDataRequestConstructor[mode]()
 	if err := req.UnmarshalVT(msg.Data); err != nil {
 		sm.logger.Errorf("Unmarshal sync commitData request failed: %s", err)
 		return nil, 0, err
 	}
-	requestHeight = req.GetHeight()
+	requestHeight := req.GetHeight()
 
-	block, err := sm.getBlockFunc(requestHeight)
-	if err != nil {
+	block, respErr := sm.getBlockFunc(requestHeight)
+	if respErr != nil {
 		sm.logger.WithFields(logrus.Fields{
-			"from": msg.From,
-			"err":  err,
+			"from":   msg.From,
+			"height": requestHeight,
+			"err":    respErr,
 		}).Error("Get commitData failed")
-		return nil, 0, err
+
+		failedResp, err := genFailedResp(requestHeight, respErr)
+		return failedResp, 0, err
 	}
 
-	blockBytes, err := block.Marshal()
-	if err != nil {
-		sm.logger.Errorf("Marshal commitData failed: %s", err)
-		return nil, 0, err
+	blockBytes, respErr := block.Marshal()
+	if respErr != nil {
+		sm.logger.Errorf("Marshal commitData failed: %s", respErr)
+		failedResp, err := genFailedResp(requestHeight, respErr)
+		return failedResp, 0, err
 	}
 
+	var (
+		msgResp []byte
+		err     error
+	)
 	switch mode {
 	case common.SyncModeFull:
-		commitDataResp := &pb.SyncBlockResponse{Block: blockBytes}
-		commitDataBytes, err := commitDataResp.MarshalVT()
-		if err != nil {
-			sm.logger.Errorf("Marshal sync commitData response failed: %s", err)
-			return nil, 0, err
+		commitDataResp := &pb.SyncBlockResponse{Height: requestHeight, Block: blockBytes, Status: pb.Status_SUCCESS}
+		commitDataBytes, respErr := commitDataResp.MarshalVT()
+		if respErr != nil {
+			sm.logger.Errorf("Marshal sync commitData response failed: %s", respErr)
+			failedResp, err := genFailedResp(requestHeight, respErr)
+			return failedResp, 0, err
 		}
-		resp = &pb.Message{
-			Type: pb.Message_SYNC_BLOCK_RESPONSE,
-			Data: commitDataBytes,
-		}
+
+		msgResp, err = generateResp(mode, commitDataBytes)
 
 	case common.SyncModeSnapshot:
-		commitDataResp := &pb.SyncChainDataResponse{Block: blockBytes}
+		commitDataResp := &pb.SyncChainDataResponse{Height: requestHeight, Block: blockBytes}
 
 		// get receipts by block height
-		receipts, err := sm.getReceiptsFunc(requestHeight)
-		if err != nil {
+		receipts, respErr := sm.getReceiptsFunc(requestHeight)
+		if respErr != nil {
 			sm.logger.WithFields(logrus.Fields{
 				"from": msg.From,
-				"err":  err,
+				"err":  respErr,
 			}).Error("Get receipts failed")
-			return nil, 0, err
+			failedResp, err := genFailedResp(requestHeight, respErr)
+			return failedResp, 0, err
 		}
-		receiptsBytes, err := types.MarshalReceipts(receipts)
-		if err != nil {
-			sm.logger.Errorf("Marshal receipts failed: %s", err)
-			return nil, 0, err
+		receiptsBytes, respErr := types.MarshalReceipts(receipts)
+		if respErr != nil {
+			sm.logger.Errorf("Marshal receipts failed: %s", respErr)
+			failedResp, err := genFailedResp(requestHeight, respErr)
+			return failedResp, 0, err
 		}
 		commitDataResp.Receipts = receiptsBytes
-		commitDataBytes, err := commitDataResp.MarshalVT()
-		if err != nil {
-			sm.logger.Errorf("Marshal sync commitData response failed: %s", err)
-			return nil, 0, err
+		commitDataResp.Status = pb.Status_SUCCESS
+		commitDataBytes, respErr := commitDataResp.MarshalVT()
+		if respErr != nil {
+			sm.logger.Errorf("Marshal sync commitData response failed: %s", respErr)
+			failedResp, err := genFailedResp(requestHeight, respErr)
+			return failedResp, 0, err
 		}
-		resp = &pb.Message{
-			Type: pb.Message_SYNC_CHAIN_DATA_RESPONSE,
-			Data: commitDataBytes,
-		}
+
+		msgResp, err = generateResp(mode, commitDataBytes)
 	}
 
-	data, err = resp.MarshalVT()
-	if err != nil {
-		sm.logger.Errorf("Marshal sync commitData response failed: %s", err)
-		return nil, 0, err
-	}
-
-	return data, requestHeight, nil
+	return msgResp, requestHeight, err
 }
 
 func (sm *SyncManager) listenSyncChainDataRequest() {
@@ -898,7 +1005,57 @@ func (sm *SyncManager) sendCommitDataResponse(mode common.SyncMode, to string, r
 	return nil
 }
 
+func (sm *SyncManager) precheckResponse(p2pMsg *pb.Message) (common.SyncMessage, *requester, error) {
+	// 1. check message type
+	switch sm.mode {
+	case common.SyncModeFull:
+		if p2pMsg.Type != pb.Message_SYNC_BLOCK_RESPONSE {
+			return nil, nil, fmt.Errorf("receive invalid sync block response type: %s", p2pMsg.Type)
+		}
+
+	case common.SyncModeSnapshot:
+		if p2pMsg.Type != pb.Message_SYNC_CHAIN_DATA_RESPONSE {
+			return nil, nil, fmt.Errorf("receive invalid sync chainData response type: %s", p2pMsg.Type)
+		}
+	}
+
+	// 2. check response data
+	resp := common.CommitDataResponseConstructor[sm.mode]()
+
+	if err := resp.UnmarshalVT(p2pMsg.Data); err != nil {
+		return nil, nil, fmt.Errorf("unmarshal sync commitData response failed: %s", err)
+	}
+
+	// 3. check requester
+	dataRequester := sm.getRequester(resp.GetHeight())
+	if dataRequester == nil {
+		return nil, nil, fmt.Errorf("requester not found in height:%d", resp.GetHeight())
+	}
+	if dataRequester.peerID != p2pMsg.From {
+		return nil, nil, fmt.Errorf("receive commitData which not distribute requester, height:%d, "+
+			"receive from:%s, expect from:%s, we will ignore this commitData", resp.GetHeight(), p2pMsg.From, dataRequester.peerID)
+	}
+
+	if dataRequester.commitData != nil {
+		return nil, nil, fmt.Errorf("receive duplicated commitData, height:%d", resp.GetHeight())
+	}
+
+	if resp.GetStatus() != pb.Status_SUCCESS {
+		return resp, dataRequester, fmt.Errorf("receive invalid commitData response: %s, error: %s", resp.GetStatus().String(), resp.GetError())
+	}
+
+	return resp, dataRequester, nil
+}
+
 func (sm *SyncManager) listenSyncCommitDataResponse() {
+	retrySendRequest := func(req *requester, err error) {
+		sm.postInvalidMsg(&common.InvalidMsg{
+			NodeID: req.peerID,
+			Height: req.blockHeight,
+			ErrMsg: err,
+			Typ:    common.SyncMsgType_ErrorMsg,
+		})
+	}
 	for {
 		select {
 		case <-sm.syncCtx.Done():
@@ -921,71 +1078,51 @@ func (sm *SyncManager) listenSyncCommitDataResponse() {
 				continue
 			}
 
+			// precheck response
+			resp, dataRequester, err := sm.precheckResponse(p2pMsg)
+			if err != nil {
+				if dataRequester != nil {
+					retrySendRequest(dataRequester, err)
+				} else {
+					sm.logger.Warnf("precheck response failed: %s", err)
+				}
+				continue
+			}
+
 			var commitData common.CommitData
 			switch sm.mode {
 			case common.SyncModeFull:
-				if p2pMsg.Type != pb.Message_SYNC_BLOCK_RESPONSE {
-					sm.logger.Errorf("Receive invalid sync block response type: %s", p2pMsg.Type)
-					continue
+				blockResp, ok := resp.(*pb.SyncBlockResponse)
+				if !ok {
+					retrySendRequest(dataRequester, fmt.Errorf("convert sync block response failed"))
 				}
-				resp := &pb.SyncBlockResponse{}
-				if err := resp.UnmarshalVT(p2pMsg.Data); err != nil {
-					sm.logger.Errorf("Unmarshal sync commitData response failed: %s", err)
-					continue
-				}
+
 				block := &types.Block{}
-				if err := block.Unmarshal(resp.GetBlock()); err != nil {
-					sm.logger.Errorf("Unmarshal block failed: %s", err)
-					continue
+				if err = block.Unmarshal(blockResp.GetBlock()); err != nil {
+					retrySendRequest(dataRequester, fmt.Errorf("unmarshal block failed: %w", err))
 				}
 				commitData = &common.BlockData{Block: block}
 
 			case common.SyncModeSnapshot:
-				if p2pMsg.Type != pb.Message_SYNC_CHAIN_DATA_RESPONSE {
-					sm.logger.Errorf("Receive invalid sync chainData response type: %s", p2pMsg.Type)
-					continue
-				}
-				resp := &pb.SyncChainDataResponse{}
-				if err := resp.UnmarshalVT(p2pMsg.Data); err != nil {
-					sm.logger.Errorf("Unmarshal sync commitData response failed: %s", err)
-					continue
+				chainResp, ok := resp.(*pb.SyncChainDataResponse)
+				if !ok {
+					retrySendRequest(dataRequester, fmt.Errorf("convert sync chainData response failed"))
 				}
 				chainData := &common.ChainData{}
 				block := &types.Block{}
-				if err := block.Unmarshal(resp.GetBlock()); err != nil {
-					sm.logger.Errorf("Unmarshal block failed: %s", err)
-					continue
+				if err = block.Unmarshal(chainResp.GetBlock()); err != nil {
+					retrySendRequest(dataRequester, fmt.Errorf("unmarshal block failed: %w", err))
 				}
-				receipts, err := types.UnmarshalReceipts(resp.GetReceipts())
+				receipts, err := types.UnmarshalReceipts(chainResp.GetReceipts())
 				if err != nil {
-					sm.logger.Errorf("Unmarshal receipt failed: %s", err)
-					continue
+					retrySendRequest(dataRequester, fmt.Errorf("unmarshal receipts failed: %w", err))
 				}
 				chainData.Block = block
 				chainData.Receipts = receipts
 				commitData = chainData
 			}
 
-			err, updated := sm.addCommitData(commitData, msg.From)
-			if err != nil {
-				sm.logger.WithFields(logrus.Fields{
-					"from": msg.From,
-					"err":  err,
-				}).Error("Add commitData failed")
-				continue
-			}
-
-			if updated {
-				if sm.collectChunkTaskDone() {
-					sm.logger.WithFields(logrus.Fields{
-						"latest commitData": commitData.GetHeight(),
-						"hash":              commitData.GetHash(),
-						"peer":              msg.From,
-					}).Debug("Receive chunk commitData success")
-					// send valid chunk task signal
-					sm.validChunkTaskCh <- struct{}{}
-				}
-			}
+			sm.addCommitData(dataRequester, commitData, msg.From)
 		}
 	}
 }
@@ -998,24 +1135,13 @@ func (sm *SyncManager) verifyChunkCheckpoint(checkCommitData common.CommitData) 
 	return nil
 }
 
-func (sm *SyncManager) addCommitData(commitData common.CommitData, from string) (error, bool) {
-	req := sm.getRequester(commitData.GetHeight())
-	if req == nil {
-		return fmt.Errorf("requester[height:%d] is nil", commitData.GetHeight()), false
-	}
+func (sm *SyncManager) addCommitData(req *requester, commitData common.CommitData, from string) {
+	req.setCommitData(commitData)
+	sm.increaseBlockSize()
 
-	if req.peerID != from {
-		sm.logger.Warningf("receive commitData which not distribute requester, height:%d, "+
-			"receive from:%s, expect from:%s, we will ignore this commitData", commitData.GetHeight(), from, req.peerID)
-		return nil, false
-	}
+	// requester task done, enable assign new requester
+	sm.produceRequester(1)
 
-	updated := false
-	if req.commitData == nil {
-		req.setCommitData(commitData)
-		sm.increaseBlockSize()
-		updated = true
-	}
 	sm.logger.WithFields(logrus.Fields{
 		"height":         commitData.GetHeight(),
 		"from":           from,
@@ -1023,7 +1149,17 @@ func (sm *SyncManager) addCommitData(commitData common.CommitData, from string) 
 		"hash":           req.commitData.GetHash(),
 		"size":           sm.recvBlockSize.Load(),
 	}).Debug("Receive commitData success")
-	return nil, updated
+
+	if sm.collectChunkTaskDone() {
+		sm.logger.WithFields(logrus.Fields{
+			"latest commitData": commitData.GetHeight(),
+			"hash":              commitData.GetHash(),
+			"peer":              from,
+		}).Debug("Receive chunk commitData success")
+		// send valid chunk task signal
+		sm.validChunkTaskCh <- struct{}{}
+		sm.logger.Debug("Send valid chunk task signal")
+	}
 }
 
 func (sm *SyncManager) collectChunkTaskDone() bool {
@@ -1259,7 +1395,6 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 		invalidBlockNumber.WithLabelValues("invalid_block").Inc()
 
 		r.clearBlock()
-		sm.decreaseBlockSize()
 
 		newPeer := sm.pickRandomPeer(msg.NodeID)
 		r.retryCh <- newPeer
@@ -1386,4 +1521,11 @@ func (sm *SyncManager) updatePeers(peerId string, latestHeight uint64) {
 			p.LatestHeight = latestHeight
 		}
 	})
+}
+
+func (sm *SyncManager) getConcurrencyLimit() uint64 {
+	if sm.conf.ConcurrencyLimit < sm.chunk.ChunkSize {
+		return sm.conf.ConcurrencyLimit
+	}
+	return sm.chunk.ChunkSize
 }

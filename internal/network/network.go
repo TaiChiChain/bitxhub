@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,9 @@ type Network interface {
 
 	// RegisterMultiMsgHandler registers multi message type handler
 	RegisterMultiMsgHandler(messageTypes []pb.Message_Type, handler func(network.Stream, *pb.Message)) error
+
+	// GetConnectedPeers returns connected peers, sorted by latency
+	GetConnectedPeers(peers []string) []string
 }
 
 var _ Network = (*networkImpl)(nil)
@@ -217,4 +221,41 @@ func (swarm *networkImpl) RegisterMultiMsgHandler(messageTypes []pb.Message_Type
 	}
 
 	return nil
+}
+
+// GetConnectedPeers get connected peers, sort by latency
+func (swarm *networkImpl) GetConnectedPeers(peers []string) []string {
+	peerLatencies := make(map[time.Duration]string)
+	lo.ForEach(peers, func(peer string, _ int) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		res, err := swarm.p2p.Ping(ctx, peer)
+		if err != nil {
+			swarm.logger.WithFields(logrus.Fields{"node": peer, "error": err}).Error("Ping error")
+			return
+		}
+		select {
+		case latency := <-res:
+			if latency.Error != nil {
+				swarm.logger.WithFields(logrus.Fields{"node": peer, "error": latency.Error}).Error("Ping error")
+				return
+			}
+
+			peerLatencies[latency.RTT] = peer
+		case <-ctx.Done():
+			swarm.logger.WithFields(logrus.Fields{"node": peer}).Error("Ping timeout")
+			return
+		}
+	})
+
+	// sort by latency
+	latencies := lo.Keys(peerLatencies)
+	sort.Slice(latencies, func(i, j int) bool {
+		return latencies[i] < latencies[j]
+	})
+
+	return lo.Map(latencies, func(latency time.Duration, _ int) string {
+		return peerLatencies[latency]
+	})
 }

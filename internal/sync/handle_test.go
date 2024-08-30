@@ -29,12 +29,12 @@ func TestHandleState(t *testing.T) {
 	remoteId := 1
 
 	n := 4
-	syncs, ledgers := newMockBlockSyncs(t, n)
+	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
 	_, err := syncs[0].Prepare()
 	require.Nil(t, err)
 
 	requestHeight := uint64(defaultLatestHeight)
-	prepareLedger(t, ledgers, strconv.Itoa(localId), int(requestHeight))
+	prepareLedger(t, ledgers, strconv.Itoa(localId), int(requestHeight), genesisHash)
 	block100, err := ledgers[strconv.Itoa(remoteId)].GetBlock(requestHeight)
 	require.Nil(t, err)
 

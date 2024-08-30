@@ -49,6 +49,7 @@ func main() {
 		sys_contract.NodeCMD,
 		sys_contract.StakingCMD,
 		sys_contract.StakingLSTCMD,
+		sys_contract.SmartAccountProxyCMD,
 		{
 			Name:   "start",
 			Usage:  "Start a long-running daemon process",
@@ -66,6 +67,14 @@ func main() {
 					Aliases:     []string{"s"},
 					Usage:       "enable snapshot mode(sync by snapshot), state had be updated in snapshot's height",
 					Destination: &startArgs.Snapshot,
+					Required:    false,
+				},
+				&cli.StringSliceFlag{
+					Name:        "peers",
+					Aliases:     []string{"p"},
+					Usage:       "peers address, format: <id1>:<pid1>,<id2>:<pid2>,...",
+					Value:       &cli.StringSlice{},
+					Destination: &syncSnapshotArgs.remotePeers,
 					Required:    false,
 				},
 				common.KeystorePasswordFlag(),

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	common2 "github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -244,50 +244,9 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	remoteBlockRes2 := <-remoteCh
 	assert.Equal(t, blockRes2, remoteBlockRes2)
 
-	t.Run("test rollback block", func(t *testing.T) {
-		// send bigger block to executor
-		oldHeight := exec.currentHeight
-		biggerCommitEvent := mockCommitEvent(uint64(5), nil)
-		exec.processExecuteEvent(biggerCommitEvent)
-		assert.Equal(t, oldHeight, exec.currentHeight, "ignore illegal block")
-
-		oldBlock := blockRes1.Block
-		// send rollback block to executor
-		rollbackCommitEvent := mockCommitEvent(uint64(1), txs)
-		exec.AsyncExecuteBlock(rollbackCommitEvent)
-
-		blockRes := <-ch
-		assert.EqualValues(t, 1, blockRes.Block.Header.Number)
-		assert.Equal(t, len(txs), len(blockRes.Block.Transactions))
-		assert.Equal(t, genesisBlock.Hash().String(), blockRes.Block.Header.ParentHash.String())
-		assert.NotEqual(t, oldBlock.Hash().String(), blockRes.Block.Hash().String())
-
-		remoteBlockRes := <-remoteCh
-		assert.Equal(t, blockRes, remoteBlockRes)
-
-		// handle panic error
-		defer func() {
-			r := recover()
-			assert.NotNil(t, r)
-			assert.Contains(t, fmt.Sprintf("%v", r), "cannot rollback genesis block")
-		}()
-
-		// send rollback block to executor, but rollback error
-		rollbackCommitEvent1 := mockCommitEvent(uint64(0), nil)
-		exec.processExecuteEvent(rollbackCommitEvent1)
-	})
-
-	t.Run("test rollback block with error", func(t *testing.T) {
-		// handle panic error
-		defer func() {
-			if r := recover(); r != nil {
-				assert.NotNil(t, r)
-				assert.Contains(t, fmt.Sprintf("%v", r), "cannot rollback genesis block")
-			}
-		}()
-		// send rollback block to executor, but rollback error
-		rollbackCommitEvent1 := mockCommitEvent(uint64(0), nil)
-		exec.processExecuteEvent(rollbackCommitEvent1)
+	t.Run("test dismiss repeat block", func(t *testing.T) {
+		// send repeat block to executor
+		exec.processExecuteEvent(commitEvent2)
 	})
 
 	t.Run("test get block with error", func(t *testing.T) {
@@ -373,7 +332,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 	require.Nil(t, err)
 	to := types.NewAddressByStr("0xdAC17F958D2ee523a2206206994597C13D831ec7")
 
-	dummyRootHash := common2.Hash{}
+	dummyRootHash := ethcommon.Hash{}
 	ldg.StateLedger.PrepareBlock(types.NewHash(dummyRootHash[:]), 1)
 	ldg.StateLedger.SetBalance(signer.Addr, new(big.Int).Mul(big.NewInt(5000000000000), big.NewInt(21000*10000)))
 	account := ldg.StateLedger.GetOrCreateAccount(types.NewAddressByStr(common.AXCContractAddr))

@@ -519,6 +519,10 @@ func initMockMiniNetwork(t *testing.T, ledgers map[string]*mockLedger, nets map[
 		ledgers[msg.From].stateResponse <- msg
 		return nil
 	}).AnyTimes()
+
+	mock.EXPECT().GetConnectedPeers(gomock.Any()).DoAndReturn(func(peers []string) []string {
+		return peers
+	}).AnyTimes()
 }
 
 func genGenesisBlock() *types.Block {
@@ -539,7 +543,7 @@ func genGenesisBlock() *types.Block {
 	return genesisBlock
 }
 
-func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager, map[string]*mockLedger) {
+func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager, map[string]*mockLedger, *types.Hash) {
 	ctrl := gomock.NewController(t)
 	syncs := make([]*SyncManager, 0)
 	genesis := genGenesisBlock()
@@ -573,8 +577,9 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		conf := repo.Sync{
 			RequesterRetryTimeout: repo.Duration(1 * time.Second),
 			TimeoutCountLimit:     5,
-			ConcurrencyLimit:      100,
+			ConcurrencyLimit:      10,
 			WaitStatesTimeout:     repo.Duration(100 * time.Second),
+			MaxChunkSize:          100,
 		}
 
 		getReceiptsFn := func(height uint64) ([]*types.Receipt, error) {
@@ -593,7 +598,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		syncs = append(syncs, blockSync)
 	}
 
-	return syncs, ledgers
+	return syncs, ledgers, genesis.Hash()
 }
 
 func stopSyncs(syncs []*SyncManager) {
@@ -759,8 +764,8 @@ func genSyncParams(peers []*common.Node, latestBlockHash string, quorum uint64, 
 	}
 }
 
-func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int) {
-	blocks := ConstructBlocks(endHeight, genGenesisBlock().Hash())
+func prepareLedger(t *testing.T, ledgers map[string]*mockLedger, exceptId string, endHeight int, genesisHash *types.Hash) {
+	blocks := ConstructBlocks(endHeight, genesisHash)
 	for id, lg := range ledgers {
 		if id == exceptId {
 			continue

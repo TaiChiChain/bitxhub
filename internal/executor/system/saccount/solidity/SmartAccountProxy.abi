@@ -1,0 +1,148 @@
+[
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getGuardian",
+    "outputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getOwner",
+    "outputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getPasskeys",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "bytes",
+            "name": "publicKey",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint8",
+            "name": "algo",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct PassKey[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getSessions",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "address",
+            "name": "addr",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "spendingLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "spentAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "validUntil",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "validAfter",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct SessionKey[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getStatus",
+    "outputs":
+    [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

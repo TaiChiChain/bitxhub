@@ -108,10 +108,20 @@ type SnapCommitData struct {
 	EpochState *consensus.QuorumCheckpoint
 }
 
-type syncRequestMessage interface {
+type SyncMessage interface {
 	MarshalVT() (dAtA []byte, err error)
 	UnmarshalVT(dAtA []byte) error
 	GetHeight() uint64
+}
+
+type SyncRequestMessage interface {
+	SyncMessage
+}
+
+type SyncResponseMessage interface {
+	SyncMessage
+	GetStatus() pb.Status
+	GetError() string
 }
 
 type CommitData interface {
@@ -122,13 +132,27 @@ type CommitData interface {
 	GetEpoch() uint64
 }
 
-var CommitDataRequestConstructor = map[SyncMode]func() syncRequestMessage{
-	SyncModeFull: func() syncRequestMessage {
+var CommitDataRequestConstructor = map[SyncMode]func() SyncRequestMessage{
+	SyncModeFull: func() SyncRequestMessage {
 		return &pb.SyncBlockRequest{}
 	},
-	SyncModeSnapshot: func() syncRequestMessage {
+	SyncModeSnapshot: func() SyncRequestMessage {
 		return &pb.SyncChainDataRequest{}
 	},
+}
+
+var CommitDataResponseConstructor = map[SyncMode]func() SyncResponseMessage{
+	SyncModeFull: func() SyncResponseMessage {
+		return &pb.SyncBlockResponse{}
+	},
+	SyncModeSnapshot: func() SyncResponseMessage {
+		return &pb.SyncChainDataResponse{}
+	},
+}
+
+var CommitDataResponseType = map[SyncMode]pb.Message_Type{
+	SyncModeFull:     pb.Message_SYNC_BLOCK_RESPONSE,
+	SyncModeSnapshot: pb.Message_SYNC_CHAIN_DATA_RESPONSE,
 }
 
 type BlockData struct {

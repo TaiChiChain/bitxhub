@@ -20,8 +20,8 @@ func (api *ChainAPI) Status() string {
 		return "normal"
 	}
 
-	err := api.axiomLedger.Consensus.Ready()
-	if err != nil {
+	ready, _ := api.axiomLedger.Consensus.Status()
+	if !ready {
 		return "abnormal"
 	}
 

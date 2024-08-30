@@ -691,6 +691,88 @@
     "inputs":
     [
       {
+        "internalType": "string",
+        "name": "consensusPubKey",
+        "type": "string"
+      }
+    ],
+    "name": "getInfoByConsensusPubKey",
+    "outputs":
+    [
+      {
+        "components":
+        [
+          {
+            "internalType": "uint64",
+            "name": "ID",
+            "type": "uint64"
+          },
+          {
+            "internalType": "string",
+            "name": "ConsensusPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PPubKey",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "P2PID",
+            "type": "string"
+          },
+          {
+            "internalType": "address",
+            "name": "Operator",
+            "type": "address"
+          },
+          {
+            "components":
+            [
+              {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "desc",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "imageURL",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "websiteURL",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct NodeMetaData",
+            "name": "MetaData",
+            "type": "tuple"
+          },
+          {
+            "internalType": "enum Status",
+            "name": "Status",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct NodeInfo",
+        "name": "info",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs":
+    [
+      {
         "internalType": "uint64[]",
         "name": "nodeIDs",
         "type": "uint64[]"

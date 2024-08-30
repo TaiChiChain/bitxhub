@@ -284,7 +284,9 @@ func (o *SimpleAccount) Code() []byte {
 	}
 
 	code := o.backend.Get(utils.CompositeCodeKey(o.Addr, o.CodeHash()))
-	o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: code[:4]})
+	if code != nil {
+		o.logger.Debugf("[Code] get from storage, addr: %v, code: %v", o.Addr, &bytesLazyLogger{bytes: code[:4]})
+	}
 
 	o.originCode = code
 	o.dirtyCode = code

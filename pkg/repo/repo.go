@@ -27,6 +27,7 @@ type Repo struct {
 	ConsensusKeystore *ConsensusKeystore
 	P2PKeystore       *P2PKeystore
 	StartArgs         *StartArgs
+	SyncArgs          *SyncArgs
 }
 
 func (r *Repo) PrintNodeInfo(writer func(c string)) {

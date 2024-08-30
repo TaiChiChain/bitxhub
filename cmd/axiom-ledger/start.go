@@ -11,6 +11,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/axiomesh/axiom-ledger/pkg/profile"
 	"github.com/urfave/cli/v2"
 
 	"github.com/axiomesh/axiom-kit/fileutil"
@@ -19,13 +20,16 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/app"
 	"github.com/axiomesh/axiom-ledger/internal/coreapi"
 	"github.com/axiomesh/axiom-ledger/pkg/loggers"
-	"github.com/axiomesh/axiom-ledger/pkg/profile"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
 var startArgs = struct {
 	Readonly bool
 	Snapshot bool
+}{}
+
+var syncSnapshotArgs = struct {
+	remotePeers cli.StringSlice
 }{}
 
 func start(ctx *cli.Context) error {
@@ -52,6 +56,13 @@ func start(ctx *cli.Context) error {
 		return err
 	}
 	r.StartArgs = &repo.StartArgs{ReadonlyMode: startArgs.Readonly, SnapshotMode: startArgs.Snapshot}
+	r.SyncArgs = &repo.SyncArgs{}
+	if peers := syncSnapshotArgs.remotePeers.Value(); len(peers) != 0 {
+		r.SyncArgs.RemotePeers, err = common.DecodePeers(peers)
+		if err != nil {
+			return err
+		}
+	}
 	if err := r.ReadKeystore(); err != nil {
 		return err
 	}
@@ -88,11 +99,6 @@ func start(ctx *cli.Context) error {
 			return fmt.Errorf("write pid error: %s", err)
 		}
 
-		axm, err := app.NewAxiomLedger(r, appCtx, cancel)
-		if err != nil {
-			return fmt.Errorf("init axiom-ledger failed: %w", err)
-		}
-
 		monitor, err := profile.NewMonitor(r.Config)
 		if err != nil {
 			return err
@@ -107,6 +113,11 @@ func start(ctx *cli.Context) error {
 		}
 		if err := pprof.Start(); err != nil {
 			return err
+		}
+
+		axm, err := app.NewAxiomLedger(r, appCtx, cancel)
+		if err != nil {
+			return fmt.Errorf("init axiom-ledger failed: %w", err)
 		}
 
 		// coreapi

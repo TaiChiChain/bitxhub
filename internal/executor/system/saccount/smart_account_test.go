@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"strings"
 	"testing"
+	"time"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -56,10 +57,9 @@ func TestSmartAccount_Execute(t *testing.T) {
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
 		sa.SetRemainingGas(big.NewInt(MaxCallGasLimit))
 		callData := ethcommon.Hex2Bytes("b61d27f600000000000000000000000082c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000")
-		isExist, _, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
+		res, err := CallMethod(callData, sa)
 		assert.Nil(t, err)
-		assert.True(t, isExist)
-		assert.Equal(t, uint64(10), totalUsedValue.Uint64())
+		assert.Equal(t, uint64(10), res.TotalUsedValue.Uint64())
 		return err
 	})
 
@@ -67,9 +67,9 @@ func TestSmartAccount_Execute(t *testing.T) {
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
 		sa.SetRemainingGas(big.NewInt(MaxCallGasLimit))
 		callData := ethcommon.Hex2Bytes("18160ddd")
-		_, totalUsedValue, err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+		err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 		assert.Nil(t, err)
-		assert.EqualValues(t, 0, totalUsedValue.Uint64())
+		assert.EqualValues(t, 0, sa.getTotalUsedValue().Uint64())
 		return err
 	})
 
@@ -77,7 +77,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
 		sa.SetRemainingGas(big.NewInt(MaxCallGasLimit))
 		callData := ethcommon.Hex2Bytes("70a082310000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b6650")
-		_, _, err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+		err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 		assert.Nil(t, err)
 		return err
 	})
@@ -87,7 +87,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
 		sa.SetRemainingGas(big.NewInt(MaxCallGasLimit))
 		callData := ethcommon.Hex2Bytes("40c10f190000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b66500000000000000000000000000000000000000000000000000000000000002710")
-		_, _, err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+		err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 		assert.Nil(t, err)
 		return err
 	})
@@ -96,7 +96,7 @@ func TestSmartAccount_Execute(t *testing.T) {
 	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
 		sa.SetRemainingGas(big.NewInt(MaxCallGasLimit))
 		callData := ethcommon.Hex2Bytes("70a082310000000000000000000000001cd68912e00c5a02ea0b8b2d972a9c13906b6650")
-		_, _, err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
+		err := sa.Execute(erc20ContractAddr, big.NewInt(0), callData)
 		assert.Nil(t, err)
 		return err
 	})
@@ -108,10 +108,9 @@ func TestSmartAccount_Execute(t *testing.T) {
 		sa.SetRemainingGas(big.NewInt(MaxCallGasLimit))
 		callData := ethcommon.Hex2Bytes("b61d27f600000000000000000000000082c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000044a9059cbb000000000000000000000000c7f999b83af6df9e67d0a37ee7e900bf38b3d013000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000")
 		// replace caller to smart account address
-		isExist, _, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa)
+		res, err := CallMethod(callData, sa)
 		assert.Nil(t, err)
-		assert.True(t, isExist)
-		assert.Equal(t, uint64(7), totalUsedValue.Uint64())
+		assert.Equal(t, uint64(7), res.TotalUsedValue.Uint64())
 		return err
 	})
 
@@ -136,10 +135,77 @@ func TestSmartAccount_Execute(t *testing.T) {
 		str := "b61d27f600000000000000000000000082c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000"
 		dest := strings.ReplaceAll(str, "82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc", strings.TrimLeft(accountAddr.Hex(), "0x"))
 		callData := ethcommon.Hex2Bytes(dest)
-		isExist, _, totalUsedValue, err := JudgeOrCallInnerMethod(callData, sa2)
+		res, err := CallMethod(callData, sa2)
 		assert.Nil(t, err)
-		assert.True(t, isExist)
-		assert.Equal(t, uint64(10), totalUsedValue.Uint64())
+		assert.Equal(t, uint64(10), res.TotalUsedValue.Uint64())
 		return err
+	})
+
+	// need mint erc20 to sa before call
+	// test sa batch system contract and solilidity
+	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
+		setSessionFunc, err := sa.Abi.Pack("setSession", ethcommon.HexToAddress("82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc"), big.NewInt(100), uint64(time.Now().Unix()), uint64(time.Now().Add(time.Minute).Unix()))
+		assert.Nil(t, err)
+
+		setPasskeyFunc, err := sa.Abi.Pack("setPasskey", ethcommon.Hex2Bytes("a5010203262001215820d60c30d70d20f157137415303627fe1d0bbc5ccd13a4edf5a67151fc87b4f37522582086a8c83194750eb38ab4341b268958b574d62ea130bcd2f53868e844c5099b0e"), uint8(0))
+		assert.Nil(t, err)
+
+		transferFunc := append([]byte{}, transferSig...)
+		transferFunc = append(transferFunc, ethcommon.LeftPadBytes(ethcommon.HexToAddress("82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc").Bytes(), 32)...)
+		transferFunc = append(transferFunc, ethcommon.LeftPadBytes(big.NewInt(100).Bytes(), 32)...)
+
+		callData, err := sa.Abi.Pack("executeBatch", []ethcommon.Address{sa.EthAddress, sa.EthAddress, erc20ContractAddr}, [][]byte{setSessionFunc, setPasskeyFunc, transferFunc})
+		assert.Nil(t, err)
+
+		res, err := CallMethod(callData, sa)
+		assert.Nil(t, err)
+		assert.Equal(t, uint64(100), res.TotalUsedValue.Uint64())
+		return err
+	})
+
+	// need mint erc20 to sa before call
+	// test sa call executeBatch0 function
+	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
+		transferFunc := append([]byte{}, transferSig...)
+		transferFunc = append(transferFunc, ethcommon.LeftPadBytes(ethcommon.HexToAddress("82c6d3ed4cd33d8ec1e51d0b5cc1d822eaa0c3dc").Bytes(), 32)...)
+		transferFunc = append(transferFunc, ethcommon.LeftPadBytes(big.NewInt(10).Bytes(), 32)...)
+
+		callData, err := sa.Abi.Pack("executeBatch0", []ethcommon.Address{sa2.EthAddress, sa2.EthAddress, erc20ContractAddr}, []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(0)}, [][]byte{nil, nil, transferFunc})
+		assert.Nil(t, err)
+
+		// set balance to sa
+		entrypoint.Ctx.StateLedger.SetBalance(sa.Address, types.CoinNumberByAxc(10).ToBigInt())
+
+		res, err := CallMethod(callData, sa)
+		assert.Nil(t, err)
+		assert.Equal(t, uint64(1+2+10), res.TotalUsedValue.Uint64())
+		return err
+	})
+}
+
+func TestSmartAccount_GetPasskeys(t *testing.T) {
+	testNVM := common.NewTestNVM(t)
+
+	entrypoint := EntryPointBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+	factory := SmartAccountFactoryBuildConfig.Build(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}))
+
+	owner := ethcommon.HexToAddress(testNVM.Rep.GenesisConfig.SmartAccountAdmin)
+	entrypoint.Ctx.StateLedger.SetBalance(types.NewAddress(owner.Bytes()), types.CoinNumberByAxc(3).ToBigInt())
+
+	accountAddr, _ := factory.GetAddress(owner, big.NewInt(1))
+	sa := SmartAccountBuildConfig.BuildWithAddress(common.NewTestVMContext(testNVM.StateLedger, ethcommon.Address{}), accountAddr).SetRemainingGas(big.NewInt(MaxCallGasLimit))
+	entrypoint.Ctx.StateLedger.SetBalance(sa.Address, types.CoinNumberByAxc(3).ToBigInt())
+
+	testNVM.RunSingleTX(sa, entrypoint.EthAddress, func() error {
+		pub := ethcommon.Hex2Bytes("a5010203262001215820d60c30d70d20f157137415303627fe1d0bbc5ccd13a4edf5a67151fc87b4f37522582086a8c83194750eb38ab4341b268958b574d62ea130bcd2f53868e844c5099b0e")
+
+		sa.SetPasskey(pub, AlgoSecp256R1)
+
+		passkeyList, err := sa.GetPasskeys()
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(passkeyList))
+		assert.Equal(t, len(pub), len(passkeyList[0].PublicKey))
+		assert.EqualValues(t, pub, passkeyList[0].PublicKey)
+		return nil
 	})
 }

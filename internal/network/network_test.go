@@ -12,6 +12,7 @@ import (
 	"github.com/Rican7/retry/strategy"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -327,5 +328,32 @@ func TestSwarm_RegisterMultiMsgHandler(t *testing.T) {
 		err := swarms[1].RegisterMultiMsgHandler([]pb.Message_Type{pb.Message_SYNC_STATE_REQUEST}, nil)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "empty handler")
+	})
+}
+
+func TestNetworkImpl_GetConnectedPeers(t *testing.T) {
+	peerCnt := 4
+	swarms := newMockSwarms(t, peerCnt, false)
+	defer func() {
+		_ = stopSwarms(t, swarms)
+	}()
+
+	peers := lo.FlatMap(swarms, func(s *networkImpl, _ int) []string {
+		return []string{s.PeerID()}
+	})
+	res := swarms[0].GetConnectedPeers(peers)
+	require.Equal(t, 3, len(res))
+}
+
+func TestName(t *testing.T) {
+	list := []int64{1, 2, 3, 4}
+
+	lo.ForEach(list, func(x int64, _ int) {
+		fmt.Println(x)
+		if x == 2 {
+			return
+		} else {
+			fmt.Println("connn", x)
+		}
 	})
 }

@@ -19,7 +19,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -81,19 +80,12 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	// check executor handle the right block
 	if block.Header.Number != exec.currentHeight+1 {
-		exec.logger.WithFields(logrus.Fields{"block height": block.Header.Number,
-			"matchedHeight": exec.currentHeight + 1}).Warning("current block height is not matched")
 		if block.Header.Number <= exec.currentHeight {
-			if exec.rep.Config.Executor.DisableRollback {
-				panic(fmt.Sprintf("not supported rollback to %d", block.Header.Number))
-			}
-			err := exec.rollbackBlocks(block)
-			if err != nil {
-				exec.logger.WithError(err).Error("rollback blocks failed")
-				panic(err)
-			}
-		} else {
+			exec.logger.WithFields(logrus.Fields{"block height": block.Header.Number,
+				"expectHeight": exec.currentHeight + 1}).Warning("current block height is not matched, will ignore it...")
 			return
+		} else {
+			panic(fmt.Sprintf("block height %d is not matched the current expect height %d", block.Header.Number, exec.currentHeight+1))
 		}
 	}
 
@@ -429,7 +421,7 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensus.Checkpoint) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensuscommon.Checkpoint) {
 	exec.blockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
 		TxPointerList:          txPointerList,

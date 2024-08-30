@@ -45,13 +45,6 @@ func (api *TxPoolAPI) GetMeta(full bool) any {
 	return api.axiomLedger.TxPool.GetMeta(full)
 }
 
-func (api *TxPoolAPI) GetChainInfo() any {
-	if api.axiomLedger.Repo.StartArgs.ReadonlyMode {
-		return nil
-	}
-	return api.axiomLedger.TxPool.GetChainInfo()
-}
-
 func (api *TxPoolAPI) IsStarted() bool {
 	return api.axiomLedger.TxPool.IsStarted()
 }

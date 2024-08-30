@@ -257,14 +257,14 @@ func TestPrepare(t *testing.T) {
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
 		Status: rbft.InViewChange,
 	}).Times(1)
-	err = node.Ready()
-	ast.Error(err)
+	ready, _ := node.Status()
+	assert.False(t, ready)
 
 	mockRbft.EXPECT().Status().Return(rbft.NodeStatus{
 		Status: rbft.Normal,
 	}).AnyTimes()
-	err = node.Ready()
-	ast.Nil(err)
+	ready, _ = node.Status()
+	assert.True(t, ready)
 
 	err = node.Prepare(tx1)
 	ast.Nil(err)
@@ -396,11 +396,9 @@ func TestReportState(t *testing.T) {
 		testutil.SetMockBlockLedger(block30, true)
 		defer testutil.ResetMockBlockLedger()
 
-		ckp := &consensus.Checkpoint{
-			ExecuteState: &consensus.Checkpoint_ExecuteState{
-				Height: 30,
-				Digest: block30.Hash().String(),
-			},
+		ckp := &common.Checkpoint{
+			Height: 30,
+			Digest: block30.Hash().String(),
 		}
 		node.ReportState(uint64(30), block.Hash(), nil, ckp, false)
 		ast.Equal(false, node.stack.StateUpdating)

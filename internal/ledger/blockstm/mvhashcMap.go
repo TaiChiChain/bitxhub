@@ -66,12 +66,20 @@ func newKey(addr types.Address, hash types.Hash, subpath byte, keyType byte) Key
 	return k
 }
 
-func NewAddressKey(addr types.Address) Key {
-	return newKey(addr, types.Hash{}, 0, addressType)
+func NewAddressKey(addr *types.Address) Key {
+	if addr == nil {
+		return newKey(types.Address{}, types.Hash{}, 0, addressType)
+	}
+	return newKey(*addr, types.Hash{}, 0, addressType)
 }
 
-func NewStateKey(addr types.Address, hash types.Hash) Key {
-	k := newKey(addr, hash, 0, stateType)
+func NewStateKey(addr *types.Address, hash types.Hash) Key {
+	var k Key
+	if addr == nil {
+		k = newKey(types.Address{}, hash, 0, stateType)
+	} else {
+		k = newKey(*addr, hash, 0, stateType)
+	}
 	if !k.IsState() {
 		panic(fmt.Errorf("key is not a state key"))
 	}
@@ -79,8 +87,11 @@ func NewStateKey(addr types.Address, hash types.Hash) Key {
 	return k
 }
 
-func NewSubpathKey(addr types.Address, subpath byte) Key {
-	return newKey(addr, types.Hash{}, subpath, subpathType)
+func NewSubpathKey(addr *types.Address, subpath byte) Key {
+	if addr == nil {
+		return newKey(types.Address{}, types.Hash{}, subpath, subpathType)
+	}
+	return newKey(*addr, types.Hash{}, subpath, subpathType)
 }
 
 type MVHashMap struct {

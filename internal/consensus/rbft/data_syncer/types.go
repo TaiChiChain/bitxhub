@@ -24,7 +24,8 @@ const (
 )
 
 const (
-	Normal status.StatusType = iota
+	Pending status.StatusType = iota
+	Normal
 	NeedSyncState
 	InSyncState
 	NeedFetchMissingTxs
@@ -34,6 +35,7 @@ const (
 )
 
 var statusTypes = map[status.StatusType]string{
+	Pending:           "Pending",
 	Normal:            "Normal",
 	NeedSyncState:     "NeedSyncState",
 	InSyncState:       "InSyncState",
@@ -48,6 +50,7 @@ const (
 	eventType_stateUpdated
 	eventType_executed
 	eventType_epochSync
+	eventType_syncState
 	eventType_consensusMessage
 )
 
@@ -57,6 +60,7 @@ var eventTypes = map[int]string{
 	eventType_stateUpdated:     "stateUpdated",
 	eventType_executed:         "executed",
 	eventType_epochSync:        "epochSync",
+	eventType_syncState:        "syncState",
 	eventType_consensusMessage: "consensusMessage",
 }
 

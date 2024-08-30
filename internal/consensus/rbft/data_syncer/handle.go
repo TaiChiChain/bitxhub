@@ -9,10 +9,7 @@ func (n *Node[T, Constraint]) handleTimeout(name timer.TimeoutEvent) {
 	case syncStateRestart:
 		n.logger.Info("restart sync state timer")
 		if !n.statusMgr.InOne(InCommit, StateTransferring, InSyncState) {
-			if err := n.initSyncState(); err != nil {
-				n.logger.Error(err)
-				return
-			}
+			n.postEvent(n.genSyncStateEvent())
 		}
 
 		if err := n.timeMgr.RestartTimer(syncStateRestart); err != nil {
@@ -37,10 +34,7 @@ func (n *Node[T, Constraint]) handleTimeout(name timer.TimeoutEvent) {
 			n.missingTxsInFetchingLock.Lock()
 			n.missingBatchesInFetching = nil
 			n.missingTxsInFetchingLock.Unlock()
-			if err := n.initSyncState(); err != nil {
-				n.logger.Error(err)
-				return
-			}
+			n.postEvent(n.genSyncStateEvent())
 			return
 		}
 
@@ -55,6 +49,12 @@ func (n *Node[T, Constraint]) handleTimeout(name timer.TimeoutEvent) {
 		}
 
 	case syncStateResp:
+		if n.statusMgr.In(InEpochSyncing) {
+			n.timeMgr.StopTimer(syncStateResp)
+			n.logger.Infof("stop syncStateResp timer because current status is InEpochSyncing")
+			return
+		}
+		n.logger.Info("handle syncStateResp timeout")
 		if err := n.fetchSyncState(); err != nil {
 			n.logger.Error(err)
 			return

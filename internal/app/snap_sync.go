@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -24,19 +27,42 @@ type snapMeta struct {
 	snapPeers        []*common.Node
 }
 
-func loadSnapMeta(lg *ledger.Ledger) (*snapMeta, error) {
-	meta, err := lg.StateLedger.GetTrieSnapshotMeta()
+func loadSnapMeta(lg *ledger.Ledger, header *types.BlockHeader, selfPeerId string, args *repo.SyncArgs) (*snapMeta, error) {
+	epochContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+	currentEpochInfo, err := epochContract.CurrentEpoch()
 	if err != nil {
-		return nil, fmt.Errorf("get snapshot meta hash: %w", err)
+		return nil, fmt.Errorf("get current epoch info: %w", err)
 	}
 
-	snapPersistedEpoch := meta.EpochInfo.Epoch - 1
-	if meta.EpochInfo.EpochPeriod+meta.EpochInfo.StartBlock-1 == meta.BlockHeader.Number {
-		snapPersistedEpoch = meta.EpochInfo.Epoch
+	snapPersistedEpoch := currentEpochInfo.Epoch - 1
+	if currentEpochInfo.EpochPeriod+currentEpochInfo.StartBlock-1 == header.Number {
+		snapPersistedEpoch = currentEpochInfo.Epoch
 	}
 
+	// if local node is started with specified nodes for synchronization,
+	// the specified nodes will be used instead of the snapshot meta
+	nodeContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+	nodeInfos, _, err := nodeContract.GetActiveValidatorSet()
+	if err != nil {
+		return nil, fmt.Errorf("get node info: %w", err)
+	}
+
+	p := lo.FilterMap(nodeInfos, func(info node_manager.NodeInfo, _ int) (*consensus.QuorumValidator, bool) {
+		if info.P2PID == selfPeerId {
+			return nil, false
+		}
+		return &consensus.QuorumValidator{
+			Id:     info.ID,
+			PeerId: info.P2PID,
+		}, true
+	})
+	rawPeers := &consensus.QuorumValidators{Validators: p}
+
+	if args.RemotePeers != nil && len(args.RemotePeers.Validators) != 0 {
+		rawPeers = args.RemotePeers
+	}
 	// flatten peers
-	peers := lo.FlatMap(meta.Nodes.Validators, func(p *consensus.QuorumValidator, _ int) []*common.Node {
+	peers := lo.FlatMap(rawPeers.Validators, func(p *consensus.QuorumValidator, _ int) []*common.Node {
 		return []*common.Node{
 			{
 				Id:     p.Id,
@@ -46,7 +72,7 @@ func loadSnapMeta(lg *ledger.Ledger) (*snapMeta, error) {
 	})
 
 	return &snapMeta{
-		snapBlockHeader:  meta.BlockHeader,
+		snapBlockHeader:  header,
 		snapPeers:        peers,
 		snapPersistEpoch: snapPersistedEpoch,
 	}, nil
@@ -60,22 +86,23 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 	}
 
 	var startEpcNum uint64 = 1
-
-	blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
-	if err != nil {
-		return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
-	}
-	blockEpc := blockHeader.Epoch
-	epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
-	info, err := epochManagerContract.HistoryEpoch(blockEpc)
-	if err != nil {
-		return nil, nil, fmt.Errorf("get epoch info err: %w", err)
-	}
-	if info.StartBlock+info.EpochPeriod-1 == latestHeight {
-		// if the last blockHeader in this epoch had been persisted, start from the next epoch
-		startEpcNum = info.Epoch + 1
-	} else {
-		startEpcNum = info.Epoch
+	if latestHeight != 0 {
+		blockHeader, err := axm.ViewLedger.ChainLedger.GetBlockHeader(latestHeight)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get latest blockHeader err: %w", err)
+		}
+		blockEpc := blockHeader.Epoch
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(axm.ViewLedger.NewView().StateLedger))
+		info, err := epochManagerContract.HistoryEpoch(blockEpc)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get epoch info err: %w", err)
+		}
+		if info.StartBlock+info.EpochPeriod-1 == latestHeight {
+			// if the last blockHeader in this epoch had been persisted, start from the next epoch
+			startEpcNum = info.Epoch + 1
+		} else {
+			startEpcNum = info.Epoch
+		}
 	}
 
 	// 2. fill snap sync config option
@@ -186,7 +213,13 @@ func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
 
 func (axm *AxiomLedger) genSnapSyncParams(peers []*common.Node, startHeight, targetHeight uint64,
 	quorumCkpt *consensus.SignedCheckpoint, epochChanges []*consensus.EpochChange) *common.SyncParams {
-	latestBlockHash := axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
+	latestBlockHash := ethcommon.Hash{}.String()
+
+	if axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash != nil {
+		latestBlockHash = axm.ViewLedger.ChainLedger.GetChainMeta().BlockHash.String()
+	} else {
+		startHeight--
+	}
 	return &common.SyncParams{
 		Peers:            peers,
 		LatestBlockHash:  latestBlockHash,

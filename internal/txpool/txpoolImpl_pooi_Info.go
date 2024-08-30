@@ -11,29 +11,6 @@ func (p *txPoolImpl[T, Constraint]) IsStarted() bool {
 	return p.started.Load()
 }
 
-func (p *txPoolImpl[T, Constraint]) GetChainInfo() *commonpool.ChainInfo {
-	req := &reqChainInfoMsg{
-		ch: make(chan *commonpool.ChainInfo),
-	}
-	ev := &poolInfoEvent{
-		EventType: reqChainInfoEvent,
-		Event:     req,
-	}
-	p.postEvent(ev)
-	return <-req.ch
-}
-
-func (p *txPoolImpl[T, Constraint]) UpdateChainInfo(chainInfo *commonpool.ChainInfo) {
-	req := &updateChainInfoMsg{
-		chainInfo: chainInfo,
-	}
-	ev := &poolInfoEvent{
-		EventType: updateChainInfoEvent,
-		Event:     req,
-	}
-	p.postEvent(ev)
-}
-
 func (p *txPoolImpl[T, Constraint]) GetTotalPendingTxCount() uint64 {
 	req := &reqPendingTxCountMsg{ch: make(chan uint64)}
 	ev := &poolInfoEvent{
@@ -132,7 +109,7 @@ func (p *txPoolImpl[T, Constraint]) handleGetAccountMeta(account string, full bo
 			p.logger.Errorf("Get nil tx from allTxs items")
 			return true
 		}
-		fullTxs = append(fullTxs, item)
+		fullTxs = append(fullTxs, item.clone())
 		return true
 	})
 

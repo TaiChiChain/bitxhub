@@ -13,7 +13,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
@@ -145,8 +144,8 @@ func (n *Node) Stop() {
 
 func (n *Node) Prepare(tx *types.Transaction) error {
 	defer n.txFeed.Send([]*types.Transaction{tx})
-	if err := n.Ready(); err != nil {
-		return fmt.Errorf("node get ready failed: %w", err)
+	if ready, status := n.getStatus(); !ready {
+		return fmt.Errorf("node get ready failed: %s", status)
 	}
 	txWithResp := &common.TxWithResp{
 		Tx:      tx,
@@ -174,14 +173,18 @@ func (n *Node) Step([]byte) error {
 	return nil
 }
 
-func (n *Node) Ready() error {
-	if !n.started.Load() {
-		return common.ErrorConsensusStart
-	}
-	return nil
+func (n *Node) Status() (bool, string) {
+	return n.getStatus()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensus.Checkpoint, _ bool) {
+func (n *Node) getStatus() (bool, string) {
+	if !n.started.Load() {
+		return false, common.ErrorConsensusStart.Error()
+	}
+	return true, "normal"
+}
+
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool) {
 	txHashList := make([]*types.Hash, len(txPointerList))
 	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
 		txHashList[i] = item.Hash
@@ -311,6 +314,8 @@ func (n *Node) listenEvent() {
 				if err = n.batchMgr.RestartTimer(common.Batch); err != nil {
 					n.logger.Errorf("restart batch timeout failed: %v", err)
 				}
+
+				n.txpool.ReplyBatchSignal()
 			}
 		}
 	}

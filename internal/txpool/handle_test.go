@@ -17,7 +17,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		ast := assert.New(t)
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		pool.toleranceRemoveTime = 10 * time.Millisecond
-		pool.chainInfo.EpochConf.BatchSize = 4
+		pool.chainState.EpochInfo.ConsensusParams.BlockMaxTxNum = 4
 		ch := make(chan struct{}, 1)
 		pool.notifyGenerateBatchFn = func(typ int) {
 			go func() {
@@ -28,7 +28,6 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		}
 		err := pool.Start()
 		ast.Nil(err)
-		defer pool.Stop()
 
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
@@ -50,6 +49,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 
 		pool.handleRemoveTimeout(RemoveTx)
 		ast.Equal(uint64(5), pool.GetTotalPendingTxCount(), "ignore batched and priority txs")
+		pool.Stop()
 	})
 
 	t.Run("remove Event successful", func(t *testing.T) {
@@ -57,7 +57,6 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		pool.toleranceRemoveTime = 5 * time.Millisecond
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
 
 		// test wrong event
@@ -95,6 +94,7 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.commitNonces))
 		assert.Equal(t, 0, len(pool.txStore.nonceCache.pendingNonces))
 		assert.Equal(t, 0, len(pool.txStore.allTxs))
+		pool.Stop()
 	})
 
 	t.Run("rotate tx locals", func(t *testing.T) {
@@ -102,7 +102,6 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		pool := mockTxPoolImpl[types.Transaction, *types.Transaction](t)
 		pool.rotateTxLocalsInterval = 1 * time.Millisecond
 		err := pool.Start()
-		defer pool.Stop()
 		ast.Nil(err)
 		s, err := types.GenerateSigner()
 		ast.Nil(err)
@@ -134,5 +133,6 @@ func TestHandleRemoveTimeoutEvent(t *testing.T) {
 		ast.Equal(uint64(1), pool.GetTotalPendingTxCount())
 		records3, err := GetAllTxRecords(pool.txRecordsFile)
 		ast.True(len(records3) == 1)
+		pool.Stop()
 	})
 }
