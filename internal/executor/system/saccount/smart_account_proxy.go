@@ -13,7 +13,9 @@ var AccountProxyBuildConfig = &common.SystemContractBuildConfig[*SmartAccountPro
 	Address: common.AccountProxyContractAddr,
 	AbiStr:  smart_account_proxy_client.BindingContractMetaData.ABI,
 	Constructor: func(systemContractBase common.SystemContractBase) *SmartAccountProxy {
-		return &SmartAccountProxy{}
+		return &SmartAccountProxy{
+			SystemContractBase: systemContractBase,
+		}
 	},
 }
 
