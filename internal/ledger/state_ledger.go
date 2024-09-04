@@ -196,6 +196,40 @@ func (l *StateLedgerImpl) Copy() StateLedger {
 	return lg
 }
 
+func (l *StateLedgerImpl) SetFromOrigin(origin *StateLedgerImpl) {
+	l.repo = origin.repo
+	l.logger = origin.logger
+	l.backend = origin.backend
+	l.pruneCache = origin.pruneCache
+	l.accountTrieCache = origin.accountTrieCache
+	l.storageTrieCache = origin.storageTrieCache
+	l.trieIndexer = origin.trieIndexer
+	l.blockHeight = origin.blockHeight
+	l.snapshot = origin.snapshot
+}
+
+func (l *StateLedgerImpl) Reset() {
+	l.accounts = make(map[common.Address]IAccount)
+	l.preimages = make(map[types.Hash][]byte)
+	l.changer = newChanger()
+	l.accessList = NewAccessList()
+	l.logs = newEvmLogs()
+	l.revertedKeys = make(map[blockstm.Key]struct{})
+	l.accountTrie = nil
+	l.triePreloader = nil
+	l.thash = nil
+	l.txIndex = 0
+	l.validRevisions = make([]revision, 0)
+	l.nextRevisionId = 0
+	l.refund = 0
+	l.transientStorage = newTransientStorage()
+	l.mvHashmap = nil
+	l.dep = 0
+	l.incarnation = 0
+	l.readMap = nil
+	l.writeMap = nil
+}
+
 func (l *StateLedgerImpl) GetHistoryRange() (uint64, uint64) {
 	return l.pruneCache.GetRange()
 }
