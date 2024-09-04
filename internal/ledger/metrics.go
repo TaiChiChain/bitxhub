@@ -108,54 +108,6 @@ var (
 		Help:      "The total latency of get a transaction from db",
 		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
 	})
-
-	getAccountDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "get_account_duration",
-		Help:      "The total latency of get account",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
-	mvReadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "mv_read_duration",
-		Help:      "The total latency of mv read",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
-	getBalanceDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "get_balance_duration",
-		Help:      "The total latency of get balance",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
-	setBalanceDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "set_balance_duration",
-		Help:      "The total latency of set balance",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
-	getFromStorageDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "get_from_storage_duration",
-		Help:      "The total latency of get from storage",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
-
-	getFromMvReadDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "ledger",
-		Name:      "get_from_mvread_duration",
-		Help:      "The total latency of get from mvread",
-		Buckets:   prometheus.ExponentialBuckets(0.00001, 2, 10),
-	})
 )
 
 func init() {
@@ -173,10 +125,4 @@ func init() {
 	prometheus.MustRegister(storageTrieCacheSize)
 	prometheus.MustRegister(getTransactionCounter)
 	prometheus.MustRegister(getTransactionDuration)
-
-	//prometheus.MustRegister(setBalanceDuration)
-	//prometheus.MustRegister(getAccountDuration)
-	//prometheus.MustRegister(mvReadDuration)
-	//prometheus.MustRegister(mvRecordWrittenDuration)
-
 }

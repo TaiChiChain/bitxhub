@@ -312,13 +312,11 @@ func (pe *ParallelExecutor) Prepare() error {
 		if len(t.Dependencies()) > 0 {
 			for _, val := range t.Dependencies() {
 				clearPendingFlag = true
-
 				pe.execTasks.addDependencies(val, i)
 			}
 
 			if clearPendingFlag {
 				pe.execTasks.clearPending(i)
-
 				clearPendingFlag = false
 			}
 		} else {
@@ -337,13 +335,11 @@ func (pe *ParallelExecutor) Prepare() error {
 	for i := 0; i < pe.numSpeculativeProcs+numGoProcs; i++ {
 		go func(procNum int) {
 			defer pe.workerWg.Done()
-
 			doWork := func(task ExecVersionView) {
 				start := time.Duration(0)
 				if pe.profile {
 					start = time.Since(pe.begin)
 				}
-
 				res := task.Execute()
 				if res.err == nil {
 					pe.mvh.FlushMVWriteSet(res.txAllOut)
@@ -381,14 +377,10 @@ func (pe *ParallelExecutor) Prepare() error {
 	}
 
 	pe.settleWg.Add(1)
-
 	go func() {
 		for t := range pe.chSettle {
-			//start := time.Now()
 			pe.tasks[t].Settle()
-			//blockStmSettleDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 		}
-
 		pe.settleWg.Done()
 	}()
 
@@ -425,9 +417,6 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 	tx := res.ver.TxnIndex
 
 	if abortErr, ok := res.err.(ErrExecAbortError); ok && abortErr.OriginError != nil && pe.skipCheck[tx] {
-		// If the transaction failed when we know it should not fail, this means the transaction itself is
-		// bad (e.g. wrong nonce), and we should exit the execution immediately
-		//err = fmt.Errorf("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
 		pe.log.Error("could not apply tx %d [%v]: %w", tx, pe.tasks[tx].Hash(), abortErr.OriginError)
 
 		pe.validateTasks.pushPending(tx)
@@ -435,13 +424,10 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 
 		pe.diagExecSuccess[tx]++
 		pe.cntSuccess++
-
 		pe.execTasks.removeDependency(tx)
-		// pe.Close(true)
-		// return
+
 	} else if execErr, ok := res.err.(ErrExecAbortError); ok {
 		addedDependencies := false
-
 		if execErr.Dependency >= 0 {
 			l := len(pe.estimateDeps[tx])
 			for l > 0 && pe.estimateDeps[tx][l-1] > execErr.Dependency {
@@ -449,17 +435,14 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 				pe.estimateDeps[tx] = pe.estimateDeps[tx][:l-1]
 				l--
 			}
-
 			addedDependencies = pe.execTasks.addDependencies(execErr.Dependency, tx)
 		} else {
 			estimate := 0
-
 			if len(pe.estimateDeps[tx]) > 0 {
 				estimate = pe.estimateDeps[tx][len(pe.estimateDeps[tx])-1]
 			}
 
 			addedDependencies = pe.execTasks.addDependencies(estimate, tx)
-
 			newEstimate := estimate + (estimate+tx)/2
 			if newEstimate >= tx {
 				newEstimate = tx - 1
@@ -469,7 +452,6 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 		}
 
 		pe.execTasks.clearInProgress(tx)
-
 		if !addedDependencies {
 			pe.execTasks.pushPending(tx)
 		}
@@ -491,7 +473,6 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 			prevWrite := pe.lastTxIO.AllWriteSet(tx)
 
 			// Remove entries that were previously written but are no longer written
-
 			cmpMap := make(map[Key]bool)
 
 			for _, w := range res.txAllOut {
@@ -535,7 +516,6 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 			pe.validateTasks.markComplete(tx)
 		} else {
 			pe.cntValidationFail++
-
 			pe.diagExecAbort[tx]++
 			for _, v := range pe.lastTxIO.AllWriteSet(tx) {
 				pe.mvh.MarkEstimate(v.Path, tx)
@@ -612,7 +592,7 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 
 type PropertyCheck func(*ParallelExecutor) error
 
-func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyCheck, metadata bool, numProcs int, interruptCtx context.Context) (result ParallelExecutionResult, err error) {
+func executeParallel(tasks []ExecTask, profile bool, metadata bool, numProcs int, interruptCtx context.Context) (result ParallelExecutionResult, err error) {
 	if len(tasks) == 0 {
 		return ParallelExecutionResult{MakeTxnInputOutput(len(tasks)), nil, nil, nil}, nil
 	}
@@ -632,16 +612,10 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 		}
 
 		res := pe.resultQueue.Pop().(ExecResult)
-		//start := time.Now()
 		result, err = pe.Step(&res)
-		//blockStmStepDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 
 		if err != nil {
 			return result, err
-		}
-
-		if check != nil {
-			err = check(pe)
 		}
 
 		if result.TxIO != nil || err != nil {
@@ -653,5 +627,5 @@ func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyChec
 }
 
 func ExecuteParallel(tasks []ExecTask, profile bool, metadata bool, numProcs int, interruptCtx context.Context) (result ParallelExecutionResult, err error) {
-	return executeParallelWithCheck(tasks, profile, nil, metadata, numProcs, interruptCtx)
+	return executeParallel(tasks, profile, metadata, numProcs, interruptCtx)
 }

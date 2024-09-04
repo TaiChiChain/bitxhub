@@ -20,7 +20,6 @@ import (
 	"context"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/axiomesh/axiom-kit/types"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
@@ -32,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/sirupsen/logrus"
 )
@@ -102,10 +100,14 @@ type ExecutionTask struct {
 	dependencies []int
 	coinbase     types.Address
 	blockContext vm.BlockContext
+
+	sp *StateDbPool
 }
 
 func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (err error) {
-	task.statedb = task.cleanStateDB.Copy().(*ledger.StateLedgerImpl)
+	//task.statedb = task.cleanStateDB.Copy().(*ledger.StateLedgerImpl)
+	task.statedb = task.sp.GetStateDb(task.cleanStateDB)
+
 	task.statedb.SetTxContext(task.tx.GetHash(), task.index)
 	task.statedb.SetMVHashmap(mvh)
 	task.statedb.SetIncarnation(incarnation)
@@ -130,12 +132,12 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 
 	// Apply the transaction to the current state (included in the env).
 	if *task.shouldDelayFeeCal {
-		currentFromStart := time.Now()
+		//currentFromStart := time.Now()
 		task.result, task.resultErr = core.ApplyMessageNoFeeBurnOrTip(evm, task.msg, new(core.GasPool).AddGas(task.gasLimit))
 		if task.result == nil || task.resultErr != nil {
 			return blockstm.ErrExecAbortError{Dependency: task.statedb.DepTxIndex(), OriginError: task.resultErr}
 		}
-		evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
+		//evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 
 		// reads := task.statedb.MVReadMap()
 
@@ -175,6 +177,9 @@ func (task *ExecutionTask) MVFullWriteList() []blockstm.WriteDescriptor {
 	return task.statedb.MVFullWriteList()
 }
 
+func (task *ExecutionTask) ReleaseStateDb() {
+	task.sp.PutBackToPool(task.statedb)
+}
 func (task *ExecutionTask) Sender() types.Address {
 	return task.sender
 }
@@ -200,39 +205,15 @@ func (task *ExecutionTask) Settle() {
 	}
 
 	task.finalStateDB.SetTxContext(task.tx.GetHash(), task.index)
-
-	//coinbaseBalance := task.finalStateDB.GetBalance(&task.coinbase)
-
 	task.finalStateDB.ApplyMVWriteSet(task.statedb.MVFullWriteList())
 
 	for _, l := range task.statedb.GetLogs(*task.tx.GetHash(), task.blockNumber.Uint64()) {
 		task.finalStateDB.AddLog(l)
 	}
 
-	if *task.shouldDelayFeeCal {
-		// if task.config.IsLondon(task.blockNumber) {
-		// 	task.finalStateDB.AddBalance(task.result.BurntContractAddress, task.result.FeeBurnt)
-		// }
-
-		task.finalStateDB.AddBalance(&task.coinbase, task.result.FeeTipped)
-		// output1 := new(big.Int).SetBytes(task.result.SenderInitBalance.Bytes())
-		// output2 := new(big.Int).SetBytes(coinbaseBalance.Bytes())
-
-		// // Deprecating transfer log and will be removed in future fork. PLEASE DO NOT USE this transfer log going forward. Parameters won't get updated as expected going forward with EIP1559
-		// // add transfer log
-		// AddFeeTransferLog(
-		// 	task.finalStateDB,
-
-		// 	task.msg.From,
-		// 	task.coinbase,
-
-		// 	task.result.FeeTipped,
-		// 	task.result.SenderInitBalance,
-		// 	coinbaseBalance,
-		// 	output1.Sub(output1, task.result.FeeTipped),
-		// 	output2.Add(output2, task.result.FeeTipped),
-		// )
-	}
+	// if *task.shouldDelayFeeCal {
+	// 	task.finalStateDB.AddBalance(&task.coinbase, task.result.FeeTipped)
+	// }
 
 	for k, v := range task.statedb.Preimages() {
 		task.finalStateDB.AddPreimage(k, v)
@@ -293,15 +274,10 @@ func (task *ExecutionTask) Settle() {
 	// Set the receipt logs and create the bloom filter.
 	receipt.EvmLogs = task.finalStateDB.GetLogs(*task.tx.GetHash(), task.blockNumber.Uint64())
 	receipt.Bloom = ledger.CreateBloom(ledger.EvmReceipts{receipt})
-	// receipt.BlockHash = task.blockHash
-	// receipt.BlockNumber = task.blockNumber
-	// receipt.TransactionIndex = uint(task.finalStateDB.TxIndex())
 
 	*task.receipts = append(*task.receipts, receipt)
 	*task.allLogs = append(*task.allLogs, receipt.EvmLogs...)
 }
-
-var parallelizabilityTimer = metrics.NewRegisteredTimer("block/parallelizability", nil)
 
 // Process processes the state changes according to the Ethereum rules by running
 // the transaction messages using the statedb and applying any rewards to both
@@ -310,8 +286,7 @@ var parallelizabilityTimer = metrics.NewRegisteredTimer("block/parallelizability
 // Process returns the receipts and logs accumulated during the process and
 // returns the amount of gas that was used in the process. If any of the
 // transactions failed to execute due to insufficient gas it will return an error.
-// nolint:gocognit
-func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.Ledger, cfg vm.Config, interruptCtx context.Context) (ledger.EvmReceipts, []*types.EvmLog, uint64, error) {
+func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.Ledger, sp *StateDbPool, cfg vm.Config, interruptCtx context.Context) (ledger.EvmReceipts, []*types.EvmLog, uint64, error) {
 	var (
 		receipts    ledger.EvmReceipts
 		header      = block.Header
@@ -322,48 +297,15 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 		metadata    bool
 	)
 
-	// // Mutate the block and state according to any hard-fork specs
-	// if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
-	// 	misc.ApplyDAOHardFork(statedb)
-	// }
-
 	tasks := make([]blockstm.ExecTask, 0, len(block.Transactions))
-
 	shouldDelayFeeCal := true
-
 	coinbase := syscommon.StakingManagerContractAddr
-
-	//blockTxDependency := block.GetTxDependency()
-
 	deps := make(map[int][]int)
-
-	// deps := GetDepsByBlock(block)
-	// p.logger.Info(deps)
-
-	// if !VerifyDeps(deps) {
-	// 	p.logger.Info(deps)
-	// 	deps = make(map[int][]int)
-	// }
-
-	// if deps != nil {
-	// 	metadata = true
-	// }
-
-	//blockContext := NewEVMBlockContext(header, p.bc, nil)
-
 	blockContext := NewEVMBlockContextAdaptor(block.Height(), uint64(block.Header.Timestamp), syscommon.StakingManagerContractAddr, getBlockHashFunc(ledgerNow.ChainLedger))
 	cleansdb := ledgerNow.StateLedger.Copy()
 
-	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions {
 		msg := TransactionToMessage(tx)
-		// if err != nil {
-		// 	log.Error("error creating message", "err", err)
-		// 	return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.GetHash().ETHHash().Hex(), err)
-		// }
-
-		//cleansdb := statedb.Copy()
-
 		if msg.From.Hex() == coinbase {
 			shouldDelayFeeCal = false
 		}
@@ -390,70 +332,35 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			dependencies:      deps[i],
 			coinbase:          *types.NewAddressByStr(coinbase),
 			blockContext:      blockContext,
+			sp:                sp,
 		}
 
 		tasks = append(tasks, task)
 	}
 
-	//backupStateDB := ledgerNow.NewView().StateLedger
-
 	profile := false
-
 	p.logger.Info("blockstm.ExecuteParallel")
-	result, err := blockstm.ExecuteParallel(tasks, profile, metadata, p.parallelSpeculativeProcesses, interruptCtx)
-	if err == nil && profile && result.Deps != nil {
-		_, weight := result.Deps.LongestPath(*result.Stats)
-
-		serialWeight := uint64(0)
-
-		for i := 0; i < len(result.Deps.GetVertices()); i++ {
-			serialWeight += (*result.Stats)[i].End - (*result.Stats)[i].Start
+	_, err := blockstm.ExecuteParallel(tasks, profile, metadata, p.parallelSpeculativeProcesses, interruptCtx)
+	feeTippedAll := big.NewInt(0)
+	for _, task := range tasks {
+		executionTask := task.(*ExecutionTask)
+		if executionTask.resultErr == nil && *executionTask.shouldDelayFeeCal {
+			feeTippedAll.Add(feeTippedAll, executionTask.result.FeeTipped)
 		}
-
-		parallelizabilityTimer.Update(time.Duration(serialWeight * 100 / weight))
+		executionTask.ReleaseStateDb()
 	}
-
-	// for _, task := range tasks {
-	// 	task := task.(*ExecutionTask)
-	// 	if task.shouldRerunWithoutFeeDelay {
-	// 		shouldDelayFeeCal = false
-
-	// 		// statedb.StopPrefetcher()
-	// 		ledgerNow.StateLedger = backupStateDB
-
-	// 		allLogs = []*types.EvmLog{}
-	// 		receipts = ledger.EvmReceipts{}
-	// 		usedGas = new(uint64)
-
-	// 		for _, t := range tasks {
-	// 			t := t.(*ExecutionTask)
-	// 			t.finalStateDB = backupStateDB.(*ledger.StateLedgerImpl)
-	// 			t.allLogs = &allLogs
-	// 			t.receipts = &receipts
-	// 			t.totalUsedGas = usedGas
-	// 		}
-
-	// 		_, err = blockstm.ExecuteParallel(tasks, false, metadata, p.parallelSpeculativeProcesses, interruptCtx)
-	// 		break
-	// 	}
-	// }
-
-	// if err != nil {
-	// 	return nil, nil, 0, err
-	// }
-
-	// // Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
-	// p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles(), nil)
-
+	p.logger.Info("fee tipped:", feeTippedAll)
+	ledgerNow.StateLedger.AddBalance(types.NewAddressByStr(coinbase), feeTippedAll)
+	if err != nil {
+		return nil, nil, 0, err
+	}
 	return receipts, allLogs, *usedGas, nil
 }
 
 func GetDeps(txDependency [][]uint64) map[int][]int {
 	deps := make(map[int][]int)
-
 	for i := 0; i <= len(txDependency)-1; i++ {
 		deps[i] = []int{}
-
 		for j := 0; j <= len(txDependency[i])-1; j++ {
 			deps[i] = append(deps[i], int(txDependency[i][j]))
 		}

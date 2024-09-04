@@ -249,7 +249,7 @@ func defaultConfig() *Config {
 	return &Config{
 		Ulimit:         65535,
 		EnableParallel: true,
-		Worker:         8,
+		Worker:         10,
 		Port: Port{
 			JsonRpc:   8881,
 			WebSocket: 9991,

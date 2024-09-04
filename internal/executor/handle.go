@@ -39,7 +39,6 @@ func (exec *BlockExecutor) applyTransactions(txs []*types.Transaction, height ui
 	for i, tx := range txs {
 		receipts = append(receipts, exec.applyTransaction(i, tx, height))
 	}
-
 	exec.logger.Debugf("executor executed %d txs", len(txs))
 
 	return receipts
@@ -284,7 +283,7 @@ func (exec *BlockExecutor) processExecuteEventParallel(commitEvent *consensuscom
 	processor := NewParallelStateProcessor(exec.evmChainCfg, block, exec.rep.Config.Worker, exec.rep.GenesisConfig.EpochInfo.FinanceParams.GasLimit)
 	exec.logger.Info("parallelStateProcessor start")
 	currentFromStart := time.Now()
-	receipts, _, gasUsed, err := processor.Process(block, exec.ledger, vmCfg, ctx)
+	receipts, _, gasUsed, err := processor.Process(block, exec.ledger, exec.sp, vmCfg, ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -469,7 +468,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	txContext := core.NewEVMTxContext(msg)
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
-	currentFromStart := time.Now()
+	//currentFromStart := time.Now()
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
@@ -478,7 +477,7 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		receipt.Ret = []byte(err.Error())
 		return receipt
 	}
-	evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
+	//evmExecuteEachDuration.Observe(float64(time.Since(currentFromStart)) / float64(time.Second))
 	if result.Failed() {
 		if len(result.Revert()) > 0 {
 			reason, errUnpack := abi.UnpackRevert(result.Revert())
