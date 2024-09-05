@@ -2,7 +2,7 @@ package common
 
 //go:generate mockgen -destination mock_sync/mock_sync.go -package mock_sync -source ISync.go
 type Sync interface {
-	Prepare(opts ...Option) (*PrepareData, error)
+	Prepare(opts ...Option) error
 
 	Start()
 	SwitchMode(mode SyncMode) error
@@ -22,7 +22,7 @@ type ISyncConstructor interface {
 
 	Start()
 
-	Prepare(config *Config) (*PrepareData, error)
+	Prepare(config *Config) error
 
 	PostCommitData(data []CommitData)
 

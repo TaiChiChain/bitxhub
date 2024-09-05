@@ -50,13 +50,12 @@ var (
 		Name:      "proposed_block_counter",
 		Help:      "the total number of node proposed blocks",
 	})
-	perBlockTxCounter = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	blockCounter = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "executor",
-		Name:      "per_block_tx_counter",
-		Help:      "the total number of transactions per block",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
-	}, []string{"epoch"})
+		Name:      "block_counter",
+		Help:      "the total number of blocks",
+	})
 )
 
 func init() {
@@ -67,5 +66,5 @@ func init() {
 	prometheus.MustRegister(cs2ExecutorDuration)
 	prometheus.MustRegister(txCounter)
 	prometheus.MustRegister(proposedBlockCounter)
-	prometheus.MustRegister(perBlockTxCounter)
+	prometheus.MustRegister(blockCounter)
 }

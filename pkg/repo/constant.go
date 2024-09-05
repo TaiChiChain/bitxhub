@@ -108,3 +108,9 @@ const (
 	// considered probably final and its rotated bits are calculated.
 	BloomConfirms = 1
 )
+
+const (
+	GenesisBlockNumber = uint64(0)
+	GenesisEpoch       = uint64(1)
+	ChannelSize        = 100
+)

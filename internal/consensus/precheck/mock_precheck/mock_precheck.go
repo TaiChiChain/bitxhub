@@ -41,7 +41,7 @@ func (m *MockPreCheck) EXPECT() *MockPreCheckMockRecorder {
 }
 
 // PostUncheckedTxEvent mocks base method.
-func (m *MockPreCheck) PostUncheckedTxEvent(ev *common.UncheckedTxEvent) {
+func (m *MockPreCheck) PostUncheckedTxEvent(ev *consensustypes.UncheckedTxEvent) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "PostUncheckedTxEvent", ev)
 }
@@ -65,13 +65,13 @@ func (c *MockPreCheckPostUncheckedTxEventCall) Return() *MockPreCheckPostUncheck
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockPreCheckPostUncheckedTxEventCall) Do(f func(*common.UncheckedTxEvent)) *MockPreCheckPostUncheckedTxEventCall {
+func (c *MockPreCheckPostUncheckedTxEventCall) Do(f func(*consensustypes.UncheckedTxEvent)) *MockPreCheckPostUncheckedTxEventCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockPreCheckPostUncheckedTxEventCall) DoAndReturn(f func(*common.UncheckedTxEvent)) *MockPreCheckPostUncheckedTxEventCall {
+func (c *MockPreCheckPostUncheckedTxEventCall) DoAndReturn(f func(*consensustypes.UncheckedTxEvent)) *MockPreCheckPostUncheckedTxEventCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

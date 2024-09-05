@@ -1,8 +1,8 @@
 package common
 
 import (
-	"context"
-
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/bcds/go-hpc-dagbft/common/utils/containers"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-ledger/internal/network"
@@ -13,6 +13,7 @@ type Config struct {
 	StartEpochChangeNum uint64
 	SnapPersistedEpoch  uint64
 	LatestPersistEpoch  uint64
+	EpochChangeSendCh   chan<- containers.Tuple[types.QuorumCheckpoint, error, bool]
 }
 
 type Option func(*Config)
@@ -43,10 +44,16 @@ func WithSnapCurrentEpoch(epoch uint64) Option {
 	}
 }
 
+func WithEpochChangeSendCh(ch chan<- containers.Tuple[types.QuorumCheckpoint, error, bool]) Option {
+	return func(config *Config) {
+		config.EpochChangeSendCh = ch
+	}
+}
+
 type ModeConfig struct {
-	Logger  logrus.FieldLogger
-	Network network.Network
-	Ctx     context.Context
+	Logger        logrus.FieldLogger
+	Network       network.Network
+	ConsensusType string
 }
 
 type ModeOption func(config *ModeConfig)
@@ -63,8 +70,8 @@ func WithNetwork(network network.Network) ModeOption {
 	}
 }
 
-func WithContext(ctx context.Context) ModeOption {
+func WithConsensusType(consensusType string) ModeOption {
 	return func(config *ModeConfig) {
-		config.Ctx = ctx
+		config.ConsensusType = consensusType
 	}
 }

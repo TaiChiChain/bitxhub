@@ -16,7 +16,6 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
-	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
@@ -269,8 +268,8 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 // NodeExtraArgs is Node proposal extra arguments
 
-func mockCommitEvent(blockNumber uint64, txs []*types.Transaction) *consensuscommon.CommitEvent {
-	return &consensuscommon.CommitEvent{
+func mockCommitEvent(blockNumber uint64, txs []*types.Transaction) *consensusconsensustypes.CommitEvent {
+	return &consensusconsensustypes.CommitEvent{
 		Block: mockBlock(blockNumber, txs),
 	}
 }

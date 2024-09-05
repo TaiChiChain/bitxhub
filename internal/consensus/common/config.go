@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
@@ -31,7 +31,7 @@ type Config struct {
 	GetAccountBalance  func(address string) *big.Int
 	GetAccountNonce    func(address *types.Address) uint64
 	NotifyStop         func(err error)
-	EpochStore         kv.Storage
+	EpochStore         *epochmgr.EpochManager
 }
 
 type Option func(*Config)
@@ -114,9 +114,9 @@ func WithGetAccountNonceFunc(f func(address *types.Address) uint64) Option {
 	}
 }
 
-func WithEpochStore(epochStore kv.Storage) Option {
+func WithEpochStore(manager *epochmgr.EpochManager) Option {
 	return func(config *Config) {
-		config.EpochStore = epochStore
+		config.EpochStore = manager
 	}
 }
 

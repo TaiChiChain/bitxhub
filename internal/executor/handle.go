@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,12 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
-	consensuscommon "github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
@@ -75,7 +73,7 @@ func (exec *BlockExecutor) rollbackBlocks(newBlock *types.Block) error {
 	return nil
 }
 
-func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.CommitEvent) {
+func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensustypes.CommitEvent) {
 	if commitEvent.RecvConsensusTime != 0 {
 		cs2ExecutorDuration.Observe(float64(time.Now().UnixNano()-commitEvent.RecvConsensusTime) / float64(time.Second))
 	}
@@ -215,11 +213,10 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 
 	// metrics for cal tx tps
 	txCounter.Add(float64(len(data.Block.Transactions)))
+	blockCounter.Inc()
 	if block.Header.ProposerNodeID == exec.chainState.SelfNodeInfo.ID {
 		proposedBlockCounter.Inc()
 	}
-
-	perBlockTxCounter.With(prometheus.Labels{"epoch": strconv.FormatUint(block.Header.Epoch, 10)}).Observe(float64(len(data.Block.Transactions)))
 
 	exec.logger.WithFields(logrus.Fields{
 		"height": data.Block.Header.Number,
@@ -248,7 +245,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.clear()
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensuscommon.Checkpoint, commitSequence uint64) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer, ckp *consensustypes.Checkpoint, commitSequence uint64) {
 	exec.blockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
 		TxPointerList:          txPointerList,

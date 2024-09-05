@@ -12,8 +12,8 @@ replace (
 require (
 	github.com/Rican7/retry v0.3.1
 	github.com/VictoriaMetrics/fastcache v1.12.1
-	github.com/axiomesh/axiom-bft v0.0.3-0.20240723071022-f30f378190a8
-	github.com/axiomesh/axiom-kit v0.0.3-0.20240819040251-c80974a7cd4c
+	github.com/axiomesh/axiom-bft v0.0.3-0.20240914075911-fb654b80d3a7
+	github.com/axiomesh/axiom-kit v0.0.3-0.20240914075247-e981cf3cb848
 	github.com/axiomesh/axiom-p2p v0.0.3-0.20240802045156-09f191f93bdc
 	github.com/bcds/go-hpc-dagbft v1.0.0
 	github.com/cbergoon/merkletree v0.2.0

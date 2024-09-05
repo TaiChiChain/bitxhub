@@ -1,6 +1,8 @@
-package common
+package types
 
 import (
+	rbft "github.com/axiomesh/axiom-bft/common/consensus"
+	dagtypes "github.com/bcds/go-hpc-dagbft/common/types"
 	"github.com/pkg/errors"
 
 	"github.com/axiomesh/axiom-kit/types"
@@ -71,4 +73,48 @@ type Checkpoint struct {
 	Epoch  uint64
 	Height uint64
 	Digest string
+}
+
+var QuorumCheckpointConstructor = map[string]func() types.QuorumCheckpoint{
+	Dagbft: func() types.QuorumCheckpoint {
+		return &DagbftQuorumCheckpoint{}
+	},
+	Rbft: func() types.QuorumCheckpoint {
+		return &rbft.RbftQuorumCheckpoint{}
+	},
+}
+
+type EpochChange struct {
+	types.QuorumCheckpoint
+}
+
+type DagbftQuorumCheckpoint struct {
+	dagtypes.QuorumCheckpoint
+}
+
+func (q *DagbftQuorumCheckpoint) Epoch() uint64 {
+	return q.Epoch()
+}
+
+func (q *DagbftQuorumCheckpoint) NextEpoch() uint64 {
+	return q.NextEpoch()
+}
+
+func (q *DagbftQuorumCheckpoint) Marshal() ([]byte, error) {
+	return q.Marshal()
+}
+
+func (q *DagbftQuorumCheckpoint) Unmarshal(raw []byte) error {
+	if err := q.Unmarshal(raw); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (q *DagbftQuorumCheckpoint) GetHeight() uint64 {
+	return q.Height()
+}
+
+func (q *DagbftQuorumCheckpoint) GetStateDigest() string {
+	return q.GetCheckpoint().GetExecuteState().GetStateRoot()
 }

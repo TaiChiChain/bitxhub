@@ -12,7 +12,6 @@ import (
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/log"
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/testutil"
 	network "github.com/axiomesh/axiom-p2p"
 )
@@ -306,7 +305,7 @@ func TestRBFTAdaptor_PostCommitEvent(t *testing.T) {
 
 	adaptor := mockAdaptor(ctrl, t)
 	commitC := adaptor.GetCommitChannel()
-	adaptor.PostCommitEvent(&common.CommitEvent{
+	adaptor.PostCommitEvent(&consensustypes.CommitEvent{
 		Block: &types.Block{
 			Header: &types.BlockHeader{
 				Number: 1,

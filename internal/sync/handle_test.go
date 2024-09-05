@@ -29,7 +29,7 @@ func TestHandleState(t *testing.T) {
 
 	n := 4
 	syncs, ledgers, genesisHash := newMockBlockSyncs(t, n)
-	_, err := syncs[0].Prepare()
+	err := syncs[0].Prepare()
 	require.Nil(t, err)
 
 	requestHeight := uint64(defaultLatestHeight)

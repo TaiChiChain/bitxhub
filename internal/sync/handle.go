@@ -8,7 +8,6 @@ import (
 	"github.com/Rican7/retry/strategy"
 	"github.com/sirupsen/logrus"
 
-	rbft "github.com/axiomesh/axiom-bft"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 	network "github.com/axiomesh/axiom-p2p"
@@ -113,14 +112,14 @@ func (sm *SyncManager) constructEpochStateResponse(msg *pb.Message) Response {
 		return wrapFailedStateResp(pb.Message_FETCH_EPOCH_STATE_RESPONSE, err)
 	}
 
-	eps, err := rbft.GetEpochQuorumCheckpoint(sm.getEpochStateFunc, req.Epoch)
-	if err != nil {
-		err = fmt.Errorf("get epoch state failed: %v", err)
+	eps, err := sm.getEpochStateFunc(req.Epoch)
+	if err != nil || eps == nil || eps.NextEpoch() != req.Epoch {
+		err := fmt.Errorf("get epoch state failed: %v", eps)
 		sm.logger.Error(err.Error())
 		return wrapFailedStateResp(pb.Message_FETCH_EPOCH_STATE_RESPONSE, err)
 	}
 
-	data, err := eps.MarshalVT()
+	data, err := eps.Marshal()
 	if err != nil {
 		err = fmt.Errorf("marshal fetch epoch state response failed: %v", err)
 		sm.logger.Error(err.Error())

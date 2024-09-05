@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -11,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
@@ -19,7 +19,7 @@ import (
 var _ executor.Executor = (*ExecutorDev)(nil)
 
 type ExecutorDev struct {
-	blockC             chan *common.CommitEvent
+	blockC             chan *consensustypes.CommitEvent
 	blockFeed          event.Feed
 	blockFeedForRemote event.Feed
 	logsFeed           event.Feed
@@ -34,7 +34,7 @@ type ExecutorDev struct {
 func New(logger logrus.FieldLogger) (*ExecutorDev, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ExecutorDev{
-		blockC: make(chan *common.CommitEvent),
+		blockC: make(chan *consensustypes.CommitEvent),
 		ctx:    ctx,
 		cancel: cancel,
 		logger: logger,
@@ -56,7 +56,7 @@ func (exec *ExecutorDev) Start() error {
 	return nil
 }
 
-func (exec *ExecutorDev) processExecuteEvent(commitEvent *common.CommitEvent) {
+func (exec *ExecutorDev) processExecuteEvent(commitEvent *consensustypes.CommitEvent) {
 	current := time.Now()
 	block := commitEvent.Block
 
@@ -85,11 +85,11 @@ func (exec *ExecutorDev) Stop() error {
 	return nil
 }
 
-func (exec *ExecutorDev) ExecuteBlock(block *common.CommitEvent) {
+func (exec *ExecutorDev) ExecuteBlock(block *consensustypes.CommitEvent) {
 	exec.processExecuteEvent(block)
 }
 
-func (exec *ExecutorDev) AsyncExecuteBlock(commitEvent *common.CommitEvent) {
+func (exec *ExecutorDev) AsyncExecuteBlock(commitEvent *consensustypes.CommitEvent) {
 	exec.blockC <- commitEvent
 }
 

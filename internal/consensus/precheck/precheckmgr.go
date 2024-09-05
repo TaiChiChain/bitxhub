@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gammazero/workerpool"
 	"github.com/pkg/errors"
@@ -41,14 +42,14 @@ var (
 type ValidTxs struct {
 	Local            bool
 	Txs              []*types.Transaction
-	LocalCheckRespCh chan *common.TxResp
-	LocalPoolRespCh  chan *common.TxResp
+	LocalCheckRespCh chan *consensustypes.TxResp
+	LocalPoolRespCh  chan *consensustypes.TxResp
 }
 
 type TxPreCheckMgr struct {
-	basicCheckCh chan *common.UncheckedTxEvent
-	verifySignCh chan *common.UncheckedTxEvent
-	verifyDataCh chan *common.UncheckedTxEvent
+	basicCheckCh chan *consensustypes.UncheckedTxEvent
+	verifySignCh chan *consensustypes.UncheckedTxEvent
+	verifyDataCh chan *consensustypes.UncheckedTxEvent
 	validTxsCh   chan *ValidTxs
 	logger       logrus.FieldLogger
 	chainState   *chainstate.ChainState
@@ -65,7 +66,7 @@ func (tp *TxPreCheckMgr) UpdateEpochInfo(epoch *types.EpochInfo) {
 	tp.txMaxSize.Store(epoch.MiscParams.TxMaxSize)
 }
 
-func (tp *TxPreCheckMgr) PostUncheckedTxEvent(ev *common.UncheckedTxEvent) {
+func (tp *TxPreCheckMgr) PostUncheckedTxEvent(ev *consensustypes.UncheckedTxEvent) {
 	tp.basicCheckCh <- ev
 }
 
@@ -75,9 +76,9 @@ func (tp *TxPreCheckMgr) pushValidTxs(ev *ValidTxs) {
 
 func NewTxPreCheckMgr(ctx context.Context, conf *common.Config) *TxPreCheckMgr {
 	tp := &TxPreCheckMgr{
-		basicCheckCh: make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
-		verifySignCh: make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
-		verifyDataCh: make(chan *common.UncheckedTxEvent, defaultTxPreCheckSize),
+		basicCheckCh: make(chan *consensustypes.UncheckedTxEvent, defaultTxPreCheckSize),
+		verifySignCh: make(chan *consensustypes.UncheckedTxEvent, defaultTxPreCheckSize),
+		verifyDataCh: make(chan *consensustypes.UncheckedTxEvent, defaultTxPreCheckSize),
 		validTxsCh:   make(chan *ValidTxs, defaultTxPreCheckSize),
 		chainState:   conf.ChainState,
 		logger:       conf.Logger,
@@ -129,14 +130,14 @@ func (tp *TxPreCheckMgr) dispatchTxEvent() {
 		select {
 		case <-tp.ctx.Done():
 			wp.StopWait()
-			tp.logger.Errorf("dispatch tx event stopped")
+			tp.logger.Infof("dispatch tx event stopped")
 			return
 		case ev := <-tp.basicCheckCh:
 			wp.Submit(func() {
 				switch ev.EventType {
-				case common.LocalTxEvent:
+				case consensustypes.LocalTxEvent:
 					now := time.Now()
-					txWithResp, ok := ev.Event.(*common.TxWithResp)
+					txWithResp, ok := ev.Event.(*consensustypes.TxWithResp)
 					if !ok {
 						tp.logger.Errorf("%s:%s", ErrParseTxEventType, "receive invalid local TxEvent")
 						return
@@ -149,7 +150,7 @@ func (tp *TxPreCheckMgr) dispatchTxEvent() {
 					basicCheckDuration.WithLabelValues("local").Observe(time.Since(now).Seconds())
 					tp.verifySignCh <- ev
 
-				case common.RemoteTxEvent:
+				case consensustypes.RemoteTxEvent:
 					now := time.Now()
 					txSet, ok := ev.Event.([]*types.Transaction)
 					if !ok {
@@ -187,8 +188,8 @@ func (tp *TxPreCheckMgr) dispatchVerifySignEvent() {
 			wp.Submit(func() {
 				now := time.Now()
 				switch ev.EventType {
-				case common.LocalTxEvent:
-					txWithResp, ok := ev.Event.(*common.TxWithResp)
+				case consensustypes.LocalTxEvent:
+					txWithResp, ok := ev.Event.(*consensustypes.TxWithResp)
 					if !ok {
 						tp.logger.Errorf("%s:%s", ErrParseTxEventType, "receive invalid local TxEvent")
 						return
@@ -201,7 +202,7 @@ func (tp *TxPreCheckMgr) dispatchVerifySignEvent() {
 					verifySignatureDuration.WithLabelValues("local").Observe(time.Since(now).Seconds())
 					tp.verifyDataCh <- ev
 
-				case common.RemoteTxEvent:
+				case consensustypes.RemoteTxEvent:
 					txSet, ok := ev.Event.([]*types.Transaction)
 					if !ok {
 						tp.logger.Errorf("%s:%s", ErrParseTxEventType, "receive invalid remote TxEvent")
@@ -239,15 +240,15 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 				var (
 					validDataTxs     []*types.Transaction
 					local            bool
-					localCheckRespCh chan *common.TxResp
-					localPoolRespCh  chan *common.TxResp
+					localCheckRespCh chan *consensustypes.TxResp
+					localPoolRespCh  chan *consensustypes.TxResp
 				)
 
 				now := time.Now()
 				switch ev.EventType {
-				case common.LocalTxEvent:
+				case consensustypes.LocalTxEvent:
 					local = true
-					txWithResp := ev.Event.(*common.TxWithResp)
+					txWithResp := ev.Event.(*consensustypes.TxWithResp)
 					localCheckRespCh = txWithResp.CheckCh
 					localPoolRespCh = txWithResp.PoolCh
 					// check balance
@@ -258,7 +259,7 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					validDataTxs = append(validDataTxs, txWithResp.Tx)
 					verifyBalanceDuration.WithLabelValues("local").Observe(time.Since(now).Seconds())
 
-				case common.RemoteTxEvent:
+				case consensustypes.RemoteTxEvent:
 					txSet, ok := ev.Event.([]*types.Transaction)
 					if !ok {
 						tp.logger.Errorf("receive invalid remote TxEvent")
@@ -370,7 +371,7 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 	return nil
 }
 
-func respLocalTx(typ int, ch chan *common.TxResp, err error) {
+func respLocalTx(typ int, ch chan *consensustypes.TxResp, err error) {
 	defer func() {
 		if typ == responseType_precheck {
 			reason, valid := convertErrorType(err)
@@ -381,7 +382,7 @@ func respLocalTx(typ int, ch chan *common.TxResp, err error) {
 			}
 		}
 	}()
-	resp := &common.TxResp{
+	resp := &consensustypes.TxResp{
 		Status: true,
 	}
 

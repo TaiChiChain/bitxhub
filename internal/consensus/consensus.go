@@ -11,6 +11,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/solo"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/solo_dev"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
@@ -26,7 +27,7 @@ type Consensus interface {
 	Prepare(tx *types.Transaction) error
 
 	// Commit recv blocks form Consensus and commit it by consensus
-	Commit() chan *common.CommitEvent
+	Commit() chan *consensustypes.CommitEvent
 
 	// Step send msg to the consensus engine
 	Step(msg []byte) error
@@ -35,7 +36,7 @@ type Consensus interface {
 	Ready() error
 
 	// ReportState means block was persisted and report it to the consensus engine
-	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *common.Checkpoint, needRemoveTxs bool, commitSequence uint64)
+	ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *consensustypes.Checkpoint, needRemoveTxs bool, commitSequence uint64)
 
 	// Quorum means minimum number of nodes in the cluster that can work, n is the total number of nodes
 	Quorum(n uint64) uint64

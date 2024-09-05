@@ -21,7 +21,6 @@ import (
 	commonpool "github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 )
 
@@ -1428,9 +1427,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ast.Nil(err)
 				ch <- batch
 			}
-			err = batchTimer.CreateTimer(common.Batch, 10*time.Millisecond, handler)
+			err = batchTimer.CreateTimer(consensustypes.Batch, 10*time.Millisecond, handler)
 			ast.Nil(err)
-			err = batchTimer.StartTimer(common.Batch)
+			err = batchTimer.StartTimer(consensustypes.Batch)
 			ast.Nil(err)
 
 			batch := <-ch
@@ -1461,9 +1460,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ast.Contains(err.Error(), "there is no pending tx, ignore generate batch")
 				ch <- batch
 			}
-			err = batchTimer.CreateTimer(common.Batch, 10*time.Millisecond, handler)
+			err = batchTimer.CreateTimer(consensustypes.Batch, 10*time.Millisecond, handler)
 			ast.Nil(err)
-			err = batchTimer.StartTimer(common.Batch)
+			err = batchTimer.StartTimer(consensustypes.Batch)
 			ast.Nil(err)
 
 			batch := <-ch
@@ -1540,9 +1539,9 @@ func TestTxPoolImpl_GenerateRequestBatch(t *testing.T) {
 				ast.Nil(err)
 				ch <- batch
 			}
-			err = noTxBatchTimer.CreateTimer(common.NoTxBatch, 10*time.Millisecond, handler)
+			err = noTxBatchTimer.CreateTimer(consensustypes.NoTxBatch, 10*time.Millisecond, handler)
 			ast.Nil(err)
-			err = noTxBatchTimer.StartTimer(common.NoTxBatch)
+			err = noTxBatchTimer.StartTimer(consensustypes.NoTxBatch)
 			ast.Nil(err)
 
 			batch := <-ch

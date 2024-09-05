@@ -121,6 +121,9 @@ axmgen:
 cluster:build
 	cd scripts && bash cluster.sh
 
+cluster1:
+	cd scripts && bash cluster1.sh
+
 ## make solo: Run one node in solo mode
 solo:build
 	cd scripts && bash solo.sh

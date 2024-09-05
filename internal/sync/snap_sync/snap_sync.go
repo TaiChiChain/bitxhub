@@ -5,12 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	sync2 "sync"
+	"sync"
 	"time"
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/axiomesh/axiom-kit/types"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
+	"github.com/bcds/go-hpc-dagbft/common/utils/channel"
+	"github.com/bcds/go-hpc-dagbft/common/utils/containers"
+	"github.com/gammazero/workerpool"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -19,14 +24,15 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 )
 
-var _ common.ISyncConstructor = (*SnapSync)(nil)
-
 type SnapSync struct {
-	lock             sync2.Mutex
-	epochStateCache  map[uint64]*consensus.QuorumCheckpoint
+	lock             sync.Mutex
+	epochStateCache  *epochStateCache
+	epochStateRecvCh chan containers.Pair[uint64, types.QuorumCheckpoint]
+	currentEpoch     uint64
 	recvCommitDataCh chan []common.CommitData
 	commitCh         chan any
 	network          network.Network
+	consensusType    string
 	logger           logrus.FieldLogger
 
 	ctx    context.Context
@@ -53,10 +59,16 @@ func (s *SnapSync) listenCommitData() {
 		case <-s.ctx.Done():
 			return
 		case data := <-s.recvCommitDataCh:
-			epoch := data[len(data)-1].GetEpoch()
+			last, err := lo.Last(data)
+			if err != nil {
+				s.logger.Errorf("failed to get last commit data, err: %v", err)
+				continue
+			}
+
 			snapData := &common.SnapCommitData{
-				Data:       data,
-				EpochState: s.epochStateCache[epoch],
+				Data:         data,
+				TargetHeight: last.GetHeight(),
+				TargetHash:   last.GetHash(),
 			}
 			s.commitCh <- snapData
 		}
@@ -71,31 +83,28 @@ func (s *SnapSync) Commit() chan any {
 	return s.commitCh
 }
 
-func NewSnapSync(logger logrus.FieldLogger, net network.Network) common.ISyncConstructor {
+func NewSnapSync(logger logrus.FieldLogger, net network.Network, consensusTyp string) common.ISyncConstructor {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SnapSync{
 		commitCh:         make(chan any, 1),
-		recvCommitDataCh: make(chan []common.CommitData, 100),
-		epochStateCache:  make(map[uint64]*consensus.QuorumCheckpoint),
+		recvCommitDataCh: make(chan []common.CommitData, repo.ChannelSize),
 		network:          net,
 		logger:           logger,
-
-		ctx:    ctx,
-		cancel: cancel,
+		consensusType:    consensusTyp,
+		epochStateRecvCh: make(chan containers.Pair[uint64, types.QuorumCheckpoint], repo.ChannelSize),
+		epochStateCache:  newEpochStateCache(),
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 }
 
-func (s *SnapSync) Prepare(config *common.Config) (*common.PrepareData, error) {
+func (s *SnapSync) Prepare(config *common.Config) error {
 	s.cnf = config
-	epcs, err := s.fetchEpochState()
-	if err != nil {
-		return nil, err
-	}
-
-	return &common.PrepareData{Data: epcs}, nil
+	s.fetchEpochState()
+	return nil
 }
 
-func (s *SnapSync) fetchEpochState() ([]*consensus.EpochChange, error) {
+func (s *SnapSync) fetchEpochState() {
 	latestPersistEpoch := s.cnf.LatestPersistEpoch
 	snapPersistedEpoch := s.cnf.SnapPersistedEpoch
 
@@ -104,41 +113,74 @@ func (s *SnapSync) fetchEpochState() ([]*consensus.EpochChange, error) {
 	// snapCurrentEpoch means the current epoch in snapshot,
 	// the latestPersistEpoch is typically smaller than snapCurrentEpoch, because our ledger behind the height of the snap state,
 	// and we need to synchronize to the block height of the snap.
-	if err := s.fetchEpochStates(latestPersistEpoch+1, snapPersistedEpoch); err != nil {
-		return nil, err
-	}
-
-	epc, err := s.fillEpochChanges(s.cnf.StartEpochChangeNum, snapPersistedEpoch)
-	if err != nil {
-		return nil, err
-	}
-	return epc, nil
-}
-
-func (s *SnapSync) fetchEpochStates(start, end uint64) error {
+	start := latestPersistEpoch + 1
+	end := snapPersistedEpoch
 	if start > end {
 		s.logger.WithFields(logrus.Fields{
 			"latest": start - 1,
 			"end":    end,
 		}).Infof("local latest persist epoch %d is same as end epoch %d", start-1, end)
-		return nil
+		channel.TrySend(s.cnf.EpochChangeSendCh, containers.Pack3[types.QuorumCheckpoint, error, bool](nil, nil, true))
+		return
 	}
 
+	errCh := s.fetchEpochQuorumCheckpoint(start, end)
+	go func(startTime time.Time) {
+		for {
+			select {
+			case <-s.ctx.Done():
+			case err := <-errCh:
+				if err != nil {
+					s.logger.WithError(err).Errorf("fetch epoch state failed")
+					channel.TrySend(s.cnf.EpochChangeSendCh, containers.Pack3[types.QuorumCheckpoint, error, bool](nil, err, true))
+					return
+				}
+			case state := <-s.epochStateRecvCh:
+				epoch, epochState := state.Unpack()
+				taskDone := func() bool {
+					return s.currentEpoch >= snapPersistedEpoch
+				}
+				if s.currentEpoch == epoch {
+					channel.TrySend(s.cnf.EpochChangeSendCh, containers.Pack3[types.QuorumCheckpoint, error, bool](epochState, nil, taskDone()))
+					s.currentEpoch++
+					for s.epochStateCache.getTopEpoch() == s.currentEpoch {
+						epoch, epochState = s.epochStateCache.popQuorumCheckpoint().Unpack()
+						channel.TrySend(s.cnf.EpochChangeSendCh, containers.Pack3[types.QuorumCheckpoint, error, bool](epochState, nil, taskDone()))
+						s.currentEpoch++
+					}
+
+					if taskDone() {
+						s.logger.WithFields(logrus.Fields{
+							"cost": time.Since(startTime),
+							"end":  snapPersistedEpoch,
+						}).Infof("fetch all epoch state success")
+						return
+					}
+				} else {
+					s.epochStateCache.pushQuorumCheckpoint(epoch, epochState)
+				}
+				return
+			}
+		}
+	}(time.Now())
+}
+
+func (s *SnapSync) fetchEpochQuorumCheckpoint(start, end uint64) <-chan error {
 	taskNum := int(end - start + 1)
-	s.epochStateCache = make(map[uint64]*consensus.QuorumCheckpoint)
-	wg := sync2.WaitGroup{}
-	wg.Add(taskNum)
+
+	s.currentEpoch = start
+	wp := workerpool.New(concurrencyLimit)
 
 	errCh := make(chan error, taskNum)
 	for i := start; i <= end; i++ {
-		go func(epoch uint64) {
+		wp.Submit(func() {
+			epoch := i
 			var (
 				err  error
 				resp *pb.Message
 			)
 			defer func() {
 				errCh <- err
-				wg.Done()
 			}()
 			peer := s.pickPeer(int(epoch))
 			req := &pb.FetchEpochStateRequest{
@@ -203,52 +245,22 @@ func (s *SnapSync) fetchEpochStates(start, end uint64) error {
 				}).Error("Unmarshal fetch epoch state response failed")
 				return
 			}
-			epochState := &consensus.QuorumCheckpoint{}
 
-			if err = epochState.UnmarshalVT(epcStateResp.Data); err != nil {
+			epochState := consensustypes.QuorumCheckpointConstructor[s.consensusType]()
+
+			if err = epochState.Unmarshal(epcStateResp.Data); err != nil {
 				s.logger.WithFields(logrus.Fields{
 					"peer": peer.Id,
 					"err":  err,
 				}).Error("Unmarshal epoch state failed")
 				return
 			}
-			s.lock.Lock()
-			s.epochStateCache[epochState.Epoch()] = epochState
-			s.lock.Unlock()
-		}(i)
-	}
-	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
-func (s *SnapSync) fillEpochChanges(start, end uint64) ([]*consensus.EpochChange, error) {
-	epochChanges := make([]*consensus.EpochChange, 0)
-	for epoch := start; epoch <= end; epoch++ {
-		epc, ok := s.epochStateCache[epoch]
-		if !ok {
-			return nil, fmt.Errorf("epoch %d not found", epoch)
-		}
+			channel.TrySend(s.epochStateRecvCh, containers.Pack2(epoch, epochState))
 
-		quorumValidators := lo.MapToSlice(epc.ValidatorSet, func(_ uint64, info *consensus.ValidatorInfo) *consensus.QuorumValidator {
-			return &consensus.QuorumValidator{
-				Id:     info.GetId(),
-				PeerId: info.GetP2PId(),
-			}
-		})
-
-		epochChanges = append(epochChanges, &consensus.EpochChange{
-			Checkpoint: epc,
-			Validators: &consensus.QuorumValidators{Validators: quorumValidators},
 		})
 	}
-
-	return epochChanges, nil
+	return errCh
 }
 
 func (s *SnapSync) pickPeer(taskNum int) *common.Node {

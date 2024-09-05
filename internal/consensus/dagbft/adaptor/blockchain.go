@@ -2,19 +2,21 @@ package adaptor
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/txpool"
 	kittypes "github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/bcds/go-hpc-dagbft/app/demo/storage"
@@ -42,12 +44,12 @@ type LedgerConfig struct {
 }
 
 type BlockChain struct {
-	epochStore kv.Storage
-	sync       synccomm.Sync
-	crypto     layer.Crypto
-	stores     map[types.Epoch]layer.StorageFactory
-	txPool     txpool.TxPool[kittypes.Transaction, *kittypes.Transaction]
-	dbBuilder  Builder
+	epochService *epochmgr.EpochManager
+	sync         synccomm.Sync
+	crypto       layer.Crypto
+	stores       map[types.Epoch]layer.StorageFactory
+	txPool       txpool.TxPool[kittypes.Transaction, *kittypes.Transaction]
+	dbBuilder    Builder
 
 	ledgerConfig      *LedgerConfig
 	narwhalConfig     config.Configs
@@ -59,11 +61,11 @@ type BlockChain struct {
 	waitEpochChangeCh chan struct{}
 
 	sendReadyC          chan *Ready
-	sendToExecuteCh     chan *common.CommitEvent
+	sendToExecuteCh     chan *consensustypes.CommitEvent
 	notifyStateUpdateCh chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]
 }
 
-func NewBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalConfig config.Configs, readyC chan *Ready, closeCh chan bool) (*BlockChain, error) {
+func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalConfig config.Configs, readyC chan *Ready, closeCh chan bool) (*BlockChain, error) {
 	var (
 		err   error
 		store layer.Storage
@@ -88,18 +90,17 @@ func NewBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 	stores := make(map[types.Epoch]layer.StorageFactory)
 	stores[epoch] = NewFactory(epoch, storeBuilder)
 
-	crp, err := NewCrypto(config, precheck)
+	crp, err := NewCryptoImpl(config, precheck)
 	if err != nil {
 		return nil, err
 	}
-
 	return &BlockChain{
 		dbBuilder:     storeBuilder,
 		narwhalConfig: narwhalConfig,
 		ledgerConfig:  &LedgerConfig{ChainState: config.ChainState, GetBlockHeaderFunc: config.GetBlockHeaderFunc},
 		stores:        stores,
 		crypto:        crp,
-		epochStore:    config.EpochStore,
+		epochService:  config.EpochStore,
 		txPool:        config.TxPool,
 		sync:          config.BlockSync,
 		logger:        config.Logger,
@@ -109,7 +110,7 @@ func NewBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 		decisionCh:          make(chan containers.Pair[*types.QuorumCheckpoint, chan<- *events.StableCommittedEvent]),
 		updatingCh:          make(chan containers.Tuple[*types.QuorumCheckpoint, []*types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]),
 		executingCh:         make(chan containers.Tuple[types.Height, *types.ConsensusOutput, chan<- *events.ExecutedEvent]),
-		sendToExecuteCh:     make(chan *common.CommitEvent, 1),
+		sendToExecuteCh:     make(chan *consensustypes.CommitEvent, 1),
 		notifyStateUpdateCh: make(chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]),
 		waitEpochChangeCh:   make(chan struct{}),
 	}, nil
@@ -119,7 +120,7 @@ func (b *BlockChain) NotifyStateUpdate() <-chan containers.Tuple[types.Height, *
 	return b.notifyStateUpdateCh
 }
 
-func (b *BlockChain) RecvStateUpdateEvent() <-chan *common.CommitEvent {
+func (b *BlockChain) RecvStateUpdateEvent() <-chan *consensustypes.CommitEvent {
 	return b.sendToExecuteCh
 }
 
@@ -130,7 +131,7 @@ func (b *BlockChain) listenChainEvent() {
 			return
 		case execution := <-b.executingCh:
 			stateHeight, output, evCh := execution.Unpack()
-			metrics.Consensus2ExecutorBlockCounter.WithLabelValues(common.Dagbft).Inc()
+			metrics.Consensus2ExecutorBlockCounter.WithLabelValues(consensustypes.Dagbft).Inc()
 			b.asyncExecute(output, stateHeight, evCh)
 		case update := <-b.updatingCh:
 			target, changes, evCh := update.Unpack()
@@ -235,7 +236,6 @@ func (b *BlockChain) recordBatchMetrics(output *types.ConsensusOutput) {
 	batchCount := 0
 	for _, batches := range output.Batches {
 		for _, batch := range batches {
-			b.logger.Infof("[DagBFT.Ledger] Execute Batch %s with %d txs", batch.Digest(), len(batch.GetTransactions()))
 			// compute latency for metrics
 			latency := now - batch.Timestamp()
 			if latency > maxLatency {
@@ -246,12 +246,19 @@ func (b *BlockChain) recordBatchMetrics(output *types.ConsensusOutput) {
 			}
 			totalLatency += latency
 			batchCount++
+			b.logger.WithFields(logrus.Fields{
+				"maxLatency": time.Duration(maxLatency),
+				"minLatency": time.Duration(minLatency),
+				"avgLatency": time.Duration(float64(totalLatency) / float64(batchCount)),
+			}).Infof("[DagBFT.Ledger] Execute Batch %s with %d txs", batch.Digest(), len(batch.GetTransactions()))
 		}
 	}
 
-	metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": common.Dagbft, "type": "max"}).Observe(time.Duration(maxLatency).Seconds())
-	metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": common.Dagbft, "type": "min"}).Observe(time.Duration(minLatency).Seconds())
-	metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": common.Dagbft, "type": "avg"}).Observe(time.Duration(totalLatency).Seconds() / float64(batchCount))
+	if batchCount > 0 {
+		metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": consensustypes.Dagbft, "type": "max"}).Observe(time.Duration(maxLatency).Seconds())
+		metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": consensustypes.Dagbft, "type": "min"}).Observe(time.Duration(minLatency).Seconds())
+		metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": consensustypes.Dagbft, "type": "avg"}).Observe(time.Duration(totalLatency).Seconds() / float64(batchCount))
+	}
 }
 
 func (b *BlockChain) Execute(output *types.ConsensusOutput, height types.Height, eventCh chan<- *events.ExecutedEvent) error {
@@ -265,7 +272,7 @@ func (b *BlockChain) Execute(output *types.ConsensusOutput, height types.Height,
 		start := time.Now()
 		select {
 		case <-b.waitEpochChangeCh:
-			metrics.WaitEpochTime.WithLabelValues(common.Dagbft).Observe(time.Since(start).Seconds())
+			metrics.WaitEpochTime.WithLabelValues(consensustypes.Dagbft).Observe(time.Since(start).Seconds())
 			b.logger.WithFields(logrus.Fields{
 				"duration": time.Since(start),
 			}).Info("wait epoch change done")
@@ -337,7 +344,6 @@ func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transa
 
 func (b *BlockChain) Checkpoint(checkpoint *types.QuorumCheckpoint, eventCh chan<- *events.StableCommittedEvent) error {
 	b.logger.Infof("Checkpoint at %d,%d", checkpoint.Checkpoint().CommitState().CommitSequence(), checkpoint.Checkpoint().ExecuteState().StateHeight())
-
 	channel.SafeSend(b.decisionCh, containers.Pack2(checkpoint, eventCh), b.closeCh)
 	return nil
 }
@@ -346,14 +352,9 @@ func (b *BlockChain) checkpoint(checkpoint *types.QuorumCheckpoint) {
 	// Update active validators and crypto validatorVerifier to the new epoch
 	if checkpoint.Checkpoint().EndsEpoch() {
 		//todo: update validators and crypto validatorVerifier
-		epochChange, err := checkpoint.Marshal()
-		if err != nil {
-			b.logger.Errorf("failed to marshal checkpoint: %v", err)
-			return
-		}
-		if err = common.PersistEpochChange(b.epochStore, checkpoint.Epoch(), epochChange); err != nil {
-			b.logger.Errorf("failed to persist epoch change: %v", err)
-			return
+		epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *checkpoint}
+		if err := b.epochService.StoreEpochState(epochChange); err != nil {
+			b.logger.Errorf("failed to store epoch state at epoch %d: %v", checkpoint.Epoch(), err)
 		}
 	}
 	b.ledgerConfig.ChainState.UpdateCheckpoint(&pb.QuorumCheckpoint{
@@ -378,16 +379,11 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		lo.ForEach(epochChanges, func(epoch *types.QuorumCheckpoint, index int) {
-			if epoch != nil {
-				data, err := epoch.Marshal()
-				if err != nil {
-					b.logger.Errorf("marshal epoch change failed: %v", err)
-					return
-				}
-				if err = common.PersistEpochChange(b.epochStore, epoch.Epoch(), data); err != nil {
-					b.logger.Errorf("persist epoch change failed: %v", err)
-					return
+		lo.ForEach(epochChanges, func(ckpt *types.QuorumCheckpoint, index int) {
+			if ckpt != nil {
+				epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *ckpt}
+				if err := b.epochService.StoreEpochState(epochChange); err != nil {
+					b.logger.Errorf("failed to store epoch state at epoch %d: %v", ckpt.Epoch(), err)
 				}
 			}
 		})
@@ -404,22 +400,12 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 			Quorum:       common.CalFaulty(uint64(len(peerM) + 1)),
 			CurHeight:    localHeight + 1,
 			TargetHeight: targetHeight,
-			QuorumCheckpoint: &pb.QuorumCheckpoint{
-				Epoch: checkpoint.Epoch(),
-				State: &pb.ExecuteState{
-					Height: checkpoint.Checkpoint().ExecuteState().StateHeight(),
-					Digest: checkpoint.Checkpoint().ExecuteState().StateRoot().String(),
-				},
+			QuorumCheckpoint: &consensustypes.DagbftQuorumCheckpoint{
+				QuorumCheckpoint: *checkpoint,
 			},
-			EpochChanges: lo.Map(epochChanges, func(epoch *types.QuorumCheckpoint, index int) *pb.EpochChange {
-				return &pb.EpochChange{
-					QuorumCheckpoint: &pb.QuorumCheckpoint{
-						Epoch: epoch.Epoch(),
-						State: &pb.ExecuteState{
-							Height: epoch.Checkpoint().ExecuteState().StateHeight(),
-							Digest: epoch.Checkpoint().ExecuteState().StateRoot().String(),
-						},
-					},
+			EpochChanges: lo.Map(epochChanges, func(qckpt *types.QuorumCheckpoint, index int) *consensustypes.EpochChange {
+				return &consensustypes.EpochChange{
+					QuorumCheckpoint: &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *checkpoint},
 				}
 			}),
 		}
@@ -438,7 +424,7 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 	}
 
 	wg.Wait()
-	var stateUpdatedCheckpoint *common.Checkpoint
+	var stateUpdatedCheckpoint *consensustypes.Checkpoint
 	// wait for the sync to finish
 	for {
 		select {
@@ -462,7 +448,7 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 				// if the block is the target block, we should resign the stateUpdatedCheckpoint in CommitEvent
 				// and send the quitSync signal to sync module
 				if commitData.GetHeight() == targetHeight {
-					stateUpdatedCheckpoint = &common.Checkpoint{
+					stateUpdatedCheckpoint = &consensustypes.Checkpoint{
 						Epoch:  checkpoint.Epoch(),
 						Height: checkpoint.Height(),
 						Digest: checkpoint.Checkpoint().ExecuteState().StateRoot().String(),
@@ -473,7 +459,7 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 				if !ok {
 					panic("state update failed: invalid commit data")
 				}
-				commitEvent := &common.CommitEvent{
+				commitEvent := &consensustypes.CommitEvent{
 					Block:                  block.Block,
 					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
 				}
@@ -539,34 +525,27 @@ func (b *BlockChain) GetEpochStorage(epoch types.Epoch) layer.StorageFactory {
 	return sf
 }
 
+// GetEpochCheckpoint query the configured checkpoint by given epoch in ledger.
+// if EpochPeriod is 100, we will query the checkpoint in the following way:
+//
+//	epoch:1 -> genesis checkpoint(height:0)
+//	epoch:2 -> configured checkpoint(height:99)
+//	epoch:3 -> configured checkpoint(height:199)
+//	...
 func (b *BlockChain) GetEpochCheckpoint(epoch *types.Epoch) *types.QuorumCheckpoint {
 	if epoch == nil {
-		genesisHeight := uint64(0)
-		gensisBlockHeader, err := b.ledgerConfig.GetBlockHeaderFunc(genesisHeight)
-		if err != nil {
-			b.logger.Errorf("failed to read genesis block header: %v", err)
-			return nil
-		}
-		return &types.QuorumCheckpoint{
-			QuorumCheckpoint: protos.QuorumCheckpoint{
-				Checkpoint: &protos.Checkpoint{
-					ExecuteState: &protos.ExecuteState{
-						Height:    gensisBlockHeader.Number,
-						StateRoot: gensisBlockHeader.Hash().String(),
-					},
-				},
-			},
-		}
+		latestEpoch := b.ledgerConfig.ChainState.GetCurrentEpochInfo().Epoch
+		epoch = &latestEpoch
 	}
-	raw, err := common.GetEpochChange(b.epochStore, *epoch)
+	raw, err := b.epochService.ReadEpochState(*epoch)
 	if err != nil {
 		b.logger.Errorf("failed to read epoch %d quorum chkpt: %v", epoch, err)
 		return nil
 	}
-	cp := &types.QuorumCheckpoint{}
-	if err = cp.Unmarshal(raw); err != nil {
-		b.logger.Errorf("failed to unmarshal epoch %d quorum chkpt: %v", epoch, err)
+	data, ok := raw.(*consensustypes.DagbftQuorumCheckpoint)
+	if !ok {
+		b.logger.Errorf("failed to read epoch %d quorum chkpt: type assertion failed: %v", epoch, reflect.TypeOf(raw))
 		return nil
 	}
-	return cp
+	return &data.QuorumCheckpoint
 }

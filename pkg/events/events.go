@@ -2,13 +2,13 @@ package events
 
 import (
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 )
 
 type ExecutedEvent struct {
 	Block                  *types.Block
 	TxPointerList          []*TxPointer
-	StateUpdatedCheckpoint *common.Checkpoint
+	StateUpdatedCheckpoint *consensustypes.Checkpoint
 	CommitSequence         uint64
 }
 

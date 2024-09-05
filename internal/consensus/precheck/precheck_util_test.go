@@ -69,19 +69,19 @@ func (db *mockDb) getBalance(address string) *big.Int {
 	return val
 }
 
-func createLocalTxEvent(tx *types.Transaction) *consensuscommon.UncheckedTxEvent {
-	return &consensuscommon.UncheckedTxEvent{
+func createLocalTxEvent(tx *types.Transaction) *consensusconsensustypes.UncheckedTxEvent {
+	return &consensusconsensustypes.UncheckedTxEvent{
 		EventType: consensuscommon.LocalTxEvent,
-		Event: &consensuscommon.TxWithResp{
+		Event: &consensusconsensustypes.TxWithResp{
 			Tx:      tx,
-			CheckCh: make(chan *consensuscommon.TxResp),
-			PoolCh:  make(chan *consensuscommon.TxResp),
+			CheckCh: make(chan *consensusconsensustypes.TxResp),
+			PoolCh:  make(chan *consensusconsensustypes.TxResp),
 		},
 	}
 }
 
-func createRemoteTxEvent(txs []*types.Transaction) *consensuscommon.UncheckedTxEvent {
-	return &consensuscommon.UncheckedTxEvent{
+func createRemoteTxEvent(txs []*types.Transaction) *consensusconsensustypes.UncheckedTxEvent {
+	return &consensusconsensustypes.UncheckedTxEvent{
 		EventType: consensuscommon.RemoteTxEvent,
 		Event:     txs,
 	}

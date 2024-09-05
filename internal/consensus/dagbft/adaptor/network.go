@@ -14,6 +14,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/axiomesh/axiom-ledger/internal/network"
 	p2p "github.com/axiomesh/axiom-p2p"
 	dagbft "github.com/bcds/go-hpc-dagbft"
@@ -549,7 +550,7 @@ func (n *Network) listenRequestToSubmit() {
 						Index:  req.index,
 						Result: results.OK(resp),
 					}
-					metrics.ProcessConsensusMessageDuration.With(prometheus.Labels{"consensus": common.Dagbft, "event": req.msg.Type.String()}).Observe(time.Since(now).Seconds())
+					metrics.ProcessConsensusMessageDuration.With(prometheus.Labels{"consensus": consensustypes.Dagbft, "event": req.msg.Type.String()}).Observe(time.Since(now).Seconds())
 					return nil
 				}, strategy.Limit(uint(n.networkConfig.RetryTimeout)), strategy.Wait(200*time.Millisecond)); err != nil {
 					result = genWrongResponse(err, req.index)

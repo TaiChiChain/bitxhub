@@ -3,7 +3,6 @@ package adaptor
 import (
 	"context"
 
-	"github.com/axiomesh/axiom-kit/storage/kv"
 	kittypes "github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
@@ -27,7 +26,6 @@ type Ready struct {
 }
 
 type DagBFTAdaptor struct {
-	epochStore    kv.Storage
 	narwhalConfig config.Configs
 	ledgerConfig  *LedgerConfig
 	Chain         *BlockChain
@@ -47,13 +45,12 @@ func NewAdaptor(precheck precheck.PreCheck, cnf *common.Config, networkConfig *N
 		DAGConfigs:  dagConfig,
 	}
 
-	bc, err := NewBlockchain(precheck, cnf, narwhalConfig, readyC, closeCh)
+	bc, err := newBlockchain(precheck, cnf, narwhalConfig, readyC, closeCh)
 	if err != nil {
 		return nil, err
 	}
 
 	d := &DagBFTAdaptor{
-		epochStore: cnf.EpochStore,
 		narwhalConfig: config.Configs{
 			PrimaryNode: networkConfig.LocalPrimary.First,
 			WorkerNodes: lo.MapValues(networkConfig.LocalWorkers, func(value Pid, key types.Host) bool { return true }),

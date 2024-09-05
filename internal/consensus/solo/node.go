@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/gogo/protobuf/sortkeys"
 	"github.com/pkg/errors"
@@ -29,7 +30,7 @@ func init() {
 
 type Node struct {
 	config       *common.Config
-	commitC      chan *common.CommitEvent                                             // block channel
+	commitC      chan *consensustypes.CommitEvent                                     // block channel
 	logger       logrus.FieldLogger                                                   // logger
 	txpool       txpool.TxPool[types.Transaction, *types.Transaction]                 // transaction pool
 	batchDigestM map[uint64]string                                                    // mapping blockHeight to batch digest
@@ -66,7 +67,7 @@ func NewNode(config *common.Config) (*Node, error) {
 	soloNode := &Node{
 		config:       config,
 		blockCh:      make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
-		commitC:      make(chan *common.CommitEvent, maxChanSize),
+		commitC:      make(chan *consensustypes.CommitEvent, maxChanSize),
 		batchDigestM: make(map[uint64]string),
 		recvCh:       recvCh,
 		lastExec:     config.Applied,
@@ -80,11 +81,11 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 	batchTimerMgr := &batchTimerManager{Timer: timer.NewTimerManager(config.Logger)}
 
-	err := batchTimerMgr.CreateTimer(common.Batch, config.Repo.ConsensusConfig.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	err := batchTimerMgr.CreateTimer(consensustypes.Batch, config.Repo.ConsensusConfig.Solo.BatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
 	if err != nil {
 		return nil, err
 	}
-	err = batchTimerMgr.CreateTimer(common.NoTxBatch, config.Repo.ConsensusConfig.TimedGenBlock.NoTxBatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
+	err = batchTimerMgr.CreateTimer(consensustypes.NoTxBatch, config.Repo.ConsensusConfig.TimedGenBlock.NoTxBatchTimeout.ToDuration(), soloNode.handleTimeoutEvent)
 	if err != nil {
 		return nil, err
 	}
@@ -119,13 +120,13 @@ func (n *Node) Start() error {
 	if err != nil {
 		return err
 	}
-	err = n.batchMgr.StartTimer(common.Batch)
+	err = n.batchMgr.StartTimer(consensustypes.Batch)
 	if err != nil {
 		return err
 	}
 
-	if n.epcCnf.enableGenEmptyBlock && !n.batchMgr.IsTimerActive(common.NoTxBatch) {
-		err = n.batchMgr.StartTimer(common.NoTxBatch)
+	if n.epcCnf.enableGenEmptyBlock && !n.batchMgr.IsTimerActive(consensustypes.NoTxBatch) {
+		err = n.batchMgr.StartTimer(consensustypes.NoTxBatch)
 		if err != nil {
 			return err
 		}
@@ -147,25 +148,25 @@ func (n *Node) Prepare(tx *types.Transaction) error {
 	if err := n.Ready(); err != nil {
 		return fmt.Errorf("node get ready failed: %w", err)
 	}
-	txWithResp := &common.TxWithResp{
+	txWithResp := &consensustypes.TxWithResp{
 		Tx:      tx,
-		CheckCh: make(chan *common.TxResp, 1),
-		PoolCh:  make(chan *common.TxResp, 1),
+		CheckCh: make(chan *consensustypes.TxResp, 1),
+		PoolCh:  make(chan *consensustypes.TxResp, 1),
 	}
 	n.postMsg(txWithResp)
 	resp := <-txWithResp.CheckCh
 	if !resp.Status {
-		return errors.Wrap(common.ErrorPreCheck, resp.ErrorMsg)
+		return errors.Wrap(consensustypes.ErrorPreCheck, resp.ErrorMsg)
 	}
 
 	resp = <-txWithResp.PoolCh
 	if !resp.Status {
-		return errors.Wrap(common.ErrorAddTxPool, resp.ErrorMsg)
+		return errors.Wrap(consensustypes.ErrorAddTxPool, resp.ErrorMsg)
 	}
 	return nil
 }
 
-func (n *Node) Commit() chan *common.CommitEvent {
+func (n *Node) Commit() chan *consensustypes.CommitEvent {
 	return n.commitC
 }
 
@@ -175,12 +176,12 @@ func (n *Node) Step([]byte) error {
 
 func (n *Node) Ready() error {
 	if !n.started.Load() {
-		return common.ErrorConsensusStart
+		return consensustypes.ErrorConsensusStart
 	}
 	return nil
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool, _ uint64) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensustypes.Checkpoint, _ bool, _ uint64) {
 	txHashList := make([]*types.Hash, len(txPointerList))
 	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
 		txHashList[i] = item.Hash
@@ -196,6 +197,14 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 		EpochChanged: epochChanged,
 	}
 	n.postMsg(state)
+}
+
+func (n *Node) GetEpochState(_ uint64) types.QuorumCheckpoint {
+	return nil
+}
+
+func (n *Node) PersistEpochState(_ types.QuorumCheckpoint) error {
+	return nil
 }
 
 func (n *Node) Quorum(_ uint64) uint64 {
@@ -257,8 +266,8 @@ func (n *Node) listenEvent() {
 					n.epcCnf.enableGenEmptyBlock = currentEpoch.ConsensusParams.EnableTimedGenEmptyBlock
 					n.epcCnf.checkpoint = currentEpoch.ConsensusParams.CheckpointPeriod
 
-					if n.epcCnf.enableGenEmptyBlock && !n.batchMgr.IsTimerActive(common.NoTxBatch) {
-						err := n.batchMgr.StartTimer(common.NoTxBatch)
+					if n.epcCnf.enableGenEmptyBlock && !n.batchMgr.IsTimerActive(consensustypes.NoTxBatch) {
+						err := n.batchMgr.StartTimer(consensustypes.NoTxBatch)
 						if err != nil {
 							n.logger.WithFields(logrus.Fields{
 								"error":  err.Error(),
@@ -277,9 +286,9 @@ func (n *Node) listenEvent() {
 				}
 
 			// receive tx from api
-			case *common.TxWithResp:
-				unCheckedEv := &common.UncheckedTxEvent{
-					EventType: common.LocalTxEvent,
+			case *consensustypes.TxWithResp:
+				unCheckedEv := &consensustypes.UncheckedTxEvent{
+					EventType: consensustypes.LocalTxEvent,
 					Event:     e,
 				}
 				n.txPreCheck.PostUncheckedTxEvent(unCheckedEv)
@@ -293,8 +302,8 @@ func (n *Node) listenEvent() {
 			case *getLowWatermarkReq:
 				e.Resp <- n.lastExec
 			case *genBatchReq:
-				n.batchMgr.StopTimer(common.Batch)
-				n.batchMgr.StopTimer(common.NoTxBatch)
+				n.batchMgr.StopTimer(consensustypes.Batch)
+				n.batchMgr.StopTimer(consensustypes.NoTxBatch)
 				batch, err := n.txpool.GenerateRequestBatch(e.typ)
 				if err != nil {
 					n.logger.Errorf("Generate batch failed: %v", err)
@@ -302,12 +311,12 @@ func (n *Node) listenEvent() {
 					n.generateBlock(batch)
 					// start no-tx batch timer when this node handle the last transaction
 					if n.epcCnf.enableGenEmptyBlock && !n.txpool.HasPendingRequestInPool() {
-						if err = n.batchMgr.RestartTimer(common.NoTxBatch); err != nil {
+						if err = n.batchMgr.RestartTimer(consensustypes.NoTxBatch); err != nil {
 							n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
 						}
 					}
 				}
-				if err = n.batchMgr.RestartTimer(common.Batch); err != nil {
+				if err = n.batchMgr.RestartTimer(consensustypes.Batch); err != nil {
 					n.logger.Errorf("restart batch timeout failed: %v", err)
 				}
 
@@ -319,20 +328,20 @@ func (n *Node) listenEvent() {
 
 func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 	switch e {
-	case common.Batch:
-		n.batchMgr.StopTimer(common.Batch)
+	case consensustypes.Batch:
+		n.batchMgr.StopTimer(consensustypes.Batch)
 		defer func() {
-			if err := n.batchMgr.RestartTimer(common.Batch); err != nil {
+			if err := n.batchMgr.RestartTimer(consensustypes.Batch); err != nil {
 				n.logger.Errorf("restart batch timeout failed: %v", err)
 			}
 		}()
 		if n.txpool.HasPendingRequestInPool() {
-			n.batchMgr.StopTimer(common.NoTxBatch)
+			n.batchMgr.StopTimer(consensustypes.NoTxBatch)
 			defer func() {
 				// if generate last batch, restart no-tx batch timeout to ensure next empty-block will be generated after no-tx batch timeout
 				if n.txpool.HasPendingRequestInPool() {
 					if n.epcCnf.enableGenEmptyBlock {
-						if err := n.batchMgr.RestartTimer(common.NoTxBatch); err != nil {
+						if err := n.batchMgr.RestartTimer(consensustypes.NoTxBatch); err != nil {
 							n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
 						}
 					}
@@ -359,11 +368,11 @@ func (n *Node) processBatchTimeout(e timer.TimeoutEvent) error {
 				n.logger.Debugf("batch timeout, post proposal: [batchHash: %s]", batch.BatchHash)
 			}
 		}
-	case common.NoTxBatch:
-		n.batchMgr.StopTimer(common.NoTxBatch)
+	case consensustypes.NoTxBatch:
+		n.batchMgr.StopTimer(consensustypes.NoTxBatch)
 		defer func() {
 			if n.epcCnf.enableGenEmptyBlock {
-				if err := n.batchMgr.RestartTimer(common.NoTxBatch); err != nil {
+				if err := n.batchMgr.RestartTimer(consensustypes.NoTxBatch); err != nil {
 					n.logger.Errorf("restart no-tx batch timeout failed: %v", err)
 				}
 			}
@@ -424,7 +433,7 @@ func (n *Node) generateBlock(batch *txpool.RequestHashBatch[types.Transaction, *
 	for i := 0; i < len(batch.TxList); i++ {
 		localList[i] = true
 	}
-	executeEvent := &common.CommitEvent{
+	executeEvent := &consensustypes.CommitEvent{
 		Block: block,
 	}
 	n.batchDigestM[block.Height()] = batch.BatchHash
@@ -444,10 +453,10 @@ func (n *Node) postMsg(ev consensusEvent) {
 
 func (n *Node) handleTimeoutEvent(typ timer.TimeoutEvent) {
 	switch typ {
-	case common.Batch:
-		n.postMsg(common.Batch)
-	case common.NoTxBatch:
-		n.postMsg(common.NoTxBatch)
+	case consensustypes.Batch:
+		n.postMsg(consensustypes.Batch)
+	case consensustypes.NoTxBatch:
+		n.postMsg(consensustypes.NoTxBatch)
 	default:
 		n.logger.Errorf("receive wrong timeout event type: %s", typ)
 	}

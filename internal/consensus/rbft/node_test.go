@@ -287,9 +287,9 @@ package rbft
 //	t.Run("prepare tx failed", func(t *testing.T) {
 //		wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
 //		wrongPrecheckMgr.EXPECT().Start().AnyTimes()
-//		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-//			txWithResp := ev.Event.(*common.TxWithResp)
-//			txWithResp.CheckCh <- &common.TxResp{
+//		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *consensustypes.UncheckedTxEvent) {
+//			txWithResp := ev.Event.(*consensustypes.TxWithResp)
+//			txWithResp.CheckCh <- &consensustypes.TxResp{
 //				Status:   false,
 //				ErrorMsg: "check error",
 //			}
@@ -302,12 +302,12 @@ package rbft
 //		ast.NotNil(err)
 //		ast.Contains(err.Error(), "check error")
 //
-//		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-//			txWithResp := ev.Event.(*common.TxWithResp)
-//			txWithResp.CheckCh <- &common.TxResp{
+//		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *consensustypes.UncheckedTxEvent) {
+//			txWithResp := ev.Event.(*consensustypes.TxWithResp)
+//			txWithResp.CheckCh <- &consensustypes.TxResp{
 //				Status: true,
 //			}
-//			txWithResp.PoolCh <- &common.TxResp{
+//			txWithResp.PoolCh <- &consensustypes.TxResp{
 //				Status:   false,
 //				ErrorMsg: "add pool error",
 //			}
@@ -342,7 +342,7 @@ package rbft
 //	// test stop
 //	node.Stop()
 //	time.Sleep(1 * time.Second)
-//	_, ok := <-node.txCache.CloseC
+//	_, ok := <-node.txCache.closeC
 //	ast.Equal(false, ok)
 //}
 //
@@ -397,7 +397,7 @@ package rbft
 //		testutil.SetMockBlockLedger(block30, true)
 //		defer testutil.ResetMockBlockLedger()
 //
-//		ckp := &common.Checkpoint{
+//		ckp := &consensustypes.Checkpoint{
 //			Height: 30,
 //			Digest: block30.Hash().String(),
 //		}

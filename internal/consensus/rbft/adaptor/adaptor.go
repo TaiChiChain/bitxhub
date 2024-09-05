@@ -3,12 +3,13 @@ package adaptor
 import (
 	"context"
 
+	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	rbft "github.com/axiomesh/axiom-bft"
-	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/network"
@@ -27,12 +28,12 @@ var _ rbft.EpochService = (*RBFTAdaptor)(nil)
 var _ rbft.Ledger = (*RBFTAdaptor)(nil)
 
 type RBFTAdaptor struct {
-	epochStore        kv.Storage
+	epochManager      *epochmgr.EpochManager
 	store             rbft.Storage
 	network           network.Network
 	msgPipes          map[int32]p2p.Pipe
 	ReadyC            chan *Ready
-	BlockC            chan *common.CommitEvent
+	BlockC            chan *consensustypes.CommitEvent
 	logger            logrus.FieldLogger
 	StateUpdating     bool
 	StateUpdateHeight uint64
@@ -77,14 +78,14 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	stack := &RBFTAdaptor{
-		epochStore: config.EpochStore,
-		store:      store,
-		network:    config.Network,
-		ReadyC:     make(chan *Ready, 1024),
-		BlockC:     make(chan *common.CommitEvent, 1024),
-		quitSync:   make(chan struct{}, 1),
-		logger:     config.Logger,
-		config:     config,
+		epochManager: config.EpochStore,
+		store:        store,
+		network:      config.Network,
+		ReadyC:       make(chan *Ready, 1024),
+		BlockC:       make(chan *consensustypes.CommitEvent, 1024),
+		quitSync:     make(chan struct{}, 1),
+		logger:       config.Logger,
+		config:       config,
 
 		sync: config.BlockSync,
 

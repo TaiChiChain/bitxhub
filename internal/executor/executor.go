@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/executor/system"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
@@ -35,7 +35,7 @@ type AfterBlockHook struct {
 type BlockExecutor struct {
 	ledger             *ledger.Ledger
 	logger             logrus.FieldLogger
-	blockC             chan *common.CommitEvent
+	blockC             chan *consensustypes.CommitEvent
 	cumulativeGasUsed  uint64
 	currentHeight      uint64
 	currentBlockHash   *types.Hash
@@ -65,7 +65,7 @@ func New(rep *repo.Repo, ledger *ledger.Ledger, chainState *chainstate.ChainStat
 		ctx:               ctx,
 		chainState:        chainState,
 		cancel:            cancel,
-		blockC:            make(chan *common.CommitEvent, blockChanNumber),
+		blockC:            make(chan *consensustypes.CommitEvent, blockChanNumber),
 		cumulativeGasUsed: 0,
 		currentHeight:     ledger.ChainLedger.GetChainMeta().Height,
 		currentBlockHash:  ledger.ChainLedger.GetChainMeta().BlockHash,
@@ -114,11 +114,11 @@ func (exec *BlockExecutor) Stop() error {
 }
 
 // ExecuteBlock executes block from consensus
-func (exec *BlockExecutor) ExecuteBlock(block *common.CommitEvent) {
+func (exec *BlockExecutor) ExecuteBlock(block *consensustypes.CommitEvent) {
 	exec.processExecuteEvent(block)
 }
 
-func (exec *BlockExecutor) AsyncExecuteBlock(block *common.CommitEvent) {
+func (exec *BlockExecutor) AsyncExecuteBlock(block *consensustypes.CommitEvent) {
 	exec.blockC <- block
 }
 

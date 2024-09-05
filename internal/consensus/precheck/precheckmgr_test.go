@@ -36,11 +36,11 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		require.Nil(t, err)
 
 		wrongType := 100
-		event := &consensuscommon.UncheckedTxEvent{
+		event := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: wrongType,
-			Event: &consensuscommon.TxWithResp{
+			Event: &consensusconsensustypes.TxWithResp{
 				Tx:      tx,
-				CheckCh: make(chan *consensuscommon.TxResp),
+				CheckCh: make(chan *consensusconsensustypes.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(event)
@@ -61,7 +61,7 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		tx, _, err := types.GenerateTransactionAndSigner(0, types.NewAddressByStr(to), big.NewInt(0), nil)
 		require.Nil(t, err)
 
-		event := &consensuscommon.UncheckedTxEvent{
+		event := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: consensuscommon.LocalTxEvent,
 			Event:     tx,
 		}
@@ -107,7 +107,7 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		tx, _, err := types.GenerateTransactionAndSigner(0, types.NewAddressByStr(to), big.NewInt(0), nil)
 		require.Nil(t, err)
 
-		event := &consensuscommon.UncheckedTxEvent{
+		event := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: consensuscommon.RemoteTxEvent,
 			Event:     tx,
 		}
@@ -134,7 +134,7 @@ func TestTxPreCheckMgr_Start(t *testing.T) {
 		require.True(t, ledger.getBalance(s.Addr.String()).Cmp(transfer) == 0)
 
 		event := createLocalTxEvent(tx)
-		txWithResp := event.Event.(*consensuscommon.TxWithResp)
+		txWithResp := event.Event.(*consensusconsensustypes.TxWithResp)
 		tp.PostUncheckedTxEvent(event)
 		resp := <-txWithResp.CheckCh
 		require.True(t, resp.Status)
@@ -196,15 +196,15 @@ func TestTxPreCheckMgr_BasicCheck(t *testing.T) {
 
 		tp.txMaxSize.Store(uint64(tx.Size()) - 1)
 
-		localEvent := &consensuscommon.UncheckedTxEvent{
+		localEvent := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: consensuscommon.LocalTxEvent,
-			Event: &consensuscommon.TxWithResp{
+			Event: &consensusconsensustypes.TxWithResp{
 				Tx:      tx,
-				CheckCh: make(chan *consensuscommon.TxResp),
+				CheckCh: make(chan *consensusconsensustypes.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(localEvent)
-		resp := <-localEvent.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-localEvent.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, txpool.ErrOversizedData.Error())
 
@@ -212,7 +212,7 @@ func TestTxPreCheckMgr_BasicCheck(t *testing.T) {
 		var logOutput bytes.Buffer
 		lg.Logger.SetOutput(&logOutput)
 
-		remoteEvent := &consensuscommon.UncheckedTxEvent{
+		remoteEvent := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: consensuscommon.RemoteTxEvent,
 			Event:     []*types.Transaction{tx},
 		}
@@ -237,15 +237,15 @@ func TestTxPreCheckMgr_BasicCheck(t *testing.T) {
 			Time:  time.Now(),
 		}
 
-		localEvent := &consensuscommon.UncheckedTxEvent{
+		localEvent := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: consensuscommon.LocalTxEvent,
-			Event: &consensuscommon.TxWithResp{
+			Event: &consensusconsensustypes.TxWithResp{
 				Tx:      tx,
-				CheckCh: make(chan *consensuscommon.TxResp),
+				CheckCh: make(chan *consensusconsensustypes.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(localEvent)
-		resp := <-localEvent.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-localEvent.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, errGasPriceTooLow.Error())
 	})
@@ -278,15 +278,15 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 				tx, _, err := types.GenerateWrongSignTransactionAndSigner(true)
 				require.Nil(t, err)
 
-				event := &consensuscommon.UncheckedTxEvent{
+				event := &consensusconsensustypes.UncheckedTxEvent{
 					EventType: consensuscommon.LocalTxEvent,
-					Event: &consensuscommon.TxWithResp{
+					Event: &consensusconsensustypes.TxWithResp{
 						Tx:      tx,
-						CheckCh: make(chan *consensuscommon.TxResp),
+						CheckCh: make(chan *consensusconsensustypes.TxResp),
 					},
 				}
 				tp.PostUncheckedTxEvent(event)
-				resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+				resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 				require.False(t, resp.Status)
 				require.Contains(t, resp.ErrorMsg, errTxSign.Error())
 
@@ -308,15 +308,15 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 				tx, sk, err := types.GenerateWrongSignTransactionAndSigner(false)
 				require.Nil(t, err)
 				require.NotEqual(t, tx.GetFrom().String(), sk.Addr.String())
-				event := &consensuscommon.UncheckedTxEvent{
+				event := &consensusconsensustypes.UncheckedTxEvent{
 					EventType: consensuscommon.LocalTxEvent,
-					Event: &consensuscommon.TxWithResp{
+					Event: &consensusconsensustypes.TxWithResp{
 						Tx:      tx,
-						CheckCh: make(chan *consensuscommon.TxResp),
+						CheckCh: make(chan *consensusconsensustypes.TxResp),
 					},
 				}
 				tp.PostUncheckedTxEvent(event)
-				resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+				resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 				require.False(t, resp.Status)
 				require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error())
 			},
@@ -333,15 +333,15 @@ func TestTxPreCheckMgr_VerifySign(t *testing.T) {
 				require.Nil(t, err)
 				require.Equal(t, tx.GetFrom(), tx.GetTo())
 
-				event := &consensuscommon.UncheckedTxEvent{
+				event := &consensusconsensustypes.UncheckedTxEvent{
 					EventType: consensuscommon.LocalTxEvent,
-					Event: &consensuscommon.TxWithResp{
+					Event: &consensusconsensustypes.TxWithResp{
 						Tx:      tx,
-						CheckCh: make(chan *consensuscommon.TxResp),
+						CheckCh: make(chan *consensusconsensustypes.TxResp),
 					},
 				}
 				tp.PostUncheckedTxEvent(event)
-				resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+				resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 				require.False(t, resp.Status)
 				require.Contains(t, resp.ErrorMsg, errTo.Error())
 			},
@@ -367,15 +367,15 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		tx, err := generateDynamicFeeTx(s, &toAddr, nil, 0, big.NewInt(0), gasFeeCap, big.NewInt(0))
 		require.Nil(t, err)
 
-		event := &consensuscommon.UncheckedTxEvent{
+		event := &consensusconsensustypes.UncheckedTxEvent{
 			EventType: consensuscommon.LocalTxEvent,
-			Event: &consensuscommon.TxWithResp{
+			Event: &consensusconsensustypes.TxWithResp{
 				Tx:      tx,
-				CheckCh: make(chan *consensuscommon.TxResp),
+				CheckCh: make(chan *consensusconsensustypes.TxResp),
 			},
 		}
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrFeeCapVeryHigh.Error())
 	})
@@ -393,7 +393,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrTipVeryHigh.Error())
 	})
@@ -412,7 +412,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrTipAboveFeeCap.Error())
 	})
@@ -432,7 +432,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		tp.BaseFee = new(big.Int).Add(gasFeeCap, big.NewInt(1))
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrFeeCapTooLow.Error())
 	})
@@ -443,7 +443,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 		require.Nil(t, err)
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFunds.Error())
 	})
@@ -463,7 +463,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrIntrinsicGas.Error())
 	})
@@ -482,7 +482,7 @@ func TestTxPreCheckMgr_VerifyData(t *testing.T) {
 
 		event := createLocalTxEvent(tx)
 		tp.PostUncheckedTxEvent(event)
-		resp := <-event.Event.(*consensuscommon.TxWithResp).CheckCh
+		resp := <-event.Event.(*consensusconsensustypes.TxWithResp).CheckCh
 		require.False(t, resp.Status)
 		require.Contains(t, resp.ErrorMsg, core.ErrInsufficientFundsForTransfer.Error(),
 			"when gasFeeCap is not nil, preCheck gasFeeCap*gasLimit+value firstly")

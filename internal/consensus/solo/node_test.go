@@ -216,9 +216,9 @@ func TestNode_Prepare(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		wrongPrecheckMgr := mock_precheck.NewMockPreCheck(ctrl)
 		wrongPrecheckMgr.EXPECT().Start().AnyTimes()
-		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-			event := ev.Event.(*common.TxWithResp)
-			event.CheckCh <- &common.TxResp{
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *consensustypes.UncheckedTxEvent) {
+			event := ev.Event.(*consensustypes.TxWithResp)
+			event.CheckCh <- &consensustypes.TxResp{
 				Status:   false,
 				ErrorMsg: "check error",
 			}
@@ -234,12 +234,12 @@ func TestNode_Prepare(t *testing.T) {
 		ast.NotNil(err)
 		ast.Contains(err.Error(), "check error")
 
-		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
-			event := ev.Event.(*common.TxWithResp)
-			event.CheckCh <- &common.TxResp{
+		wrongPrecheckMgr.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *consensustypes.UncheckedTxEvent) {
+			event := ev.Event.(*consensustypes.TxWithResp)
+			event.CheckCh <- &consensustypes.TxResp{
 				Status: true,
 			}
-			event.PoolCh <- &common.TxResp{
+			event.PoolCh <- &consensustypes.TxResp{
 				Status:   false,
 				ErrorMsg: "add pool error",
 			}
@@ -288,7 +288,7 @@ func TestNode_Prepare(t *testing.T) {
 				ChainState: chainstate.NewMockChainState(rep.GenesisConfig, nil),
 			},
 			lastExec:     uint64(0),
-			commitC:      make(chan *common.CommitEvent, maxChanSize),
+			commitC:      make(chan *consensustypes.CommitEvent, maxChanSize),
 			blockCh:      make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
 			txpool:       pool,
 			network:      mockNetwork,
@@ -307,9 +307,9 @@ func TestNode_Prepare(t *testing.T) {
 		}
 
 		batchTimerMgr := timer.NewTimerManager(logger)
-		err = batchTimerMgr.CreateTimer(common.Batch, batchTime, soloNode.handleTimeoutEvent)
+		err = batchTimerMgr.CreateTimer(consensustypes.Batch, batchTime, soloNode.handleTimeoutEvent)
 		require.Nil(t, err)
-		err = batchTimerMgr.CreateTimer(common.NoTxBatch, batchTime, soloNode.handleTimeoutEvent)
+		err = batchTimerMgr.CreateTimer(consensustypes.NoTxBatch, batchTime, soloNode.handleTimeoutEvent)
 		require.Nil(t, err)
 		soloNode.batchMgr = &batchTimerManager{Timer: batchTimerMgr}
 

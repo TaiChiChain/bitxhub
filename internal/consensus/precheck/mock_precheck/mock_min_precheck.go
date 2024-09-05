@@ -21,10 +21,10 @@ func NewMockMinPreCheck(mockCtl *gomock.Controller, pool txpool.TxPool[types.Tra
 	}
 	mockPrecheck.EXPECT().Start().AnyTimes()
 	mockPrecheck.EXPECT().UpdateEpochInfo(gomock.Any()).AnyTimes()
-	mockPrecheck.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *common.UncheckedTxEvent) {
+	mockPrecheck.EXPECT().PostUncheckedTxEvent(gomock.Any()).Do(func(ev *consensustypes.UncheckedTxEvent) {
 		switch ev.EventType {
 		case common.LocalTxEvent:
-			txWithResp, ok := ev.Event.(*common.TxWithResp)
+			txWithResp, ok := ev.Event.(*consensustypes.TxWithResp)
 			if !ok {
 				panic("invalid event type")
 			}
@@ -33,17 +33,17 @@ func NewMockMinPreCheck(mockCtl *gomock.Controller, pool txpool.TxPool[types.Tra
 
 			err := mockPrecheck.pool.AddLocalTx(tx)
 			if err != nil {
-				txWithResp.PoolCh <- &common.TxResp{
+				txWithResp.PoolCh <- &consensustypes.TxResp{
 					Status:   false,
 					ErrorMsg: err.Error(),
 				}
 			} else {
-				txWithResp.PoolCh <- &common.TxResp{
+				txWithResp.PoolCh <- &consensustypes.TxResp{
 					Status: true,
 				}
 			}
 
-			txWithResp.CheckCh <- &common.TxResp{
+			txWithResp.CheckCh <- &consensustypes.TxResp{
 				Status: true,
 			}
 

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -38,26 +40,28 @@ type executeEvent struct {
 }
 
 type Node struct {
-	nodeConfig       *Config
-	networkFactory   *adaptor.NetworkFactory
-	stack            *adaptor.DagBFTAdaptor
-	currentEpochInfo types.EpochInfo
-	txpool           txpool.TxPool[types.Transaction, *types.Transaction]
-	engine           dagbft.DagBFT
-	txPreCheck       precheck.PreCheck
-	recvTxCh         chan *common.TxWithResp
+	nodeConfig        *Config
+	networkFactory    *adaptor.NetworkFactory
+	stack             *adaptor.DagBFTAdaptor
+	currentEpochInfo  types.EpochInfo
+	txpool            txpool.TxPool[types.Transaction, *types.Transaction]
+	engine            dagbft.DagBFT
+	txPreCheck        precheck.PreCheck
+	recvTxCh          chan *consensustypes.TxWithResp
+	txCache           txcache.TxCache
+	reportBatchResult bool
 
 	primary dagtypes.Host
 
 	worker      dagtypes.Host // todo: support multiple workers
 	readyC      chan *adaptor.Ready
-	blockC      chan *common.CommitEvent
+	blockC      chan *consensustypes.CommitEvent
 	executedMap sync.Map
 
 	inStateUpdate atomic.Bool
 	updatedResult containers.Tuple[dagtypes.Height, *dagtypes.QuorumCheckpoint, chan<- *dagevents.StateUpdatedEvent]
 
-	wg      *sync.WaitGroup
+	wg      sync.WaitGroup
 	ctx     context.Context
 	cancel  context.CancelFunc
 	closeCh chan bool
@@ -95,25 +99,28 @@ func NewNode(config *common.Config) (*Node, error) {
 	}
 
 	return &Node{
-		blockC:           make(chan *common.CommitEvent),
-		nodeConfig:       dagConfig,
-		networkFactory:   networkFactory,
-		txpool:           config.TxPool,
-		txPreCheck:       check,
-		engine:           engine,
-		readyC:           readyC,
-		logger:           config.Logger,
-		stack:            dagAdaptor,
-		ctx:              ctx,
-		cancel:           cancel,
-		recvTxCh:         make(chan *common.TxWithResp, common.MaxChainSize),
-		closeCh:          closeCh,
-		crashCh:          crashCh,
-		primary:          config.ChainState.SelfNodeInfo.Primary,
-		worker:           config.ChainState.SelfNodeInfo.Workers[0],
-		executedMap:      sync.Map{},
-		inStateUpdate:    atomic.Bool{},
-		currentEpochInfo: config.ChainState.GetCurrentEpochInfo(),
+		blockC:         make(chan *consensustypes.CommitEvent),
+		nodeConfig:     dagConfig,
+		networkFactory: networkFactory,
+		txpool:         config.TxPool,
+		txPreCheck:     check,
+		engine:         engine,
+		readyC:         readyC,
+		logger:         config.Logger,
+		stack:          dagAdaptor,
+		ctx:            ctx,
+		cancel:         cancel,
+		txCache:        txcache.NewTxCache(config.Repo.ConsensusConfig.Dagbft.BatchTimeout.ToDuration(), uint64(config.Repo.ConsensusConfig.Dagbft.MaxBatchCount), config.Logger),
+
+		recvTxCh:          make(chan *consensustypes.TxWithResp, common.MaxChainSize),
+		closeCh:           closeCh,
+		crashCh:           crashCh,
+		primary:           config.ChainState.SelfNodeInfo.Primary,
+		worker:            config.ChainState.SelfNodeInfo.Workers[0],
+		executedMap:       sync.Map{},
+		inStateUpdate:     atomic.Bool{},
+		currentEpochInfo:  config.ChainState.GetCurrentEpochInfo(),
+		reportBatchResult: config.Repo.ConsensusConfig.Dagbft.ReportBatchResult,
 	}, nil
 }
 
@@ -137,14 +144,17 @@ func (n *Node) Start() error {
 		return err
 	}
 
+	n.wg.Add(2)
 	go n.listenLocalEvent()
 	go n.listenConsensusEngineEvent()
+	n.txCache.Start()
 
 	n.logger.Info("dagbft consensus started")
 	return nil
 }
 
 func (n *Node) listenLocalEvent() {
+	defer n.wg.Done()
 	for {
 		select {
 		case <-n.closeCh:
@@ -157,14 +167,19 @@ func (n *Node) listenLocalEvent() {
 			}
 
 		case wrapTx := <-n.recvTxCh:
-			ev := &common.UncheckedTxEvent{
-				EventType: common.LocalTxEvent,
+			ev := &consensustypes.UncheckedTxEvent{
+				EventType: consensustypes.LocalTxEvent,
 				Event:     wrapTx,
 			}
 			n.txPreCheck.PostUncheckedTxEvent(ev)
 		case rawTxs := <-n.txpool.ReceivePriorityTxs():
-			n.logger.Infof("received %d priority txs", len(rawTxs))
-			marshallTxs := lo.Map(rawTxs, func(tx *types.Transaction, _ int) protocol.Transaction {
+			n.logger.Infof("recv %d txs from txpool", len(rawTxs))
+			lo.ForEach(rawTxs, func(tx *types.Transaction, _ int) {
+				n.txCache.PostTx(tx)
+			})
+
+		case txSet := <-n.txCache.CommitTxSet():
+			marshallTxs := lo.Map(txSet, func(tx *types.Transaction, _ int) protocol.Transaction {
 				if tx.GetNonce() != n.expectNonce {
 					panic(fmt.Sprintf("expect nonce %d, but got %d", n.expectNonce, tx.GetNonce()))
 				}
@@ -173,41 +188,84 @@ func (n *Node) listenLocalEvent() {
 					panic(err)
 				}
 				n.expectNonce++
-
 				return data
 			})
-			resCh := n.engine.ReceiveTransaction(n.worker, marshallTxs...)
+
+			// todo(lrx): handle error response, notify txpool revert nonce
+			n.logger.WithFields(logrus.Fields{
+				"count": len(marshallTxs),
+			}).Info("send tx to consensus engine")
+			respCh := make(chan any, 1)
+			n.receiveTransactions(marshallTxs, respCh)
+			metrics.SendTx2ConsensusCounter.Add(float64(len(txSet)))
 			go func() {
 				select {
 				case <-n.closeCh:
 					return
-
-				case res := <-resCh:
-					batch, err := res.Unpack()
-					if err != nil {
-						n.logger.Errorf("send tx to worker failed %w", err)
-						return
+				case res := <-respCh:
+					if err, ok := res.(error); ok {
+						n.logger.WithError(err).Error("failed to send tx")
+					} else {
+						d := res.(dagtypes.BatchDigest)
+						n.logger.Info("succeed to send txs, batchDigest:", d)
 					}
-					n.logger.Infof("received txs ack,batch %s", batch.String())
 				}
 			}()
-			metrics.SendTx2ConsensusCounter.Add(float64(len(rawTxs)))
+
 		}
 	}
+}
+
+func (n *Node) receiveTransactions(transactions []protocol.Transaction, resultCh chan any) {
+	const BatchTimeout = time.Minute
+
+	respCh := n.engine.GenerateBatch(n.worker, transactions)
+
+	if !n.reportBatchResult {
+		return
+	}
+
+	n.wg.Add(1)
+	go func() {
+		defer n.wg.Done()
+
+		timer := time.NewTimer(BatchTimeout)
+		defer timer.Stop()
+
+		select {
+		case <-n.closeCh:
+
+		case <-timer.C:
+			err := fmt.Errorf("batch timeout for %v", BatchTimeout)
+			channel.SafeSend[any, bool](resultCh, err, n.closeCh)
+
+		case resp := <-respCh:
+			batchMeta, err := resp.Unpack()
+			var result any
+			if err != nil {
+				result = err
+			} else {
+				result = batchMeta.Digest
+			}
+			channel.SafeSend[any, bool](resultCh, result, n.closeCh)
+		}
+	}()
+
 }
 
 func (n *Node) Stop() {
 	n.engine.Stop()
 	close(n.closeCh)
 	n.cancel()
+	n.wg.Wait()
 	n.logger.Info("dagbft consensus stopped")
 }
 
 func (n *Node) Prepare(tx *types.Transaction) error {
-	txWithResp := &common.TxWithResp{
+	txWithResp := &consensustypes.TxWithResp{
 		Tx:      tx,
-		CheckCh: make(chan *common.TxResp, 1),
-		PoolCh:  make(chan *common.TxResp, 1),
+		CheckCh: make(chan *consensustypes.TxResp, 1),
+		PoolCh:  make(chan *consensustypes.TxResp, 1),
 	}
 
 	channel.SafeSend(n.recvTxCh, txWithResp, n.closeCh)
@@ -217,7 +275,7 @@ func (n *Node) Prepare(tx *types.Transaction) error {
 		return nil
 	}
 	if !precheckResp.Status {
-		return errors.Wrap(common.ErrorPreCheck, precheckResp.ErrorMsg)
+		return errors.Wrap(consensustypes.ErrorPreCheck, precheckResp.ErrorMsg)
 	}
 
 	poolResp, ok := channel.SafeRecv(txWithResp.PoolCh, n.closeCh)
@@ -226,13 +284,13 @@ func (n *Node) Prepare(tx *types.Transaction) error {
 		return nil
 	}
 	if !poolResp.Status {
-		return errors.Wrap(common.ErrorAddTxPool, poolResp.ErrorMsg)
+		return errors.Wrap(consensustypes.ErrorAddTxPool, poolResp.ErrorMsg)
 	}
 
 	return nil
 }
 
-func (n *Node) Commit() chan *common.CommitEvent {
+func (n *Node) Commit() chan *consensustypes.CommitEvent {
 	return n.blockC
 }
 
@@ -248,7 +306,7 @@ func (n *Node) Ready() error {
 	return fmt.Errorf("%s", status.Primary.Status.String())
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *common.Checkpoint, needRemoveTxs bool, commitSequence uint64) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*events.TxPointer, stateUpdatedCheckpoint *consensustypes.Checkpoint, needRemoveTxs bool, commitSequence uint64) {
 	reconfigured := common.NeedChangeEpoch(height, n.currentEpochInfo)
 
 	// if state updated, notify state updated to consensus
@@ -277,7 +335,7 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []*e
 				Reconfigured: reconfigured,
 			},
 		}
-		metrics.ExecutedBlockCounter.WithLabelValues(common.Dagbft).Inc()
+		metrics.ExecutedBlockCounter.WithLabelValues(consensustypes.Dagbft).Inc()
 		channel.SafeSend(respCh, committedEvent, n.closeCh)
 		// if reconfigured, notify epoch changed to consensus
 		if reconfigured {
@@ -314,6 +372,7 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 }
 
 func (n *Node) listenConsensusEngineEvent() {
+	defer n.wg.Done()
 	for {
 		select {
 		case <-n.closeCh:
@@ -335,7 +394,7 @@ func (n *Node) listenConsensusEngineEvent() {
 				},
 				Transactions: r.Txs,
 			}
-			commitEvent := &common.CommitEvent{
+			commitEvent := &consensustypes.CommitEvent{
 				Block:             block,
 				RecvConsensusTime: r.RecvConsensusTimestamp,
 				CommitSequence:    r.CommitState.CommitSequence(),
@@ -343,7 +402,7 @@ func (n *Node) listenConsensusEngineEvent() {
 
 			n.logger.Infof("send [block %d commitState %d] to executor", r.Height, r.CommitState.CommitSequence())
 			n.executedMap.Store(r.CommitState.CommitSequence(), &executeEvent{containers.Pack3(r.CommitState, r.ExecutedCh, r.EpochChangedCh)})
-			metrics.Consensus2ExecuteBlockTime.WithLabelValues(common.Dagbft).Observe(float64(time.Now().UnixNano()-r.RecvConsensusTimestamp) / float64(time.Second))
+			metrics.Consensus2ExecuteBlockTime.WithLabelValues(consensustypes.Dagbft).Observe(float64(time.Now().UnixNano()-r.RecvConsensusTimestamp) / float64(time.Second))
 			channel.SafeSend(n.blockC, commitEvent, n.closeCh)
 		}
 	}

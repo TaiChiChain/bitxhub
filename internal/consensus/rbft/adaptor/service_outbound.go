@@ -6,8 +6,8 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -22,8 +22,8 @@ import (
 )
 
 func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerNodeID uint64) {
-	metrics.Consensus2ExecutorBlockCounter.WithLabelValues(common.Rbft).Inc()
-	metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": common.Rbft, "type": "avg"}).Observe(float64(time.Now().UnixNano()-timestamp) / float64(time.Second))
+	metrics.Consensus2ExecutorBlockCounter.WithLabelValues(consensustypes.Rbft).Inc()
+	metrics.BatchCommitLatency.With(prometheus.Labels{"consensus": consensustypes.Rbft, "type": "avg"}).Observe(float64(time.Now().UnixNano()-timestamp) / float64(time.Second))
 	a.ReadyC <- &Ready{
 		Txs:             requests,
 		LocalList:       localList,
@@ -50,10 +50,15 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		}
 	}
 
+	var isValidator bool
 	// get the validator set of the remote latest epoch
 	if len(epochChanges) != 0 {
 		lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *consensus.QuorumValidator, _ int) {
-			if _, ok := peersM[v.Id]; !ok && v.PeerId != a.network.PeerID() {
+			if _, ok := peersM[v.Id]; !ok {
+				if v.PeerId != a.network.PeerID() {
+					isValidator = true
+					return
+				}
 				peersM[v.Id] = &synccomm.Node{Id: v.Id, PeerID: v.PeerId}
 			}
 		})
@@ -93,7 +98,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			rbftCheckpoint := checkpoints[0].GetCheckpoint()
 			a.postMockBlockEvent(&types.Block{
 				Header: localBlockHeader,
-			}, []*events.TxPointer{}, &common.Checkpoint{
+			}, []*events.TxPointer{}, &consensustypes.Checkpoint{
 				Epoch:  rbftCheckpoint.Epoch,
 				Height: rbftCheckpoint.Height(),
 				Digest: rbftCheckpoint.Digest(),
@@ -119,31 +124,30 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		"epochChanges": epochChanges,
 	}).Info("State update start")
 
+	// ensure sync remote count including at least one correct node
+	f := common.CalFaulty(uint64(len(peers)))
+	quorum := f + 1
+	if isValidator {
+		// if node is a validator, it means this node is a Byzantium node,so ensure at least one correct node, quorum = f+1-1
+		quorum = f + 1 - 1
+	}
+
 	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
 		params := &synccomm.SyncParams{
 			Peers:           peers,
 			LatestBlockHash: latestBlockHash,
-			// ensure sync remote count including at least one correct node
-			Quorum:       common.CalFaulty(uint64(len(peers))),
-			CurHeight:    startHeight,
-			TargetHeight: seqNo,
-			QuorumCheckpoint: &pb.QuorumCheckpoint{
-				Epoch: checkpoints[0].Epoch(),
-				State: &pb.ExecuteState{
-					Height: checkpoints[0].Height(),
-					Digest: checkpoints[0].Digest(),
+			Quorum:          quorum,
+			CurHeight:       startHeight,
+			TargetHeight:    seqNo,
+			QuorumCheckpoint: &consensus.RbftQuorumCheckpoint{
+				QuorumCheckpoint: consensus.QuorumCheckpoint{
+					Checkpoint: checkpoints[0].GetCheckpoint(),
 				},
 			},
-			EpochChanges: lo.Map(epochChanges, func(epoch *consensus.EpochChange, index int) *pb.EpochChange {
-				return &pb.EpochChange{
-					QuorumCheckpoint: &pb.QuorumCheckpoint{
-						Epoch: epoch.Checkpoint.Epoch(),
-						State: &pb.ExecuteState{
-							Height: epoch.Checkpoint.Height(),
-							Digest: epoch.Checkpoint.Digest(),
-						},
-					},
+			EpochChanges: lo.Map(epochChanges, func(epochChange *consensus.EpochChange, index int) *consensustypes.EpochChange {
+				return &consensustypes.EpochChange{
+					QuorumCheckpoint: &consensus.RbftQuorumCheckpoint{QuorumCheckpoint: *epochChange.GetCheckpoint()},
 				}
 			}),
 		}
@@ -161,7 +165,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		panic(fmt.Errorf("retry start sync failed: %v", err))
 	}
 
-	var stateUpdatedCheckpoint *common.Checkpoint
+	var stateUpdatedCheckpoint *consensustypes.Checkpoint
 	// wait for the sync to finish
 	for {
 		select {
@@ -193,7 +197,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 				// and send the quitSync signal to sync module
 				if commitData.GetHeight() == seqNo {
 					rbftCkpt := checkpoints[0].GetCheckpoint()
-					stateUpdatedCheckpoint = &common.Checkpoint{
+					stateUpdatedCheckpoint = &consensustypes.Checkpoint{
 						Epoch:  rbftCkpt.Epoch,
 						Height: rbftCkpt.Height(),
 						Digest: rbftCkpt.Digest(),
@@ -204,7 +208,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 				if !ok {
 					panic("state update failed: invalid commit data")
 				}
-				a.postCommitEvent(&common.CommitEvent{
+				a.postCommitEvent(&consensustypes.CommitEvent{
 					Block:                  block.Block,
 					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
 				})
@@ -217,19 +221,19 @@ func (a *RBFTAdaptor) SendFilterEvent(_ rbfttypes.InformType, _ ...any) {
 	// TODO: add implement
 }
 
-func (a *RBFTAdaptor) PostCommitEvent(commitEvent *common.CommitEvent) {
+func (a *RBFTAdaptor) PostCommitEvent(commitEvent *consensustypes.CommitEvent) {
 	a.postCommitEvent(commitEvent)
 }
 
-func (a *RBFTAdaptor) postCommitEvent(commitEvent *common.CommitEvent) {
+func (a *RBFTAdaptor) postCommitEvent(commitEvent *consensustypes.CommitEvent) {
 	a.BlockC <- commitEvent
 }
 
-func (a *RBFTAdaptor) GetCommitChannel() chan *common.CommitEvent {
+func (a *RBFTAdaptor) GetCommitChannel() chan *consensustypes.CommitEvent {
 	return a.BlockC
 }
 
-func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *common.Checkpoint) {
+func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *consensustypes.Checkpoint) {
 	a.MockBlockFeed.Send(events.ExecutedEvent{
 		Block:                  block,
 		TxPointerList:          txHashList,

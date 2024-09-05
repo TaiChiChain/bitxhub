@@ -6,8 +6,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
 )
 
-var _ common.ISyncConstructor = (*FullSync)(nil)
-
 type FullSync struct {
 	recvCommitDataCh chan []common.CommitData
 	commitCh         chan any
@@ -45,8 +43,8 @@ func NewFullSync() common.ISyncConstructor {
 	}
 }
 
-func (s *FullSync) Prepare(_ *common.Config) (*common.PrepareData, error) {
-	return nil, nil
+func (s *FullSync) Prepare(_ *common.Config) error {
+	return nil
 }
 
 func (s *FullSync) listenCommitData() {

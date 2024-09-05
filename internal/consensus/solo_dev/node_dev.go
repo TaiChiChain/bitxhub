@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/sirupsen/logrus"
 
@@ -25,9 +26,9 @@ func init() {
 type NodeDev struct {
 	config          *common.Config
 	proposerAccount string
-	persistDoneC    chan struct{}            // signal of tx had been persisted
-	commitC         chan *common.CommitEvent // block channel
-	lastExec        uint64                   // the index of the last-applied block
+	persistDoneC    chan struct{}                    // signal of tx had been persisted
+	commitC         chan *consensustypes.CommitEvent // block channel
+	lastExec        uint64                           // the index of the last-applied block
 	mutex           sync.Mutex
 	logger          logrus.FieldLogger // logger
 	GetAccountNonce GetAccountNonceFunc
@@ -42,7 +43,7 @@ func NewNode(config *common.Config) (*NodeDev, error) {
 		config:          config,
 		proposerAccount: proposerAccount,
 		persistDoneC:    make(chan struct{}),
-		commitC:         make(chan *common.CommitEvent),
+		commitC:         make(chan *consensustypes.CommitEvent),
 		lastExec:        config.Applied,
 		logger:          config.Logger,
 		GetAccountNonce: config.GetAccountNonce,
@@ -70,7 +71,7 @@ func (n *NodeDev) Prepare(tx *types.Transaction) error {
 		},
 		Transactions: []*types.Transaction{tx},
 	}
-	n.commitC <- &common.CommitEvent{
+	n.commitC <- &consensustypes.CommitEvent{
 		Block: block,
 	}
 	n.lastExec++
@@ -83,7 +84,7 @@ func (n *NodeDev) SubmitTxsFromRemote(_ [][]byte) error {
 	return nil
 }
 
-func (n *NodeDev) Commit() chan *common.CommitEvent {
+func (n *NodeDev) Commit() chan *consensustypes.CommitEvent {
 	return n.commitC
 }
 
@@ -95,7 +96,7 @@ func (n *NodeDev) Ready() error {
 	return nil
 }
 
-func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *common.Checkpoint, _ bool, _ uint64) {
+func (n *NodeDev) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ *consensustypes.Checkpoint, _ bool, _ uint64) {
 	if height%checkpoint == 0 {
 		n.logger.WithFields(logrus.Fields{
 			"height": height,
@@ -138,4 +139,12 @@ func (n *NodeDev) GetTotalPendingTxCount() uint64 {
 
 func (n *NodeDev) GetLowWatermark() uint64 {
 	return n.lastExec
+}
+
+func (n *NodeDev) GetEpochState(_ uint64) types.QuorumCheckpoint {
+	return nil
+}
+
+func (n *NodeDev) PersistEpochState(_ types.QuorumCheckpoint) error {
+	return nil
 }

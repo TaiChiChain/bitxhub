@@ -2,7 +2,7 @@ package precheck
 
 import (
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 )
 
 //go:generate mockgen -destination mock_precheck/mock_precheck.go -package mock_precheck -source precheck.go -typed
@@ -11,7 +11,7 @@ type PreCheck interface {
 	Start()
 
 	// PostUncheckedTxEvent posts unchecked tx event to precheckMgr
-	PostUncheckedTxEvent(ev *common.UncheckedTxEvent)
+	PostUncheckedTxEvent(ev *consensustypes.UncheckedTxEvent)
 
 	UpdateEpochInfo(epoch *types.EpochInfo)
 

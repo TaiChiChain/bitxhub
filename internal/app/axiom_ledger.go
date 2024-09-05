@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-kit/types/pb"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -16,7 +17,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axiomesh/axiom-kit/log"
-	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/txpool"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
@@ -54,7 +54,7 @@ type AxiomLedger struct {
 	BloomRequests chan chan *bloombits.Retrieval // Channel receiving bloom data retrieval requests
 	Indexer       *indexer.ChainIndexer
 
-	epochStore kv.Storage
+	epochStore *epochmgr.EpochManager
 	snapMeta   *snapMeta
 	StopCh     chan error
 }
@@ -167,108 +167,106 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	}
 
 	logger := loggers.Logger(loggers.App)
-	var vl *ledger.Ledger
-	// 0. load ledger
-	var snap *snapMeta
-	verifiedCh := make(chan bool, 1)
-
-	if rep.StartArgs.SnapshotMode {
-		stateLg, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Ledger), storagemgr.Ledger)
-		if err != nil {
-			return nil, err
-		}
-		snapshotStorage, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Snapshot), storagemgr.Snapshot)
-		if err != nil {
-			return nil, err
-		}
-		rwLdg, err = ledger.NewLedgerWithStores(rep, nil, stateLg, snapshotStorage, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		// 1. load header of snap target block
-		meta, err := rwLdg.StateLedger.GetTrieSnapshotMeta()
-		if err != nil {
-			return nil, fmt.Errorf("get snapshot meta hash: %w", err)
-		}
-		if meta.BlockHeader.Number == 0 {
-			return nil, errors.New("cannot start snap mode at block 0")
-		}
-
-		rwLdg.SnapMeta.Store(ledger.SnapInfo{Status: true, SnapBlockHeader: meta.BlockHeader.Clone()})
-		vl = rwLdg.NewView()
-
-		// 2. wait for generating snapshot of target block
-		errC := make(chan error)
-		go vl.StateLedger.GenerateSnapshot(meta.BlockHeader, errC)
-		err = <-errC
-		if err != nil {
-			return nil, fmt.Errorf("snap-sync generate snapshot failed: %w", err)
-		}
-
-		// 3. verify whether trie snapshot is legal (async with snap sync)
-		go func(resultCh chan bool) {
-			now := time.Now()
-			verified, err := vl.StateLedger.VerifyTrie(meta.BlockHeader)
-			if err != nil {
-				resultCh <- false
-				return
-			}
-			logger.WithFields(logrus.Fields{
-				"cost":   time.Since(now),
-				"height": meta.BlockHeader.Number,
-				"result": verified,
-			}).Info("end verify trie snapshot")
-			resultCh <- verified
-		}(verifiedCh)
-
-		// 4. load snap meta of peers, epoch, etc.
-		snap, err = loadSnapMeta(vl, meta.BlockHeader, rep.P2PKeystore.P2PID(), rep.SyncArgs)
-		if err != nil {
-			return nil, err
-		}
-
-	} else {
-		rwLdg, err = ledger.NewLedger(rep)
-		if err != nil {
-			return nil, err
-		}
-		// init genesis config
-		if !genesis.IsInitialized(rwLdg) {
-			if err := genesis.Initialize(rep.GenesisConfig, rwLdg); err != nil {
-				return nil, errors.Wrapf(err, "failed to initialize genesis")
-			}
-			logger.WithFields(logrus.Fields{
-				"genesis block hash": rwLdg.ChainLedger.GetChainMeta().BlockHash,
-			}).Info("Initialize genesis")
-		}
-		vl = rwLdg.NewView()
+	axm := &AxiomLedger{
+		Ctx:    ctx,
+		Cancel: cancel,
+		Repo:   rep,
+		logger: logger,
+		StopCh: make(chan error, 1),
 	}
 
+	// 0. load ledger
+	rwLdg, err = ledger.NewLedger(rep)
+	if err != nil {
+		return nil, err
+	}
+
+	var genesisBlockHeader *types.BlockHeader
+	// init genesis config
+	if !genesis.IsInitialized(rwLdg) || rep.StartArgs.SnapshotMode {
+		if err := genesis.Initialize(rep.GenesisConfig, rwLdg); err != nil {
+			return nil, errors.Wrapf(err, "failed to initialize genesis")
+		}
+		genesisBlockHeader, err = rwLdg.ChainLedger.GetBlockHeader(rep.GenesisConfig.EpochInfo.StartBlock)
+		logger.WithFields(logrus.Fields{
+			"block hash": genesisBlockHeader.Hash().String(),
+			"height":     genesisBlockHeader.Number,
+			"epoch":      genesisBlockHeader.Epoch,
+		}).Info("Initialize genesis")
+	}
+	axm.ViewLedger = rwLdg.NewView()
+
+	// 1.1 new p2p network
 	var net network.Network
 	if !rep.StartArgs.ReadonlyMode {
 		net, err = network.New(rep, loggers.Logger(loggers.P2P))
 		if err != nil {
 			return nil, fmt.Errorf("create p2p failed: %w", err)
 		}
+		axm.Network = net
 	}
 
-	var syncMgr *sync.SyncManager
-	var epochStore kv.Storage
+	// 1.2 start p2p network
+	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] && !axm.Repo.StartArgs.ReadonlyMode {
+		if err = axm.Network.Start(); err != nil {
+			return nil, fmt.Errorf("peer manager start: %w", err)
+		}
+	}
+
+	// 2. new epoch store and sync manager
 	if !rep.StartArgs.ReadonlyMode {
-		epochStore, err = storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch), storagemgr.Epoch)
+		// 2.1 new epoch manager
+		epochStore, err := storagemgr.OpenWithMetrics(repo.GetStoragePath(rep.RepoRoot, storagemgr.Epoch), storagemgr.Epoch)
 		if err != nil {
 			return nil, err
 		}
-		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock, vl.ChainLedger.GetBlockHeader,
-			vl.ChainLedger.GetBlockReceipts, epochStore.Get, net, rep.Config.Sync)
+		if genesisBlockHeader == nil {
+			genesisBlockHeader, err = rwLdg.ChainLedger.GetBlockHeader(rep.GenesisConfig.EpochInfo.StartBlock)
+		}
+		axm.epochStore = epochmgr.NewEpochManager(rep.Config.Consensus.Type, epochStore, genesisBlockHeader)
+
+		// 2.2 new sync manager
+		syncMgr, err := sync.NewSyncManager(loggers.Logger(loggers.BlockSync), axm.ViewLedger.ChainLedger.GetChainMeta,
+			axm.ViewLedger.ChainLedger.GetBlock, axm.ViewLedger.ChainLedger.GetBlockHeader, axm.ViewLedger.ChainLedger.GetBlockReceipts,
+			axm.epochStore.ReadEpochState, net, rep.Config)
 		if err != nil {
 			return nil, fmt.Errorf("create block sync: %w", err)
 		}
+		axm.Sync = syncMgr
+		//2.3 if start with snapSync mode then prepare snap meta and start snap sync
+		if rep.StartArgs.SnapshotMode {
+			// 1. load header of snap target block
+			meta, err := axm.ViewLedger.StateLedger.GetTrieSnapshotMeta()
+			if err != nil {
+				return nil, fmt.Errorf("get snapshot meta hash: %w", err)
+			}
+			// 2. check snap target block height
+			if meta.BlockHeader.Number == repo.GenesisBlockNumber {
+				return nil, fmt.Errorf("cannot start snap mode with state ledger's block height %d", repo.GenesisBlockNumber)
+			}
+
+			stateVl, err := rwLdg.StateLedger.NewView(meta.BlockHeader, false)
+			if err != nil {
+				return nil, fmt.Errorf("create state view: %w", err)
+			}
+
+			chainLedger := rwLdg.ChainLedger
+
+			snapMgr, err := newSnapSyncManager(axm.Sync, stateVl, chainLedger, axm.Repo, axm.epochStore, meta.BlockHeader, axm.logger, ctx)
+			if err != nil {
+				return nil, fmt.Errorf("start snap sync: %w", err)
+			}
+
+			// start snap sync tasks
+			if err := snapMgr.Start(); err != nil {
+				return nil, err
+			}
+		}
 	}
 
+	// 3. new chainState(not init)
 	chainState := chainstate.NewChainState(rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*node_manager.NodeInfo, error) {
-		lg := vl.NewView()
+		lg := axm.ViewLedger.NewView()
 		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
 		nodeInfo, err := nodeManagerContract.GetInfo(nodeID)
 		if err != nil {
@@ -283,11 +281,11 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		nodeInfo.Workers = selfGenesisInfo.Workers
 		return &nodeInfo, nil
 	}, func(p2pID string) (uint64, error) {
-		lg := vl.NewView()
+		lg := axm.ViewLedger.NewView()
 		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
 		return nodeManagerContract.GetNodeIDByP2PID(p2pID)
 	}, func(epoch uint64) (*types.EpochInfo, error) {
-		lg := vl.NewView()
+		lg := axm.ViewLedger.NewView()
 		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
 		epochInfo, err := epochManagerContract.HistoryEpoch(epoch)
 		if err != nil {
@@ -296,70 +294,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		return epochInfo.ToTypesEpoch(), nil
 	})
 
-	axm := &AxiomLedger{
-		Ctx:        ctx,
-		Cancel:     cancel,
-		ChainState: chainState,
-		Repo:       rep,
-		logger:     logger,
-		ViewLedger: vl,
-		Network:    net,
-		Sync:       syncMgr,
-
-		snapMeta:   snap,
-		epochStore: epochStore,
-		StopCh:     make(chan error, 1),
-	}
-
-	// start p2p network
-	if repo.SupportMultiNode[axm.Repo.Config.Consensus.Type] && !axm.Repo.StartArgs.ReadonlyMode {
-		if err = axm.Network.Start(); err != nil {
-			return nil, fmt.Errorf("peer manager start: %w", err)
-		}
-
-		latestHeight := axm.ViewLedger.ChainLedger.GetChainMeta().Height
-		// if we reached snap block, needn't sync
-		// prepare sync
-		if axm.Repo.StartArgs.SnapshotMode {
-			if latestHeight > axm.snapMeta.snapBlockHeader.Number {
-				return nil, fmt.Errorf("local latest block height %d is bigger than snap block height %d", latestHeight, axm.snapMeta.snapBlockHeader.Number)
-			}
-			if latestHeight < axm.snapMeta.snapBlockHeader.Number {
-				start := time.Now()
-				axm.logger.WithFields(logrus.Fields{
-					"start height":  latestHeight,
-					"target height": axm.snapMeta.snapBlockHeader.Number,
-				}).Info("start snap sync")
-
-				// 1. prepare snap sync info(including epoch state which will be persisted、last sync checkpoint)
-				prepareRes, snapCheckpoint, err := axm.prepareSnapSync(latestHeight)
-				if err != nil {
-					return nil, fmt.Errorf("prepare sync: %w", err)
-				}
-
-				// 2. start chain data sync
-				err = axm.startSnapSync(verifiedCh, snapCheckpoint, axm.snapMeta.snapPeers, latestHeight+1, prepareRes.Data.([]*pb.EpochChange))
-				if err != nil {
-					return nil, fmt.Errorf("snap sync err: %w", err)
-				}
-
-				// 3. end snapshot sync, change to full mode
-				err = axm.Sync.SwitchMode(synccomm.SyncModeFull)
-				if err != nil {
-					return nil, fmt.Errorf("switch mode err: %w", err)
-				}
-
-				axm.logger.WithFields(logrus.Fields{
-					"start height":  latestHeight,
-					"target height": axm.snapMeta.snapBlockHeader.Number,
-					"duration":      time.Since(start),
-				}).Info("end snap sync")
-			}
-		}
-
-		axm.ViewLedger.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlockHeader: nil})
-	}
-
+	axm.ChainState = chainState
 	var txExec executor.Executor
 	if rep.Config.Executor.Type == repo.ExecTypeDev {
 		txExec, err = devexecutor.New(loggers.Logger(loggers.Executor))
@@ -389,7 +324,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		rep.GenesisConfig = genesisCfg
 	}
 
-	if err := axm.initChainState(); err != nil {
+	if err = axm.initChainState(); err != nil {
 		return nil, err
 	}
 	return axm, nil
@@ -401,7 +336,7 @@ func (axm *AxiomLedger) Start() error {
 	}
 
 	if !axm.Repo.StartArgs.ReadonlyMode {
-		if _, err := axm.Sync.Prepare(); err != nil {
+		if err := axm.Sync.Prepare(); err != nil {
 			return fmt.Errorf("sync prepare: %w", err)
 		}
 		axm.Sync.Start()

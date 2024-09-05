@@ -2,7 +2,6 @@ package data_syncer
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/components/status"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 )
 
 type Node[T any, Constraint types.TXConstraint[T]] struct {
@@ -41,7 +41,7 @@ type Node[T any, Constraint types.TXConstraint[T]] struct {
 	highStateTarget *stateUpdateTarget
 
 	// It is persisted after updating to epochs
-	epochProofCache map[uint64]*consensus.EpochChange
+	epochProofCache map[uint64]*consensus.RbftQuorumCheckpoint
 
 	syncRespStore     map[uint64]*consensus.SyncStateResponse
 	stack             rbft.ExternalStack[T, Constraint]
@@ -81,7 +81,7 @@ func NewNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, st
 		batchCache:      make(map[string]*consensus.HashBatch),
 		msgNonce:        make(map[consensus.Type]int64),
 		checkpointCache: newCheckpointQueue(log),
-		epochProofCache: make(map[uint64]*consensus.EpochChange),
+		epochProofCache: make(map[uint64]*consensus.RbftQuorumCheckpoint),
 		chainConfig: &chainConfig{
 			epochInfo: &types.EpochInfo{},
 		},
@@ -94,7 +94,7 @@ func NewNode[T any, Constraint types.TXConstraint[T]](rbftConfig rbft.Config, st
 		cancel: cancel,
 	}
 
-	lo.ForEach(common.DataSyncerRequestName, func(name string, _ int) {
+	lo.ForEach(consensustypes.DataSyncerRequestName, func(name string, _ int) {
 		node.updateMsgNonce(consensus.Type(consensus.Type_value[name]))
 	})
 
@@ -287,7 +287,7 @@ func (n *Node[T, Constraint]) isConsensusMsgWhiteList(msg *consensus.ConsensusMe
 }
 
 func (n *Node[T, Constraint]) consensusMessageFilter(msg *consensus.ConsensusMessage) *localEvent {
-	if valid := lo.ContainsBy(common.DataSyncerPipeName, func(item string) bool {
+	if valid := lo.ContainsBy(consensustypes.DataSyncerPipeName, func(item string) bool {
 		val, ok := consensus.Type_name[int32(msg.Type)]
 		if !ok {
 			return false
@@ -552,9 +552,12 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 			n.statusMgr.Off(StateTransferring)
 			n.tryStateTransfer()
 		} else {
-			n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d, accept epoch proof for %d", n.chainState.SelfNodeInfo.ID, n.lastCommitHeight, state.MetaState.Height, state.Epoch-1)
-			if ec, ok := n.epochProofCache[state.Epoch-1]; ok {
-				n.persistEpochQuorumCheckpoint(ec.GetCheckpoint())
+			n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d, accept epoch proof for %d", n.chainState.SelfNodeInfo.ID, n.lastCommitHeight, state.MetaState.Height, state.Epoch)
+			if ec, ok := n.epochProofCache[state.Epoch]; ok {
+				err := n.stack.StoreEpochState(ec.GetCheckpoint().NextEpoch(), ec)
+				if err != nil {
+					panic(fmt.Errorf("store epoch proof failed: %s", err))
+				}
 			}
 		}
 		return nil
@@ -563,14 +566,17 @@ func (n *Node[T, Constraint]) recvStateUpdatedEvent(state *rbfttypes.ServiceSync
 	n.logger.Debugf("Replica %d state updated, lastExec = %d, seqNo = %d", n.chainState.SelfNodeInfo.ID, n.lastCommitHeight, state.MetaState.Height)
 	epochChanged := state.Epoch != n.chainConfig.epochInfo.Epoch
 	if state.EpochChanged || epochChanged {
-		n.logger.Debugf("Replica %d accept epoch proof for %d", n.chainState.SelfNodeInfo.ID, state.Epoch-1)
-		if ec, ok := n.epochProofCache[state.Epoch-1]; ok {
-			n.persistEpochQuorumCheckpoint(ec.GetCheckpoint())
+		n.logger.Debugf("Replica %d accept epoch proof for new epoch %d", n.chainState.SelfNodeInfo.ID, state.Epoch)
+		if ec, ok := n.epochProofCache[state.Epoch]; ok {
+			if err := n.stack.StoreEpochState(ec.GetCheckpoint().NextEpoch(), ec); err != nil {
+				panic(fmt.Errorf("store epoch proof failed: %s", err))
+			}
 		}
 	}
 
 	// finished state update
-	n.logger.Infof("======== Replica %d finished stateUpdate, height: %d", n.chainState.SelfNodeInfo.ID, state.MetaState.Height)
+	n.logger.Infof("======== Replica %d finished stateUpdate, height: %d, current epoch: %d",
+		n.chainState.SelfNodeInfo.ID, state.MetaState.Height, state.Epoch)
 	n.setCommitHeight(state.MetaState.Height)
 	n.missingTxsInFetchingLock.Lock()
 	n.missingBatchesInFetching = nil
@@ -1045,7 +1051,7 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 
 	n.statusMgr.On(InEpochSyncing)
 	for _, ec := range proof.GetEpochChanges() {
-		n.epochProofCache[ec.Checkpoint.Epoch()] = ec
+		n.epochProofCache[ec.Checkpoint.NextEpoch()] = &consensus.RbftQuorumCheckpoint{QuorumCheckpoint: *ec.GetCheckpoint()}
 	}
 	n.logger.Infof("Replica %d try epoch sync to height %d, epoch %d", n.chainState.SelfNodeInfo.ID,
 		quorumCheckpoint.Height(), quorumCheckpoint.NextEpoch())
@@ -1293,32 +1299,6 @@ func (n *Node[T, Constraint]) updateHighStateTarget(target *rbfttypes.MetaState,
 	}
 	for _, checkpoint := range checkpointSet {
 		n.checkpointCache.insert(checkpoint, true)
-	}
-}
-
-// persistEpochQuorumCheckpoint persists QuorumCheckpoint or epoch to database
-func (n *Node[T, Constraint]) persistEpochQuorumCheckpoint(c *consensus.QuorumCheckpoint) {
-	start := time.Now()
-	defer func() {
-		n.logger.Infof("Persist epoch %d quorum chkpt cost %s", c.Checkpoint.Epoch, time.Since(start))
-	}()
-	key := fmt.Sprintf("%s%d", rbft.EpochStatePrefix, c.Checkpoint.Epoch)
-	raw, err := c.MarshalVTStrict()
-	if err != nil {
-		n.logger.Errorf("Persist epoch %d quorum chkpt failed with marshal err: %s ", c.Checkpoint.Epoch, err)
-		return
-	}
-
-	if err = n.stack.StoreEpochState(key, raw); err != nil {
-		n.logger.Errorf("Persist epoch %d quorum chkpt failed with err: %s ", c.Checkpoint.Epoch, err)
-	}
-
-	// update latest epoch index
-	data := make([]byte, 8)
-	binary.BigEndian.PutUint64(data, c.Checkpoint.Epoch)
-	indexKey := rbft.EpochIndexKey
-	if err = n.stack.StoreEpochState(indexKey, data); err != nil {
-		n.logger.Errorf("Persist epoch index %d failed with err: %s ", c.Checkpoint.Epoch, err)
 	}
 }
 

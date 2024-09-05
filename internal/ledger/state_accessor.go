@@ -365,6 +365,25 @@ func (l *StateLedgerImpl) Commit() (*types.Hash, error) {
 	}
 	l.logger.Debugf("[Commit] after committed world state trie, StateRoot: %v", stateRoot)
 
+	initGenesisInSnapSync := func() bool {
+		return l.repo.StartArgs.SnapshotMode && height == 0
+	}
+	// if init genesis in snapshot sync mode, need following steps:
+	// 1. calculate state root
+	// 2. rollback genesis state in state leader
+	// 3. clear state ledger cache
+	if initGenesisInSnapSync() {
+		l.logger.WithFields(logrus.Fields{
+			"height":     height,
+			"state root": types.NewHash(stateRoot.Bytes()).String(),
+		}).Info("[StateLedger-Commit] Init genesis in snapshot sync mode")
+		l.Clear()
+		l.accountTrieCache.Reset()
+		l.storageTrieCache.Reset()
+		l.changer.reset()
+		return types.NewHash(stateRoot.Bytes()), nil
+	}
+
 	current := time.Now()
 
 	kvBatch.Commit()

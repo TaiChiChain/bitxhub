@@ -3,10 +3,12 @@ package rbft
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -43,6 +45,7 @@ type Node struct {
 	config                  *common.Config
 	txpool                  txpool.TxPool[types.Transaction, *types.Transaction]
 	n                       rbft.InboundNode
+	wg                      sync.WaitGroup
 	stack                   *adaptor.RBFTAdaptor
 	logger                  logrus.FieldLogger
 	network                 network.Network
@@ -51,10 +54,11 @@ type Node struct {
 	txsBroadcastMsgPipe     p2p.Pipe
 	receiveMsgLimiter       *rate.Limiter
 	started                 atomic.Bool
+	txRespC                 chan *consensustypes.TxWithResp
 
 	ctx        context.Context
 	cancel     context.CancelFunc
-	txCache    *txcache.TxCache
+	txCache    txcache.TxCache
 	txPreCheck precheck.PreCheck
 
 	txFeed event.Feed
@@ -100,6 +104,7 @@ func NewNode(config *common.Config) (*Node, error) {
 		cancel:            cancel,
 		txCache:           txcache.NewTxCache(config.Repo.ConsensusConfig.TxCache.SetTimeout.ToDuration(), uint64(config.Repo.ConsensusConfig.TxCache.SetSize), config.Logger),
 		network:           config.Network,
+		txRespC:           make(chan *consensustypes.TxWithResp, repo.ChannelSize),
 		txPreCheck:        precheck.NewTxPreCheckMgr(ctx, config),
 		txpool:            config.TxPool,
 	}, nil
@@ -119,7 +124,7 @@ func (n *Node) initConsensusMsgPipes() error {
 	n.stack.SetMsgPipes(n.consensusMsgPipes)
 
 	if n.config.ChainState.IsDataSyncer {
-		dataSyncerPipeIds := lo.FlatMap(common.DataSyncerPipeName, func(name string, _ int) []int32 {
+		dataSyncerPipeIds := lo.FlatMap(consensustypes.DataSyncerPipeName, func(name string, _ int) []int32 {
 			return []int32{consensus.Type_value[name]}
 		})
 		n.listenConsensusMsgPipes = lo.PickByKeys(n.consensusMsgPipes, dataSyncerPipeIds)
@@ -154,12 +159,13 @@ func (n *Node) Start() error {
 	n.txsBroadcastMsgPipe = txsBroadcastMsgPipe
 
 	n.txPreCheck.Start()
-	go n.txCache.ListenEvent()
+	n.txCache.Start()
+	n.listenConsensusMsg()
 
+	n.wg.Add(4)
 	go n.listenNewTxToSubmit()
 	go n.listenExecutedBlockToReport()
 	go n.listenBatchMemTxsToBroadcast()
-	go n.listenConsensusMsg()
 	go n.listenTxsBroadcastMsg()
 
 	// start txpool engine
@@ -175,7 +181,7 @@ func (n *Node) Start() error {
 				}
 				return b
 			}
-			length := minBatch(len(txs), int(n.txCache.TxSetSize))
+			length := minBatch(len(txs), n.config.Repo.ConsensusConfig.TxCache.SetSize)
 			data := txs[:length]
 			err = n.broadcastTxs(data)
 			if err != nil {
@@ -201,7 +207,9 @@ func (n *Node) Start() error {
 func (n *Node) listenConsensusMsg() {
 	for _, pipe := range n.listenConsensusMsgPipes {
 		pipe := pipe
+		n.wg.Add(1)
 		go func() {
+			defer n.wg.Done()
 			for {
 				msg := pipe.Receive(n.ctx)
 				if msg == nil {
@@ -218,6 +226,7 @@ func (n *Node) listenConsensusMsg() {
 }
 
 func (n *Node) listenTxsBroadcastMsg() {
+	defer n.wg.Done()
 	for {
 		msg := n.txsBroadcastMsgPipe.Receive(n.ctx)
 		if msg == nil {
@@ -240,14 +249,15 @@ func (n *Node) listenTxsBroadcastMsg() {
 }
 
 func (n *Node) listenNewTxToSubmit() {
+	defer n.wg.Done()
 	for {
 		select {
 		case <-n.ctx.Done():
 			return
 
-		case txWithResp := <-n.txCache.TxRespC:
-			ev := &common.UncheckedTxEvent{
-				EventType: common.LocalTxEvent,
+		case txWithResp := <-n.txRespC:
+			ev := &consensustypes.UncheckedTxEvent{
+				EventType: consensustypes.LocalTxEvent,
 				Event:     txWithResp,
 			}
 			n.txPreCheck.PostUncheckedTxEvent(ev)
@@ -256,6 +266,7 @@ func (n *Node) listenNewTxToSubmit() {
 }
 
 func (n *Node) listenExecutedBlockToReport() {
+	defer n.wg.Done()
 	for {
 		select {
 		case r := <-n.stack.ReadyC:
@@ -268,7 +279,7 @@ func (n *Node) listenExecutedBlockToReport() {
 				},
 				Transactions: r.Txs,
 			}
-			commitEvent := &common.CommitEvent{
+			commitEvent := &consensustypes.CommitEvent{
 				Block: block,
 			}
 			n.stack.PostCommitEvent(commitEvent)
@@ -291,9 +302,10 @@ func (n *Node) broadcastTxs(txSetData [][]byte) error {
 }
 
 func (n *Node) listenBatchMemTxsToBroadcast() {
+	defer n.wg.Done()
 	for {
 		select {
-		case txSet := <-n.txCache.TxSetC:
+		case txSet := <-n.txCache.CommitTxSet():
 			var requests [][]byte
 			for _, tx := range txSet {
 				raw, err := tx.RbftMarshal()
@@ -319,9 +331,8 @@ func (n *Node) listenBatchMemTxsToBroadcast() {
 func (n *Node) Stop() {
 	n.stack.Cancel()
 	n.cancel()
-	if n.txCache.CloseC != nil {
-		close(n.txCache.CloseC)
-	}
+	n.wg.Wait()
+	n.txCache.Stop()
 	n.n.Stop()
 	n.logger.Info("=====Consensus stopped=========")
 }
@@ -329,27 +340,27 @@ func (n *Node) Stop() {
 func (n *Node) Prepare(tx *types.Transaction) error {
 	defer n.txFeed.Send([]*types.Transaction{tx})
 	if !n.started.Load() {
-		return common.ErrorConsensusStart
+		return consensustypes.ErrorConsensusStart
 	}
 
-	txWithResp := &common.TxWithResp{
+	txWithResp := &consensustypes.TxWithResp{
 		Tx:      tx,
-		CheckCh: make(chan *common.TxResp, 1),
-		PoolCh:  make(chan *common.TxResp, 1),
+		CheckCh: make(chan *consensustypes.TxResp, 1),
+		PoolCh:  make(chan *consensustypes.TxResp, 1),
 	}
-	n.txCache.TxRespC <- txWithResp
+	n.txRespC <- txWithResp
 	precheckResp := <-txWithResp.CheckCh
 	if !precheckResp.Status {
-		return errors.Wrap(common.ErrorPreCheck, precheckResp.ErrorMsg)
+		return errors.Wrap(consensustypes.ErrorPreCheck, precheckResp.ErrorMsg)
 	}
 
 	resp := <-txWithResp.PoolCh
 	if !resp.Status {
-		return errors.Wrap(common.ErrorAddTxPool, resp.ErrorMsg)
+		return errors.Wrap(consensustypes.ErrorAddTxPool, resp.ErrorMsg)
 	}
 
 	// make sure that tx is prechecked and add LocalTxPool successfully
-	n.txCache.RecvTxC <- tx
+	n.txCache.PostTx(tx)
 	return nil
 }
 
@@ -365,14 +376,14 @@ func (n *Node) submitTxsFromRemote(txs [][]byte) {
 	}
 
 	n.txFeed.Send(requests)
-	ev := &common.UncheckedTxEvent{
-		EventType: common.RemoteTxEvent,
+	ev := &consensustypes.UncheckedTxEvent{
+		EventType: consensustypes.RemoteTxEvent,
 		Event:     requests,
 	}
 	n.txPreCheck.PostUncheckedTxEvent(ev)
 }
 
-func (n *Node) Commit() chan *common.CommitEvent {
+func (n *Node) Commit() chan *consensustypes.CommitEvent {
 	return n.stack.GetCommitChannel()
 }
 
@@ -402,9 +413,9 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *common.Checkpoint, needRemoveTxs bool, CommitSequence uint64) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, ckp *consensustypes.Checkpoint, needRemoveTxs bool, CommitSequence uint64) {
 	n.logger.Infof("Receive report state: height = %d, blockHash = %s, ckp = %v, needRemoveTxs = %v", height, blockHash, ckp, needRemoveTxs)
-	metrics.ExecutedBlockCounter.WithLabelValues(common.Rbft).Inc()
+	metrics.ExecutedBlockCounter.WithLabelValues(consensustypes.Rbft).Inc()
 
 	var err error
 	if n.switchInBoundNode() {
@@ -428,7 +439,7 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 	epochInfo := n.stack.EpochInfo
 	epochChanged := false
 	if common.NeedChangeEpoch(height, *epochInfo) {
-		err := n.stack.UpdateEpoch()
+		err = n.stack.UpdateEpoch()
 		if err != nil {
 			panic(err)
 		}
@@ -500,7 +511,19 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 	return n.stack.MockBlockFeed.Subscribe(ch)
 }
 
-func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *common.Checkpoint) error {
+func (n *Node) GetEpochState(epoch uint64) types.QuorumCheckpoint {
+	qckpt, err := n.stack.ReadEpochState(epoch)
+	if err != nil {
+		n.logger.Errorf("get epoch checkpoint failed: %v", err)
+	}
+	return qckpt
+}
+
+func (n *Node) PersistEpochState(state types.QuorumCheckpoint) error {
+	return n.stack.StoreEpochState(state.NextEpoch(), state)
+}
+
+func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *consensustypes.Checkpoint) error {
 	height := checkpoint.Height
 	localBlockHeader, err := n.config.GetBlockHeaderFunc(height)
 	if err != nil || localBlockHeader == nil {

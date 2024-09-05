@@ -78,6 +78,8 @@ type Solo struct {
 }
 
 type Dagbft struct {
+	BatchTimeout      Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
+	ReportBatchResult bool     `mapstructure:"report_batch_result" toml:"report_batch_result"`
 	// The maximum number of batch digests included in a header.
 	MaxHeaderBatchesSize int `json:"max_header_batches_size" mapstructure:"max_header_batches_size"`
 	// The threshold number of batch digests included in a header which is reached `MinHeaderDelay`.
@@ -211,6 +213,8 @@ func defaultConsensusConfig() *ConsensusConfig {
 			BatchTimeout: Duration(500 * time.Millisecond),
 		},
 		Dagbft: Dagbft{
+			BatchTimeout:         Duration(500 * time.Millisecond),
+			ReportBatchResult:    true,
 			MinHeaderBatchesSize: 10,
 			MaxHeaderBatchesSize: 100,
 			MaxHeaderDelay:       Duration(time.Millisecond * 200),
@@ -219,8 +223,8 @@ func defaultConsensusConfig() *ConsensusConfig {
 			GcRoundDepth:         50,
 			ExpiredRoundDepth:    100,
 
-			SealingBatchLimit: 10,
-			MaxBatchCount:     1000,
+			SealingBatchLimit: 1000,
+			MaxBatchCount:     10,
 			MaxBatchSize:      math.MaxInt,
 			MaxBatchDelay:     Duration(time.Millisecond * 50),
 			SyncRetryDelay:    Duration(time.Second * 10),

@@ -15,7 +15,7 @@ func TestAppendTx(t *testing.T) {
 	logger := log.NewWithModule("consensus")
 	sliceTimeout := 1 * time.Millisecond
 	txCache := NewTxCache(sliceTimeout, 2, logger)
-	go txCache.ListenEvent()
+	txCache.Start()
 
 	tx := &types.Transaction{}
 	txCache.appendTx(nil)
@@ -25,7 +25,7 @@ func TestAppendTx(t *testing.T) {
 	// start txSetTimer
 	txCache.appendTx(tx)
 	select {
-	case txSet := <-txCache.TxSetC:
+	case txSet := <-txCache.txSetC:
 		ast.Equal(1, len(txSet), "post tx set by timeout")
 		ast.Equal(0, len(txCache.txSet))
 	}
@@ -37,12 +37,11 @@ func TestAppendTx(t *testing.T) {
 	go txCache.appendTx(tx1)
 	go txCache.appendTx(tx2)
 	select {
-	case txSet := <-txCache.TxSetC:
+	case txSet := <-txCache.txSetC:
 		ast.Equal(2, len(txSet), "post tx set by size")
 		ast.Equal(0, len(txCache.txSet))
 	}
 	// test exit txCache
-	close(txCache.CloseC)
-	_, ok := <-txCache.CloseC
-	ast.Equal(false, ok)
+	txCache.Stop()
+	ast.Nil(txCache.closeC)
 }

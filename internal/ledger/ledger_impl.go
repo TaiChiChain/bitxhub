@@ -2,7 +2,6 @@ package ledger
 
 import (
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/axiomesh/axiom-kit/storage/blockfile"
@@ -14,7 +13,6 @@ import (
 type Ledger struct {
 	ChainLedger ChainLedger
 	StateLedger StateLedger
-	SnapMeta    atomic.Value
 }
 
 type BlockData struct {
@@ -113,24 +111,6 @@ func (l *Ledger) Close() {
 
 // NewView load the latest state ledger and chain ledger by default
 func (l *Ledger) NewView() *Ledger {
-	snap := l.SnapMeta.Load()
-	if snap != nil && snap.(SnapInfo).Status {
-		snapBlockHeader := snap.(SnapInfo).SnapBlockHeader
-		var sm atomic.Value
-		sm.Store(snap)
-
-		sl, err := l.StateLedger.NewView(snapBlockHeader, true)
-		if err != nil {
-			panic(err)
-		}
-
-		return &Ledger{
-			ChainLedger: l.ChainLedger,
-			StateLedger: sl,
-			SnapMeta:    sm,
-		}
-	}
-
 	meta := l.ChainLedger.GetChainMeta()
 	block, err := l.ChainLedger.GetBlockHeader(meta.Height)
 	if err != nil {

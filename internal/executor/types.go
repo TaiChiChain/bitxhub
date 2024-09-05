@@ -1,12 +1,12 @@
 package executor
 
 import (
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
 )
 
@@ -15,9 +15,9 @@ type Executor interface {
 
 	Stop() error
 
-	AsyncExecuteBlock(commitEvent *common.CommitEvent)
+	AsyncExecuteBlock(commitEvent *consensustypes.CommitEvent)
 
-	ExecuteBlock(commitEvent *common.CommitEvent)
+	ExecuteBlock(commitEvent *consensustypes.CommitEvent)
 
 	CurrentHeader() *types.BlockHeader
 

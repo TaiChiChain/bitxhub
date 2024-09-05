@@ -46,7 +46,7 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 			ChainState: chainstate.NewMockChainState(rep.GenesisConfig, nil),
 		},
 		lastExec:     uint64(0),
-		commitC:      make(chan *common.CommitEvent, maxChanSize),
+		commitC:      make(chan *consensustypes.CommitEvent, maxChanSize),
 		blockCh:      make(chan *txpool.RequestHashBatch[types.Transaction, *types.Transaction], maxChanSize),
 		txpool:       mockPool,
 		network:      mockNetwork,
@@ -64,9 +64,9 @@ func mockSoloNode(t *testing.T, enableTimed bool) (*Node, error) {
 		},
 	}
 	batchTimerMgr := timer.NewTimerManager(logger)
-	err := batchTimerMgr.CreateTimer(common.Batch, batchTimeout, soloNode.handleTimeoutEvent)
+	err := batchTimerMgr.CreateTimer(consensustypes.Batch, batchTimeout, soloNode.handleTimeoutEvent)
 	require.Nil(t, err)
-	err = batchTimerMgr.CreateTimer(common.NoTxBatch, noTxBatchTimeout, soloNode.handleTimeoutEvent)
+	err = batchTimerMgr.CreateTimer(consensustypes.NoTxBatch, noTxBatchTimeout, soloNode.handleTimeoutEvent)
 	require.Nil(t, err)
 	soloNode.batchMgr = &batchTimerManager{Timer: batchTimerMgr}
 	return soloNode, nil

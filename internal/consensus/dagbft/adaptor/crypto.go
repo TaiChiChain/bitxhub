@@ -11,6 +11,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/bcds/go-hpc-dagbft/common/types/protos"
 	"github.com/bcds/go-hpc-dagbft/common/utils/channel"
@@ -21,11 +22,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var _ layer.Crypto = (*Crypto)(nil)
+var _ layer.Crypto = (*CryptoImpl)(nil)
 
 var _ protocol.ValidatorSigner = (*ValidatorSigner)(nil)
 
-type Crypto struct {
+type CryptoImpl struct {
 	useBls            bool
 	signer            *ValidatorSigner
 	validatorVerifier *ValidatorVerify
@@ -33,7 +34,7 @@ type Crypto struct {
 	logger            logrus.FieldLogger
 }
 
-func NewCrypto(conf *common.Config, precheck precheck.PreCheck) (*Crypto, error) {
+func NewCryptoImpl(conf *common.Config, precheck precheck.PreCheck) (*CryptoImpl, error) {
 	logger := conf.Logger
 	var (
 		useBls bool
@@ -75,7 +76,7 @@ func NewCrypto(conf *common.Config, precheck precheck.PreCheck) (*Crypto, error)
 		}
 	})
 
-	return &Crypto{
+	return &CryptoImpl{
 		useBls:            useBls,
 		signer:            newValidatorSigner(priv, logger),
 		validatorVerifier: newValidatorVerify(validators, useBls, logger),
@@ -151,23 +152,23 @@ func (b *BatchVerifier) VerifyTransactions(batchTxs []protocol.Transaction) erro
 		wp.StopWait()
 		return err
 	case <-closeCh:
-		metrics.BatchVerifyTime.WithLabelValues(common.Dagbft).Observe(time.Since(start).Seconds())
+		metrics.BatchVerifyTime.WithLabelValues(consensustypes.Dagbft).Observe(time.Since(start).Seconds())
 		return nil
 	}
 }
 
-func (c *Crypto) GetValidatorSigner() protocol.ValidatorSigner {
+func (c *CryptoImpl) GetValidatorSigner() protocol.ValidatorSigner {
 	return c.signer
 }
 
-func (c *Crypto) GetValidatorVerifier() protocol.ValidatorVerifier {
+func (c *CryptoImpl) GetValidatorVerifier() protocol.ValidatorVerifier {
 	return c.validatorVerifier
 }
 
-func (c *Crypto) GetVerifierByValidators(validators protocol.Validators) (protocol.ValidatorVerifier, error) {
+func (c *CryptoImpl) GetVerifierByValidators(validators protocol.Validators) (protocol.ValidatorVerifier, error) {
 	return newValidatorVerify(validators, c.useBls, c.logger), nil
 }
 
-func (c *Crypto) GetBatchVerifier() protocol.BatchVerifier {
+func (c *CryptoImpl) GetBatchVerifier() protocol.BatchVerifier {
 	return c.batchVerifier
 }

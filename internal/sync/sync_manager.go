@@ -16,6 +16,7 @@ import (
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
 	"github.com/axiomesh/axiom-ledger/internal/components"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/gammazero/workerpool"
 	"github.com/samber/lo"
@@ -39,7 +40,7 @@ type SyncManager struct {
 	fullValidate        bool
 	started             atomic.Bool
 	modeConstructor     common.ISyncConstructor
-	conf                repo.Sync
+	conf                repo.Config
 	syncStatus          atomic.Bool         // sync status
 	initPeers           []*common.Peer      // p2p set of latest epoch validatorSet with init
 	peers               []*common.Peer      // p2p set of latest epoch validatorSet
@@ -53,13 +54,13 @@ type SyncManager struct {
 	requesterLen        atomic.Int64        // requester length
 	idleRequesterLen    atomic.Uint64       // idle requester length
 
-	quorumCheckpoint   *pb.QuorumCheckpoint // latest checkpoint from remote
-	epochChanges       []*pb.EpochChange    // every epoch change which the node behind
+	quorumCheckpoint   types.QuorumCheckpoint        // latest checkpoint from remote
+	epochChanges       []*consensustypes.EpochChange // every epoch change which the node behind
 	getChainMetaFunc   func() *types.ChainMeta
 	getBlockFunc       func(height uint64) (*types.Block, error)
 	getBlockHeaderFunc func(height uint64) (*types.BlockHeader, error)
 	getReceiptsFunc    func(height uint64) ([]*types.Receipt, error)
-	getEpochStateFunc  func(key []byte) []byte
+	getEpochStateFunc  func(epoch uint64) (types.QuorumCheckpoint, error)
 
 	network               network.Network
 	chainDataRequestPipe  network.Pipe
@@ -88,25 +89,25 @@ type SyncManager struct {
 }
 
 func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.ChainMeta, getBlockFn func(height uint64) (*types.Block, error), getBlockHeaderFun func(height uint64) (*types.BlockHeader, error),
-	receiptFn func(height uint64) ([]*types.Receipt, error), getEpochStateFunc func(key []byte) []byte, network network.Network, cnf repo.Sync) (*SyncManager, error) {
+	receiptFn func(height uint64) ([]*types.Receipt, error), getEpochStateFunc func(epoch uint64) (types.QuorumCheckpoint, error), network network.Network, cnf *repo.Config) (*SyncManager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	syncMgr := &SyncManager{
-		fullValidate:       cnf.FullValidation,
+		fullValidate:       cnf.Sync.FullValidation,
 		mode:               common.SyncModeFull,
-		modeConstructor:    newModeConstructor(common.SyncModeFull, common.WithContext(ctx)),
+		modeConstructor:    newModeConstructor(common.SyncModeFull),
 		logger:             logger,
-		recvEventCh:        make(chan *common.LocalEvent, cnf.ConcurrencyLimit),
-		recvStateCh:        make(chan *common.WrapperStateResp, cnf.ConcurrencyLimit),
+		recvEventCh:        make(chan *common.LocalEvent, cnf.Sync.ConcurrencyLimit),
+		recvStateCh:        make(chan *common.WrapperStateResp, cnf.Sync.ConcurrencyLimit),
 		validChunkTaskCh:   make(chan struct{}, 1),
 		quitStateCh:        make(chan error, 1),
-		requesterCh:        make(chan struct{}, cnf.ConcurrencyLimit),
+		requesterCh:        make(chan struct{}, cnf.Sync.ConcurrencyLimit),
 		getChainMetaFunc:   getChainMetaFn,
 		getBlockFunc:       getBlockFn,
 		getBlockHeaderFunc: getBlockHeaderFun,
 		getReceiptsFunc:    receiptFn,
 		getEpochStateFunc:  getEpochStateFunc,
 		network:            network,
-		conf:               cnf,
+		conf:               *cnf,
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -306,7 +307,7 @@ func newModeConstructor(mode common.SyncMode, opt ...common.ModeOption) common.I
 	case common.SyncModeFull:
 		return full_sync.NewFullSync()
 	case common.SyncModeSnapshot:
-		return snap_sync.NewSnapSync(conf.Logger, conf.Network)
+		return snap_sync.NewSnapSync(conf.Logger, conf.Network, conf.ConsensusType)
 	}
 	return nil
 }
@@ -570,7 +571,7 @@ func (sm *SyncManager) updateLatestCheckedState(height uint64, digest string) {
 }
 
 func (sm *SyncManager) InitBlockSyncInfo(peers []*common.Node, latestBlockHash string, quorum, curHeight, targetHeight uint64,
-	quorumCheckpoint *pb.QuorumCheckpoint, epc ...*pb.EpochChange) {
+	quorumCheckpoint types.QuorumCheckpoint, epc ...*consensustypes.EpochChange) {
 	sm.peers = make([]*common.Peer, len(peers))
 	sm.initPeers = make([]*common.Peer, len(peers))
 	lo.ForEach(peers, func(p *common.Node, index int) {
@@ -603,14 +604,14 @@ func (sm *SyncManager) InitBlockSyncInfo(peers []*common.Node, latestBlockHash s
 
 func (sm *SyncManager) initChunk() {
 	chunkSize := sm.targetHeight - sm.curHeight + 1
-	if chunkSize > sm.conf.MaxChunkSize {
-		chunkSize = sm.conf.MaxChunkSize
+	if chunkSize > sm.conf.Sync.MaxChunkSize {
+		chunkSize = sm.conf.Sync.MaxChunkSize
 	}
 
 	// if we have epoch change, chunk size need smaller than epoch size
 	if len(sm.epochChanges) != 0 {
 		latestEpoch := sm.epochChanges[0]
-		epochSize := latestEpoch.GetQuorumCheckpoint().GetState().GetHeight() - sm.curHeight + 1
+		epochSize := latestEpoch.QuorumCheckpoint.GetHeight() - sm.curHeight + 1
 		if epochSize < chunkSize {
 			chunkSize = epochSize
 		}
@@ -626,13 +627,13 @@ func (sm *SyncManager) initChunk() {
 
 	if len(sm.epochChanges) != 0 {
 		chunkCheckpoint = &pb.CheckpointState{
-			Height: sm.epochChanges[0].GetQuorumCheckpoint().GetState().GetHeight(),
-			Digest: sm.epochChanges[0].GetQuorumCheckpoint().GetState().GetDigest(),
+			Height: sm.epochChanges[0].QuorumCheckpoint.GetHeight(),
+			Digest: sm.epochChanges[0].QuorumCheckpoint.GetStateDigest(),
 		}
 	} else {
 		chunkCheckpoint = &pb.CheckpointState{
-			Height: sm.quorumCheckpoint.State.Height,
-			Digest: sm.quorumCheckpoint.State.Digest,
+			Height: sm.quorumCheckpoint.GetHeight(),
+			Digest: sm.quorumCheckpoint.GetStateDigest(),
 		}
 	}
 	sm.chunk.FillCheckPoint(chunkMaxHeight, chunkCheckpoint)
@@ -789,7 +790,7 @@ func (sm *SyncManager) requestSyncState(height uint64, localHash string) error {
 				return fmt.Errorf("request state failed: %s", stateErr)
 			}
 			return nil
-		case <-time.After(sm.conf.WaitStatesTimeout.ToDuration()):
+		case <-time.After(sm.conf.Sync.WaitStatesTimeout.ToDuration()):
 			sm.logger.WithFields(logrus.Fields{
 				"height": height,
 			}).Warn("Request state timeout")
@@ -1233,12 +1234,12 @@ func (sm *SyncManager) SwitchMode(newMode common.SyncMode) error {
 	)
 	switch newMode {
 	case common.SyncModeFull:
-		sm.fullValidate = sm.conf.FullValidation
-		newConstructor = newModeConstructor(common.SyncModeFull, common.WithContext(sm.ctx))
+		sm.fullValidate = sm.conf.Sync.FullValidation
+		newConstructor = newModeConstructor(common.SyncModeFull)
 	case common.SyncModeSnapshot:
 		// snapshot mode need not validate block
 		sm.fullValidate = false
-		newConstructor = newModeConstructor(common.SyncModeSnapshot, common.WithContext(sm.ctx), common.WithLogger(sm.logger), common.WithNetwork(sm.network))
+		newConstructor = newModeConstructor(common.SyncModeSnapshot, common.WithConsensusType(sm.conf.Consensus.Type), common.WithLogger(sm.logger), common.WithNetwork(sm.network))
 	default:
 		return fmt.Errorf("invalid newMode: %d", newMode)
 	}
@@ -1250,16 +1251,16 @@ func (sm *SyncManager) SwitchMode(newMode common.SyncMode) error {
 	return nil
 }
 
-func (sm *SyncManager) Prepare(opts ...common.Option) (*common.PrepareData, error) {
+func (sm *SyncManager) Prepare(opts ...common.Option) error {
 	// register message handler
 	err := sm.network.RegisterMsgHandler(pb.Message_SYNC_STATE_REQUEST, sm.handleSyncState)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	// for snap sync
 	err = sm.network.RegisterMsgHandler(pb.Message_FETCH_EPOCH_STATE_REQUEST, sm.handleFetchEpochState)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	conf := &common.Config{}
@@ -1295,7 +1296,7 @@ func (sm *SyncManager) makeRequesters(height uint64) {
 	}
 	request := newRequester(sm.mode, sm.ctx, peerID, height, sm.recvEventCh, pipe)
 	sm.increaseRequester(request, height)
-	request.start(sm.conf.RequesterRetryTimeout.ToDuration())
+	request.start(sm.conf.Sync.RequesterRetryTimeout.ToDuration())
 }
 
 func (sm *SyncManager) increaseRequester(r *requester, height uint64) {
@@ -1408,7 +1409,7 @@ func (sm *SyncManager) addPeerTimeoutCount(peerID string) {
 	lo.ForEach(sm.peers, func(p *common.Peer, _ int) {
 		if p.PeerID == peerID {
 			p.TimeoutCount++
-			if p.TimeoutCount >= sm.conf.TimeoutCountLimit {
+			if p.TimeoutCount >= sm.conf.Sync.TimeoutCountLimit {
 				if empty := sm.removePeer(p.PeerID); empty {
 					sm.logger.Warningf("remove peer[id:%d] err: available peer is empty, will reset peer", p.Id)
 					sm.resetPeers()
@@ -1516,8 +1517,8 @@ func (sm *SyncManager) updatePeers(peerId string, latestHeight uint64) {
 }
 
 func (sm *SyncManager) getConcurrencyLimit() uint64 {
-	if sm.conf.ConcurrencyLimit < sm.chunk.ChunkSize {
-		return sm.conf.ConcurrencyLimit
+	if sm.conf.Sync.ConcurrencyLimit < sm.chunk.ChunkSize {
+		return sm.conf.Sync.ConcurrencyLimit
 	}
 	return sm.chunk.ChunkSize
 }

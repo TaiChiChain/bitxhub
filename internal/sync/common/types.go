@@ -3,9 +3,9 @@ package common
 import (
 	"time"
 
-	"github.com/axiomesh/axiom-bft/common/consensus"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-kit/types/pb"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 )
 
 const (
@@ -44,8 +44,8 @@ type SyncParams struct {
 	Quorum           uint64
 	CurHeight        uint64
 	TargetHeight     uint64
-	QuorumCheckpoint *pb.QuorumCheckpoint
-	EpochChanges     []*pb.EpochChange
+	QuorumCheckpoint types.QuorumCheckpoint
+	EpochChanges     []*consensustypes.EpochChange
 }
 
 type LocalEvent struct {
@@ -104,8 +104,9 @@ type WrapEpochChange struct {
 }
 
 type SnapCommitData struct {
-	Data       []CommitData
-	EpochState *consensus.QuorumCheckpoint
+	Data         []CommitData
+	TargetHeight uint64
+	TargetHash   string
 }
 
 type SyncMessage interface {
