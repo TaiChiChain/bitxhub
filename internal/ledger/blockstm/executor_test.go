@@ -12,12 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type OpType int
 
-var numProcs = 8
+var numProcs = 10
 
 const readType = 0
 const writeType = 1
@@ -282,7 +281,7 @@ func testExecutorComb(t *testing.T, totalTxs []int, numReads []int, numWrites []
 		for _, numRead := range numReads {
 			for _, numWrite := range numWrites {
 				for _, numNonIO := range numNonIO {
-					log.Info("Executing block", "numTx", numTx, "numRead", numRead, "numWrite", numWrite, "numNonIO", numNonIO)
+					fmt.Printf("Executing block: numTx %v, numRead %v, numWrite %v, numNonIO %v \n", numTx, numRead, numWrite, numNonIO)
 					execDuration, expectedSerialDuration := taskRunner(numTx, numRead, numWrite, numNonIO)
 
 					if execDuration < expectedSerialDuration {
@@ -328,7 +327,7 @@ func testExecutorCombWithMetadata(t *testing.T, totalTxs []int, numReads []int, 
 		for _, numRead := range numReads {
 			for _, numWrite := range numWrites {
 				for _, numNonIO := range numNonIOs {
-					log.Info("Executing block", "numTx", numTx, "numRead", numRead, "numWrite", numWrite, "numNonIO", numNonIO)
+					fmt.Printf("Executing block: numTx %v, numRead %v, numWrite %v, numNonIO %v \n", numTx, numRead, numWrite, numNonIO)
 					execDuration, execDurationMetadata, expectedSerialDuration := taskRunner(numTx, numRead, numWrite, numNonIO)
 
 					if execDuration < expectedSerialDuration {
@@ -429,7 +428,7 @@ func runParallel(t *testing.T, tasks []ExecTask, validation PropertyCheck, metad
 	profile := false
 
 	start := time.Now()
-	result, err := executeParallel(tasks, false, metadata, numProcs, nil)
+	result, err := executeParallelWithCheck(tasks, false, validation, metadata, numProcs, nil)
 
 	if result.Deps != nil && profile {
 		result.Deps.Report(*result.Stats, func(str string) { fmt.Println(str) })
@@ -462,7 +461,7 @@ func runParallel(t *testing.T, tasks []ExecTask, validation PropertyCheck, metad
 func runParallelGetMetadata(t *testing.T, tasks []ExecTask, validation PropertyCheck) map[int]map[int]bool {
 	t.Helper()
 
-	res, err := executeParallel(tasks, true, false, numProcs, nil)
+	res, err := executeParallelWithCheck(tasks, true, validation, false, numProcs, nil)
 
 	assert.NoError(t, err, "error occur during parallel execution")
 
@@ -528,12 +527,12 @@ func TestLessConflictsWithMetadata(t *testing.T) {
 				keys[i] = k
 				i++
 			}
-
 			temp.dependencies = keys
 			newTasks = append(newTasks, temp)
+
 		}
 
-		return parallelDuration, runParallel(t, newTasks, checks, true), serialDuration
+		return parallelDuration, runParallel(t, newTasks, checks, false), serialDuration
 	}
 
 	testExecutorCombWithMetadata(t, totalTxs, numReads, numWrites, numNonIOs, taskRunner)
@@ -692,7 +691,7 @@ func TestMoreConflictsWithMetadata(t *testing.T) {
 			newTasks = append(newTasks, temp)
 		}
 
-		return parallelDuration, runParallel(t, newTasks, checks, true), serialDuration
+		return parallelDuration, runParallel(t, newTasks, checks, false), serialDuration
 	}
 
 	testExecutorCombWithMetadata(t, totalTxs, numReads, numWrites, numNonIO, taskRunner)
@@ -726,7 +725,7 @@ func TestRandomTxWithMetadata(t *testing.T) {
 	t.Parallel()
 	rand.New(rand.NewSource(0))
 
-	totalTxs := []int{300}
+	totalTxs := []int{5000}
 	numReads := []int{100, 200}
 	numWrites := []int{100, 200}
 	numNonIO := []int{100, 500}
