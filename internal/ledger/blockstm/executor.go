@@ -545,7 +545,7 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 	}
 
 	if pe.validateTasks.countComplete() == len(pe.tasks) && pe.execTasks.countComplete() == len(pe.tasks) {
-		pe.log.Info("blockstm exec summary", "execs:", pe.cntExec, ",success:", pe.cntSuccess, ",aborts:", pe.cntAbort, ",validations:", pe.cntTotalValidations, ",failures:", pe.cntValidationFail, ",#tasks/#execs:", fmt.Sprintf("%.2f%%", float64(len(pe.tasks))/float64(pe.cntExec)*100))
+		pe.log.Info("blockstm exec summary,", "execs:", pe.cntExec, ",success:", pe.cntSuccess, ",aborts:", pe.cntAbort, ",validations:", pe.cntTotalValidations, ",failures:", pe.cntValidationFail, ",#tasks/#execs:", fmt.Sprintf("%.2f%%", float64(len(pe.tasks))/float64(pe.cntExec)*100))
 
 		pe.Close(true)
 
@@ -592,7 +592,7 @@ func (pe *ParallelExecutor) Step(res *ExecResult) (result ParallelExecutionResul
 
 type PropertyCheck func(*ParallelExecutor) error
 
-func executeParallel(tasks []ExecTask, profile bool, metadata bool, numProcs int, interruptCtx context.Context) (result ParallelExecutionResult, err error) {
+func executeParallelWithCheck(tasks []ExecTask, profile bool, check PropertyCheck, metadata bool, numProcs int, interruptCtx context.Context) (result ParallelExecutionResult, err error) {
 	if len(tasks) == 0 {
 		return ParallelExecutionResult{MakeTxnInputOutput(len(tasks)), nil, nil, nil}, nil
 	}
@@ -627,5 +627,5 @@ func executeParallel(tasks []ExecTask, profile bool, metadata bool, numProcs int
 }
 
 func ExecuteParallel(tasks []ExecTask, profile bool, metadata bool, numProcs int, interruptCtx context.Context) (result ParallelExecutionResult, err error) {
-	return executeParallel(tasks, profile, metadata, numProcs, interruptCtx)
+	return executeParallelWithCheck(tasks, profile, nil, metadata, numProcs, interruptCtx)
 }
