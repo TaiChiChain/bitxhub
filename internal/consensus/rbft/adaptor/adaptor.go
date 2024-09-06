@@ -42,8 +42,9 @@ type RBFTAdaptor struct {
 	config            *common.Config
 	EpochInfo         *types.EpochInfo
 
-	sync synccomm.Sync
-	ctx  context.Context
+	sync       synccomm.Sync
+	quitSyncCh chan struct{}
+	ctx        context.Context
 
 	MockBlockFeed event.Feed
 }
@@ -81,6 +82,7 @@ func NewRBFTAdaptor(config *common.Config) (*RBFTAdaptor, error) {
 		network:    config.Network,
 		ReadyC:     make(chan *Ready, 1024),
 		BlockC:     make(chan *common.CommitEvent, 1024),
+		quitSyncCh: make(chan struct{}, 1),
 		logger:     config.Logger,
 		config:     config,
 

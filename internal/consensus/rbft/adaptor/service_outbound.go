@@ -178,6 +178,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			if syncErr != nil {
 				panic(syncErr)
 			}
+		case <-a.quitSyncCh:
 			a.logger.WithFields(logrus.Fields{
 				"target":      seqNo,
 				"target_hash": digest,
@@ -220,6 +221,9 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 					}
 				}
 				a.postCommitEvent(commitEv)
+			}
+			if blockCache[len(blockCache)-1].GetHeight() == seqNo {
+				a.quitSyncCh <- struct{}{}
 			}
 		}
 	}
