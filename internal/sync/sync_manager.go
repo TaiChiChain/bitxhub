@@ -74,6 +74,7 @@ type SyncManager struct {
 	diffResponsePipe      network.Pipe
 
 	commitDataCache []common.CommitData // store commitData of a chunk temporary
+	responsePool    *common.CommitDataResponseConstructorPool
 
 	chunk            *common.Chunk                 // every chunk task
 	recvStateCh      chan *common.WrapperStateResp // receive state from remote peer
@@ -116,6 +117,7 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 		isDataSyncer:        isDataSyncer,
 		network:             network,
 		conf:                cnf,
+		responsePool:        common.NewCommitDataResponseConstructorPool(),
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -1121,7 +1123,8 @@ func (sm *SyncManager) precheckResponse(p2pMsg *pb.Message) (common.SyncMessage,
 	}
 
 	// 2. check response data
-	resp := common.CommitDataResponseConstructor[sm.mode]()
+	resp := sm.responsePool.Get(sm.mode)
+	defer sm.responsePool.Put(sm.mode, resp)
 
 	if err := resp.UnmarshalVT(p2pMsg.Data); err != nil {
 		return nil, nil, fmt.Errorf("unmarshal sync commitData response failed: %s", err)

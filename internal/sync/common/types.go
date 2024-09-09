@@ -1,6 +1,7 @@
 package common
 
 import (
+	"sync"
 	"time"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
@@ -150,17 +151,82 @@ var CommitDataRequestConstructor = map[SyncMode]func() SyncRequestMessage{
 	},
 }
 
-var CommitDataResponseConstructor = map[SyncMode]func() SyncResponseMessage{
-	SyncModeFull: func() SyncResponseMessage {
-		return &pb.SyncBlockResponse{}
-	},
-	SyncModeSnapshot: func() SyncResponseMessage {
-		return &pb.SyncChainDataResponse{}
-	},
-	SyncModeDiff: func() SyncResponseMessage {
-		return &pb.SyncDiffResponse{}
-	},
+// CommitDataResponseConstructorPool use sync.pool to reduce preloader malloc
+type CommitDataResponseConstructorPool struct {
+	fullPool sync.Pool
+	snapPool sync.Pool
+	diffPool sync.Pool
 }
+
+func NewCommitDataResponseConstructorPool() *CommitDataResponseConstructorPool {
+	return &CommitDataResponseConstructorPool{
+		fullPool: sync.Pool{
+			New: func() any {
+				return new(pb.SyncBlockResponse)
+			},
+		},
+		snapPool: sync.Pool{
+			New: func() any {
+				return new(pb.SyncChainDataResponse)
+			},
+		},
+		diffPool: sync.Pool{
+			New: func() any {
+				return new(pb.SyncDiffResponse)
+			},
+		},
+	}
+}
+
+func (p *CommitDataResponseConstructorPool) Get(mode SyncMode) SyncResponseMessage {
+	switch mode {
+	case SyncModeFull:
+		return p.fullPool.Get().(*pb.SyncBlockResponse)
+	case SyncModeSnapshot:
+		return p.snapPool.Get().(*pb.SyncChainDataResponse)
+	case SyncModeDiff:
+		return p.diffPool.Get().(*pb.SyncDiffResponse)
+	}
+	return nil
+}
+
+func clearSyncBlockResponse(resp *pb.SyncBlockResponse) {
+	*resp = pb.SyncBlockResponse{}
+}
+
+func clearSyncChainDataResponse(resp *pb.SyncChainDataResponse) {
+	*resp = pb.SyncChainDataResponse{}
+}
+
+func clearSyncDiffResponse(resp *pb.SyncDiffResponse) {
+	*resp = pb.SyncDiffResponse{}
+}
+
+func (p *CommitDataResponseConstructorPool) Put(mode SyncMode, resp SyncResponseMessage) {
+	switch mode {
+	case SyncModeFull:
+		clearSyncBlockResponse(resp.(*pb.SyncBlockResponse))
+		p.fullPool.Put(resp.(*pb.SyncBlockResponse))
+	case SyncModeSnapshot:
+		clearSyncChainDataResponse(resp.(*pb.SyncChainDataResponse))
+		p.snapPool.Put(resp.(*pb.SyncChainDataResponse))
+	case SyncModeDiff:
+		clearSyncDiffResponse(resp.(*pb.SyncDiffResponse))
+		p.diffPool.Put(resp.(*pb.SyncDiffResponse))
+	}
+}
+
+//var CommitDataResponseConstructorPool = map[SyncMode]func() SyncResponseMessage {
+//	SyncModeFull: func() SyncResponseMessage {
+//		return &pb.SyncBlockResponse{}
+//	},
+//	SyncModeSnapshot: func() SyncResponseMessage {
+//		return &pb.SyncChainDataResponse{}
+//	},
+//	SyncModeDiff: func() SyncResponseMessage {
+//		return &pb.SyncDiffResponse{}
+//	},
+//}
 
 var CommitDataResponseType = map[SyncMode]pb.Message_Type{
 	SyncModeFull:     pb.Message_SYNC_BLOCK_RESPONSE,
