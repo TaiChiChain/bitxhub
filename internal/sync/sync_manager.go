@@ -812,6 +812,11 @@ func (sm *SyncManager) requestSyncState(height uint64) error {
 	for {
 		select {
 		case state := <-sm.quitStateCh:
+			sm.logger.WithFields(logrus.Fields{
+				"state height":      height,
+				"chunk last height": sm.chunk.ChunkLastHeight,
+				"state":             state.Digest,
+			}).Info("Receive quit signal, Quit request state")
 			if sm.chunk.ChunkLastHeight == state.Height {
 				sm.chunk.FillCheckPoint(state)
 			} else {
@@ -1307,9 +1312,10 @@ func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffSta
 		return
 	}
 	diffState[msg.Hash] = append(diffState[msg.Hash], msg.PeerID)
-
 	// if Quorum state is enough, update Quorum state
 	if len(diffState[msg.Hash]) >= int(sm.ensureOneCorrectNum) {
+		quorumStatePeers := make([]string, 0)
+		quorumStatePeers = append(quorumStatePeers, diffState[msg.Hash]...)
 		delete(diffState, msg.Hash)
 		// remove Peers which not in Quorum state
 		if len(diffState) != 0 {
@@ -1331,7 +1337,11 @@ func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffSta
 		// 2. validator need send state which obtaining low watermark height commitData,
 		// 3. validator have different low watermark height commitData due to network latency,
 		// 4. it can lead to state inconsistency, and the node will be stuck in the state sync process.
-		sm.logger.Debug("Receive Quorum state from Peers")
+		sm.logger.WithFields(logrus.Fields{
+			"height": msg.Resp.CheckpointState.Height,
+			"digest": msg.Resp.CheckpointState.Digest,
+			"peers":  diffState[msg.Hash],
+		}).Debug("Receive Quorum state from Peers")
 		sm.quitState(msg.Resp.CheckpointState)
 	}
 }

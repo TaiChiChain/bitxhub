@@ -18,3 +18,13 @@ func ReadEpochState(epochStore kv.Storage, key string) ([]byte, error) {
 	}
 	return b, nil
 }
+
+func CalQuorum(N uint64) uint64 {
+	f := (N - 1) / 3
+	return (N + f + 2) / 2
+}
+
+func CalFaulty(N uint64) uint64 {
+	f := (N - 1) / 3
+	return f
+}

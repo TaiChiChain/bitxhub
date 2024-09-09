@@ -511,7 +511,7 @@ func (n *Node) verifyStateUpdatedCheckpoint(checkpoint *common.Checkpoint) error
 
 func (n *Node) Quorum(totalNum uint64) uint64 {
 	// N := uint64(len(n.stack.EpochInfo.ValidatorSet))
-	return adaptor.CalQuorum(totalNum)
+	return common.CalQuorum(totalNum)
 }
 
 func (n *Node) checkQuorum() error {

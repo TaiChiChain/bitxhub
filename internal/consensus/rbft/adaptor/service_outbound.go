@@ -29,8 +29,10 @@ func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, s
 	}
 }
 
-func (a *RBFTAdaptor) getPeers(stateUpdateByDiff bool, epochChanges ...*consensus.EpochChange) map[uint64]*synccomm.Node {
+func (a *RBFTAdaptor) getPeers(stateUpdateByDiff bool, epochChanges ...*consensus.EpochChange) (map[uint64]*synccomm.Node, bool) {
 	peersM := make(map[uint64]*synccomm.Node)
+	var isValidator bool
+
 	// if current node is a new archive node (data syncer), use other archive nodes as peers
 	if stateUpdateByDiff {
 		for _, v := range a.config.Repo.SyncArgs.RemotePeers.Validators {
@@ -50,13 +52,17 @@ func (a *RBFTAdaptor) getPeers(stateUpdateByDiff bool, epochChanges ...*consensu
 		// get the validator set of the remote latest epoch
 		if len(epochChanges) != 0 {
 			lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *consensus.QuorumValidator, _ int) {
-				if _, ok := peersM[v.Id]; !ok && v.PeerId != a.network.PeerID() {
+				if _, ok := peersM[v.Id]; !ok {
+					if v.PeerId != a.network.PeerID() {
+						isValidator = true
+						return
+					}
 					peersM[v.Id] = &synccomm.Node{Id: v.Id, PeerID: v.PeerId}
 				}
 			})
 		}
 	}
-	return peersM
+	return peersM, isValidator
 }
 
 func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, checkpoints []*consensus.SignedCheckpoint, epochChanges ...*consensus.EpochChange) {
@@ -79,7 +85,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		syncMode = synccomm.SyncModeDiff
 	}
 
-	peersM := a.getPeers(stateUpdateByDiff(), epochChanges...)
+	peersM, isValidator := a.getPeers(stateUpdateByDiff(), epochChanges...)
 	// flatten peersM
 	peers := lo.Values(peersM)
 
@@ -137,13 +143,21 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 		"epochChanges length": len(epochChanges),
 	}).Info("State update start")
 
+	// ensure sync remote count including at least one correct node
+	f := common.CalFaulty(uint64(len(peers)))
+	quorum := f + 1
+	if isValidator {
+		// if node is a validator, it means this node is a Byzantium node,so ensure at least one correct node, quorum = f+1-1
+		quorum = f + 1 - 1
+	}
+
 	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
 		params := &synccomm.SyncParams{
 			Peers:           peers,
 			LatestBlockHash: latestBlockHash,
 			// ensure sync remote count including at least one correct node
-			Quorum:           CalFaulty(uint64(len(peers))),
+			Quorum:           quorum,
 			CurHeight:        startHeight,
 			TargetHeight:     seqNo,
 			QuorumCheckpoint: checkpoints[0],
@@ -250,14 +264,4 @@ func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*event
 		Block:         block,
 		TxPointerList: txHashList,
 	})
-}
-
-func CalQuorum(N uint64) uint64 {
-	f := (N - 1) / 3
-	return (N + f + 2) / 2
-}
-
-func CalFaulty(N uint64) uint64 {
-	f := (N - 1) / 3
-	return f
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/components/status"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/rbft/adaptor"
 )
 
 const InCommitStatus = rbft.StatusType(1024)
@@ -1215,7 +1214,7 @@ func (n *Node[T, Constraint]) postEvent(event *localEvent) {
 }
 
 func (n *Node[T, Constraint]) reachQuorum(count int) bool {
-	return uint64(count) >= adaptor.CalQuorum(uint64(len(n.chainState.ValidatorSet)))
+	return uint64(count) >= common.CalQuorum(uint64(len(n.chainState.ValidatorSet)))
 }
 
 // setBatchCache stores a batch digest and its corresponding batch.
