@@ -70,6 +70,16 @@ var (
 		},
 		[]string{"type"},
 	)
+	requestResponseSize = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "axiom_ledger",
+			Subsystem: "sync",
+			Name:      "request_response_size",
+			Help:      "The size of every response",
+			Buckets:   prometheus.ExponentialBuckets(1024, 2, 12),
+		},
+		[]string{"type"},
+	)
 )
 
 func init() {
@@ -80,4 +90,5 @@ func init() {
 	prometheus.MustRegister(recvBlockNumber)
 	prometheus.MustRegister(syncChunkDuration)
 	prometheus.MustRegister(pushBlock2ExecutorDuration)
+	prometheus.MustRegister(requestResponseSize)
 }

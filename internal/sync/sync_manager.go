@@ -1192,6 +1192,14 @@ func (sm *SyncManager) listenSyncCommitDataResponse() {
 				continue
 			}
 
+			sm.logger.WithFields(logrus.Fields{
+				"height": resp.GetHeight(),
+				"size":   components.ReadableSize(p2pMsg.SizeVT()),
+				"type":   common.SyncModeMap[sm.mode],
+			}).Debug("Receive sync commitData response success")
+
+			requestResponseSize.WithLabelValues(common.SyncModeMap[sm.mode]).Observe(float64(p2pMsg.SizeVT()))
+
 			var commitData common.CommitData
 			switch sm.mode {
 			case common.SyncModeDiff:
@@ -1272,7 +1280,7 @@ func (sm *SyncManager) addCommitData(req *requester, commitData common.CommitDat
 		"from":           from,
 		"add_commitData": commitData.GetHash(),
 		"hash":           req.commitData.GetHash(),
-		"size":           sm.recvBlockSize.Load(),
+		"receive count":  sm.recvBlockSize.Load(),
 	}).Debug("Receive commitData success")
 
 	if sm.collectChunkTaskDone() {
