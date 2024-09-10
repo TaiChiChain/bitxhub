@@ -184,11 +184,7 @@ func (n *Node) getStatus() (bool, string) {
 	return true, "normal"
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, _ bool) {
-	txHashList := make([]*types.Hash, len(txPointerList))
-	lo.ForEach(txPointerList, func(item *events.TxPointer, i int) {
-		txHashList[i] = item.Hash
-	})
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, _ []string, _ bool) {
 	epochChanged := false
 	if common.NeedChangeEpoch(height, &types.EpochInfo{StartBlock: n.epcCnf.startBlock, EpochPeriod: n.epcCnf.epochPeriod}) {
 		epochChanged = true
@@ -196,7 +192,6 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 	state := &chainState{
 		Height:       height,
 		BlockHash:    blockHash,
-		TxHashList:   txHashList,
 		EpochChanged: epochChanged,
 	}
 	n.postMsg(state)

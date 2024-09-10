@@ -406,7 +406,7 @@ func (n *Node) GetLowWatermark() uint64 {
 	return n.n.GetLowWatermark()
 }
 
-func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList []*events.TxPointer, needRemoveTxs bool) {
+func (n *Node) ReportState(height uint64, blockHash *types.Hash, txHashList []string, needRemoveTxs bool) {
 	n.logger.Infof("Receive report state: height = %d, blockHash = %s, needRemoveTxs = %v", height, blockHash, needRemoveTxs)
 
 	var err error
@@ -465,15 +465,7 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 
 		if needRemoveTxs {
 			// notify tx pool remove these committed tx
-			committedTxHashList := make([]*txpool.WrapperTxPointer, len(txPointerList))
-			lo.ForEach(txPointerList, func(item *events.TxPointer, index int) {
-				committedTxHashList[index] = &txpool.WrapperTxPointer{
-					TxHash:  item.Hash.String(),
-					Account: item.Account,
-					Nonce:   item.Nonce,
-				}
-			})
-			n.txpool.RemoveStateUpdatingTxs(committedTxHashList)
+			n.txpool.RemoveStateUpdatingTxs(txHashList)
 		}
 		return
 	}

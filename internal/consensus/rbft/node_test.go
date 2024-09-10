@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axiomesh/axiom-ledger/pkg/events"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/samber/lo"
@@ -401,7 +400,7 @@ func TestNotifyStop(t *testing.T) {
 	node.config.ChainState.IsDataSyncer = true
 
 	block := testutil.ConstructBlock("blockHash", uint64(2))
-	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, false)
+	node.ReportState(block.Height(), block.Hash(), []string{}, false)
 	err := <-stopCh
 	ast.Contains(err.Error(), "not support switch candidate/validator to data syncer")
 
@@ -409,7 +408,7 @@ func TestNotifyStop(t *testing.T) {
 	mockRbft.EXPECT().ArchiveMode().Return(true).AnyTimes()
 	node.n = mockRbft
 	node.config.ChainState.IsDataSyncer = false
-	node.ReportState(block.Height(), block.Hash(), []*events.TxPointer{}, false)
+	node.ReportState(block.Height(), block.Hash(), []string{}, false)
 	err = <-stopCh
 	ast.Contains(err.Error(), "switch inbound node from data syncer to candidate")
 }

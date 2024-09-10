@@ -2334,15 +2334,11 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 		ast.Equal(uint64(4), pool.txStore.priorityNonBatchSize)
 		ast.Equal(uint64(0), pool.txStore.nonceCache.commitNonces[from])
 
-		txPointerList := make([]*commonpool.WrapperTxPointer, len(txs))
+		txHashList := make([]string, len(txs))
 		lo.ForEach(txs, func(tx *types.Transaction, index int) {
-			txPointerList[index] = &commonpool.WrapperTxPointer{
-				TxHash:  tx.RbftGetTxHash(),
-				Account: tx.RbftGetFrom(),
-				Nonce:   tx.RbftGetNonce(),
-			}
+			txHashList[index] = tx.RbftGetTxHash()
 		})
-		pool.RemoveStateUpdatingTxs(txPointerList)
+		pool.RemoveStateUpdatingTxs(txHashList)
 		ast.Equal(uint64(4), pool.GetPendingTxCountByAccount(from))
 		ast.Equal(0, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(0), pool.txStore.priorityNonBatchSize)
@@ -2357,15 +2353,11 @@ func TestTxPoolImpl_RemoveStateUpdatingTxs(t *testing.T) {
 		lackTxs := txs2[1:]
 		pool.AddRemoteTxs(lackTxs)
 		ast.Equal(uint64(0), pool.GetPendingTxCountByAccount(from2))
-		txPointerList = make([]*commonpool.WrapperTxPointer, len(txs2))
+		txHashList = make([]string, len(txs2))
 		lo.ForEach(txs2, func(tx *types.Transaction, index int) {
-			txPointerList[index] = &commonpool.WrapperTxPointer{
-				TxHash:  tx.RbftGetTxHash(),
-				Account: tx.RbftGetFrom(),
-				Nonce:   tx.RbftGetNonce(),
-			}
+			txHashList[index] = tx.RbftGetTxHash()
 		})
-		pool.RemoveStateUpdatingTxs(txPointerList)
+		pool.RemoveStateUpdatingTxs(txHashList)
 		ast.Equal(uint64(4), pool.GetPendingTxCountByAccount(from2))
 		ast.Equal(0, len(pool.txStore.txHashMap))
 		ast.Equal(uint64(4), pool.txStore.nonceCache.commitNonces[from2])

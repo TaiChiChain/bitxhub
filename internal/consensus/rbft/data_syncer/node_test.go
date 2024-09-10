@@ -311,6 +311,7 @@ func TestNode_Start(t *testing.T) {
 				}).AnyTimes()
 
 				mockSync.EXPECT().Commit().Return(blockChan).AnyTimes()
+				mockSync.EXPECT().CurrentMode().Return(sync_comm.SyncModeFull).AnyTimes()
 
 				cnf.BlockSync = mockSync
 

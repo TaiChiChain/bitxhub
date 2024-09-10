@@ -116,7 +116,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			rbftCheckpoint := checkpoints[0].GetCheckpoint()
 			a.postMockBlockEvent(&types.Block{
 				Header: localBlockHeader,
-			}, []*events.TxPointer{}, &common.Checkpoint{
+			}, []string{}, &common.Checkpoint{
 				Epoch:  rbftCheckpoint.Epoch,
 				Height: rbftCheckpoint.Height(),
 				Digest: rbftCheckpoint.Digest(),
@@ -259,9 +259,9 @@ func (a *RBFTAdaptor) GetCommitChannel() chan *common.CommitEvent {
 	return a.BlockC
 }
 
-func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*events.TxPointer, ckp *common.Checkpoint) {
+func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []string, ckp *common.Checkpoint) {
 	a.MockBlockFeed.Send(events.ExecutedEvent{
-		Block:         block,
-		TxPointerList: txHashList,
+		Block:      block,
+		TxHashList: txHashList,
 	})
 }

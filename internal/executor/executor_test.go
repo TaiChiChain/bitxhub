@@ -188,7 +188,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 	stateRoot, err := mockLedger.StateLedger.Commit()
 	assert.Nil(t, err)
-	genesisBlock.Header.StateRoot = stateRoot
+	genesisBlock.Header.StateRoot = stateRoot.RootHash
 	mockLedger.PersistBlockData(&ledger.BlockData{Block: genesisBlock})
 
 	chainState := chainstate.NewMockChainState(r.GenesisConfig, nil)
@@ -231,7 +231,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 
 	assert.EqualValues(t, 1, blockRes1.Block.Header.Number)
 	assert.Equal(t, 0, len(blockRes1.Block.Transactions))
-	assert.Equal(t, 0, len(blockRes1.TxPointerList))
+	assert.Equal(t, 0, len(blockRes1.TxHashList))
 
 	remoteBlockRes1 := <-remoteCh
 	assert.Equal(t, blockRes1, remoteBlockRes1)
@@ -239,7 +239,7 @@ func TestBlockExecutor_ExecuteBlock(t *testing.T) {
 	blockRes2 := <-ch
 	assert.EqualValues(t, 2, blockRes2.Block.Header.Number)
 	assert.Equal(t, 2, len(blockRes2.Block.Transactions))
-	assert.Equal(t, 2, len(blockRes2.TxPointerList))
+	assert.Equal(t, 2, len(blockRes2.TxHashList))
 
 	remoteBlockRes2 := <-remoteCh
 	assert.Equal(t, blockRes2, remoteBlockRes2)
@@ -344,7 +344,7 @@ func TestBlockExecutor_ExecuteBlock_Transfer(t *testing.T) {
 	require.NotNil(t, rootHash)
 	block1 := mockBlock(0, nil)
 	// refresh block
-	block1.Header.StateRoot = rootHash
+	block1.Header.StateRoot = rootHash.RootHash
 	err = ldg.ChainLedger.PersistExecutionResult(block1, nil)
 	require.Nil(t, err)
 

@@ -127,7 +127,7 @@ type reqHighNonceTxs struct {
 }
 
 type reqRemoveCommittedTxs struct {
-	txPointerList []*common_pool.WrapperTxPointer
+	txHashList []string
 }
 
 type reqRemoveBatchedTxs struct {

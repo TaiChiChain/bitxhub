@@ -59,16 +59,12 @@ func (exec *ExecutorDev) processExecuteEvent(commitEvent *common.CommitEvent) {
 	current := time.Now()
 	block := commitEvent.Block
 
-	txPointerList := make([]*events.TxPointer, len(block.Transactions))
+	txHashList := make([]string, len(block.Transactions))
 	lo.ForEach(block.Transactions, func(item *types.Transaction, index int) {
-		txPointerList[index] = &events.TxPointer{
-			Hash:    item.GetHash(),
-			Account: item.RbftGetFrom(),
-			Nonce:   item.RbftGetNonce(),
-		}
+		txHashList[index] = item.RbftGetTxHash()
 	})
 
-	exec.postBlockEvent(block, txPointerList)
+	exec.postBlockEvent(block, txHashList)
 
 	exec.logger.WithFields(logrus.Fields{
 		"height": commitEvent.Block.Header.Number,
@@ -112,14 +108,14 @@ func (exec *ExecutorDev) NewEvmWithViewLedger(txCtx vm.TxContext, vmConfig vm.Co
 	return nil, nil
 }
 
-func (exec *ExecutorDev) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer) {
+func (exec *ExecutorDev) postBlockEvent(block *types.Block, txHashList []string) {
 	exec.blockFeed.Send(events.ExecutedEvent{
-		Block:         block,
-		TxPointerList: txPointerList,
+		Block:      block,
+		TxHashList: txHashList,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
-		Block:         block,
-		TxPointerList: txPointerList,
+		Block:      block,
+		TxHashList: txHashList,
 	})
 }
 

@@ -475,7 +475,7 @@ func (p *txPoolImpl[T, Constraint]) dispatchRemoveTxsEvent(event *removeTxsEvent
 			traceRemovedTx("timeout", removeCount)
 		}
 	case committedTxsEvent:
-		removeCount = p.handleRemoveStateUpdatingTxs(event.Event.(*reqRemoveCommittedTxs).txPointerList)
+		removeCount = p.handleRemoveStateUpdatingTxs(event.Event.(*reqRemoveCommittedTxs).txHashList)
 		if removeCount > 0 {
 			p.logger.Infof("Successfully remove committed txs, count: %d", removeCount)
 			traceRemovedTx("committed", removeCount)
@@ -1549,8 +1549,8 @@ func (p *txPoolImpl[T, Constraint]) updateNonceCache(pointer *txPointer, updateA
 	}
 }
 
-func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txPointerList []*commonpool.WrapperTxPointer) {
-	req := &reqRemoveCommittedTxs{txPointerList: txPointerList}
+func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txHashList []string) {
+	req := &reqRemoveCommittedTxs{txHashList: txHashList}
 	ev := &removeTxsEvent{
 		EventType: committedTxsEvent,
 		Event:     req,
@@ -1558,15 +1558,13 @@ func (p *txPoolImpl[T, Constraint]) RemoveStateUpdatingTxs(txPointerList []*comm
 	p.postEvent(ev)
 }
 
-func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList []*commonpool.WrapperTxPointer) int {
-	p.logger.Debugf("start RemoveStateUpdatingTxs, len:%d", len(txPointerList))
+func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txHashList []string) int {
+	p.logger.Debugf("start RemoveStateUpdatingTxs, len:%d", len(txHashList))
 	removeCount := 0
-	dirtyAccounts := make(map[string]bool)
-	updateAccounts := make(map[string]uint64)
+	dirtyAccounts := make(map[string]uint64)
 	removeTxs := make(map[string][]*internalTransaction[T, Constraint])
 	maxPriorityNonce := make(map[string]uint64)
-	lo.ForEach(txPointerList, func(wrapperPointer *commonpool.WrapperTxPointer, _ int) {
-		txHash := wrapperPointer.TxHash
+	lo.ForEach(txHashList, func(txHash string, _ int) {
 		if pointer, ok := p.txStore.txHashMap[txHash]; ok {
 			poolTx := p.txStore.getPoolTxByTxnPointer(pointer.account, pointer.nonce)
 			if poolTx == nil {
@@ -1578,7 +1576,9 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList [
 			}
 			// record dirty accounts and removeTxs
 			removeTxs[pointer.account] = append(removeTxs[pointer.account], poolTx)
-			dirtyAccounts[pointer.account] = true
+			if nonce := dirtyAccounts[pointer.account]; nonce < pointer.nonce {
+				dirtyAccounts[pointer.account] = pointer.nonce
+			}
 
 			if p.enablePricePriority {
 				old, exist := maxPriorityNonce[pointer.account]
@@ -1606,9 +1606,10 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList [
 	}
 
 	// update nonce because we had persist these txs
-	lo.ForEach(txPointerList, func(wrapperPointer *commonpool.WrapperTxPointer, _ int) {
-		p.updateNonceCache(&txPointer{account: wrapperPointer.Account, nonce: wrapperPointer.Nonce}, updateAccounts)
-	})
+	updateAccounts := make(map[string]uint64)
+	for account, nonce := range dirtyAccounts {
+		p.updateNonceCache(&txPointer{account: account, nonce: nonce}, updateAccounts)
+	}
 
 	readyNum := uint64(p.txStore.priorityByTime.size())
 	if p.enablePricePriority {
@@ -1625,7 +1626,7 @@ func (p *txPoolImpl[T, Constraint]) handleRemoveStateUpdatingTxs(txPointerList [
 	}
 
 	if removeCount > 0 {
-		p.logger.Infof("finish RemoveStateUpdatingTxs, len:%d, removeCount:%d", len(txPointerList), removeCount)
+		p.logger.Infof("finish RemoveStateUpdatingTxs, len:%d, removeCount:%d", len(txHashList), removeCount)
 		traceRemovedTx("RemoveStateUpdatingTxs", removeCount)
 	}
 	return removeCount

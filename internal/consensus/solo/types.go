@@ -16,7 +16,6 @@ type consensusEvent any
 type chainState struct {
 	Height       uint64
 	BlockHash    *types.Hash
-	TxHashList   []*types.Hash
 	EpochChanged bool
 }
 

@@ -283,18 +283,14 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.currentHeight = block.Header.Number
 	exec.currentBlockHash = block.Hash()
 
-	if err := exec.updateChainState(updateEpoch); err != nil {
+	if err = exec.updateChainState(updateEpoch); err != nil {
 		panic(fmt.Errorf("update chain state failed: %w", err))
 	}
 	exec.ledger.StateLedger.UpdateChainState(exec.chainState)
 
-	txPointerList := make([]*events.TxPointer, len(data.Block.Transactions))
+	txHashList := make([]string, len(data.Block.Transactions))
 	lo.ForEach(data.Block.Transactions, func(item *types.Transaction, index int) {
-		txPointerList[index] = &events.TxPointer{
-			Hash:    item.GetHash(),
-			Account: item.RbftGetFrom(),
-			Nonce:   item.RbftGetNonce(),
-		}
+		txHashList[index] = item.RbftGetTxHash()
 	})
 
 	// validate local checkpoint with quorum checkpoint
@@ -308,20 +304,20 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 				exec.currentBlockHash.String(), commitEvent.SyncMeta.QuorumStateUpdatedCheckpoint.Digest, block.Header.Number))
 		}
 	}
-	exec.postBlockEvent(data.Block, txPointerList)
+	exec.postBlockEvent(data.Block, txHashList)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
 	types.RecycleStateJournal(stateJournal)
 }
 
-func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer) {
+func (exec *BlockExecutor) postBlockEvent(block *types.Block, txHashList []string) {
 	exec.blockFeed.Send(events.ExecutedEvent{
-		Block:         block,
-		TxPointerList: txPointerList,
+		Block:      block,
+		TxHashList: txHashList,
 	})
 	exec.blockFeedForRemote.Send(events.ExecutedEvent{
-		Block:         block,
-		TxPointerList: txPointerList,
+		Block:      block,
+		TxHashList: txHashList,
 	})
 }
 
