@@ -74,7 +74,6 @@ type SyncManager struct {
 	diffResponsePipe      network.Pipe
 
 	commitDataCache []common.CommitData // store commitData of a chunk temporary
-	responsePool    *common.CommitDataResponseConstructorPool
 
 	chunk            *common.Chunk                 // every chunk task
 	recvStateCh      chan *common.WrapperStateResp // receive state from remote peer
@@ -117,7 +116,6 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 		isDataSyncer:        isDataSyncer,
 		network:             network,
 		conf:                cnf,
-		responsePool:        common.NewCommitDataResponseConstructorPool(),
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -721,7 +719,6 @@ func (sm *SyncManager) requestSyncState(height uint64) error {
 		select {
 		case <-stateCtx.Done():
 			wp.Stop()
-			sm.logger.Debug("receive quit signal, Quit request state")
 			return
 		default:
 			wp.Submit(func() {
@@ -815,12 +812,15 @@ func (sm *SyncManager) requestSyncState(height uint64) error {
 		select {
 		case state := <-sm.quitStateCh:
 			sm.logger.WithFields(logrus.Fields{
-				"state height":      height,
+				"state height":      state.Height,
 				"chunk last height": sm.chunk.ChunkLastHeight,
 				"state":             state.Digest,
 			}).Info("Receive quit signal, Quit request state")
 			if sm.chunk.ChunkLastHeight == state.Height {
 				sm.chunk.FillCheckPoint(state)
+				sm.logger.WithFields(logrus.Fields{
+					"checkpoint": sm.chunk.CheckPoint,
+				}).Info("Fill checkpoint success")
 			} else {
 				if sm.latestCheckedState.Height == state.Height {
 					if sm.latestCheckedState.Digest != state.Digest {
@@ -1123,8 +1123,7 @@ func (sm *SyncManager) precheckResponse(p2pMsg *pb.Message) (common.SyncMessage,
 	}
 
 	// 2. check response data
-	resp := sm.responsePool.Get(sm.mode)
-	defer sm.responsePool.Put(sm.mode, resp)
+	resp := common.CommitDataResponseConstructor[sm.mode]()
 
 	if err := resp.UnmarshalVT(p2pMsg.Data); err != nil {
 		return nil, nil, fmt.Errorf("unmarshal sync commitData response failed: %s", err)
