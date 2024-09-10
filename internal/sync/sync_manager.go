@@ -1220,8 +1220,8 @@ func (sm *SyncManager) listenSyncCommitDataResponse() {
 					retrySendRequest(dataRequester, fmt.Errorf("unmarshal receipts failed: %w", err))
 				}
 
-				stateJournal := &types.StateJournal{}
-				if err = stateJournal.Decode(diffResp.StateJournal); err != nil {
+				stateJournal, err := types.DecodeStateJournal(diffResp.StateJournal)
+				if err != nil {
 					retrySendRequest(dataRequester, fmt.Errorf("decode state journal failed: %w", err))
 				}
 				commitData = &common.DiffData{Block: block, StateJournal: stateJournal, Receipts: receipts}

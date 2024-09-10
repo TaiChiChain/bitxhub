@@ -109,9 +109,9 @@ func (tc *PruneCache) addNewDiff(batch kv.Batch, height uint64, ledgerStorage kv
 		}
 		for k, v := range journal.DirtySet {
 			if journal.Type == TypeAccount {
-				l.accountDiff[k] = v
+				l.accountDiff[k] = v.Copy()
 			} else {
-				l.storageDiff[k] = v
+				l.storageDiff[k] = v.Copy()
 			}
 			tc.states.allKeyMap[k] = struct{}{}
 		}
@@ -235,8 +235,7 @@ func (tc *PruneCache) getStateJournal(height uint64) *types.StateJournal {
 		return nil
 	}
 
-	res := &types.StateJournal{}
-	err := res.Decode(data)
+	res, err := types.DecodeStateJournal(data)
 	if err != nil {
 		panic(err)
 	}

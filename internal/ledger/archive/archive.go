@@ -185,8 +185,7 @@ func (archiver *Archiver) GetStateJournal(height uint64) *types.StateJournal {
 		return nil
 	}
 
-	res := &types.StateJournal{}
-	err := res.Decode(data)
+	res, err := types.DecodeStateJournal(data)
 	if err != nil {
 		panic(err)
 	}

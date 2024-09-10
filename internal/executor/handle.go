@@ -311,6 +311,7 @@ func (exec *BlockExecutor) processExecuteEvent(commitEvent *consensuscommon.Comm
 	exec.postBlockEvent(data.Block, txPointerList)
 	exec.postLogsEvent(data.Receipts)
 	exec.clear()
+	types.RecycleStateJournal(stateJournal)
 }
 
 func (exec *BlockExecutor) postBlockEvent(block *types.Block, txPointerList []*events.TxPointer) {
