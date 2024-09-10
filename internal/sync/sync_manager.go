@@ -1542,7 +1542,7 @@ func (sm *SyncManager) handleInvalidRequest(msg *common.InvalidMsg) {
 
 		invalidBlockNumber.WithLabelValues("invalid_block").Inc()
 
-		r.clearBlock()
+		r.clearCommitData()
 
 		newPeer := sm.pickRandomPeer(msg.NodeID)
 		r.retryCh <- newPeer

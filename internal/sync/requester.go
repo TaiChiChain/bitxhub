@@ -86,6 +86,7 @@ OUTER_LOOP:
 		for {
 			select {
 			case <-r.quitCh:
+				r.clearCommitData()
 				return
 			case <-r.ctx.Done():
 				return
@@ -120,7 +121,7 @@ func (r *requester) setCommitData(data common.CommitData) {
 	}
 }
 
-func (r *requester) clearBlock() {
+func (r *requester) clearCommitData() {
 	r.commitData = nil
 }
 

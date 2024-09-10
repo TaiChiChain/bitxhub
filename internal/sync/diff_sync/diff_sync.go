@@ -38,8 +38,8 @@ func (s *DiffSync) Commit() chan any {
 func NewDiffSync() common.ISyncConstructor {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DiffSync{
-		recvCommitDataCh: make(chan []common.CommitData, 1),
-		commitCh:         make(chan any, 1),
+		recvCommitDataCh: make(chan []common.CommitData, 2),
+		commitCh:         make(chan any, 2),
 		ctx:              ctx,
 		cancel:           cancel,
 	}

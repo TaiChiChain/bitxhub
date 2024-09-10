@@ -74,8 +74,8 @@ func (s *SnapSync) Commit() chan any {
 func NewSnapSync(logger logrus.FieldLogger, net network.Network) common.ISyncConstructor {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SnapSync{
-		commitCh:         make(chan any, 1),
-		recvCommitDataCh: make(chan []common.CommitData, 100),
+		commitCh:         make(chan any, 2),
+		recvCommitDataCh: make(chan []common.CommitData, 2),
 		epochStateCache:  make(map[uint64]*consensus.QuorumCheckpoint),
 		network:          net,
 		logger:           logger,
