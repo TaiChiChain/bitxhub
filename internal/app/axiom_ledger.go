@@ -172,6 +172,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	// 0. load ledger
 	var snap *snapMeta
 	verifiedCh := make(chan bool, 1)
+	genSnapShotCh := make(chan error, 1)
 
 	if rep.StartArgs.SnapshotMode {
 		stateLg, err := storagemgr.OpenWithMetrics(storagemgr.GetLedgerComponentPath(rep, storagemgr.Ledger), storagemgr.Ledger)
@@ -200,12 +201,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		vl = rwLdg.NewView()
 
 		// 2. wait for generating snapshot of target block
-		errC := make(chan error)
-		go vl.StateLedger.GenerateSnapshot(meta.BlockHeader, errC)
-		err = <-errC
-		if err != nil {
-			return nil, fmt.Errorf("snap-sync generate snapshot failed: %w", err)
-		}
+		go vl.StateLedger.GenerateSnapshot(meta.BlockHeader, genSnapShotCh)
 
 		// 3. verify whether trie snapshot is legal (async with snap sync)
 		go func(resultCh chan bool) {
@@ -224,7 +220,11 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		}(verifiedCh)
 
 		// 4. load snap meta of peers, epoch, etc.
-		snap, err = loadSnapMeta(vl, meta.BlockHeader, rep.P2PKeystore.P2PID(), rep.SyncArgs)
+		stateViewLedger, err := rwLdg.StateLedger.NewView(meta.BlockHeader, false)
+		if err != nil {
+			return nil, err
+		}
+		snap, err = loadSnapMeta(stateViewLedger, meta.BlockHeader, rep.P2PKeystore.P2PID(), rep.SyncArgs)
 		if err != nil {
 			return nil, err
 		}
@@ -323,10 +323,6 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 			}
 			if latestHeight < axm.snapMeta.snapBlockHeader.Number {
 				start := time.Now()
-				axm.logger.WithFields(logrus.Fields{
-					"start height":  latestHeight,
-					"target height": axm.snapMeta.snapBlockHeader.Number,
-				}).Info("start snap sync")
 
 				// 1. prepare snap sync info(including epoch state which will be persisted、last sync checkpoint)
 				prepareRes, snapCheckpoint, err := axm.prepareSnapSync(latestHeight)
@@ -335,7 +331,11 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 				}
 
 				// 2. start chain data sync
-				err = axm.startSnapSync(verifiedCh, snapCheckpoint, axm.snapMeta.snapPeers, latestHeight+1, prepareRes.Data.([]*consensuspb.EpochChange))
+				axm.logger.WithFields(logrus.Fields{
+					"start height":  latestHeight,
+					"target height": axm.snapMeta.snapBlockHeader.Number,
+				}).Info("start snap sync")
+				err = axm.startSnapSync(genSnapShotCh, verifiedCh, snapCheckpoint, axm.snapMeta.snapPeers, latestHeight+1, prepareRes.Data.([]*consensuspb.EpochChange))
 				if err != nil {
 					return nil, fmt.Errorf("snap sync err: %w", err)
 				}

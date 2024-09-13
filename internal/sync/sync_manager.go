@@ -195,18 +195,23 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 			syncTaskDoneCh <- err
 			return err
 		}
-
-		// request chunk last height quorum state for validate block which node received
-		err = sm.requestSyncState(sm.chunk.ChunkLastHeight)
-		if err != nil {
-			syncTaskDoneCh <- err
-			return err
-		}
-
 		sm.logger.WithFields(logrus.Fields{
-			"Quorum": sm.ensureOneCorrectNum,
+			"Quorum":       sm.ensureOneCorrectNum,
+			"state height": sm.latestCheckedState.Height,
 		}).Info("Receive Quorum response")
 	}
+
+	// request chunk last height quorum state for validate block which node received
+	err := sm.requestSyncState(sm.chunk.ChunkLastHeight)
+	if err != nil {
+		syncTaskDoneCh <- err
+		return err
+	}
+
+	sm.logger.WithFields(logrus.Fields{
+		"Quorum":       sm.ensureOneCorrectNum,
+		"state height": sm.chunk.ChunkLastHeight,
+	}).Info("Receive Quorum response")
 
 	// 4. switch sync status to true, if switch failed, return error
 	if err := sm.switchSyncStatus(true); err != nil {

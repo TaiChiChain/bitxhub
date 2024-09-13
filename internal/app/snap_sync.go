@@ -7,7 +7,6 @@ import (
 
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework/solidity/node_manager"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/executor/system/framework"
 	"github.com/axiomesh/axiom-ledger/internal/ledger"
 	"github.com/axiomesh/axiom-ledger/internal/sync/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 type snapMeta struct {
@@ -27,8 +27,8 @@ type snapMeta struct {
 	snapPeers        []*common.Node
 }
 
-func loadSnapMeta(lg *ledger.Ledger, header *types.BlockHeader, selfPeerId string, args *repo.SyncArgs) (*snapMeta, error) {
-	epochContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+func loadSnapMeta(lg ledger.StateLedger, header *types.BlockHeader, selfPeerId string, args *repo.SyncArgs) (*snapMeta, error) {
+	epochContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg))
 	currentEpochInfo, err := epochContract.CurrentEpoch()
 	if err != nil {
 		return nil, fmt.Errorf("get current epoch info: %w", err)
@@ -41,7 +41,7 @@ func loadSnapMeta(lg *ledger.Ledger, header *types.BlockHeader, selfPeerId strin
 
 	// if local node is started with specified nodes for synchronization,
 	// the specified nodes will be used instead of the snapshot meta
-	nodeContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+	nodeContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg))
 	nodeInfos, _, err := nodeContract.GetActiveValidatorSet()
 	if err != nil {
 		return nil, fmt.Errorf("get node info: %w", err)
@@ -132,7 +132,7 @@ func (axm *AxiomLedger) prepareSnapSync(latestHeight uint64) (*common.PrepareDat
 	return res, snapCheckpoint, nil
 }
 
-func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.SignedCheckpoint, peers []*common.Node, startHeight uint64, epochChanges []*consensus.EpochChange) error {
+func (axm *AxiomLedger) startSnapSync(genSnapshotC <-chan error, verifySnapCh chan bool, ckpt *consensus.SignedCheckpoint, peers []*common.Node, startHeight uint64, epochChanges []*consensus.EpochChange) error {
 	syncTaskDoneCh := make(chan error, 1)
 	targetHeight := ckpt.Height()
 	params := axm.genSnapSyncParams(peers, startHeight, targetHeight, ckpt, epochChanges)
@@ -176,6 +176,9 @@ func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.Si
 				if !axm.waitVerifySnapTrie(verifySnapCh) {
 					return errors.New("verify snap trie failed")
 				}
+				if err = axm.waitGenSnap(genSnapshotC); err != nil {
+					return errors.New("generate snap failed")
+				}
 				return nil
 			}
 		}
@@ -184,6 +187,9 @@ func (axm *AxiomLedger) startSnapSync(verifySnapCh chan bool, ckpt *consensus.Si
 
 func (axm *AxiomLedger) waitVerifySnapTrie(verifySnapCh chan bool) bool {
 	return <-verifySnapCh
+}
+func (axm *AxiomLedger) waitGenSnap(genSnapshotC <-chan error) error {
+	return <-genSnapshotC
 }
 
 func (axm *AxiomLedger) persistChainData(data *common.SnapCommitData) error {
