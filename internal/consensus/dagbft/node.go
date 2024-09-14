@@ -70,8 +70,6 @@ type Node struct {
 	logger        logrus.FieldLogger
 	txFeed        event.Feed
 	mockBlockFeed event.Feed
-
-	expectNonce uint64
 }
 
 func NewNode(config *common.Config) (*Node, error) {
@@ -180,14 +178,10 @@ func (n *Node) listenLocalEvent() {
 
 		case txSet := <-n.txCache.CommitTxSet():
 			marshallTxs := lo.Map(txSet, func(tx *types.Transaction, _ int) protocol.Transaction {
-				if tx.GetNonce() != n.expectNonce {
-					panic(fmt.Sprintf("expect nonce %d, but got %d", n.expectNonce, tx.GetNonce()))
-				}
 				data, err := tx.Marshal()
 				if err != nil {
 					panic(err)
 				}
-				n.expectNonce++
 				return data
 			})
 
