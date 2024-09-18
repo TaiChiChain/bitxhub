@@ -93,26 +93,26 @@ type DagbftQuorumCheckpoint struct {
 }
 
 func (q *DagbftQuorumCheckpoint) Epoch() uint64 {
-	return q.Epoch()
+	return q.QuorumCheckpoint.Epoch()
 }
 
 func (q *DagbftQuorumCheckpoint) NextEpoch() uint64 {
-	return q.NextEpoch()
+	return q.QuorumCheckpoint.NextEpoch()
 }
 
 func (q *DagbftQuorumCheckpoint) Marshal() ([]byte, error) {
-	return q.Marshal()
+	return q.QuorumCheckpoint.Marshal()
 }
 
 func (q *DagbftQuorumCheckpoint) Unmarshal(raw []byte) error {
-	if err := q.Unmarshal(raw); err != nil {
+	if err := q.QuorumCheckpoint.Unmarshal(raw); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (q *DagbftQuorumCheckpoint) GetHeight() uint64 {
-	return q.Height()
+	return q.QuorumCheckpoint.Height()
 }
 
 func (q *DagbftQuorumCheckpoint) GetStateDigest() string {

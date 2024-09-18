@@ -63,6 +63,7 @@ type BlockChain struct {
 	sendReadyC          chan *Ready
 	sendToExecuteCh     chan *consensustypes.CommitEvent
 	notifyStateUpdateCh chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]
+	metrics             *blockChainMetrics
 }
 
 func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalConfig config.Configs, readyC chan *Ready, closeCh chan bool) (*BlockChain, error) {
@@ -113,6 +114,7 @@ func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 		sendToExecuteCh:     make(chan *consensustypes.CommitEvent, 1),
 		notifyStateUpdateCh: make(chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]),
 		waitEpochChangeCh:   make(chan struct{}),
+		metrics:             newBlockChainMetrics(),
 	}, nil
 }
 
@@ -328,11 +330,13 @@ func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transa
 			tx := &kittypes.Transaction{}
 			if err := tx.Unmarshal(data); err != nil {
 				b.logger.Errorf("failed to unmarshal tx: %v", err)
+				b.metrics.discardTxCounter.WithLabelValues("unmarshal_err").Inc()
 				return
 			}
 
 			if _, ok := seenHashes[tx.GetHash().String()]; ok {
 				b.logger.Debugf("duplicated tx in different batches: %s", tx.GetHash().String())
+				b.metrics.discardTxCounter.WithLabelValues("duplicated").Inc()
 				return
 			}
 			seenHashes[tx.GetHash().String()] = struct{}{}
@@ -374,6 +378,7 @@ func (b *BlockChain) StateUpdate(checkpoint *types.QuorumCheckpoint, eventCh cha
 }
 
 func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, checkpoint *types.QuorumCheckpoint, epochChanges []*types.QuorumCheckpoint) error {
+	b.metrics.syncChainCounter.Inc()
 	targetHeight := checkpoint.Checkpoint().ExecuteState().StateHeight()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -383,7 +388,7 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 			if ckpt != nil {
 				epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *ckpt}
 				if err := b.epochService.StoreEpochState(epochChange); err != nil {
-					b.logger.Errorf("failed to store epoch state at epoch %d: %v", ckpt.Epoch(), err)
+					b.logger.Errorf("failed to store epoch state at epoch %d: %s", ckpt.Epoch(), err)
 				}
 			}
 		})

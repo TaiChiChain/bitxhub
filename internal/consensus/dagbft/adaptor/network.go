@@ -113,6 +113,7 @@ func NewNetworkFactory(cnf *common.Config, ctx context.Context) *NetworkFactory 
 		cnf.ChainState.SelfNodeInfo.Primary: primaryNet,
 	}
 
+	primaryNet.metrics = newNetworkMessageMetrics()
 	lo.ForEach(cnf.ChainState.SelfNodeInfo.Workers, func(n types.Host, _ int) {
 		workerNet := &Network{
 			isPrimary:          false,
@@ -195,6 +196,8 @@ type Network struct {
 	ctx context.Context
 
 	logger logrus.FieldLogger
+
+	metrics *networkMessageMetrics
 }
 
 func (n *Network) asyncSendResponseMsg(stream p2p.Stream, typ pb.Message_Type, data []byte) error {
