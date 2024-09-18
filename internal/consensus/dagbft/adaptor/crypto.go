@@ -109,20 +109,23 @@ var concurrencyLimit = runtime.NumCPU()
 
 type BatchVerifier struct {
 	precheck precheck.PreCheck
+	pool     *workerpool.WorkerPool
 }
 
 func newBatchVerifier(check precheck.PreCheck) *BatchVerifier {
-	return &BatchVerifier{check}
+	return &BatchVerifier{
+		precheck: check,
+		pool:     workerpool.New(concurrencyLimit),
+	}
 }
 
 func (b *BatchVerifier) VerifyTransactions(batchTxs []protocol.Transaction) error {
 	start := time.Now()
-	wp := workerpool.New(min(len(batchTxs), concurrencyLimit))
 	errCh := make(chan error, len(batchTxs))
 	closeCh := make(chan struct{})
 	verified := atomic.Uint64{}
 	lo.ForEach(batchTxs, func(raw protocol.Transaction, index int) {
-		wp.Submit(func() {
+		b.pool.Submit(func() {
 			tx := &types.Transaction{}
 			err := tx.Unmarshal(raw)
 			if err != nil {
@@ -149,7 +152,7 @@ func (b *BatchVerifier) VerifyTransactions(batchTxs []protocol.Transaction) erro
 	select {
 	case err := <-errCh:
 		channel.SafeClose(closeCh)
-		wp.StopWait()
+		b.pool.StopWait()
 		return err
 	case <-closeCh:
 		metrics.BatchVerifyTime.WithLabelValues(consensustypes.Dagbft).Observe(time.Since(start).Seconds())

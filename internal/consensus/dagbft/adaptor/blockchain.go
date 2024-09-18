@@ -64,6 +64,7 @@ type BlockChain struct {
 	sendToExecuteCh     chan *consensustypes.CommitEvent
 	notifyStateUpdateCh chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]
 	metrics             *blockChainMetrics
+	wg                  sync.WaitGroup
 }
 
 func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalConfig config.Configs, readyC chan *Ready, closeCh chan bool) (*BlockChain, error) {
@@ -137,14 +138,35 @@ func (b *BlockChain) listenChainEvent() {
 			b.asyncExecute(output, stateHeight, evCh)
 		case update := <-b.updatingCh:
 			target, changes, evCh := update.Unpack()
+			if len(changes) > 0 {
+				b.logger.Infof("store epoch state at epoch %d", target.Epoch())
+				b.wg.Add(1)
+				go func() {
+					defer b.wg.Done()
+					lo.ForEach(changes, func(ckpt *types.QuorumCheckpoint, index int) {
+						if ckpt != nil {
+							epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *ckpt}
+							if err := b.epochService.StoreEpochState(epochChange); err != nil {
+								b.logger.Errorf("failed to store epoch state at epoch %d: %s", ckpt.Epoch(), err)
+							}
+						}
+					})
+				}()
+			}
 			localHeight := b.ledgerConfig.ChainState.GetCurrentCheckpointState().Height
 			targetHeight := target.Checkpoint().ExecuteState().StateHeight()
 			latestBlockHash := b.ledgerConfig.ChainState.GetCurrentCheckpointState().Digest
 
 			if localHeight >= targetHeight {
-				if latestBlockHash != target.StateRoot().String() {
-					panic(fmt.Errorf("local state root[%s] is not equal to checkpoint state root[%s]", latestBlockHash, target.StateRoot().String()))
+				localHeader, err := b.ledgerConfig.GetBlockHeaderFunc(targetHeight)
+				if err != nil {
+					panic(err)
+				}
+				if localHeader.Hash().String() != target.StateRoot().String() {
+					panic(fmt.Errorf("local state root[%s] is not equal to checkpoint state root[%s]",
+						localHeader.Hash().String(), target.StateRoot().String()))
 				} else {
+					b.wg.Wait()
 					b.logger.Infof("node state have reached target height: %d, ignore updating...", targetHeight)
 					stateUpdated := &events.StateUpdatedEvent{
 						Checkpoint: target,
@@ -164,7 +186,6 @@ func (b *BlockChain) listenChainEvent() {
 
 		case decision := <-b.decisionCh:
 			checkpoint, evCh := decision.Unpack()
-
 			b.checkpoint(checkpoint)
 
 			stableCommitted := &events.StableCommittedEvent{
@@ -380,19 +401,6 @@ func (b *BlockChain) StateUpdate(checkpoint *types.QuorumCheckpoint, eventCh cha
 func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, checkpoint *types.QuorumCheckpoint, epochChanges []*types.QuorumCheckpoint) error {
 	b.metrics.syncChainCounter.Inc()
 	targetHeight := checkpoint.Checkpoint().ExecuteState().StateHeight()
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		lo.ForEach(epochChanges, func(ckpt *types.QuorumCheckpoint, index int) {
-			if ckpt != nil {
-				epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *ckpt}
-				if err := b.epochService.StoreEpochState(epochChange); err != nil {
-					b.logger.Errorf("failed to store epoch state at epoch %d: %s", ckpt.Epoch(), err)
-				}
-			}
-		})
-	}()
 
 	peerM := b.getRemotePeers(epochChanges)
 
@@ -414,21 +422,23 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 				}
 			}),
 		}
+		b.logger.WithFields(logrus.Fields{
+			"target":       params.TargetHeight,
+			"target_hash":  params.QuorumCheckpoint.GetStateDigest(),
+			"start":        params.CurHeight,
+			"epochChanges": epochChanges,
+		}).Info("State update start")
 		err := b.sync.StartSync(params, syncTaskDoneCh)
 		if err != nil {
 			b.logger.Infof("start sync failed[local:%b, target:%b]: %s", localHeight, targetHeight, err)
 			return err
 		}
-		b.logger.WithFields(logrus.Fields{
-			"target": targetHeight,
-			"local":  localHeight,
-		}).Infof("start sync")
 		return nil
 	}, strategy.Limit(5), strategy.Wait(500*time.Microsecond)); err != nil {
 		panic(fmt.Errorf("retry start sync failed: %v", err))
 	}
 
-	wg.Wait()
+	b.wg.Wait()
 	var stateUpdatedCheckpoint *consensustypes.Checkpoint
 	// wait for the sync to finish
 	for {
