@@ -284,14 +284,26 @@ func (b *BlockChain) recordBatchMetrics(output *types.ConsensusOutput) {
 	}
 }
 
+func (b *BlockChain) readLedgerEpoch() uint64 {
+	return b.ledgerConfig.ChainState.GetCurrentEpochInfo().Epoch
+}
+
 func (b *BlockChain) Execute(output *types.ConsensusOutput, height types.Height, eventCh chan<- *events.ExecutedEvent) error {
 	b.logger.Infof("Execute Output %d at height %d, batches %d, txs: %d",
 		output.CommitInfo.CommitSequence, height, output.BatchCount(), output.TransactionCount())
 	b.recordBatchMetrics(output)
-
-	isCofigured := common.NeedChangeEpoch(height, b.ledgerConfig.ChainState.GetCurrentEpochInfo())
+	transactionCount := output.TransactionCount()
+	outputEpoch := output.Epoch()
+	ledgerEpoch := b.readLedgerEpoch()
+	if ledgerEpoch != outputEpoch {
+		b.logger.Warningf("[DagBFT.Ledger] Discard mismatched epoch outputs, ledger: %d, output: %d", ledgerEpoch, outputEpoch)
+		b.metrics.discardedTransactions.WithLabelValues("epoch_mismatched").Add(float64(transactionCount))
+		// TODO: send sp event or return error but not nil, and drop following executions in the core
+		return nil
+	}
+	isConfigured := common.NeedChangeEpoch(height, b.ledgerConfig.ChainState.GetCurrentEpochInfo())
 	channel.SafeSend(b.executingCh, containers.Pack3(height, output, eventCh), b.closeCh)
-	if isCofigured {
+	if isConfigured {
 		start := time.Now()
 		select {
 		case <-b.waitEpochChangeCh:
@@ -351,13 +363,13 @@ func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transa
 			tx := &kittypes.Transaction{}
 			if err := tx.Unmarshal(data); err != nil {
 				b.logger.Errorf("failed to unmarshal tx: %v", err)
-				b.metrics.discardTxCounter.WithLabelValues("unmarshal_err").Inc()
+				b.metrics.discardedTransactions.WithLabelValues("unmarshal_err").Inc()
 				return
 			}
 
 			if _, ok := seenHashes[tx.GetHash().String()]; ok {
 				b.logger.Debugf("duplicated tx in different batches: %s", tx.GetHash().String())
-				b.metrics.discardTxCounter.WithLabelValues("duplicated").Inc()
+				b.metrics.discardedTransactions.WithLabelValues("duplicated").Inc()
 				return
 			}
 			seenHashes[tx.GetHash().String()] = struct{}{}

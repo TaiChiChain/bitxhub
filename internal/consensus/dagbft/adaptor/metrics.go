@@ -75,22 +75,12 @@ func newNetworkMessageMetrics() *networkMessageMetrics {
 }
 
 type blockChainMetrics struct {
-	discardTxCounter *prometheus.CounterVec
-	syncChainCounter prometheus.Counter
+	syncChainCounter      prometheus.Counter
+	discardedTransactions *prometheus.CounterVec
 }
 
 func newBlockChainMetrics() *blockChainMetrics {
 	bm := &blockChainMetrics{}
-	bm.discardTxCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "axiom_ledger",
-			Subsystem: "dagbft",
-			Name:      "discard_tx_counter",
-			Help:      "The number of consensus discard txs",
-		},
-		[]string{"type"},
-	)
-
 	bm.syncChainCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "axiom_ledger",
@@ -100,8 +90,17 @@ func newBlockChainMetrics() *blockChainMetrics {
 		},
 	)
 
-	prometheus.MustRegister(bm.discardTxCounter)
-	prometheus.MustRegister(bm.syncChainCounter)
+	bm.discardedTransactions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "axiom_ledger",
+			Subsystem: "dagbft",
+			Name:      "discarded_transactions",
+			Help:      "The number of discarded transactions",
+		},
+		[]string{"reason"},
+	)
 
+	prometheus.MustRegister(bm.syncChainCounter)
+	prometheus.MustRegister(bm.discardedTransactions)
 	return bm
 }
