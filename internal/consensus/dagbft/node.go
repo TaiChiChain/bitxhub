@@ -127,10 +127,13 @@ func (n *Node) Start() error {
 		SelfID: n.nodeConfig.ChainState.SelfNodeInfo.ID,
 	})
 
-	n.networkFactory.Start(n.engine)
+	err := n.networkFactory.Start(n.engine)
+	if err != nil {
+		return err
+	}
 
 	n.stack.Start()
-	err := n.engine.Start()
+	err = n.engine.Start()
 	if err != nil {
 		return err
 	}

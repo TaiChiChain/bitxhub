@@ -48,10 +48,13 @@ type NetworkFactory struct {
 	networks map[types.Host]*Network
 }
 
-func (n *NetworkFactory) Start(engine dagbft.DagBFT) {
+func (n *NetworkFactory) Start(engine dagbft.DagBFT) error {
 	for _, net := range n.networks {
-		net.Start(engine)
+		if err := net.Start(engine); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func NewNetworkFactory(cnf *common.Config, ctx context.Context) *NetworkFactory {
@@ -100,15 +103,6 @@ func NewNetworkFactory(cnf *common.Config, ctx context.Context) *NetworkFactory 
 		logger:             cnf.Logger,
 	}
 
-	err := primaryNet.Network.RegisterMultiMsgHandler(PrimaryMessageTypes, primaryNet.handlePrimaryMsg)
-	if err != nil {
-		panic(err)
-	}
-
-	err = primaryNet.Network.RegisterMultiMsgHandler(EpochMessageTypes, primaryNet.handleEpochMsg)
-	if err != nil {
-		panic(err)
-	}
 	networks := map[types.Host]*Network{
 		cnf.ChainState.SelfNodeInfo.Primary: primaryNet,
 	}
@@ -126,14 +120,6 @@ func NewNetworkFactory(cnf *common.Config, ctx context.Context) *NetworkFactory 
 			recvLocalRequestCh: localWorkersRequestCh[n], // todo: forbid multi local workers communication?
 			ctx:                ctx,
 			logger:             cnf.Logger,
-		}
-		err = workerNet.Network.RegisterMultiMsgHandler(WorkerMessageTypes, workerNet.handleWorkerMsg)
-		if err != nil {
-			panic(err)
-		}
-		err = workerNet.Network.RegisterMultiMsgHandler(EpochMessageTypes, workerNet.handleEpochMsg)
-		if err != nil {
-			panic(err)
 		}
 		networks[n] = workerNet
 	})
@@ -444,10 +430,28 @@ func (n *Network) processWorkerMsg(msg *pb.Message) ([]byte, pb.Message_Type, er
 	}
 }
 
-func (n *Network) Start(engine dagbft.DagBFT) {
+func (n *Network) Start(engine dagbft.DagBFT) error {
 	n.engine = engine
+	err := n.RegisterMultiMsgHandler(EpochMessageTypes, n.handleEpochMsg)
+	if err != nil {
+		return err
+	}
+	if n.isPrimary {
+		err = n.RegisterMultiMsgHandler(PrimaryMessageTypes, n.handlePrimaryMsg)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = n.RegisterMultiMsgHandler(WorkerMessageTypes, n.handleWorkerMsg)
+		if err != nil {
+			return err
+		}
+	}
+
 	go n.listenRequestToSubmit()
 	go n.listenLocalRequest()
+
+	return nil
 }
 
 func (n *Network) listenLocalRequest() {
