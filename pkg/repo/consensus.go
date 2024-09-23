@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"math"
 	"path"
 	"time"
 
@@ -81,82 +80,82 @@ type Dagbft struct {
 	BatchTimeout      Duration `mapstructure:"batch_timeout" toml:"batch_timeout"`
 	ReportBatchResult bool     `mapstructure:"report_batch_result" toml:"report_batch_result"`
 	// The maximum number of batch digests included in a header.
-	MaxHeaderBatchesSize int `json:"max_header_batches_size" mapstructure:"max_header_batches_size"`
+	MaxHeaderBatchesSize int `toml:"max_header_batches_size" mapstructure:"max_header_batches_size"`
 	// The threshold number of batch digests included in a header which is reached `MinHeaderDelay`.
-	MinHeaderBatchesSize int `json:"min_header_batches_size" mapstructure:"min_header_batches_size"`
+	MinHeaderBatchesSize int `toml:"min_header_batches_size" mapstructure:"min_header_batches_size"`
 	// The maximum delay that the primary should wait between generating two headers, even if
 	// other conditions are not satisfied besides having enough parent stakes (e.g. insufficient batch digests).
-	MaxHeaderDelay Duration `json:"max_header_delay" mapstructure:"max_header_delay"`
+	MaxHeaderDelay Duration `toml:"max_header_delay" mapstructure:"max_header_delay"`
 	// When the delay from last header reaches `MinHeaderDelay`, a new header can be proposed
 	// even if batches have not reached `MaxHeaderBatchesSize`.
-	MinHeaderDelay Duration `json:"min_header_delay" mapstructure:"min_header_delay"`
+	MinHeaderDelay Duration `toml:"min_header_delay" mapstructure:"min_header_delay"`
 	// The maximum delay that the primary should wait between generating two headers, even if
 	// other conditions are not satisfied besides having enough parent stakes.
-	HeaderResentDelay Duration `json:"header_resent_delay" mapstructure:"header_resent_delay"`
+	HeaderResentDelay Duration `toml:"header_resent_delay" mapstructure:"header_resent_delay"`
 	// The depth of the garbage collection (Denominated in number of rounds).
-	GcRoundDepth uint64 `json:"gc_round_depth" mapstructure:"gc_round_depth"`
+	GcRoundDepth uint64 `toml:"gc_round_depth" mapstructure:"gc_round_depth"`
 	// The depth of the batch expiration (Denominated in number of rounds).
-	ExpiredRoundDepth uint64 `json:"expired_round_depth" mapstructure:"expired_round_depth"`
+	ExpiredRoundDepth uint64 `toml:"expired_round_depth" mapstructure:"expired_round_depth"`
 	// Limit max sealing batches in the worker.
-	SealingBatchLimit int `json:"sealing_batch_limit" mapstructure:"sealing_batch_limit"`
+	SealingBatchLimit int `toml:"sealing_batch_limit" mapstructure:"sealing_batch_limit"`
 	// The preferred batch count. The workers seal a batch of transactions when it reaches this count.
-	MaxBatchCount int `json:"max_batch_count" mapstructure:"max_batch_count"`
+	MaxBatchCount int `toml:"max_batch_count" mapstructure:"max_batch_count"`
 	// The preferred batch size. The workers seal a batch of transactions when it reaches this size.
 	// Denominated in bytes.
-	MaxBatchSize int `json:"max_batch_size" mapstructure:"max_batch_size"`
+	MaxBatchSize int `toml:"max_batch_size" mapstructure:"max_batch_size"`
 	// The delay after which the workers seal a batch of transactions, even if `MaxBatchCount`
 	// and `MaxBatchSize` is not reached.
-	MaxBatchDelay Duration `json:"max_batch_delay" mapstructure:"max_batch_delay"`
+	MaxBatchDelay Duration `toml:"max_batch_delay" mapstructure:"max_batch_delay"`
 	// The delay after which the synchronizer retries to send sync batches.
-	SyncRetryDelay Duration `json:"sync_retry_delay" mapstructure:"sync_retry_delay"`
+	SyncRetryDelay Duration `toml:"sync_retry_delay" mapstructure:"sync_retry_delay"`
 	// Determine with how many nodes to sync when re-trying to send sync-request. These nodes
 	// are picked at random from the committee.
-	SyncRetryNodes int `json:"sync_retry_nodes" mapstructure:"sync_retry_nodes"`
+	SyncRetryNodes int `toml:"sync_retry_nodes" mapstructure:"sync_retry_nodes"`
 	// Worker sends to a watermark synchronize request for each HeartbeatsTimeout.
-	HeartbeatsTimeout Duration `json:"heartbeats_timeout" mapstructure:"heartbeats_timeout"`
+	HeartbeatsTimeout Duration `toml:"heartbeats_timeout" mapstructure:"heartbeats_timeout"`
 
 	// FetchingOutputLimit defines the output fetching task limits without waiting to finish.
-	FetchingOutputLimit int `json:"fetching_output_limit" mapstructure:"fetching_output_limit"`
+	FetchingOutputLimit int `toml:"fetching_output_limit" mapstructure:"fetching_output_limit"`
 	// ExecutingOutputLimit defines the output executing task limits without waiting to finish.
-	ExecutingOutputLimit int `json:"executing_output_limit" mapstructure:"executing_output_limit"`
+	ExecutingOutputLimit int `toml:"executing_output_limit" mapstructure:"executing_output_limit"`
 	// RemoveBufferSize keeps a buffer to prevent removing of recent data for stores.
-	RemoveBufferSize int `json:"remove_buffer_size" mapstructure:"remove_buffer_size"`
+	RemoveBufferSize int `toml:"remove_buffer_size" mapstructure:"remove_buffer_size"`
 
 	// CheckpointHeightPeriod defines the period for generating checkpoints based on state height.
-	CheckpointHeightPeriod uint64 `json:"checkpoint_height_period" mapstructure:"checkpoint_height_period"`
+	CheckpointHeightPeriod uint64 `toml:"checkpoint_height_period" mapstructure:"checkpoint_height_period"`
 	// CheckpointSequencePeriod defines the period for generating checkpoints based on commit sequence.
-	CheckpointSequencePeriod uint64 `json:"checkpoint_sequence_period" mapstructure:"checkpoint_sequence_period"`
+	CheckpointSequencePeriod uint64 `toml:"checkpoint_sequence_period" mapstructure:"checkpoint_sequence_period"`
 	// MaxCheckpointWaitingDuration defines the max duration allowed for waiting execution result when receiving checkpoint.
-	MaxCheckpointWaitingDuration Duration `json:"max_checkpoint_waiting_duration" mapstructure:"max_checkpoint_waiting_duration"`
+	MaxCheckpointWaitingDuration Duration `toml:"max_checkpoint_waiting_duration" mapstructure:"max_checkpoint_waiting_duration"`
 
 	// LeaderReputationThreshold dictates the threshold (percentage of stake) that is used to calculate the "bad" nodes to be
 	// swapped when creating the consensus schedule. The values should be of the range [0 - 33%]. Anything
 	// above 33% (f) will not be allowed.
-	LeaderReputationThreshold uint64 `json:"leader_reputation_threshold" mapstructure:"leader_reputation_threshold"`
+	LeaderReputationThreshold uint64 `toml:"leader_reputation_threshold" mapstructure:"leader_reputation_threshold"`
 	// LeaderReputationSchedulePeriod dictates the window of reputation schedule changing.
-	LeaderReputationSchedulePeriod uint64 `json:"leader_reputation_schedule_period" mapstructure:"leader_reputation_schedule_period"`
+	LeaderReputationSchedulePeriod uint64 `toml:"leader_reputation_schedule_period" mapstructure:"leader_reputation_schedule_period"`
 
 	// NewCommittedCertificateTimeout defines the timeout of no new certificate committed.
-	NewCommittedCertificateTimeout Duration `json:"new_committed_certificate_timeout" mapstructure:"new_committed_certificate_timeout"`
+	NewCommittedCertificateTimeout Duration `toml:"new_committed_certificate_timeout" mapstructure:"new_committed_certificate_timeout"`
 	// NewCertifiedCheckpointTimeout defines the timeout of no new checkpoint certified.
-	NewCertifiedCheckpointTimeout Duration `json:"new_certified_checkpoint_timeout" mapstructure:"new_certified_checkpoint_timeout"`
+	NewCertifiedCheckpointTimeout Duration `toml:"new_certified_checkpoint_timeout" mapstructure:"new_certified_checkpoint_timeout"`
 
-	FeatureConfigs `json:"feature_configs" mapstructure:"feature_configs"`
+	FeatureConfigs `toml:"feature_configs" mapstructure:"feature_configs"`
 }
 
 type FeatureConfigs struct {
 	// EnforceIncreasingTimestamp enforce promise the timestamp of the header is increasing.
-	EnforceIncreasingTimestamp bool `json:"enforce_increasing_timestamp" mapstructure:"enforce_increasing_timestamp"`
+	EnforceIncreasingTimestamp bool `toml:"enforce_increasing_timestamp" mapstructure:"enforce_increasing_timestamp"`
 	// EnforceIncreasingCommitRound enforce promise the commit round is increasing.
-	EnforceIncreasingCommitRound bool `json:"enforce_increasing_commit_round" mapstructure:"enforce_increasing_commit_round"`
+	EnforceIncreasingCommitRound bool `toml:"enforce_increasing_commit_round" mapstructure:"enforce_increasing_commit_round"`
 	// EnforceIncreasingStateHeight enforce promise the state height is increasing.
-	EnforceIncreasingStateHeight bool `json:"enforce_increasing_state_height" mapstructure:"enforce_increasing_state_height"`
+	EnforceIncreasingStateHeight bool `toml:"enforce_increasing_state_height" mapstructure:"enforce_increasing_state_height"`
 	// EnableFastSyncRecovery enable the backward nodes syncing state fast.
-	EnableFastSyncRecovery bool `json:"enable_fast_sync_recovery" mapstructure:"enable_fast_sync_recovery"`
+	EnableFastSyncRecovery bool `toml:"enable_fast_sync_recovery" mapstructure:"enable_fast_sync_recovery"`
 	// EnableLeaderReputation enable choosing leader with reputation calculation.
-	EnableLeaderReputation bool `json:"enable_leader_reputation" mapstructure:"enable_leader_reputation"`
+	EnableLeaderReputation bool `toml:"enable_leader_reputation" mapstructure:"enable_leader_reputation"`
 	// AllowInconsistentExecuteResult allow inconsistent execution result and try to recommit.
-	AllowInconsistentExecuteResult bool `json:"allow_inconsistent_execute_result" mapstructure:"allow_inconsistent_execute_result"`
+	AllowInconsistentExecuteResult bool `toml:"allow_inconsistent_execute_result" mapstructure:"allow_inconsistent_execute_result"`
 }
 
 func DefaultConsensusConfig() *ConsensusConfig {
@@ -213,7 +212,7 @@ func defaultConsensusConfig() *ConsensusConfig {
 			BatchTimeout: Duration(500 * time.Millisecond),
 		},
 		Dagbft: Dagbft{
-			BatchTimeout:         Duration(500 * time.Millisecond),
+			BatchTimeout:         Duration(50 * time.Millisecond),
 			ReportBatchResult:    true,
 			MinHeaderBatchesSize: 10,
 			MaxHeaderBatchesSize: 100,
@@ -225,7 +224,7 @@ func defaultConsensusConfig() *ConsensusConfig {
 
 			SealingBatchLimit: 1000,
 			MaxBatchCount:     10,
-			MaxBatchSize:      math.MaxInt,
+			MaxBatchSize:      100 * DefaultTxMaxSize,
 			MaxBatchDelay:     Duration(time.Millisecond * 50),
 			SyncRetryDelay:    Duration(time.Second * 10),
 			SyncRetryNodes:    3,
@@ -235,7 +234,7 @@ func defaultConsensusConfig() *ConsensusConfig {
 			ExecutingOutputLimit: 100,
 			RemoveBufferSize:     5,
 
-			CheckpointHeightPeriod:       10,
+			CheckpointHeightPeriod:       1,
 			CheckpointSequencePeriod:     100,
 			MaxCheckpointWaitingDuration: Duration(time.Second * 10),
 

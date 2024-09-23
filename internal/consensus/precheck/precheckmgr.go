@@ -71,6 +71,7 @@ func (tp *TxPreCheckMgr) PostUncheckedTxEvent(ev *consensustypes.UncheckedTxEven
 }
 
 func (tp *TxPreCheckMgr) pushValidTxs(ev *ValidTxs) {
+	validTxCounter.Add(float64(len(ev.Txs)))
 	tp.validTxsCh <- ev
 }
 
@@ -101,27 +102,11 @@ func (tp *TxPreCheckMgr) Start() {
 	go tp.dispatchTxEvent()
 	go tp.dispatchVerifySignEvent()
 	go tp.dispatchVerifyDataEvent()
-	go tp.postValidTxs()
 	tp.logger.Info("tx precheck manager started")
 }
 
-func (tp *TxPreCheckMgr) postValidTxs() {
-	for {
-		select {
-		case <-tp.ctx.Done():
-			return
-		case txs := <-tp.validTxsCh:
-			validTxCounter.Add(float64(len(txs.Txs)))
-			if txs.Local {
-				// notify consensus that it had prechecked, can broadcast to other nodes
-				respLocalTx(responseType_precheck, txs.LocalCheckRespCh, nil)
-				err := tp.txpool.AddLocalTx(txs.Txs[0])
-				respLocalTx(responseType_txPool, txs.LocalPoolRespCh, err)
-			} else {
-				tp.txpool.AddRemoteTxs(txs.Txs)
-			}
-		}
-	}
+func (tp *TxPreCheckMgr) CommitValidTxs() <-chan *ValidTxs {
+	return tp.validTxsCh
 }
 
 func (tp *TxPreCheckMgr) dispatchTxEvent() {
@@ -143,7 +128,8 @@ func (tp *TxPreCheckMgr) dispatchTxEvent() {
 						return
 					}
 					if err := tp.basicCheckTx(txWithResp.Tx); err != nil {
-						respLocalTx(responseType_precheck, txWithResp.CheckCh, wrapError(err))
+						RespLocalTx(txWithResp.CheckCh, wrapError(err))
+						rejectTxCounter.WithLabelValues(convertErrorType(err)).Inc()
 						tp.logger.Warningf("basic check local tx err:%s", err)
 						return
 					}
@@ -160,10 +146,11 @@ func (tp *TxPreCheckMgr) dispatchTxEvent() {
 					validSignTxs := make([]*types.Transaction, 0)
 					for _, tx := range txSet {
 						if err := tp.basicCheckTx(tx); err != nil {
+							rejectTxCounter.WithLabelValues(convertErrorType(err)).Inc()
 							tp.logger.Warningf("basic check remote tx err:%s", err)
-							continue
+						} else {
+							validSignTxs = append(validSignTxs, tx)
 						}
-						validSignTxs = append(validSignTxs, tx)
 					}
 					ev.Event = validSignTxs
 					basicCheckDuration.WithLabelValues("remote").Observe(time.Since(now).Seconds())
@@ -195,7 +182,8 @@ func (tp *TxPreCheckMgr) dispatchVerifySignEvent() {
 						return
 					}
 					if err := tp.verifySignature(txWithResp.Tx); err != nil {
-						respLocalTx(responseType_precheck, txWithResp.CheckCh, wrapError(err))
+						RespLocalTx(txWithResp.CheckCh, wrapError(err))
+						rejectTxCounter.WithLabelValues(convertErrorType(err)).Inc()
 						tp.logger.Warningf("verify signature of local tx [txHash:%s] err: %s", txWithResp.Tx.GetHash().String(), err)
 						return
 					}
@@ -212,9 +200,10 @@ func (tp *TxPreCheckMgr) dispatchVerifySignEvent() {
 					for _, tx := range txSet {
 						if err := tp.verifySignature(tx); err != nil {
 							tp.logger.Warningf("verify signature remote tx err:%s", err)
-							continue
+							rejectTxCounter.WithLabelValues(convertErrorType(err)).Inc()
+						} else {
+							validSignTxs = append(validSignTxs, tx)
 						}
-						validSignTxs = append(validSignTxs, tx)
 					}
 					ev.Event = validSignTxs
 					verifySignatureDuration.WithLabelValues("remote").Observe(time.Since(now).Seconds())
@@ -253,7 +242,8 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					localPoolRespCh = txWithResp.PoolCh
 					// check balance
 					if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](txWithResp.Tx, tp.getBalanceFn); err != nil {
-						respLocalTx(responseType_precheck, txWithResp.CheckCh, wrapError(err))
+						RespLocalTx(txWithResp.CheckCh, wrapError(err))
+						rejectTxCounter.WithLabelValues(convertErrorType(err)).Inc()
 						return
 					}
 					validDataTxs = append(validDataTxs, txWithResp.Tx)
@@ -268,10 +258,10 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 					for _, tx := range txSet {
 						if err := components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.getBalanceFn); err != nil {
 							tp.logger.Warningf("verify remote tx balance failed: %v", err)
-							continue
+							rejectTxCounter.WithLabelValues(convertErrorType(err)).Inc()
+						} else {
+							validDataTxs = append(validDataTxs, tx)
 						}
-
-						validDataTxs = append(validDataTxs, tx)
 					}
 					verifyBalanceDuration.WithLabelValues("remote").Observe(time.Since(now).Seconds())
 				}
@@ -293,6 +283,10 @@ func (tp *TxPreCheckMgr) dispatchVerifyDataEvent() {
 
 func (tp *TxPreCheckMgr) VerifySignature(tx *types.Transaction) error {
 	return tp.verifySignature(tx)
+}
+
+func (tp *TxPreCheckMgr) VerifyData(tx *types.Transaction) error {
+	return components.VerifyInsufficientBalance[types.Transaction, *types.Transaction](tx, tp.getBalanceFn)
 }
 
 func (tp *TxPreCheckMgr) verifySignature(tx *types.Transaction) error {
@@ -331,7 +325,7 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 			errGasPriceTooLow, tx.GetHash().String(), tx.GetNonce(), minGasPrice, tx.GetGasPrice())
 	}
 
-	// 2. check the gas parameters's format are valid
+	// 2. check the gas param's format are valid
 	if tx.GetType() == types.DynamicFeeTxType {
 		if tx.GetGasFeeCap().BitLen() > 0 || tx.GetGasTipCap().BitLen() > 0 {
 			if l := tx.GetGasFeeCap().BitLen(); l > 256 {
@@ -369,27 +363,4 @@ func (tp *TxPreCheckMgr) basicCheckTx(tx *types.Transaction) error {
 	}
 
 	return nil
-}
-
-func respLocalTx(typ int, ch chan *consensustypes.TxResp, err error) {
-	defer func() {
-		if typ == responseType_precheck {
-			reason, valid := convertErrorType(err)
-			if valid {
-				validTxCounter.Inc()
-			} else {
-				rejectTxCounter.WithLabelValues(reason).Inc()
-			}
-		}
-	}()
-	resp := &consensustypes.TxResp{
-		Status: true,
-	}
-
-	if err != nil {
-		resp.Status = false
-		resp.ErrorMsg = err.Error()
-	}
-
-	ch <- resp
 }

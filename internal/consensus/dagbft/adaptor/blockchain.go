@@ -44,12 +44,13 @@ type LedgerConfig struct {
 }
 
 type BlockChain struct {
-	epochService *epochmgr.EpochManager
-	sync         synccomm.Sync
-	crypto       layer.Crypto
-	stores       map[types.Epoch]layer.StorageFactory
-	txPool       txpool.TxPool[kittypes.Transaction, *kittypes.Transaction]
-	dbBuilder    Builder
+	epochService  *epochmgr.EpochManager
+	sync          synccomm.Sync
+	crypto        layer.Crypto
+	stores        map[types.Epoch]layer.StorageFactory
+	txPool        txpool.TxPool[kittypes.Transaction, *kittypes.Transaction]
+	dbBuilder     Builder
+	batchVerifier *BatchVerifier
 
 	ledgerConfig      *LedgerConfig
 	narwhalConfig     config.Configs
@@ -116,6 +117,7 @@ func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 		notifyStateUpdateCh: make(chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]),
 		waitEpochChangeCh:   make(chan struct{}),
 		metrics:             newBlockChainMetrics(),
+		batchVerifier:       newBatchVerifier(precheck, config.Logger),
 	}, nil
 }
 
@@ -349,7 +351,6 @@ func (b *BlockChain) asyncExecute(output *types.ConsensusOutput, height types.He
 
 func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transaction {
 	validTxs := make([]*kittypes.Transaction, 0)
-	seenHashes := make(map[string]struct{})
 	flattenBatches := lo.Flatten(batches)
 
 	// 1. sort batch by batchTime, ensure that the batches for the same worker are sorted by time
@@ -357,26 +358,25 @@ func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transa
 		return flattenBatches[i].Batch.MetaData.Timestamp < flattenBatches[j].Batch.MetaData.Timestamp
 	})
 
-	// 2. filter duplicated tx
+	start := time.Now()
+	txCount := 0
+	// 2. precheck txs(including basic check、 verify Signature、 check tx data validity)
 	lo.ForEach(flattenBatches, func(batch *types.Batch, index int) {
-		lo.ForEach(batch.Transactions, func(data []byte, index int) {
-			tx := &kittypes.Transaction{}
-			if err := tx.Unmarshal(data); err != nil {
-				b.logger.Errorf("failed to unmarshal tx: %v", err)
-				b.metrics.discardedTransactions.WithLabelValues("unmarshal_err").Inc()
-				return
-			}
-
-			if _, ok := seenHashes[tx.GetHash().String()]; ok {
-				b.logger.Debugf("duplicated tx in different batches: %s", tx.GetHash().String())
-				b.metrics.discardedTransactions.WithLabelValues("duplicated").Inc()
-				return
-			}
-			seenHashes[tx.GetHash().String()] = struct{}{}
-			validTxs = append(validTxs, tx)
-		})
+		txCount += len(batch.Transactions)
+		b.logger.Infof("start verify batch: %s, txs: %d", batch.Digest().String(), len(batch.Transactions))
+		bv := b.batchVerifier.verifyBatchTransactions(batch.Transactions, b.metrics)
+		validTxs = append(validTxs, bv...)
 	})
-	return validTxs
+
+	// 3. filter duplicated txs
+	uniqTxs := lo.UniqBy(validTxs, func(tx *kittypes.Transaction) string {
+		return tx.GetHash().String()
+	})
+
+	b.metrics.batchVerifyLatency.Observe(time.Since(start).Seconds())
+	b.metrics.batchCounter.Add(float64(len(batches)))
+	b.metrics.batchTxsCounter.Add(float64(txCount))
+	return uniqTxs
 }
 
 func (b *BlockChain) Checkpoint(checkpoint *types.QuorumCheckpoint, eventCh chan<- *events.StableCommittedEvent) error {

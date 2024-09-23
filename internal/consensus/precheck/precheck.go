@@ -18,4 +18,8 @@ type PreCheck interface {
 	BasicCheckTx(tx *types.Transaction) error
 
 	VerifySignature(tx *types.Transaction) error
+
+	VerifyData(tx *types.Transaction) error
+
+	CommitValidTxs() <-chan *ValidTxs
 }

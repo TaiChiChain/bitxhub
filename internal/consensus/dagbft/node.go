@@ -173,6 +173,14 @@ func (n *Node) listenLocalEvent() {
 				Event:     wrapTx,
 			}
 			n.txPreCheck.PostUncheckedTxEvent(ev)
+		case txs := <-n.txPreCheck.CommitValidTxs():
+			if !txs.Local {
+				panic("only support local tx in dagbft mode!!!")
+			}
+			precheck.RespLocalTx(txs.LocalCheckRespCh, nil)
+			err := n.txpool.AddLocalTx(txs.Txs[0])
+			precheck.RespLocalTx(txs.LocalPoolRespCh, err)
+
 		case rawTxs := <-n.txpool.ReceivePriorityTxs():
 			n.logger.Infof("recv %d txs from txpool", len(rawTxs))
 			lo.ForEach(rawTxs, func(tx *types.Transaction, _ int) {

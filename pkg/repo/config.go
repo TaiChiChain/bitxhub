@@ -317,7 +317,7 @@ func defaultConfig() *Config {
 			TimeoutCountLimit:     uint64(10),
 			ConcurrencyLimit:      10,
 			MaxChunkSize:          100,
-			MaxEpochSize:          100,
+			MaxEpochSize:          1000,
 			FullValidation:        true,
 		},
 		Consensus: Consensus{

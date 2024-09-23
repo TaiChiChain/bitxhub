@@ -261,6 +261,15 @@ func (n *Node) listenNewTxToSubmit() {
 				Event:     txWithResp,
 			}
 			n.txPreCheck.PostUncheckedTxEvent(ev)
+		case txs := <-n.txPreCheck.CommitValidTxs():
+			if txs.Local {
+				// tx had precheked, it can broadcast to other nodes
+				precheck.RespLocalTx(txs.LocalCheckRespCh, nil)
+				err := n.txpool.AddLocalTx(txs.Txs[0])
+				precheck.RespLocalTx(txs.LocalPoolRespCh, err)
+			} else {
+				n.txpool.AddRemoteTxs(txs.Txs)
+			}
 		}
 	}
 }

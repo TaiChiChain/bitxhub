@@ -18,13 +18,6 @@ var (
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
 	}, []string{"consensus"})
 
-	BatchVerifyTime = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "axiom_ledger",
-		Subsystem: "consensus",
-		Name:      "batch_verify_time",
-		Help:      "The latency of batch verify",
-		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
-	}, []string{"consensus"})
 	WaitEpochTime = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "consensus",
@@ -64,7 +57,6 @@ var (
 func init() {
 	prometheus.MustRegister(SendTx2ConsensusCounter)
 	prometheus.MustRegister(Consensus2ExecuteBlockTime)
-	prometheus.MustRegister(BatchVerifyTime)
 	prometheus.MustRegister(WaitEpochTime)
 	prometheus.MustRegister(ExecutedBlockCounter)
 	prometheus.MustRegister(Consensus2ExecutorBlockCounter)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/core"
 )
 
@@ -24,38 +25,39 @@ var (
 )
 
 var errorTypes = map[error]string{
-	errTxSign:                       errTxSign.Error(),
-	errTo:                           errTo.Error(),
-	errGasPriceTooLow:               errGasPriceTooLow.Error(),
-	errFeeCapVeryHigh:               errFeeCapVeryHigh.Error(),
-	errTipVeryHigh:                  errTipVeryHigh.Error(),
-	errTipAboveFeeCap:               errTipAboveFeeCap.Error(),
-	errFeeCapTooLow:                 errFeeCapTooLow.Error(),
-	errMaxInitCodeSizeExceeded:      errMaxInitCodeSizeExceeded.Error(),
-	errInsufficientFunds:            errInsufficientFunds.Error(),
-	errIntrinsicGas:                 errIntrinsicGas.Error(),
-	errInsufficientFundsForTransfer: core.ErrInsufficientFundsForTransfer.Error(),
+	errTxSign:                       "failed_signature",
+	errTo:                           "failed_to_addr",
+	errGasPriceTooLow:               "gas_price_too_low",
+	errFeeCapVeryHigh:               "fee_cap_very_high",
+	errTipVeryHigh:                  "tip_very_high",
+	errTipAboveFeeCap:               "err_tip_above_fee_cap",
+	errFeeCapTooLow:                 "fee_cap_too_low",
+	errMaxInitCodeSizeExceeded:      "max_init_code_size_exceeded",
+	errInsufficientFunds:            "err_insufficient_funds",
+	errIntrinsicGas:                 "err_intrinsic_gas",
+	errInsufficientFundsForTransfer: "insufficient_funds_for_transfer",
 }
 
-const (
-	responseType_precheck = iota
-	responseType_txPool
-)
-
-func convertErrorType(err error) (string, bool) {
-	if err == nil {
-		return "", true
+func convertErrorType(err error) string {
+	if res, ok := errorTypes[err]; ok {
+		return res
 	}
-
-	for e, msg := range errorTypes {
-		if errors.Is(err, e) {
-			return msg, false
-		}
-	}
-
-	return err.Error(), false
+	return err.Error()
 }
 
 func wrapError(err error) error {
 	return fmt.Errorf("%w:%w", precheckErrPrefix, err)
+}
+
+func RespLocalTx(ch chan *consensustypes.TxResp, err error) {
+	resp := &consensustypes.TxResp{
+		Status: true,
+	}
+
+	if err != nil {
+		resp.Status = false
+		resp.ErrorMsg = err.Error()
+	}
+
+	ch <- resp
 }

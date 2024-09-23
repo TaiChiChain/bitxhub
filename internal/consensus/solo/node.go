@@ -133,6 +133,7 @@ func (n *Node) Start() error {
 	}
 	n.txPreCheck.Start()
 	go n.listenEvent()
+	go n.listenValidTxs()
 	n.started.Store(true)
 	n.logger.Info("Consensus started")
 	return nil
@@ -322,6 +323,23 @@ func (n *Node) listenEvent() {
 
 				n.txpool.ReplyBatchSignal()
 			}
+		}
+	}
+}
+
+func (n *Node) listenValidTxs() {
+	for {
+		select {
+		case <-n.ctx.Done():
+			n.logger.Info("stop listenValidTxs")
+			return
+		case txs := <-n.txPreCheck.CommitValidTxs():
+			if !txs.Local {
+				panic("only support local tx in solo mode!!!")
+			}
+			precheck.RespLocalTx(txs.LocalCheckRespCh, nil)
+			err := n.txpool.AddLocalTx(txs.Txs[0])
+			precheck.RespLocalTx(txs.LocalPoolRespCh, err)
 		}
 	}
 }

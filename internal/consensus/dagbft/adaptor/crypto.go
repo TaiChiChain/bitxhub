@@ -3,18 +3,16 @@ package adaptor
 import (
 	"fmt"
 	"runtime"
-	"sync/atomic"
 	"time"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
-	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/axiomesh/axiom-ledger/pkg/crypto"
 	"github.com/bcds/go-hpc-dagbft/common/types/protos"
 	"github.com/bcds/go-hpc-dagbft/common/utils/channel"
+	"github.com/bcds/go-hpc-dagbft/common/utils/containers"
 	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/bcds/go-hpc-dagbft/protocol/layer"
 	"github.com/gammazero/workerpool"
@@ -30,7 +28,6 @@ type CryptoImpl struct {
 	useBls            bool
 	signer            *ValidatorSigner
 	validatorVerifier *ValidatorVerify
-	batchVerifier     *BatchVerifier
 	logger            logrus.FieldLogger
 }
 
@@ -80,7 +77,6 @@ func NewCryptoImpl(conf *common.Config, precheck precheck.PreCheck) (*CryptoImpl
 		useBls:            useBls,
 		signer:            newValidatorSigner(priv, logger),
 		validatorVerifier: newValidatorVerify(validators, useBls, logger),
-		batchVerifier:     newBatchVerifier(precheck),
 		logger:            logger,
 	}, innerErr
 }
@@ -108,56 +104,102 @@ func (v *ValidatorSigner) Sign(msg []byte) []byte {
 var concurrencyLimit = runtime.NumCPU()
 
 type BatchVerifier struct {
-	precheck precheck.PreCheck
-	pool     *workerpool.WorkerPool
+	precheck    precheck.PreCheck
+	pool        *workerpool.WorkerPool
+	logger      logrus.FieldLogger
+	waitTimeout time.Duration
 }
 
-func newBatchVerifier(check precheck.PreCheck) *BatchVerifier {
+type EmptyBatchVerifier struct {
+}
+
+func (e EmptyBatchVerifier) VerifyTransactions(batchTxs []protocol.Transaction) error {
+	return nil
+}
+
+func newBatchVerifier(check precheck.PreCheck, logger logrus.FieldLogger) *BatchVerifier {
 	return &BatchVerifier{
 		precheck: check,
 		pool:     workerpool.New(concurrencyLimit),
+		logger:   logger,
+		// todo: make this configurable
+		waitTimeout: 60 * time.Second,
 	}
 }
 
-func (b *BatchVerifier) VerifyTransactions(batchTxs []protocol.Transaction) error {
-	start := time.Now()
-	errCh := make(chan error, len(batchTxs))
+func (b *BatchVerifier) verifyBatchTransactions(batchTxs [][]byte, metrics *blockChainMetrics) []*types.Transaction {
+	validTxs := make([]*types.Transaction, len(batchTxs))
+	resultCh := make(chan containers.Tuple[*types.Transaction, int, error], len(batchTxs))
 	closeCh := make(chan struct{})
-	verified := atomic.Uint64{}
-	lo.ForEach(batchTxs, func(raw protocol.Transaction, index int) {
+	verified := 0
+	lo.ForEach(batchTxs, func(raw []byte, index int) {
 		b.pool.Submit(func() {
+			var err error
 			tx := &types.Transaction{}
-			err := tx.Unmarshal(raw)
+			err = tx.Unmarshal(raw)
 			if err != nil {
-				channel.SafeSend(errCh, fmt.Errorf("failed to unmarshal transaction: %w", err), closeCh)
+				b.logger.Errorf("failed to unmarshal transaction: %w, data: %v", err, raw)
+				tx = nil
+				channel.SafeSend(resultCh, containers.Pack3(tx, index, fmt.Errorf("failed to unmarshal transaction: %w", err)), closeCh)
+				return
 			}
 
 			err = b.precheck.BasicCheckTx(tx)
 			if err != nil {
-				channel.SafeSend(errCh, fmt.Errorf("failed to basic check transaction: %w", err), closeCh)
+				channel.SafeSend(resultCh, containers.Pack3(tx, index, fmt.Errorf("failed to basic check transaction: %w", err)), closeCh)
+				return
 			}
 
 			err = b.precheck.VerifySignature(tx)
 			if err != nil {
-				channel.SafeSend(errCh, fmt.Errorf("failed to verify signature: %w", err), closeCh)
+				channel.SafeSend(resultCh, containers.Pack3(tx, index, fmt.Errorf("failed to verify signature: %w", err)), closeCh)
+				return
 			}
 
-			verified.Add(1)
-			if verified.Load() == uint64(len(batchTxs)) {
-				channel.SafeClose(closeCh)
+			err = b.precheck.VerifyData(tx)
+			if err != nil {
+				channel.SafeSend(resultCh, containers.Pack3(tx, index, fmt.Errorf("failed to verify data: %w", err)), closeCh)
+				return
 			}
+
+			// verify tx successfully
+			channel.SafeSend(resultCh, containers.Pack3(tx, index, err), closeCh)
 		})
 	})
 
-	select {
-	case err := <-errCh:
-		channel.SafeClose(closeCh)
-		b.pool.StopWait()
-		return err
-	case <-closeCh:
-		metrics.BatchVerifyTime.WithLabelValues(consensustypes.Dagbft).Observe(time.Since(start).Seconds())
-		return nil
+	for {
+		select {
+		case <-closeCh:
+			return lo.Filter(validTxs, func(tx *types.Transaction, index int) bool {
+				return tx != nil
+			})
+		case res := <-resultCh:
+			verified++
+			tx, index, err := res.Unpack()
+			if err != nil {
+				metrics.discardedTransactions.WithLabelValues(err.Error()).Inc()
+				if tx != nil {
+					b.logger.WithFields(logrus.Fields{
+						"tx hash":  tx.RbftGetTxHash(),
+						"tx nonce": tx.RbftGetNonce(),
+						"tx from":  tx.RbftGetFrom(),
+						"index":    index,
+					}).Warningf("verify tx failed: %s", err)
+				}
+				validTxs[index] = nil
+			} else {
+				validTxs[index] = tx
+			}
+
+			if verified == len(batchTxs) {
+				channel.SafeClose(closeCh)
+			}
+		case <-time.After(b.waitTimeout):
+			b.logger.Errorf("verify batch txs timeout")
+			channel.SafeClose(closeCh)
+		}
 	}
+
 }
 
 func (c *CryptoImpl) GetValidatorSigner() protocol.ValidatorSigner {
@@ -173,5 +215,5 @@ func (c *CryptoImpl) GetVerifierByValidators(validators protocol.Validators) (pr
 }
 
 func (c *CryptoImpl) GetBatchVerifier() protocol.BatchVerifier {
-	return c.batchVerifier
+	return &EmptyBatchVerifier{}
 }
