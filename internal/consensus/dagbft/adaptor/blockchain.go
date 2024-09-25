@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Rican7/retry"
@@ -66,6 +67,8 @@ type BlockChain struct {
 	notifyStateUpdateCh chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]
 	metrics             *blockChainMetrics
 	wg                  sync.WaitGroup
+	batchWg             sync.WaitGroup
+	batchLock           sync.Mutex
 }
 
 func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalConfig config.Configs, readyC chan *Ready, closeCh chan bool) (*BlockChain, error) {
@@ -255,7 +258,7 @@ func (b *BlockChain) GetLedgerAlgoVersion() (string, error) {
 	return "DagBFT@1.0", nil
 }
 
-func (b *BlockChain) recordBatchMetrics(output *types.ConsensusOutput) {
+func (b *BlockChain) recordBatchMetrics(output *types.ConsensusOutput, height types.Height) {
 	now := time.Now().UnixNano()
 	var maxLatency, minLatency, totalLatency types.TimestampNs = 0, now, 0
 	batchCount := 0
@@ -275,7 +278,8 @@ func (b *BlockChain) recordBatchMetrics(output *types.ConsensusOutput) {
 				"maxLatency": time.Duration(maxLatency),
 				"minLatency": time.Duration(minLatency),
 				"avgLatency": time.Duration(float64(totalLatency) / float64(batchCount)),
-			}).Infof("[DagBFT.Ledger] Execute Batch %s with %d txs", batch.Digest(), len(batch.GetTransactions()))
+			}).Infof("[DagBFT.Ledger] Execute Batch %s with %d txs in height: %d",
+				batch.Digest(), len(batch.GetTransactions()), height)
 		}
 	}
 
@@ -293,7 +297,7 @@ func (b *BlockChain) readLedgerEpoch() uint64 {
 func (b *BlockChain) Execute(output *types.ConsensusOutput, height types.Height, eventCh chan<- *events.ExecutedEvent) error {
 	b.logger.Infof("Execute Output %d at height %d, batches %d, txs: %d",
 		output.CommitInfo.CommitSequence, height, output.BatchCount(), output.TransactionCount())
-	b.recordBatchMetrics(output)
+	b.recordBatchMetrics(output, height)
 	transactionCount := output.TransactionCount()
 	outputEpoch := output.Epoch()
 	ledgerEpoch := b.readLedgerEpoch()
@@ -350,7 +354,6 @@ func (b *BlockChain) asyncExecute(output *types.ConsensusOutput, height types.He
 }
 
 func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transaction {
-	validTxs := make([]*kittypes.Transaction, 0)
 	flattenBatches := lo.Flatten(batches)
 
 	// 1. sort batch by batchTime, ensure that the batches for the same worker are sorted by time
@@ -358,24 +361,36 @@ func (b *BlockChain) filterValidTxs(batches [][]*types.Batch) []*kittypes.Transa
 		return flattenBatches[i].Batch.MetaData.Timestamp < flattenBatches[j].Batch.MetaData.Timestamp
 	})
 
+	validTxs := make([][]*kittypes.Transaction, len(flattenBatches))
 	start := time.Now()
-	txCount := 0
-	// 2. precheck txs(including basic check、 verify Signature、 check tx data validity)
-	lo.ForEach(flattenBatches, func(batch *types.Batch, index int) {
-		txCount += len(batch.Transactions)
-		b.logger.Infof("start verify batch: %s, txs: %d", batch.Digest().String(), len(batch.Transactions))
-		bv := b.batchVerifier.verifyBatchTransactions(batch.Transactions, b.metrics)
-		validTxs = append(validTxs, bv...)
+	txCount := atomic.Uint64{}
+	// 2.1 precheck txs async (including basic check、 verify Signature、 check tx data validity)
+	b.batchWg.Add(len(flattenBatches))
+	// todo: add workerID filed in Batch meta, and use it to ignore prechcked txs
+	lo.ForEach(flattenBatches, func(val *types.Batch, index int) {
+		go func(batch *types.Batch, i int) {
+			defer b.batchWg.Done()
+			txCount.Add(uint64(len(batch.GetTransactions())))
+			b.logger.Infof("start verify batch: %s, txs: %d", batch.Digest().String(), len(batch.Transactions))
+			txs := b.batchVerifier.verifyBatchTransactions(batch.Transactions, b.metrics)
+			b.batchLock.Lock()
+			validTxs[i] = txs
+			b.batchLock.Unlock()
+		}(val, index)
 	})
+	b.batchWg.Wait()
+
+	// 2.2 flatten valid txs from each batch
+	ouput := lo.Flatten(validTxs)
 
 	// 3. filter duplicated txs
-	uniqTxs := lo.UniqBy(validTxs, func(tx *kittypes.Transaction) string {
+	uniqTxs := lo.UniqBy(ouput, func(tx *kittypes.Transaction) string {
 		return tx.GetHash().String()
 	})
 
 	b.metrics.batchVerifyLatency.Observe(time.Since(start).Seconds())
 	b.metrics.batchCounter.Add(float64(len(batches)))
-	b.metrics.batchTxsCounter.Add(float64(txCount))
+	b.metrics.batchTxsCounter.Add(float64(txCount.Load()))
 	return uniqTxs
 }
 
