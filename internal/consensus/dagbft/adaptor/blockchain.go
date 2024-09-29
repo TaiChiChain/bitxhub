@@ -115,7 +115,7 @@ func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 		sendReadyC:          readyC,
 		decisionCh:          make(chan containers.Pair[*types.QuorumCheckpoint, chan<- *events.StableCommittedEvent]),
 		updatingCh:          make(chan containers.Tuple[*types.QuorumCheckpoint, []*types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]),
-		executingCh:         make(chan containers.Tuple[types.Height, *types.ConsensusOutput, chan<- *events.ExecutedEvent]),
+		executingCh:         make(chan containers.Tuple[types.Height, *types.ConsensusOutput, chan<- *events.ExecutedEvent], repo.ChannelSize),
 		sendToExecuteCh:     make(chan *consensustypes.CommitEvent, 1),
 		notifyStateUpdateCh: make(chan containers.Tuple[types.Height, *types.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]),
 		waitEpochChangeCh:   make(chan struct{}),
