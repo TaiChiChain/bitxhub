@@ -27,9 +27,7 @@ type Archiver struct {
 	archiveJournalBackend      kv.Storage
 	archiveTrieSnapshotBackend kv.Storage
 
-	lastArchiveBlock              uint64
-	archiveTrieSnapshotPath       string
-	archiveTrieSnapshotOriginPath string
+	archiveTrieSnapshotPath string
 
 	ledgerBackend   kv.Storage
 	snapshotBackend kv.Storage
@@ -44,27 +42,22 @@ type ArchiveArgs struct {
 
 func NewArchiver(rep *repo.Repo, archiveArgs *ArchiveArgs, logger logrus.FieldLogger) *Archiver {
 	snapshotPath := storagemgr.GetLedgerComponentPath(rep, storagemgr.ArchiveSnapshot)
-	snapshotOriginPath := filepath.Join(snapshotPath, "origin")
-	archiveSnapshotStorage, err := storagemgr.Open(snapshotOriginPath)
+	archiveSnapshotStorage, err := storagemgr.Open(snapshotPath)
 	if err != nil {
 		panic(err)
 	}
 	archiver := &Archiver{
-		rep:                           rep,
-		archiveTrieSnapshotBackend:    archiveSnapshotStorage,
-		archiveJournalBackend:         archiveArgs.ArchiveJournalStorage,
-		archiveHistoryBackend:         archiveArgs.ArchiveHistoryStorage,
-		logger:                        logger,
-		archiveTrieSnapshotPath:       snapshotPath,
-		archiveTrieSnapshotOriginPath: snapshotOriginPath,
-	}
-	if data := archiver.archiveTrieSnapshotBackend.Get(utils.CompositeKey(utils.ArchiveKey, utils.MaxHeightStr)); data != nil {
-		archiver.lastArchiveBlock = utils.UnmarshalUint64(data)
+		rep:                        rep,
+		archiveTrieSnapshotBackend: archiveSnapshotStorage,
+		archiveJournalBackend:      archiveArgs.ArchiveJournalStorage,
+		archiveHistoryBackend:      archiveArgs.ArchiveHistoryStorage,
+		logger:                     logger,
+		archiveTrieSnapshotPath:    snapshotPath,
 	}
 	return archiver
 }
 
-func (archiver *Archiver) Archive(blockHeader *types.BlockHeader, stateJournal *types.StateJournal) error {
+func (archiver *Archiver) Archive(blockHeader *types.BlockHeader, stateJournal *types.StateJournal) (err error) {
 	if blockHeader.Number != 0 && (archiver.chainState == nil || !archiver.chainState.IsDataSyncer) {
 		archiver.logger.Infof("[Archive] current node doesn't support archive, skip it")
 		return nil
@@ -73,16 +66,7 @@ func (archiver *Archiver) Archive(blockHeader *types.BlockHeader, stateJournal *
 	cur := time.Now()
 	var wg sync.WaitGroup
 
-	// archive journal data
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		journalBatch := archiver.archiveJournalBackend.NewBatch()
-		journalBatch.Put(utils.CompositeKey(utils.PruneJournalKey, blockHeader.Number), stateJournal.Encode())
-		journalBatch.Commit()
-	}()
-
-	// archive history data
+	// 1. archive history data
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -99,11 +83,13 @@ func (archiver *Archiver) Archive(blockHeader *types.BlockHeader, stateJournal *
 		historyBatch.Commit()
 	}()
 
-	// update trie snapshot data
+	// 2. update trie snapshot data
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		snapshotBatch := archiver.archiveTrieSnapshotBackend.NewBatch()
+
+		// 2.1 apply state diff
 		for _, journal := range stateJournal.TrieJournal {
 			snapshotBatch.Put(journal.RootHash[:], journal.RootNodeKey.Encode())
 			for k, v := range journal.DirtySet {
@@ -116,58 +102,67 @@ func (archiver *Archiver) Archive(blockHeader *types.BlockHeader, stateJournal *
 		for k, v := range stateJournal.CodeJournal {
 			snapshotBatch.Put([]byte(k), v)
 		}
+
+		// 2.2 update meta info
+		epochInfo := archiver.rep.GenesisConfig.EpochInfo
+		if blockHeader.Number != 0 {
+			if epochInfo, err = archiver.chainState.GetEpochInfo(blockHeader.Epoch); err != nil {
+				panic(fmt.Errorf("get epoch info failed: %w", err))
+			}
+		}
+		snapshotMeta := &utils.SnapshotMeta{
+			BlockHeader: blockHeader,
+			EpochInfo:   epochInfo,
+		}
+		snapshotMetaBytes, err := snapshotMeta.Marshal()
+		if err != nil {
+			panic(fmt.Errorf("marshal snapshotMeta failed: %w", err))
+		}
+		snapshotBatch.Put([]byte(utils.SnapshotMetaKey), snapshotMetaBytes)
+		snapshotBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
+		snapshotBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
+
 		snapshotBatch.Commit()
 	}()
 
 	wg.Wait()
 
+	// 3. archive journal data
+	blockHeaderBlob, err := blockHeader.Marshal()
+	if err != nil {
+		return err
+	}
+	journalBatch := archiver.archiveJournalBackend.NewBatch()
+	journalBatch.Put(utils.CompositeKey(utils.PruneJournalKey, blockHeader.Number), stateJournal.Encode())
+	journalBatch.Put(utils.CompositeKey(utils.ArchiveKey, utils.BlockHeader), blockHeaderBlob)
+	journalBatch.Commit()
+
 	archiver.logger.Infof("[Archive] archive history at height: %v, time: %v", blockHeader.Number, time.Since(cur))
+	return nil
+}
 
-	if blockHeader.Number-archiver.lastArchiveBlock < uint64(archiver.rep.Config.Ledger.ArchiveBlockNum) {
-		return nil
+func (archiver *Archiver) ExportArchivedSnapshot(targetFilePath string) error {
+	blockHeader := &types.BlockHeader{}
+	blockHeaderBlob := archiver.archiveJournalBackend.Get(utils.CompositeKey(utils.ArchiveKey, utils.BlockHeader))
+	if err := blockHeader.Unmarshal(blockHeaderBlob); err != nil {
+		return err
 	}
 
-	cur = time.Now()
-
-	// archive snapshot data
-	snapshotBatch := archiver.archiveTrieSnapshotBackend.NewBatch()
-	epochInfo, err := archiver.chainState.GetEpochInfo(blockHeader.Epoch)
-	if err != nil {
-		return fmt.Errorf("get epoch info failed: %w", err)
-	}
-	snapshotMeta := &utils.SnapshotMeta{
-		BlockHeader: blockHeader,
-		EpochInfo:   epochInfo,
-	}
-	snapshotMetaBytes, err := snapshotMeta.Marshal()
-	if err != nil {
-		return fmt.Errorf("marshal snapshotMeta failed: %w", err)
-	}
-	snapshotBatch.Put([]byte(utils.SnapshotMetaKey), snapshotMetaBytes)
-	snapshotBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MinHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
-	snapshotBatch.Put(utils.CompositeKey(utils.PruneJournalKey, utils.MaxHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
-	snapshotBatch.Put(utils.CompositeKey(utils.ArchiveKey, utils.MaxHeightStr), utils.MarshalUint64(snapshotMeta.BlockHeader.Number))
-	snapshotBatch.Commit()
+	cur := time.Now()
+	archiver.logger.Infof("[ExportArchivedSnapshot] start archive snapshot at height: %v", blockHeader.Number)
 
 	if err := archiver.archiveTrieSnapshotBackend.Close(); err != nil {
 		return errors.Errorf("archive snapshot error: %v", err)
 	}
-	snapshotTargetPath := filepath.Join(archiver.archiveTrieSnapshotPath, fmt.Sprintf("snapshot-%v-%v", blockHeader.Number, time.Now().Format("2006-01-02T15-04-05")))
+	snapshotTargetPath := filepath.Join(targetFilePath, fmt.Sprintf("snapshot-%v-%v", blockHeader.Number, time.Now().Format("2006-01-02T15-04-05")))
 	if err := os.MkdirAll(snapshotTargetPath, os.ModePerm); err != nil {
 		return errors.Errorf("mkdir snapshot archive dir error: %v", err.Error())
 	}
-	if err := copyDir(archiver.archiveTrieSnapshotOriginPath, snapshotTargetPath); err != nil {
+	if err := copyDir(archiver.archiveTrieSnapshotPath, snapshotTargetPath); err != nil {
 		return errors.Errorf("copy archived snapshot error: %v", err)
 	}
-	originSnapshotStorage, err := storagemgr.Open(archiver.archiveTrieSnapshotOriginPath)
-	if err != nil {
-		return errors.Errorf("reopen snapshot storage error: %v", err)
-	}
 
-	archiver.archiveTrieSnapshotBackend = originSnapshotStorage
-	archiver.lastArchiveBlock = blockHeader.Number
-
-	archiver.logger.Infof("[Archive] archive snapshot at height: %v, time: %v", blockHeader.Number, time.Since(cur))
+	archiver.logger.Infof("[ExportArchivedSnapshot] finish archive snapshot at height: %v, time: %v", blockHeader.Number, time.Since(cur))
 	return nil
 }
 
@@ -192,8 +187,6 @@ func (archiver *Archiver) GetStateJournal(height uint64) *types.StateJournal {
 
 	return res
 }
-
-// todo confirm archiver may need rollback
 
 func copyDir(src, dest string) error {
 	files, err := os.ReadDir(src)

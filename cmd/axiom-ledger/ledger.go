@@ -67,6 +67,10 @@ var ledgerGenerateTrieArgs = struct {
 	TargetStoragePath string
 }{}
 
+var ledgerExportSnapshotArgs = struct {
+	TargetFilePath string
+}{}
+
 var ledgerImportAccountsArgs = struct {
 	TargetFilePath string
 	Balance        string
@@ -242,6 +246,20 @@ var ledgerCMD = &cli.Command{
 				},
 			},
 		},
+		{
+			Name:   "export-snapshot",
+			Usage:  "export the latest world state trie snapshot",
+			Action: exportSnapshot,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "target-path",
+					Aliases:     []string{"t"},
+					Usage:       "target path to export world state trie snapshot to",
+					Destination: &ledgerExportSnapshotArgs.TargetFilePath,
+					Required:    true,
+				},
+			},
+		},
 	},
 }
 
@@ -274,6 +292,33 @@ func importAccounts(ctx *cli.Context) error {
 	}
 
 	return importAccountsFromFile(rep, rwLdg, ledgerImportAccountsArgs.TargetFilePath, ledgerImportAccountsArgs.Balance, ledgerImportAccountsArgs.BatchSize)
+}
+
+func exportSnapshot(ctx *cli.Context) error {
+	p, err := common.GetRootPath(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !fileutil.Exist(ledgerExportSnapshotArgs.TargetFilePath) {
+		return errors.New("target account file not exist")
+	}
+
+	rep, err := repo.Load(p)
+	if err != nil {
+		return err
+	}
+
+	if err = app.PrepareAxiomLedger(rep); err != nil {
+		return err
+	}
+
+	rwLdg, err := ledger.NewLedger(rep)
+	if err != nil {
+		return err
+	}
+
+	return rwLdg.StateLedger.ExportArchivedSnapshot(ledgerExportSnapshotArgs.TargetFilePath)
 }
 
 func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, balanceStr string, batchSize int) error {

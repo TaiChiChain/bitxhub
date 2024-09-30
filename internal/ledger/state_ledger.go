@@ -326,6 +326,10 @@ func (l *StateLedgerImpl) Prove(rootHash common.Hash, key []byte) (*jmt.ProofRes
 	return trie.Prove(key)
 }
 
+func (l *StateLedgerImpl) ExportArchivedSnapshot(targetFilePath string) error {
+	return l.archiver.ExportArchivedSnapshot(targetFilePath)
+}
+
 func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (StateLedger, error) {
 	stateCachedStorage := storagemgr.NewCachedStorage(stateStorage, 128).(*storagemgr.CachedStorage)
 	accountTrieCache := storagemgr.NewCacheWrapper(rep.Config.Ledger.StateLedgerAccountTrieCacheMegabytesLimit, true)

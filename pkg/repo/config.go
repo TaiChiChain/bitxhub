@@ -208,7 +208,6 @@ type Ledger struct {
 	EnableIndexer                             bool `mapstructure:"enable_indexer" toml:"enable_indexer"`
 	StateLedgerReservedHistoryBlockNum        int  `mapstructure:"state_ledger_reserved_history_block_num" toml:"state_ledger_reserved_history_block_num"`
 	Path                                      Path `mapstructure:"path" toml:"path"`
-	ArchiveBlockNum                           int  `mapstructure:"archive_block_num" toml:"archive_block_num"`
 }
 
 type Path struct {
@@ -353,7 +352,6 @@ func defaultConfig() *Config {
 			EnablePreload:                             false,
 			EnableIndexer:                             false,
 			StateLedgerReservedHistoryBlockNum:        256,
-			ArchiveBlockNum:                           10000,
 			Path: Path{
 				EnableConfigPath:    false,
 				StateLedgerPath:     "",

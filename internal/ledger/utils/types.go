@@ -29,6 +29,7 @@ const (
 const (
 	MinHeightStr = "minHeight"
 	MaxHeightStr = "maxHeight"
+	BlockHeader  = "blockHeader"
 )
 
 var keyCache = storagemgr.NewCacheWrapper(64, false)

@@ -109,6 +109,8 @@ type StateLedger interface {
 	Archive(blockHeader *types.BlockHeader, stateJournal *types.StateJournal) error
 
 	ApplyStateJournal(blockNumber uint64, stateJournal *types.StateJournal) error
+
+	ExportArchivedSnapshot(targetFilePath string) error
 }
 
 // StateAccessor manipulates the state data
