@@ -4,7 +4,7 @@ package common
 type Sync interface {
 	Prepare(opts ...Option) (*PrepareData, error)
 
-	Start()
+	Start(isDataSyncer func() bool)
 	SwitchMode(mode SyncMode) error
 	Stop()
 

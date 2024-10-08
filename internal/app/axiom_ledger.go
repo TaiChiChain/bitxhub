@@ -241,7 +241,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 			}
 			logger.WithFields(logrus.Fields{
 				"genesis block hash": rwLdg.ChainLedger.GetChainMeta().BlockHash,
-			}).Info("	Initialize genesis")
+			}).Info("Initialize genesis")
 		}
 		vl = rwLdg.NewView()
 	}
@@ -254,28 +254,6 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		}
 	}
 
-	chainState := chainstate.NewChainState(rep.StartArgs.ArchiveMode, rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*node_manager.NodeInfo, error) {
-		lg := vl.NewView()
-		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
-		nodeInfo, err := nodeManagerContract.GetInfo(nodeID)
-		if err != nil {
-			return nil, err
-		}
-		return &nodeInfo, nil
-	}, func(p2pID string) (uint64, error) {
-		lg := vl.NewView()
-		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
-		return nodeManagerContract.GetNodeIDByP2PID(p2pID)
-	}, func(epoch uint64) (*types.EpochInfo, error) {
-		lg := vl.NewView()
-		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
-		epochInfo, err := epochManagerContract.HistoryEpoch(epoch)
-		if err != nil {
-			return nil, err
-		}
-		return epochInfo.ToTypesEpoch(), nil
-	})
-
 	var syncMgr *sync.SyncManager
 	var epochStore kv.Storage
 	if !rep.StartArgs.ReadonlyMode {
@@ -284,10 +262,7 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 			return nil, err
 		}
 		syncMgr, err = sync.NewSyncManager(loggers.Logger(loggers.BlockSync), vl.ChainLedger.GetChainMeta, vl.ChainLedger.GetBlock, vl.ChainLedger.GetBlockHeader,
-			vl.ChainLedger.GetBlockReceipts, epochStore.Get, vl.StateLedger.GetStateJournal,
-			func() bool {
-				return chainState.IsDataSyncer
-			}, net, rep.Config.Sync)
+			vl.ChainLedger.GetBlockReceipts, epochStore.Get, vl.StateLedger.GetStateJournal, net, rep.Config.Sync)
 		if err != nil {
 			return nil, fmt.Errorf("create block sync: %w", err)
 		}
@@ -296,7 +271,6 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 	axm := &AxiomLedger{
 		Ctx:        ctx,
 		Cancel:     cancel,
-		ChainState: chainState,
 		Repo:       rep,
 		logger:     logger,
 		ViewLedger: vl,
@@ -357,6 +331,30 @@ func NewAxiomLedgerWithoutConsensus(rep *repo.Repo, ctx context.Context, cancel 
 		axm.ViewLedger.SnapMeta.Store(ledger.SnapInfo{Status: false, SnapBlockHeader: nil})
 	}
 
+	chainState := chainstate.NewChainState(rep.StartArgs.ArchiveMode, rep.P2PKeystore.P2PID(), rep.P2PKeystore.PublicKey, rep.ConsensusKeystore.PublicKey, func(nodeID uint64) (*node_manager.NodeInfo, error) {
+		lg := vl.NewView()
+		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+		nodeInfo, err := nodeManagerContract.GetInfo(nodeID)
+		if err != nil {
+			return nil, err
+		}
+		return &nodeInfo, nil
+	}, func(p2pID string) (uint64, error) {
+		lg := vl.NewView()
+		nodeManagerContract := framework.NodeManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+		return nodeManagerContract.GetNodeIDByP2PID(p2pID)
+	}, func(epoch uint64) (*types.EpochInfo, error) {
+		lg := vl.NewView()
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+		epochInfo, err := epochManagerContract.HistoryEpoch(epoch)
+		if err != nil {
+			return nil, err
+		}
+		return epochInfo.ToTypesEpoch(), nil
+	})
+
+	axm.ChainState = chainState
+
 	var txExec executor.Executor
 	if rep.Config.Executor.Type == repo.ExecTypeDev {
 		txExec, err = devexecutor.New(loggers.Logger(loggers.Executor))
@@ -401,7 +399,9 @@ func (axm *AxiomLedger) Start() error {
 		if _, err := axm.Sync.Prepare(); err != nil {
 			return fmt.Errorf("sync prepare: %w", err)
 		}
-		axm.Sync.Start()
+		axm.Sync.Start(func() bool {
+			return axm.ChainState.IsDataSyncer
+		})
 
 		if err := axm.Consensus.Start(); err != nil {
 			return fmt.Errorf("consensus start: %w", err)

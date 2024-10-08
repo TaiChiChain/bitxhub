@@ -106,15 +106,15 @@ func (mr *MockSyncMockRecorder) Prepare(opts ...any) *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockSync) Start() {
+func (m *MockSync) Start(isDataSyncer func() bool) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	m.ctrl.Call(m, "Start", isDataSyncer)
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockSyncMockRecorder) Start() *gomock.Call {
+func (mr *MockSyncMockRecorder) Start(isDataSyncer any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSync)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSync)(nil).Start), isDataSyncer)
 }
 
 // StartSync mocks base method.

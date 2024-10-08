@@ -606,8 +606,7 @@ func newMockBlockSyncs(t *testing.T, n int, wrongPipeId ...int) ([]*SyncManager,
 		getStateJournalFunc := func(uint642 uint64) *types.StateJournal {
 			return nil
 		}
-		isDataSyncer := func() bool { return false }
-		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, isDataSyncer, nets[strconv.Itoa(i)], conf)
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, nets[strconv.Itoa(i)], conf)
 		require.Nil(t, err)
 		syncs = append(syncs, blockSync)
 	}
@@ -745,8 +744,7 @@ func prepareBlockSyncs(t *testing.T, epochInterval int, local, count, txCount in
 		getStateJournalFunc := func(uint642 uint64) *types.StateJournal {
 			return nil
 		}
-		isDataSyncer := func() bool { return false }
-		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, isDataSyncer, nets[localId], conf)
+		blockSync, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, nets[localId], conf)
 		require.Nil(t, err)
 		localIndex, err := strconv.Atoi(localId)
 		require.Nil(t, err)
