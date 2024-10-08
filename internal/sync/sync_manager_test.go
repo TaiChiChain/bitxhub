@@ -23,6 +23,10 @@ import (
 	network2 "github.com/axiomesh/axiom-p2p"
 )
 
+var isDataSyncer = func() bool {
+	return false
+}
+
 func TestNewSyncManager(t *testing.T) {
 	t.Logf("Test new sync manager")
 	logger := loggers.Logger(loggers.BlockSync)
@@ -67,9 +71,8 @@ func TestNewSyncManager(t *testing.T) {
 	}).AnyTimes()
 
 	for i := 0; i < len(createPipeErrCount); i++ {
-		isDataSyncer := func() bool { return false }
 		getStateJournalFunc := func(uint642 uint64) *types.StateJournal { return nil }
-		_, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, isDataSyncer, net, cnf)
+		_, err := NewSyncManager(logger, getChainMetaFn, getBlockFn, getBlockHeaderFn, getReceiptsFn, getEpochStateFn, getStateJournalFunc, net, cnf)
 		require.NotNil(t, err)
 		require.Contains(t, err.Error(), "create pipe err")
 	}
@@ -136,7 +139,7 @@ func TestStartSync(t *testing.T) {
 	for i := 0; i < n; i++ {
 		_, err = syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 
 	waitCommitData(t, syncs[0].Commit(), func(t *testing.T, data any) {
@@ -160,7 +163,7 @@ func TestStartSyncWithRemoteSendBlockResponseError(t *testing.T) {
 	for i := 0; i < n; i++ {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 
 	// node0 start sync commitData
@@ -219,7 +222,7 @@ func TestMultiEpochSync(t *testing.T) {
 	for i := 0; i < n; i++ {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 
 	// node0 start sync commitData
@@ -327,7 +330,7 @@ func TestMultiEpochSyncWithWrongBlock(t *testing.T) {
 	for i := 0; i < n; i++ {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 
 	// node0 start sync commitData
@@ -560,7 +563,7 @@ func TestHandleTimeoutBlockMsg(t *testing.T) {
 		for i := 0; i < n; i++ {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
-			syncs[i].Start()
+			syncs[i].Start(isDataSyncer)
 		}
 		// node0 start sync commitData
 		peers := []*common.Node{
@@ -615,7 +618,7 @@ func TestHandleSyncErrMsg(t *testing.T) {
 	for i := 0; i < n; i++ {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 	// node0 start sync commitData
 	peers := []*common.Node{
@@ -921,7 +924,7 @@ func TestRequestState(t *testing.T) {
 		for i := 0; i < n; i++ {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
-			syncs[i].Start()
+			syncs[i].Start(isDataSyncer)
 		}
 
 		// start sync
@@ -1024,7 +1027,7 @@ func TestStartSyncWithSnapshotMode(t *testing.T) {
 	for i := 1; i < n; i++ {
 		_, err = syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 
 	// start sync
@@ -1207,7 +1210,7 @@ func TestUpdatePeers(t *testing.T) {
 		for i := 0; i < n; i++ {
 			_, err := syncs[i].Prepare()
 			require.Nil(t, err)
-			syncs[i].Start()
+			syncs[i].Start(isDataSyncer)
 		}
 		params, illegalPeers := tc.setMocks(peers, localId, latestHeight, ledgers)
 		// start sync
@@ -1259,7 +1262,7 @@ func TestTps(t *testing.T) {
 	for i := 0; i < n; i++ {
 		_, err := syncs[i].Prepare()
 		require.Nil(t, err)
-		syncs[i].Start()
+		syncs[i].Start(isDataSyncer)
 	}
 
 	for i := 0; i < round; i++ {

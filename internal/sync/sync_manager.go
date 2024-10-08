@@ -63,7 +63,6 @@ type SyncManager struct {
 	getReceiptsFunc     func(height uint64) ([]*types.Receipt, error)
 	getEpochStateFunc   func(key []byte) []byte
 	getStateJournalFunc func(height uint64) *types.StateJournal
-	isDataSyncer        func() bool
 
 	network               network.Network
 	chainDataRequestPipe  network.Pipe
@@ -95,7 +94,7 @@ type SyncManager struct {
 
 func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.ChainMeta, getBlockFn func(height uint64) (*types.Block, error), getBlockHeaderFun func(height uint64) (*types.BlockHeader, error),
 	receiptFn func(height uint64) ([]*types.Receipt, error), getEpochStateFunc func(key []byte) []byte, getStateJournalFunc func(height uint64) *types.StateJournal,
-	isDataSyncer func() bool, network network.Network, cnf repo.Sync) (*SyncManager, error) {
+	network network.Network, cnf repo.Sync) (*SyncManager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	syncMgr := &SyncManager{
 		fullValidate:        cnf.FullValidation,
@@ -113,7 +112,6 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 		getReceiptsFunc:     receiptFn,
 		getEpochStateFunc:   getEpochStateFunc,
 		getStateJournalFunc: getStateJournalFunc,
-		isDataSyncer:        isDataSyncer,
 		network:             network,
 		conf:                cnf,
 
@@ -1420,7 +1418,7 @@ func (sm *SyncManager) Prepare(opts ...common.Option) (*common.PrepareData, erro
 	return sm.modeConstructor.Prepare(conf)
 }
 
-func (sm *SyncManager) Start() {
+func (sm *SyncManager) Start(isDataSyncer func() bool) {
 	if sm.started.Load() {
 		return
 	}
@@ -1430,7 +1428,7 @@ func (sm *SyncManager) Start() {
 	// start handle sync chain data request in snap mode
 	go sm.listenSyncChainDataRequest()
 
-	if sm.isDataSyncer() {
+	if isDataSyncer() {
 		go sm.listenSyncDiffRequest()
 	}
 	sm.logger.Info("Start listen sync request")
