@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	consensusTypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -46,6 +47,7 @@ type filter struct {
 	typ      Type
 	deadline *time.Timer // filter is inactiv when deadline triggers
 	hashes   []*types.Hash
+	blocks   []*consensusTypes.AttestationAndBlock
 	fullTx   bool
 	txs      []*types.Transaction
 	crit     FilterQuery
@@ -206,8 +208,14 @@ func (api *FilterAPI) NewBlockFilter() rpc.ID {
 		headerSub = api.events.SubscribeNewHeads(headers)
 	)
 
+	var (
+		blocks   = make(chan *types.Block)
+		blockSub = api.events.SubscribeNewBlocks(blocks)
+	)
+
 	api.filtersMu.Lock()
-	api.filters[headerSub.ID] = &filter{typ: BlocksSubscription, deadline: time.NewTimer(api.timeout), hashes: make([]*types.Hash, 0), s: headerSub}
+	api.filters[headerSub.ID] = &filter{typ: BlockHeadersSubscription, deadline: time.NewTimer(api.timeout), hashes: make([]*types.Hash, 0), s: headerSub}
+	api.filters[blockSub.ID] = &filter{typ: BlocksSubscription, deadline: time.NewTimer(api.timeout), blocks: make([]*consensusTypes.AttestationAndBlock, 0), s: blockSub}
 	api.filtersMu.Unlock()
 
 	go func() {
@@ -222,6 +230,19 @@ func (api *FilterAPI) NewBlockFilter() rpc.ID {
 			case <-headerSub.Err():
 				api.filtersMu.Lock()
 				delete(api.filters, headerSub.ID)
+				api.filtersMu.Unlock()
+				return
+
+			case b := <-blocks:
+				api.filtersMu.Lock()
+				if f, found := api.filters[blockSub.ID]; found {
+					f.blocks = append(f.blocks, b)
+				}
+				api.filtersMu.Unlock()
+
+			case <-blockSub.Err():
+				api.filtersMu.Lock()
+				delete(api.filters, blockSub.ID)
 				api.filtersMu.Unlock()
 				return
 			}
@@ -249,6 +270,39 @@ func (api *FilterAPI) NewHeads(ctx context.Context) (*rpc.Subscription, error) {
 			case h := <-headers:
 				ethHeader := formatEthHeader(api.rep.GenesisConfig, h)
 				err := notifier.Notify(rpcSub.ID, ethHeader)
+				if err != nil {
+					api.logger.Warn("notifier notify error", err)
+				}
+			case <-rpcSub.Err():
+				headersSub.Unsubscribe()
+				return
+			case <-notifier.Closed():
+				headersSub.Unsubscribe()
+				return
+			}
+		}
+	}()
+
+	return rpcSub, nil
+}
+
+// NewBlocks send a notification each time a new block is appended to the chain.
+func (api *FilterAPI) NewBlocks(ctx context.Context) (*rpc.Subscription, error) {
+	notifier, supported := rpc.NotifierFromContext(ctx)
+	if !supported {
+		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+	}
+
+	rpcSub := notifier.CreateSubscription()
+
+	go func() {
+		blocks := make(chan *types.Block)
+		headersSub := api.events.SubscribeNewBlocks(blocks)
+
+		for {
+			select {
+			case b := <-blocks:
+				err := notifier.Notify(rpcSub.ID, b)
 				if err != nil {
 					api.logger.Warn("notifier notify error", err)
 				}
@@ -515,10 +569,14 @@ func (api *FilterAPI) GetFilterChanges(id rpc.ID) (any, error) {
 		f.deadline.Reset(api.timeout)
 
 		switch f.typ {
-		case PendingTransactionsSubscription, BlocksSubscription:
+		case PendingTransactionsSubscription, BlockHeadersSubscription:
 			hashes := f.hashes
 			f.hashes = nil
 			return returnHashes(hashes), nil
+		case BlocksSubscription:
+			blocks := f.blocks
+			f.blocks = nil
+			return returnBlocks(blocks), nil
 		case LogsSubscription, MinedAndPendingLogsSubscription:
 			logs := f.logs
 			f.logs = nil
@@ -536,6 +594,15 @@ func returnHashes(hashes []*types.Hash) []*types.Hash {
 		return []*types.Hash{}
 	}
 	return hashes
+}
+
+// returnBlocks is a helper that will return an empty block array in case the given blocks array is nil,
+// otherwise the given blocks array is returned.
+func returnBlocks(blocks []*types.Block) []*types.Block {
+	if blocks == nil {
+		return []*types.Block{}
+	}
+	return blocks
 }
 
 // returnLogs is a helper that will return an empty log array in case the given logs array is nil,

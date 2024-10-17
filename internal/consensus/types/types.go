@@ -75,6 +75,11 @@ type Checkpoint struct {
 	Digest string
 }
 
+type AttestationAndBlock struct {
+	Block           *types.Block
+	AttestationData types.QuorumCheckpoint
+}
+
 var QuorumCheckpointConstructor = map[string]func() types.QuorumCheckpoint{
 	Dagbft: func() types.QuorumCheckpoint {
 		return &DagbftQuorumCheckpoint{}
