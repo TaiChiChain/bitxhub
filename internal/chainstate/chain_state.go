@@ -93,6 +93,12 @@ func NewChainState(isArchiveMode bool, p2pID string, p2pPubKey *crypto.Ed25519Pu
 	}
 }
 
+// InitGetEpochInfoFunc is only used for importing accounts
+func (c *ChainState) InitGetEpochInfoFunc(getEpochInfoFn func(epoch uint64) (*types.EpochInfo, error)) {
+	c.getEpochInfoFn = getEpochInfoFn
+	c.epochInfoCache = make(map[uint64]*types.EpochInfo)
+}
+
 func (c *ChainState) UpdateChainMeta(chainMeta *types.ChainMeta) {
 	c.ChainMeta = chainMeta
 }

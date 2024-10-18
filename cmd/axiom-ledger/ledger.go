@@ -350,7 +350,16 @@ func importAccountsFromFile(r *repo.Repo, lg *ledger.Ledger, filePath string, ba
 	}()
 	scanner := bufio.NewScanner(file)
 	currentLine := 0
-	lg.StateLedger.UpdateChainState(&chainstate.ChainState{IsDataSyncer: true})
+	chainState := &chainstate.ChainState{IsDataSyncer: true}
+	chainState.InitGetEpochInfoFunc(func(epoch uint64) (*types.EpochInfo, error) {
+		epochManagerContract := framework.EpochManagerBuildConfig.Build(syscommon.NewViewVMContext(lg.StateLedger))
+		epochInfo, err := epochManagerContract.HistoryEpoch(epoch)
+		if err != nil {
+			return nil, err
+		}
+		return epochInfo.ToTypesEpoch(), nil
+	})
+	lg.StateLedger.UpdateChainState(chainState)
 	for batch := 0; batch < totalBlockCount; batch++ {
 		currentHeight := lg.ChainLedger.GetChainMeta().Height
 		fmt.Printf("current height: %d\n", currentHeight+1)
