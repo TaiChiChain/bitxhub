@@ -77,9 +77,10 @@ type SyncManager struct {
 	chunk            *common.Chunk                 // every chunk task
 	recvStateCh      chan *common.WrapperStateResp // receive state from remote peer
 	quitStateCh      chan *pb.CheckpointState      // quit state channel
-	stateTaskDone    atomic.Bool                   // state task done signal
-	requesterCh      chan struct{}                 // chunk task done signal
-	validChunkTaskCh chan struct{}                 // start validate chunk task signal
+	stateWg          sync.WaitGroup
+	stateTaskDone    atomic.Bool   // state task done signal
+	requesterCh      chan struct{} // chunk task done signal
+	validChunkTaskCh chan struct{} // start validate chunk task signal
 
 	recvEventCh chan *common.LocalEvent // timeout or invalid of sync Block request、 get sync progress event
 
@@ -167,6 +168,11 @@ func NewSyncManager(logger logrus.FieldLogger, getChainMetaFn func() *types.Chai
 }
 
 func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan error) error {
+	sm.logger.WithFields(logrus.Fields{
+		"start": params.CurHeight,
+		"end":   params.TargetHeight,
+		"peers": params.Peers,
+	}).Info("start sync")
 	now := time.Now()
 	syncCount := params.TargetHeight - params.CurHeight + 1
 	syncCtx, syncCancel := context.WithCancel(context.Background())
@@ -196,7 +202,7 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 		sm.logger.WithFields(logrus.Fields{
 			"Quorum":       sm.ensureOneCorrectNum,
 			"state height": sm.latestCheckedState.Height,
-		}).Info("Receive Quorum response")
+		}).Info("Receive Quorum response in latest block hash")
 	}
 
 	// request chunk last height quorum state for validate block which node received
@@ -207,9 +213,9 @@ func (sm *SyncManager) StartSync(params *common.SyncParams, syncTaskDoneCh chan 
 	}
 
 	sm.logger.WithFields(logrus.Fields{
-		"Quorum":       sm.ensureOneCorrectNum,
-		"state height": sm.chunk.ChunkLastHeight,
-	}).Info("Receive Quorum response")
+		"Quorum":            sm.ensureOneCorrectNum,
+		"chunk last height": sm.chunk.ChunkLastHeight,
+	}).Info("Receive Quorum response in chunk last height")
 
 	// 4. switch sync status to true, if switch failed, return error
 	if err := sm.switchSyncStatus(true); err != nil {
@@ -680,10 +686,12 @@ func (sm *SyncManager) switchSyncStatus(status bool) error {
 
 func (sm *SyncManager) listenSyncStateResp(ctx context.Context, height uint64) {
 	diffState := make(map[string][]string)
+	defer sm.stateWg.Done()
 
 	for {
 		select {
 		case <-ctx.Done():
+			sm.logger.Info("exit listenSyncStateResp in height: ", height)
 			return
 		case resp := <-sm.recvStateCh:
 			// update remote peers' latest block height,
@@ -703,7 +711,7 @@ func (sm *SyncManager) requestSyncState(height uint64) error {
 
 	// 1. start listen sync state response
 	stateCtx, stateCancel := context.WithCancel(context.Background())
-	defer stateCancel()
+	sm.stateWg.Add(1)
 	go sm.listenSyncStateResp(stateCtx, height)
 
 	wp := workerpool.New(len(sm.peers))
@@ -719,12 +727,15 @@ func (sm *SyncManager) requestSyncState(height uint64) error {
 	// 2. send sync state request to all validators asynchronously
 	// because Peers num maybe too small to cannot reach Quorum, so we use initPeers to send sync state
 	lo.ForEach(sm.initPeers, func(p *common.Peer, index int) {
+		sm.stateWg.Add(1)
 		select {
 		case <-stateCtx.Done():
 			wp.Stop()
+			sm.stateWg.Done()
 			return
 		default:
 			wp.Submit(func() {
+				defer sm.stateWg.Done()
 				if err = retry.Retry(func(attempt uint) error {
 					select {
 					case <-stateCtx.Done():
@@ -814,6 +825,9 @@ func (sm *SyncManager) requestSyncState(height uint64) error {
 	for {
 		select {
 		case state := <-sm.quitStateCh:
+			stateCancel()
+			// wait all goroutine exit
+			sm.stateWg.Wait()
 			sm.logger.WithFields(logrus.Fields{
 				"state height":      state.Height,
 				"chunk last height": sm.chunk.ChunkLastHeight,
@@ -1329,9 +1343,9 @@ func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffSta
 	if len(diffState[msg.Hash]) >= int(sm.ensureOneCorrectNum) {
 		quorumStatePeers := make([]string, 0)
 		quorumStatePeers = append(quorumStatePeers, diffState[msg.Hash]...)
-		delete(diffState, msg.Hash)
+
 		// remove Peers which not in Quorum state
-		if len(diffState) != 0 {
+		if len(diffState) > 1 {
 			wrongPeers := lo.Values(diffState)
 			lo.ForEach(lo.Flatten(wrongPeers), func(peer string, _ int) {
 				if empty := sm.removePeer(peer); empty {
@@ -1354,7 +1368,8 @@ func (sm *SyncManager) handleSyncStateResp(msg *common.WrapperStateResp, diffSta
 			"height": msg.Resp.CheckpointState.Height,
 			"digest": msg.Resp.CheckpointState.Digest,
 			"peers":  diffState[msg.Hash],
-		}).Debug("Receive Quorum state from Peers")
+		}).Info("Receive Quorum state from Peers")
+		delete(diffState, msg.Hash)
 		sm.quitState(msg.Resp.CheckpointState)
 	}
 }
