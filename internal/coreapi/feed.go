@@ -36,6 +36,10 @@ func (api *FeedAPI) SubscribeNewBlockEvent(ch chan<- events.ExecutedEvent) event
 	return api.axiomLedger.BlockExecutor.SubscribeBlockEventForRemote(ch)
 }
 
+func (api *FeedAPI) SubscribeNewAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription {
+	return api.axiomLedger.Consensus.SubscribeAttestationEvent(ch)
+}
+
 func (api *FeedAPI) SubscribeLogsEvent(ch chan<- []*types.EvmLog) event.Subscription {
 	return api.axiomLedger.BlockExecutor.SubscribeLogsEvent(ch)
 }

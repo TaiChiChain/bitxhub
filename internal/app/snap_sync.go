@@ -431,7 +431,7 @@ func (s *snapSyncManager) genSnapSyncParams() (*common.SyncParams, error) {
 	switch s.rep.Config.Consensus.Type {
 	case repo.ConsensusTypeDagBft:
 		ckpt = &consensustypes.DagbftQuorumCheckpoint{
-			QuorumCheckpoint: dagtypes.QuorumCheckpoint{
+			QuorumCheckpoint: &dagtypes.QuorumCheckpoint{
 				QuorumCheckpoint: protos.QuorumCheckpoint{
 					Checkpoint: &protos.Checkpoint{
 						ExecuteState: &protos.ExecuteState{
@@ -444,7 +444,7 @@ func (s *snapSyncManager) genSnapSyncParams() (*common.SyncParams, error) {
 		}
 	case repo.ConsensusTypeRbft:
 		ckpt = &rbft.RbftQuorumCheckpoint{
-			QuorumCheckpoint: rbft.QuorumCheckpoint{
+			QuorumCheckpoint: &rbft.QuorumCheckpoint{
 				Checkpoint: &rbft.Checkpoint{
 					ExecuteState: &rbft.Checkpoint_ExecuteState{
 						Height: targetHeight,

@@ -1,4 +1,4 @@
-package heap
+package axm_heap
 
 import (
 	"container/heap"

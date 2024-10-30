@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/dagbft/data_syncer"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/txcache"
 	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/bcds/go-hpc-dagbft/protocol"
@@ -40,14 +41,19 @@ type executeEvent struct {
 }
 
 type Node struct {
-	nodeConfig        *Config
-	networkFactory    *adaptor.NetworkFactory
-	stack             *adaptor.DagBFTAdaptor
-	currentEpochInfo  types.EpochInfo
-	txpool            txpool.TxPool[types.Transaction, *types.Transaction]
-	engine            dagbft.DagBFT
-	txPreCheck        precheck.PreCheck
-	recvTxCh          chan *consensustypes.TxWithResp
+	nodeConfig              *Config
+	networkFactory          *adaptor.NetworkFactory
+	stack                   *adaptor.DagBFTAdaptor
+	currentEpochInfo        types.EpochInfo
+	txpool                  txpool.TxPool[types.Transaction, *types.Transaction]
+	engine                  dagbft.DagBFT
+	dataSyncer              *data_syncer.Node
+	txPreCheck              precheck.PreCheck
+	recvTxCh                chan *consensustypes.TxWithResp
+	recvRemoteTxsCh         chan [][]byte
+	recvNotifyStateUpdateCh <-chan containers.Tuple[dagtypes.Height, *dagtypes.QuorumCheckpoint, chan<- *dagevents.StateUpdatedEvent]
+	recvCommitEventCh       <-chan *consensustypes.CommitEvent
+
 	txCache           txcache.TxCache
 	reportBatchResult bool
 
@@ -87,9 +93,26 @@ func NewNode(config *common.Config) (*Node, error) {
 		return nil, err
 	}
 
-	networkFactory := adaptor.NewNetworkFactory(config, ctx)
+	recvRemoteTxsCh := make(chan [][]byte, common.MaxChainSize)
+	networkFactory := adaptor.NewNetworkFactory(config, ctx, recvRemoteTxsCh)
 
-	engine := dagbft.New(networkFactory, dagAdaptor.GetLedger(), dagConfig.Logger, dagConfig.MetricsProv, crashCh)
+	recvNotifyStateUpdateCh := make(chan containers.Tuple[dagtypes.Height, *dagtypes.QuorumCheckpoint, chan<- *dagevents.StateUpdatedEvent])
+	recvCommitEventCh := make(chan *consensustypes.CommitEvent)
+
+	var (
+		dataSyncer      *data_syncer.Node
+		consensusEngine dagbft.DagBFT
+	)
+
+	if config.ChainState.IsDataSyncer {
+		dataSyncer, err = data_syncer.NewNode(config, dagAdaptor.GetCryptoVerifier(), config.Logger, readyC, recvCommitEventCh, recvNotifyStateUpdateCh)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+	} else {
+		consensusEngine = dagbft.New(networkFactory, dagAdaptor.GetLedger(), dagConfig.Logger, dagConfig.MetricsProv, crashCh)
+	}
 
 	if err != nil {
 		cancel()
@@ -102,7 +125,8 @@ func NewNode(config *common.Config) (*Node, error) {
 		networkFactory: networkFactory,
 		txpool:         config.TxPool,
 		txPreCheck:     check,
-		engine:         engine,
+		engine:         consensusEngine,
+		dataSyncer:     dataSyncer,
 		readyC:         readyC,
 		logger:         config.Logger,
 		stack:          dagAdaptor,
@@ -110,15 +134,18 @@ func NewNode(config *common.Config) (*Node, error) {
 		cancel:         cancel,
 		txCache:        txcache.NewTxCache(config.Repo.ConsensusConfig.Dagbft.BatchTimeout.ToDuration(), uint64(config.Repo.ConsensusConfig.Dagbft.MaxBatchCount), config.Logger),
 
-		recvTxCh:          make(chan *consensustypes.TxWithResp, common.MaxChainSize),
-		closeCh:           closeCh,
-		crashCh:           crashCh,
-		primary:           config.ChainState.SelfNodeInfo.Primary,
-		worker:            config.ChainState.SelfNodeInfo.Workers[0],
-		executedMap:       sync.Map{},
-		inStateUpdate:     atomic.Bool{},
-		currentEpochInfo:  config.ChainState.GetCurrentEpochInfo(),
-		reportBatchResult: config.Repo.ConsensusConfig.Dagbft.ReportBatchResult,
+		recvTxCh:                make(chan *consensustypes.TxWithResp, common.MaxChainSize),
+		closeCh:                 closeCh,
+		crashCh:                 crashCh,
+		primary:                 config.ChainState.SelfNodeInfo.Primary,
+		worker:                  config.ChainState.SelfNodeInfo.Workers[0],
+		executedMap:             sync.Map{},
+		inStateUpdate:           atomic.Bool{},
+		currentEpochInfo:        config.ChainState.GetCurrentEpochInfo(),
+		reportBatchResult:       config.Repo.ConsensusConfig.Dagbft.ReportBatchResult,
+		recvCommitEventCh:       recvCommitEventCh,
+		recvNotifyStateUpdateCh: recvNotifyStateUpdateCh,
+		recvRemoteTxsCh:         recvRemoteTxsCh,
 	}, nil
 }
 
@@ -133,9 +160,17 @@ func (n *Node) Start() error {
 	}
 
 	n.stack.Start()
-	err = n.engine.Start()
-	if err != nil {
-		return err
+
+	if n.dataSyncer != nil {
+		err = n.dataSyncer.Start()
+		if err != nil {
+			return err
+		}
+	} else {
+		err = n.engine.Start()
+		if err != nil {
+			return err
+		}
 	}
 
 	n.txPreCheck.Start()
@@ -224,6 +259,11 @@ func (n *Node) listenLocalEvent() {
 func (n *Node) receiveTransactions(transactions []protocol.Transaction, resultCh chan any) {
 	const BatchTimeout = time.Minute
 
+	if n.dataSyncer != nil {
+		n.dataSyncer.SendNewTxSet(transactions)
+		return
+	}
+
 	respCh := n.engine.GenerateBatch(n.worker, transactions)
 
 	if !n.reportBatchResult {
@@ -259,7 +299,11 @@ func (n *Node) receiveTransactions(transactions []protocol.Transaction, resultCh
 }
 
 func (n *Node) Stop() {
-	n.engine.Stop()
+	if n.dataSyncer != nil {
+		n.dataSyncer.Stop()
+	} else {
+		n.engine.Stop()
+	}
 	close(n.closeCh)
 	n.cancel()
 	n.wg.Wait()
@@ -267,6 +311,7 @@ func (n *Node) Stop() {
 }
 
 func (n *Node) Prepare(tx *types.Transaction) error {
+	defer n.txFeed.Send([]*types.Transaction{tx})
 	txWithResp := &consensustypes.TxWithResp{
 		Tx:      tx,
 		CheckCh: make(chan *consensustypes.TxResp, 1),
@@ -304,6 +349,12 @@ func (n *Node) Step(_ []byte) error {
 }
 
 func (n *Node) Ready() error {
+	if n.dataSyncer != nil {
+		if !n.dataSyncer.IsNormal() {
+			return fmt.Errorf("data syncer is abnormal")
+		}
+		return nil
+	}
 	status := n.engine.ReadStatus()
 	if status.Primary.Status.String() == "Normal" {
 		return nil
@@ -376,16 +427,23 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 	return n.mockBlockFeed.Subscribe(ch)
 }
 
+func (n *Node) SubscribeAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription {
+	if n.dataSyncer != nil {
+		return n.dataSyncer.AttestationFeed.Subscribe(ch)
+	}
+	return n.stack.Chain.AttestationFeed.Subscribe(ch)
+}
+
 func (n *Node) listenConsensusEngineEvent() {
 	defer n.wg.Done()
 	for {
 		select {
 		case <-n.closeCh:
 			return
-		case res := <-n.stack.Chain.NotifyStateUpdate():
+		case res := <-n.recvNotifyStateUpdateCh:
 			n.updatedResult = res
 			n.inStateUpdate.Store(true)
-		case ev := <-n.stack.Chain.RecvStateUpdateEvent():
+		case ev := <-n.recvCommitEventCh:
 			if n.inStateUpdate.Load() {
 				n.logger.Infof("send [block %d] to executor", ev.Block.Height())
 				channel.SafeSend(n.blockC, ev, n.closeCh)
@@ -411,6 +469,37 @@ func (n *Node) listenConsensusEngineEvent() {
 			channel.SafeSend(n.blockC, commitEvent, n.closeCh)
 		}
 	}
+}
+
+func (n *Node) listenTxsBroadcastMsg() {
+	defer n.wg.Done()
+	for {
+		select {
+		case <-n.closeCh:
+			return
+		case txs := <-n.recvRemoteTxsCh:
+			n.submitTxsFromRemote(txs)
+		}
+	}
+}
+
+func (n *Node) submitTxsFromRemote(txs [][]byte) {
+	var requests []*types.Transaction
+	for _, item := range txs {
+		tx := &types.Transaction{}
+		if err := tx.RbftUnmarshal(item); err != nil {
+			n.logger.Error(err)
+			continue
+		}
+		requests = append(requests, tx)
+	}
+
+	n.txFeed.Send(requests)
+	ev := &consensustypes.UncheckedTxEvent{
+		EventType: consensustypes.RemoteTxEvent,
+		Event:     requests,
+	}
+	n.txPreCheck.PostUncheckedTxEvent(ev)
 }
 
 func (n *Node) updateEpochInfo() {

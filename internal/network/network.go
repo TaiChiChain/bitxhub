@@ -43,6 +43,9 @@ type Network interface {
 	// Send sends message waiting response
 	Send(string, *pb.Message) (*pb.Message, error)
 
+	// AsyncSend sends message without waiting
+	AsyncSend(string, *pb.Message) error
+
 	// SendWithStream sends message using existed stream
 	SendWithStream(network.Stream, *pb.Message) error
 
@@ -192,6 +195,15 @@ func (swarm *networkImpl) Send(to string, msg *pb.Message) (*pb.Message, error) 
 	}
 
 	return m, nil
+}
+
+func (swarm *networkImpl) AsyncSend(to string, msg *pb.Message) error {
+	data, err := msg.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("marshal message error: %w", err)
+	}
+
+	return swarm.p2p.AsyncSend(to, data)
 }
 
 func (swarm *networkImpl) PeerID() string {

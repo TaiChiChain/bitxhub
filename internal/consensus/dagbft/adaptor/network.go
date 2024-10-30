@@ -57,7 +57,7 @@ func (n *NetworkFactory) Start(engine dagbft.DagBFT) error {
 	return nil
 }
 
-func NewNetworkFactory(cnf *common.Config, ctx context.Context) *NetworkFactory {
+func NewNetworkFactory(cnf *common.Config, ctx context.Context, sendLocalTxPoolCh chan<- [][]byte) *NetworkFactory {
 	pid := cnf.ChainState.SelfNodeInfo.P2PID
 	workers := lo.SliceToMap(cnf.ChainState.SelfNodeInfo.Workers, func(n types.Host) (types.Host, Pid) {
 		return n, pid
@@ -92,12 +92,14 @@ func NewNetworkFactory(cnf *common.Config, ctx context.Context) *NetworkFactory 
 
 	primaryNet := &Network{
 		isPrimary:          true,
+		chainState:         cnf.ChainState,
 		Network:            cnf.Network,
 		localHost:          localPrimary,
 		remotes:            lo.Assign(remoteWorkers, remotePrimarys),
 		networkConfig:      networkConfig,
 		sendRequestCh:      make(chan *wrapRequest, common.MaxChainSize),
 		recvLocalRequestCh: localPrimaryRequestCh,
+		sendLocalTxPoolCh:  sendLocalTxPoolCh,
 		sendLocalWorkerCh:  lo.MapValues(localWorkersRequestCh, func(ch chan *wrapRequest, _ types.Host) chan<- *wrapRequest { return ch }),
 		ctx:                ctx,
 		logger:             cnf.Logger,
@@ -165,13 +167,15 @@ type wrapRequest struct {
 
 type Network struct {
 	network.Network
-	engine dagbft.DagBFT
+	engine     dagbft.DagBFT
+	chainState *chainstate.ChainState
 
 	isPrimary          bool
 	localHost          containers.Pair[types.Host, Pid] // dagbft name -> pid
 	recvLocalRequestCh <-chan *wrapRequest
 	sendLocalPrimaryCh chan<- *wrapRequest
 	sendLocalWorkerCh  map[types.Host]chan<- *wrapRequest
+	sendLocalTxPoolCh  chan<- [][]byte
 
 	networkConfig NetworkConfig
 
@@ -188,7 +192,7 @@ type Network struct {
 
 func (n *Network) asyncSendResponseMsg(stream p2p.Stream, typ pb.Message_Type, data []byte) error {
 	msg := &pb.Message{
-		From: n.localHost.First,
+		From: n.localHost.Second,
 		Type: typ,
 		Data: data,
 	}
@@ -197,6 +201,39 @@ func (n *Network) asyncSendResponseMsg(stream p2p.Stream, typ pb.Message_Type, d
 		return err
 	}
 	return stream.AsyncSend(marshalMsg)
+}
+
+func (n *Network) handleDataSyncerMsg(stream p2p.Stream, msg *pb.Message) {
+	switch msg.Type {
+	case pb.Message_TRANSACTION_PROPAGATION:
+		if err := n.recvTxsMsg(msg); err != nil {
+			n.logger.Errorf("receive txs msg err: %v", err)
+			return
+		}
+	case pb.Message_FETCH_STATE:
+		if err := n.recvFetchStateMsg(stream, msg); err != nil {
+			n.logger.Errorf("receive fetch state msg err: %v", err)
+			return
+		}
+	}
+
+}
+
+func (n *Network) recvFetchStateMsg(steam p2p.Stream, _ *pb.Message) error {
+	// todo: check from
+	ckpt := n.chainState.GetLatestCheckpoint()
+	return n.asyncSendResponseMsg(steam, pb.Message_FETCH_STATE_RESPONSE, ckpt.Proof)
+}
+
+func (n *Network) recvTxsMsg(msg *pb.Message) error {
+	rawTxs := &pb.BytesSlice{}
+	if err := rawTxs.UnmarshalVT(msg.Data); err != nil {
+		n.logger.WithField("err", err).Warn("Unmarshal txs message failed")
+		return err
+	}
+	channel.TrySend(n.sendLocalTxPoolCh, rawTxs.Slice)
+
+	return nil
 }
 
 func (n *Network) handleEpochMsg(stream p2p.Stream, msg *pb.Message) {
@@ -438,6 +475,10 @@ func (n *Network) Start(engine dagbft.DagBFT) error {
 	}
 	if n.isPrimary {
 		err = n.RegisterMultiMsgHandler(PrimaryMessageTypes, n.handlePrimaryMsg)
+		if err != nil {
+			return err
+		}
+		err = n.RegisterMultiMsgHandler(DataSyncerMessageTypes, n.handleDataSyncerMsg)
 		if err != nil {
 			return err
 		}
@@ -718,6 +759,11 @@ var EpochMessageTypes = []pb.Message_Type{
 	pb.Message_EPOCH_PROOF,
 	pb.Message_EPOCH_REQUEST_RESPONSE,
 	pb.Message_EPOCH_PROOF_RESPONSE,
+}
+
+var DataSyncerMessageTypes = []pb.Message_Type{
+	pb.Message_TRANSACTION_PROPAGATION,
+	pb.Message_FETCH_STATE,
 }
 
 func decodeMessageFrom(msg *pb.Message, author types.Host) (protocol.Message, error) {

@@ -39,6 +39,7 @@ type RBFTAdaptor struct {
 	StateUpdateHeight uint64
 
 	currentSyncHeight uint64
+	stableHeight      uint64
 	Cancel            context.CancelFunc
 	config            *common.Config
 	EpochInfo         *types.EpochInfo
@@ -47,7 +48,8 @@ type RBFTAdaptor struct {
 	quitSync chan struct{}
 	ctx      context.Context
 
-	MockBlockFeed event.Feed
+	MockBlockFeed   event.Feed
+	AttestationFeed event.Feed
 }
 
 type Ready struct {

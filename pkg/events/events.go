@@ -12,6 +12,10 @@ type ExecutedEvent struct {
 	CommitSequence         uint64
 }
 
+type AttestationEvent struct {
+	AttestationData *consensustypes.Attestation
+}
+
 type TxPointer struct {
 	Hash    *types.Hash
 	Account string

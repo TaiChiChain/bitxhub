@@ -1,86 +1,780 @@
 package data_syncer
 
 import (
-	"context"
+	"fmt"
 	"math"
+	"sync"
+	"time"
 
+	"github.com/Rican7/retry"
+	"github.com/Rican7/retry/strategy"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-kit/types/pb"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
+	"github.com/axiomesh/axiom-ledger/internal/components/status"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	dagbft_common "github.com/axiomesh/axiom-ledger/internal/consensus/dagbft/common"
+	"github.com/bcds/go-hpc-dagbft/common/errors"
+	"github.com/bcds/go-hpc-dagbft/common/types/events"
+	"github.com/bcds/go-hpc-dagbft/common/utils"
+	"github.com/bcds/go-hpc-dagbft/common/utils/concurrency"
+	"github.com/bcds/go-hpc-dagbft/common/utils/containers"
+	eth_event "github.com/ethereum/go-ethereum/event"
+	"github.com/samber/lo"
+
+	common_metrics "github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/dagbft/adaptor"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
 	consensus_types "github.com/axiomesh/axiom-ledger/internal/consensus/types"
+	"github.com/axiomesh/axiom-ledger/internal/network"
+	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
+	dagtypes "github.com/bcds/go-hpc-dagbft/common/types"
+	"github.com/bcds/go-hpc-dagbft/common/types/protos"
+	"github.com/bcds/go-hpc-dagbft/common/utils/channel"
+	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/sirupsen/logrus"
 )
 
 type Node struct {
-	client        *client
-	bindNode      string
-	ctx           context.Context
-	cancel        context.CancelFunc
-	logger        logrus.FieldLogger
-	recvBlock     chan *consensus_types.AttestationAndBlock
-	chainState    *chainstate.ChainState
-	currentHeight uint64
-	verifier      *verifier
+	client               *client
+	network              network.Network
+	bindNode             bindNode
+	logger               logrus.FieldLogger
+	chainState           *chainstate.ChainState
+	executedState        *pb.ExecuteState
+	getBlockFn           func(height uint64) (*types.Block, error)
+	executedEventCh      chan *events.ExecutedEvent
+	stateUpdatedEventCh  chan *events.StateUpdatedEvent
+	recvNewTxSetCh       chan []protocol.Transaction
+	recvNewAttestationCh chan *consensus_types.Attestation
+	currentHeight        uint64
+	verifier             *verifier
+	recvEventCh          chan *localEvent
+	wg                   *sync.WaitGroup
+	ap                   *concurrency.AsyncPool
+	statusMgr            *status.StatusMgr
+	sync                 synccomm.Sync
+	epochService         *epochmgr.EpochManager
+	sendToExecuteCh      chan<- *consensus_types.CommitEvent
 
-	recvBlockCache *blockCache
+	notifyStateUpdateCh chan<- containers.Tuple[dagtypes.Height, *dagtypes.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]
+	waitEpochChangeCh   chan struct{}
+	sendReadyC          chan<- *adaptor.Ready
+
+	closeCh chan struct{}
+
+	metrics *metrics
+
+	recvProofCache  *ProofCache
+	AttestationFeed *eth_event.Feed
+}
+
+func NewNode(config *common.Config, verifier protocol.ValidatorVerifier, logger logrus.FieldLogger,
+	sendReadyCh chan<- *adaptor.Ready, sendCommitEvent chan<- *consensus_types.CommitEvent,
+	sendNotifyStateUpdateCh chan<- containers.Tuple[dagtypes.Height, *dagtypes.QuorumCheckpoint, chan<- *events.StateUpdatedEvent]) (*Node, error) {
+
+	dataSyncerConf := config.Repo.ConsensusConfig.Dagbft.DataSyncerConfigs
+	ap, err := newAsyncPool(dataSyncerConf.GoroutineLimit, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	bindN := bindNode{
+		wsAddr: fmt.Sprintf("%s:%d", dataSyncerConf.BindNode.Host, dataSyncerConf.BindNode.Port),
+		p2pID:  dataSyncerConf.BindNode.Pid,
+		nodeId: uint64(dataSyncerConf.BindNode.Id),
+	}
+	closeCh := make(chan struct{})
+
+	return &Node{
+		network:              config.Network,
+		bindNode:             bindN,
+		chainState:           config.ChainState,
+		getBlockFn:           config.GetBlockFunc,
+		verifier:             newVerifier(logger, verifier, closeCh),
+		statusMgr:            status.NewStatusMgr(),
+		sync:                 config.BlockSync,
+		epochService:         config.EpochStore,
+		recvProofCache:       newProofCache(dataSyncerConf.MaxCacheSize),
+		sendToExecuteCh:      sendCommitEvent,
+		notifyStateUpdateCh:  sendNotifyStateUpdateCh,
+		sendReadyC:           sendReadyCh,
+		closeCh:              closeCh,
+		waitEpochChangeCh:    make(chan struct{}, 1),
+		executedEventCh:      make(chan *events.ExecutedEvent, common.MaxChainSize),
+		stateUpdatedEventCh:  make(chan *events.StateUpdatedEvent, 1),
+		recvNewTxSetCh:       make(chan []protocol.Transaction, common.MaxChainSize),
+		recvNewAttestationCh: make(chan *consensus_types.Attestation, common.MaxChainSize),
+		recvEventCh:          make(chan *localEvent, common.MaxChainSize),
+		ap:                   ap,
+		logger:               logger,
+		metrics:              newMetrics(),
+		AttestationFeed:      new(eth_event.Feed),
+	}, nil
 }
 
 func (n *Node) Start() error {
-	cli, err := newClient(n.bindNode, n.ctx)
+	if err := n.network.RegisterMultiMsgHandler([]pb.Message_Type{
+		pb.Message_EPOCH_REQUEST, pb.Message_EPOCH_REQUEST_RESPONSE}, n.handleEpochMsg); err != nil {
+		return err
+	}
+
+	if err := n.network.RegisterMultiMsgHandler([]pb.Message_Type{
+		pb.Message_TRANSACTION_PROPAGATION}, n.handleTxsMsg); err != nil {
+		return err
+	}
+
+	cli, err := newClient(n.bindNode.wsAddr, n.closeCh, n.recvNewAttestationCh)
 	if err != nil {
 		return err
 	}
 	n.client = cli
-	n.client.listenNewBlock(n.recvBlock)
+
+	if err = n.client.start(n.wg, n.ap); err != nil {
+		return err
+	}
+
+	if err = n.initState(); err != nil {
+		return err
+	}
+
+	if err = utils.AssertNoError(
+		n.ap.AsyncDo(func() { n.listenExecutedEvent() }, n.wg),     // listen executed event
+		n.ap.AsyncDo(func() { n.listenStateUpdatedEvent() }, n.wg), // listen state updated event
+		n.ap.AsyncDo(func() { n.listenNewTxSet() }, n.wg),          // listen new txs event
+		n.ap.AsyncDo(func() { n.listenNewAttestation() }, n.wg),    // listen new attestation from remote bind node
+		n.ap.AsyncDo(func() { n.listenEvent() }, n.wg),             // listen local event
+	); err != nil {
+		n.ap.Release()
+		return fmt.Errorf("%w: failed to create AsyncTask for Data syncer, %s", errors.ErrGoroutine, err)
+	}
+
 	return nil
 }
 
-func (n *Node) ProcessEvent() {
+func (n *Node) IsNormal() bool {
+	return n.statusMgr.In(Normal)
+}
+
+func (n *Node) initState() error {
+	request := &pb.Message{
+		From: n.chainState.SelfNodeInfo.P2PID,
+		Type: pb.Message_FETCH_STATE,
+	}
+
+	if err := retry.Retry(func(attempt uint) error {
+		resp, err := n.network.Send(n.bindNode.p2pID, request)
+		if err != nil {
+			return err
+		}
+		if resp.Type != pb.Message_FETCH_STATE_RESPONSE {
+			return fmt.Errorf("invalid response type: %s", resp.Type)
+		}
+		if resp.From != n.bindNode.p2pID {
+			return fmt.Errorf("invalid response from: %s", resp.From)
+		}
+
+		return n.recvFetchStateResponse(resp.Data)
+	}, strategy.Limit(5), strategy.Wait(1*time.Second)); err != nil {
+		panic(fmt.Errorf("retry fetch state failed: %v", err))
+	}
+
+	return nil
+}
+
+func (n *Node) listenEvent() {
+	defer n.wg.Done()
 	for {
 		select {
-		case <-n.ctx.Done():
+		case <-n.closeCh:
+			n.logger.Info("data syncer stopped")
 			return
-		case b := <-n.recvBlock:
+		case next := <-n.recvEventCh:
+			nexts := make([]*localEvent, 0)
+			for {
+				select {
+				case <-n.closeCh:
+					n.logger.Info("data syncer stopped")
+					return
+				default:
+				}
+				evs := n.processEvent(next)
+				nexts = append(nexts, evs...)
+				if len(nexts) == 0 {
+					break
+				}
+				next = nexts[0]
+				nexts = nexts[1:]
+			}
+		}
+	}
+}
 
+func (n *Node) processEvent(ev *localEvent) []*localEvent {
+	var (
+		nextEvent []*localEvent
+		err       error
+	)
+	switch ev.EventType {
+	case newAttestation:
+		at, ok := ev.Event.(*consensus_types.Attestation)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+		nextEvent, err = n.handleNewAttestation(at)
+		if err != nil {
+			n.logger.WithField("event", ev).Errorf("handleNewAttestation err: %v", err)
+			return nil
+		}
+	case newTxSet:
+		txSet, ok := ev.Event.([]protocol.Transaction)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+		if err = n.handleAsyncSendNewTxSet(txSet); err != nil {
+			n.logger.WithField("event", ev).Errorf("handleAsyncSendNewTxSet err: %v", err)
+			return nil
+		}
+
+	case executed:
+		ex, ok := ev.Event.(*events.ExecutedEvent)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+		if err = n.handleExecutedEvent(ex); err != nil {
+			n.logger.WithField("event", ev).Errorf("handleExecutedEvent err: %v", err)
+			return nil
+		}
+
+	case syncEpoch:
+		startEpoch := n.chainState.EpochInfo.Epoch
+		endEpoch, ok := ev.Event.(uint64)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+
+		if err = n.handleEpochRequest(startEpoch, endEpoch); err != nil {
+			n.logger.WithField("event", ev).Errorf("handleEpochRequest err: %v", err)
+			return nil
+		}
+		n.statusMgr.On(InEpochSync)
+
+	case finishSyncEpoch:
+		epochChanges, ok := ev.Event.(protos.EpochChangeResponse)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+
+		target := n.peakProof()
+
+		var targetCheckpoint *dagtypes.QuorumCheckpoint
+
+		if epochChanges.Proof.More != 0 {
+			lastEpochProof := epochChanges.Proof.Checkpoints[len(epochChanges.Proof.Checkpoints)-1]
+			targetCheckpoint = &dagtypes.QuorumCheckpoint{QuorumCheckpoint: *lastEpochProof}
+		} else {
+			// finish sync epoch, turn off InEpochSync status
+			targetCheckpoint = target.QuorumCheckpoint
+			n.statusMgr.Off(InEpochSync)
+		}
+
+		stateEvent := &stateUpdateEvent{
+			targetCheckpoint: targetCheckpoint,
+			EpochChanges: lo.Map(epochChanges.Proof.Checkpoints, func(cp *protos.QuorumCheckpoint, _ int) *dagtypes.QuorumCheckpoint {
+				return &dagtypes.QuorumCheckpoint{QuorumCheckpoint: *cp}
+			}),
+		}
+
+		nextEvent = append(nextEvent, &localEvent{
+			EventType: stateUpdate,
+			Event:     stateEvent,
+		})
+
+	case stateUpdate:
+		ev, ok := ev.Event.(*stateUpdateEvent)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+
+		if n.statusMgr.In(InSync) {
+			n.logger.Warningf("node is already in sync, just ignore it...")
+			return nil
+		}
+
+		if len(ev.EpochChanges) > 0 {
+			n.logger.Infof("store epoch state at epoch %d", ev.targetCheckpoint.Epoch())
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+			go func(waitG *sync.WaitGroup) {
+				defer waitG.Done()
+				defer n.wg.Done()
+				lo.ForEach(ev.EpochChanges, func(ckpt *dagtypes.QuorumCheckpoint, index int) {
+					if ckpt != nil {
+						epochChange := &consensus_types.DagbftQuorumCheckpoint{QuorumCheckpoint: ckpt}
+						if err = n.epochService.StoreEpochState(epochChange); err != nil {
+							n.logger.Errorf("failed to store epoch state at epoch %d: %s", ckpt.Epoch(), err)
+						}
+					}
+				})
+			}(wg)
+		}
+
+		targetHeight := ev.targetCheckpoint.Height()
+		targetCheckpoint := ev.targetCheckpoint
+		n.logger.Infof("node start state updating to target height: %d", targetHeight)
+		n.notifyConsensusStateUpdate(targetHeight, targetCheckpoint, n.stateUpdatedEventCh)
+
+		if err = n.handleStateUpdate(ev.targetCheckpoint, ev.EpochChanges...); err != nil {
+			n.logger.WithField("event", ev).Errorf("handleStateUpdate err: %v", err)
+			return nil
+		}
+		n.statusMgr.On(InSync)
+
+	case finishStateUpdate:
+		ev, ok := ev.Event.(*stateUpdateEvent)
+		if !ok {
+			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
+			return nil
+		}
+		n.logger.Infof("node finish state updating to target height: %d", ev.targetCheckpoint.Height())
+		if n.popProof(ev.targetCheckpoint.Height()) == nil {
+			n.logger.Infof("node should continue update to next target height: %d", n.peakProof().Height())
+			return nil
+		}
+		for _, at := range n.popProofList() {
+			nextEvent = append(nextEvent, &localEvent{
+				EventType: newAttestation,
+				Event:     at,
+			})
+		}
+		n.logger.Infof("node continue handle new blocks from height: %d, newAttestation event count: %d",
+			n.peakProof().Height(), len(nextEvent))
+		n.statusMgr.Off(InSync)
+
+		if !n.statusMgr.In(Normal) {
+			n.statusMgr.On(Normal)
+		}
+	}
+
+	return nextEvent
+}
+
+func (n *Node) notifyConsensusStateUpdate(targetHeight dagtypes.Height, targetCheckpoint *dagtypes.QuorumCheckpoint, evCh chan<- *events.StateUpdatedEvent) {
+	stateResult := containers.Pack3(targetHeight, targetCheckpoint, evCh)
+	channel.SafeSend(n.notifyStateUpdateCh, stateResult, n.closeCh)
+}
+
+func (n *Node) postLocalEvent(ev *localEvent) {
+	channel.SafeSend(n.recvEventCh, ev, n.closeCh)
+}
+
+func (n *Node) listenStateUpdatedEvent() {
+	for {
+		select {
+		case <-n.closeCh:
+			return
+		case ev := <-n.stateUpdatedEventCh:
+			n.postLocalEvent(&localEvent{EventType: finishStateUpdate, Event: ev})
+		}
+	}
+}
+
+func (n *Node) listenNewAttestation() {
+	for {
+		select {
+		case <-n.closeCh:
+			return
+		case ev := <-n.recvNewAttestationCh:
+			n.postLocalEvent(&localEvent{EventType: newAttestation, Event: ev})
+		}
+	}
+}
+
+func (n *Node) listenNewTxSet() {
+	for {
+		select {
+		case <-n.closeCh:
+			return
+		case ev := <-n.recvNewTxSetCh:
+			n.postLocalEvent(&localEvent{EventType: newTxSet, Event: ev})
+		}
+	}
+}
+
+func (n *Node) listenExecutedEvent() {
+	for {
+		select {
+		case <-n.closeCh:
+			return
+		case ev := <-n.executedEventCh:
+			n.postLocalEvent(&localEvent{EventType: executed, Event: ev})
+		}
+	}
+}
+
+func (n *Node) SendNewTxSet(txSet []protocol.Transaction) {
+	channel.SafeSend(n.recvNewTxSetCh, txSet, n.closeCh)
+}
+
+func (n *Node) handleExecutedEvent(ev *events.ExecutedEvent) error {
+	height := ev.ExecutedState.ExecuteState.Height
+	ct := n.popProof(height)
+	if ct == nil {
+		return fmt.Errorf("failed to pop attestation at height: %d", height)
+	}
+
+	return dagbft_common.PostAttestationEvent(ct.QuorumCheckpoint, n.AttestationFeed, n.getBlockFn)
+}
+
+func (n *Node) handleEpochRequest(start, end uint64) error {
+	epochRequest := protos.EpochChangeRequest{
+		StartEpoch:  start,
+		TargetEpoch: end,
+	}
+
+	data, err := epochRequest.Marshal()
+	if err != nil {
+		return err
+	}
+	msg := &pb.Message{
+		Type: pb.Message_EPOCH_REQUEST,
+		Data: data,
+	}
+
+	if err = n.network.AsyncSend(n.bindNode.p2pID, msg); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (n *Node) handleStateUpdate(target *dagtypes.QuorumCheckpoint, epochChanges ...*dagtypes.QuorumCheckpoint) error {
+	targetHeight := target.Height()
+	localHeight := n.chainState.GetCurrentCheckpointState().Height
+	latestBlockHash := n.chainState.GetCurrentCheckpointState().Digest
+	peerM := dagbft_common.GetRemotePeers(epochChanges, n.chainState)
+
+	syncTaskDoneCh := make(chan error, 1)
+	if err := retry.Retry(func(attempt uint) error {
+		params := &synccomm.SyncParams{
+			Peers:           peerM,
+			LatestBlockHash: latestBlockHash,
+			// ensure sync remote count including at least one correct node
+			Quorum:       common.CalFaulty(uint64(len(peerM) + 1)),
+			CurHeight:    localHeight + 1,
+			TargetHeight: targetHeight,
+			QuorumCheckpoint: &consensus_types.DagbftQuorumCheckpoint{
+				QuorumCheckpoint: target,
+			},
+			EpochChanges: lo.Map(epochChanges, func(qckpt *dagtypes.QuorumCheckpoint, index int) *consensus_types.EpochChange {
+				return &consensus_types.EpochChange{
+					QuorumCheckpoint: &consensus_types.DagbftQuorumCheckpoint{QuorumCheckpoint: qckpt},
+				}
+			}),
+		}
+		n.logger.WithFields(logrus.Fields{
+			"target":       params.TargetHeight,
+			"target_hash":  params.QuorumCheckpoint.GetStateDigest(),
+			"start":        params.CurHeight,
+			"epochChanges": epochChanges,
+		}).Info("State update start")
+		err := n.sync.StartSync(params, syncTaskDoneCh)
+		if err != nil {
+			n.logger.Infof("start sync failed[local:%d, target:%d]: %s", localHeight, targetHeight, err)
+			return err
+		}
+		return nil
+	}, strategy.Limit(5), strategy.Wait(500*time.Microsecond)); err != nil {
+		panic(fmt.Errorf("retry start sync failed: %v", err))
+	}
+
+	n.wg.Wait()
+	var stateUpdatedCheckpoint *consensus_types.Checkpoint
+	// wait for the sync to finish
+	for {
+		select {
+		case <-n.closeCh:
+			n.logger.Info("state update is canceled!!!!!!")
+			return nil
+		case syncErr := <-syncTaskDoneCh:
+			if syncErr != nil {
+				return syncErr
+			}
+		case data := <-n.sync.Commit():
+			endSync := false
+			blockCache, ok := data.([]synccomm.CommitData)
+			if !ok {
+				panic("state update failed: invalid commit data")
+			}
+
+			n.logger.Infof("fetch chunk: start: %d, end: %d", blockCache[0].GetHeight(), blockCache[len(blockCache)-1].GetHeight())
+
+			for _, commitData := range blockCache {
+				// if the block is the target block, we should resign the stateUpdatedCheckpoint in CommitEvent
+				// and send the quitSync signal to sync module
+				if commitData.GetHeight() == targetHeight {
+					stateUpdatedCheckpoint = &consensus_types.Checkpoint{
+						Epoch:  target.Epoch(),
+						Height: target.Height(),
+						Digest: target.Checkpoint().ExecuteState().StateRoot().String(),
+					}
+					endSync = true
+				}
+				block, ok := commitData.(*synccomm.BlockData)
+				if !ok {
+					panic("state update failed: invalid commit data")
+				}
+				commitEvent := &consensus_types.CommitEvent{
+					Block:                  block.Block,
+					StateUpdatedCheckpoint: stateUpdatedCheckpoint,
+				}
+				channel.SafeSend(n.sendToExecuteCh, commitEvent, n.closeCh)
+
+				if endSync {
+					n.logger.Infof("State update finished, target height: %d", targetHeight)
+					return nil
+				}
+			}
 		}
 	}
 
 }
 
-func (n *Node) handleNewBlock(b *types.Block) {
-	if b.Height() < n.currentHeight {
-		n.logger.Warningf("receive new block height %d is less than current height %d, just ignore it...",
-			b.Height(), n.currentHeight)
-		return
+func (n *Node) handleAsyncSendNewTxSet(txSet []protocol.Transaction) error {
+	raw := &pb.BytesSlice{
+		Slice: convertTransactions(txSet),
+	}
+	data, err := raw.MarshalVT()
+	if err != nil {
+		return err
 	}
 
-	n.verifier.
-	if b.Height() > n.currentHeight {
+	p2pMsg := &pb.Message{
+		From: n.chainState.SelfNodeInfo.P2PID,
+		Type: pb.Message_TRANSACTION_PROPAGATION,
+		Data: data,
 	}
+
+	if err = n.network.AsyncSend(n.bindNode.p2pID, p2pMsg); err != nil {
+		return err
+	}
+	n.metrics.txCounter.Add(float64(len(txSet)))
+	return nil
+}
+
+// convertTransactions converts a slice of protocol.Transaction to a slice of byte slices.
+func convertTransactions(transactions []protocol.Transaction) [][]byte {
+	var result [][]byte
+	for _, tx := range transactions {
+		result = append(result, tx)
+	}
+	return result
+}
+
+func (n *Node) handleNewAttestation(a *consensus_types.Attestation) ([]*localEvent, error) {
+	quorumckpt, err := dagbft_common.DecodeProof(a.Proof)
+	if err != nil {
+		n.logger.Errorf("failed to decode quorum checkpoint: %v", err)
+		return nil, err
+	}
+	if a.Height() < n.currentHeight {
+		n.logger.Warningf("receive new block height %d is less than current height %d, just ignore it...",
+			quorumckpt.GetHeight(), n.currentHeight)
+		return nil, nil
+	}
+
+	if a.Epoch() > n.chainState.EpochInfo.Epoch {
+		n.logger.Infof("receive new block epoch %d is greater than current epoch %d, "+
+			"should wait for finishing epoch change", a.Epoch(), n.chainState.EpochInfo.Epoch)
+
+		// if cache is full, should dismiss the new attestation until cache is empty
+		if err := n.pushProof(a.Proof); err != nil {
+			n.logger.WithFields(logrus.Fields{"height": quorumckpt.GetHeight()}).Warningf("push attestation failed: %v", err)
+			return nil, nil
+		}
+
+		if a.Height() > n.currentHeight && !n.statusMgr.In(InEpochSync) {
+			nextEvent := &localEvent{
+				EventType: syncEpoch,
+				Event:     a.Epoch(),
+			}
+			return []*localEvent{nextEvent}, nil
+		}
+
+		return nil, nil
+	}
+
+	// start verify the attestation
+	err = n.verifier.verifyAttestation(a)
+	if err != nil {
+		n.logger.WithFields(logrus.Fields{"height": quorumckpt.GetHeight()}).Errorf("verify attestation failed: %v", err)
+		return nil, err
+	}
+
+	// This situation often occurs when the bound validator had performed synchronization,
+	// validator would lose some Attestation data during the synchronization,
+	// therefore, the data syncer node should also follow a synchronization process.
+	if a.Height() > n.currentHeight {
+		nextEvent := &localEvent{
+			EventType: stateUpdate,
+			Event:     quorumckpt,
+		}
+		return []*localEvent{nextEvent}, nil
+	}
+
+	if err = n.execute(a.Block, quorumckpt, n.executedEventCh); err != nil {
+		return nil, err
+	}
+
+	if err = n.pushProof(a.Proof); err != nil {
+		return nil, err
+	}
+
+	if quorumckpt.EndEpoch() {
+		if err = n.epochService.StoreEpochState(quorumckpt); err != nil {
+			return nil, err
+		}
+		n.metrics.epochChangeNum.Inc()
+	}
+
+	return nil, nil
+}
+
+func (n *Node) execute(block *types.Block, checkpoint types.QuorumCheckpoint, eventCh chan<- *events.ExecutedEvent) error {
+	ckp, ok := checkpoint.(*consensus_types.DagbftQuorumCheckpoint)
+	if !ok {
+		return fmt.Errorf("failed to convert checkpoint to *consensus_types.DagbftQuorumCheckpoint: %v", checkpoint)
+	}
+	n.logger.Infof("Execute Consensus Output %d at height %d, txs: %d",
+		ckp.CommitSequence(), block.Height(), len(block.Transactions))
+
+	isConfigured := common.NeedChangeEpoch(block.Height(), n.chainState.GetCurrentEpochInfo())
+
+	n.asyncSendNewBlock(block, ckp, eventCh, isConfigured)
+
+	if isConfigured {
+		start := time.Now()
+		select {
+		case <-n.waitEpochChangeCh:
+			common_metrics.WaitEpochTime.WithLabelValues(consensus_types.Dagbft).Observe(time.Since(start).Seconds())
+			n.logger.WithFields(logrus.Fields{
+				"duration": time.Since(start),
+			}).Info("wait epoch change done")
+			return nil
+		case <-n.closeCh:
+			return nil
+		//todo: configurable timeout
+		case <-time.After(60 * time.Second):
+			return fmt.Errorf("wait epoch change timeout")
+		}
+	}
+
+	return nil
+}
+
+func (n *Node) asyncSendNewBlock(block *types.Block, ckp *consensus_types.DagbftQuorumCheckpoint, executedCh chan<- *events.ExecutedEvent, isConfigured bool) {
+
+	ready := &adaptor.Ready{
+		Txs:                    block.Transactions,
+		Height:                 block.Height(),
+		RecvConsensusTimestamp: time.Now().UnixNano(),
+		Timestamp:              block.Header.Timestamp,
+		ProposerNodeID:         block.Header.ProposerNodeID,
+		ExecutedCh:             executedCh,
+		CommitState:            &dagtypes.CommitState{CommitState: *ckp.QuorumCheckpoint.GetCheckpoint().GetCommitState()},
+	}
+	if isConfigured {
+		ready.EpochChangedCh = n.waitEpochChangeCh
+	}
+	channel.SafeSend(n.sendReadyC, ready, n.closeCh)
 }
 
 func (n *Node) Stop() {
-	n.cancel()
+	close(n.closeCh)
+	n.wg.Wait()
+	n.logger.Infof("data syncer stopped")
 }
 
-func (bc *blockCache) pushBlock(b *types.Block) {
-	bc.blockM[b.Height()] = b
-	bc.heightIndex.Push(b.Height())
+func (ac *ProofCache) checkStatus() {
+	if len(ac.quorumCheckpointM) >= ac.maxSize && !ac.status.In(cacheFull) {
+		ac.status.On(cacheFull)
+		ac.status.On(cacheAbnormal)
+	}
+
+	if len(ac.quorumCheckpointM) < ac.maxSize && ac.status.In(cacheFull) {
+		ac.status.Off(cacheFull)
+	}
+
+	if len(ac.quorumCheckpointM) == 0 && ac.status.In(cacheAbnormal) {
+		ac.status.Off(cacheAbnormal)
+	}
 }
 
-func (n *Node) popBlock() []*types.Block {
-	matched := make([]*types.Block, 0)
-	for h := n.recvBlockCache.heightIndex.PeekItem(); h != math.MaxUint64 && h == n.currentHeight; n.recvBlockCache.heightIndex.Pop() {
-		block, ok := n.recvBlockCache.blockM[h]
+func (ac *ProofCache) isNormal() bool {
+	return !ac.status.InOne(cacheFull, cacheAbnormal)
+}
+
+func (n *Node) pushProof(p *consensus_types.Proof) error {
+	quorumCkpt, err := dagbft_common.DecodeProof(p)
+	if err != nil {
+		return err
+	}
+	defer n.recvProofCache.checkStatus()
+	if !n.recvProofCache.isNormal() {
+		return fmt.Errorf("cache status is abnormal")
+	}
+	n.recvProofCache.quorumCheckpointM[quorumCkpt.Height()] = quorumCkpt
+	n.recvProofCache.heightIndex.PushItem(quorumCkpt.Height())
+	n.metrics.attestationCacheNum.Inc()
+	return nil
+}
+
+func (n *Node) peakProof() *consensus_types.DagbftQuorumCheckpoint {
+	h := n.recvProofCache.heightIndex.PeekItem()
+	return n.recvProofCache.quorumCheckpointM[h]
+}
+
+func (n *Node) popProofList() []*consensus_types.DagbftQuorumCheckpoint {
+	defer n.recvProofCache.checkStatus()
+	matched := make([]*consensus_types.DagbftQuorumCheckpoint, 0)
+	for h := n.recvProofCache.heightIndex.PeekItem(); h != math.MaxUint64 && h == n.currentHeight; n.recvProofCache.heightIndex.PopItem() {
+		qt, ok := n.recvProofCache.quorumCheckpointM[h]
 		if !ok {
 			n.logger.Errorf("block %d not found in cache, but exists in heightIndex", h)
 			return nil
 		}
-		if block.Header.Epoch != n.chainState.EpochInfo.Epoch {
-			n.logger.Infof("block %d epoch %d not match current epoch %d, need wait for next epoch", h, block.Header.Epoch, n.chainState.EpochInfo.Epoch)
+		if qt.Epoch() != n.chainState.EpochInfo.Epoch {
+			n.logger.Infof("block %d epoch %d not match current epoch %d, need wait for next epoch",
+				h, qt.Epoch(), n.chainState.EpochInfo.Epoch)
 			return matched
 		}
-		matched = append(matched, n.recvBlockCache.blockM[h])
-		delete(n.recvBlockCache.blockM, h)
+		matched = append(matched, n.recvProofCache.quorumCheckpointM[h])
+		delete(n.recvProofCache.quorumCheckpointM, h)
+		n.metrics.attestationCacheNum.Desc()
 	}
 	return matched
+}
+
+func (n *Node) popProof(height uint64) *consensus_types.DagbftQuorumCheckpoint {
+	defer n.recvProofCache.checkStatus()
+	if n.peakProof().Height() == height {
+		matched := n.recvProofCache.quorumCheckpointM[height]
+		delete(n.recvProofCache.quorumCheckpointM, height)
+		n.metrics.attestationCacheNum.Desc()
+		return matched
+	}
+	return nil
 }

@@ -67,6 +67,7 @@ type FeedAPI interface {
 	SubscribeLogsEvent(chan<- []*types.EvmLog) event.Subscription
 	SubscribeNewTxEvent(chan<- []*types.Transaction) event.Subscription
 	SubscribeNewBlockEvent(chan<- events.ExecutedEvent) event.Subscription
+	SubscribeNewAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription
 	BloomStatus() (uint64, uint64)
 	ServiceFilter(session *bloombits.MatcherSession)
 }

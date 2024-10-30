@@ -9,6 +9,7 @@ import (
 	"github.com/bcds/go-hpc-dagbft/common/config"
 	"github.com/bcds/go-hpc-dagbft/common/types"
 	"github.com/bcds/go-hpc-dagbft/common/types/events"
+	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/bcds/go-hpc-dagbft/protocol/layer"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -75,4 +76,8 @@ func (d *DagBFTAdaptor) Start() {
 
 func (d *DagBFTAdaptor) GetLedger() layer.Ledger {
 	return d.Chain
+}
+
+func (d *DagBFTAdaptor) GetCryptoVerifier() protocol.ValidatorVerifier {
+	return d.Chain.crypto.GetValidatorVerifier()
 }

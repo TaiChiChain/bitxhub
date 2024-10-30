@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
 	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/gogo/protobuf/sortkeys"
@@ -46,8 +47,9 @@ type Node struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	sync.RWMutex
-	txFeed        event.Feed
-	mockBlockFeed event.Feed
+	txFeed          event.Feed
+	mockBlockFeed   event.Feed
+	attestationFeed event.Feed
 }
 
 func NewNode(config *common.Config) (*Node, error) {
@@ -220,6 +222,10 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 	return n.mockBlockFeed.Subscribe(ch)
 }
 
+func (n *Node) SubscribeAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription {
+	return n.attestationFeed.Subscribe(ch)
+}
+
 func (n *Node) SubmitTxsFromRemote(_ [][]byte) error {
 	return nil
 }
@@ -285,6 +291,32 @@ func (n *Node) listenEvent() {
 						"enableGenEmptyBlock": n.epcCnf.enableGenEmptyBlock,
 					}).Info("Report epoch changed")
 				}
+
+				newBlock, err := n.config.GetBlockFunc(e.Height)
+				if err != nil {
+					n.logger.Errorf("Get block failed: %v", err)
+					continue
+				}
+				cp := &consensustypes.MockQuorumCheckpoint{
+					Height:          newBlock.Height(),
+					Digest:          newBlock.Hash().String(),
+					BlockEpoch:      newBlock.Header.Epoch,
+					NeedUpdateEpoch: e.EpochChanged,
+				}
+				proofData, err := cp.Marshal()
+				if err != nil {
+					n.logger.Errorf("Marshal checkpoint failed: %v", err)
+					continue
+				}
+				n.attestationFeed.Send(events.AttestationEvent{
+					AttestationData: &consensustypes.Attestation{
+						Block: newBlock,
+						Proof: &consensustypes.Proof{
+							SignData: proofData,
+						},
+					},
+				})
+				metrics.AttestationCounter.WithLabelValues(consensustypes.Solo).Inc()
 
 			// receive tx from api
 			case *consensustypes.TxWithResp:

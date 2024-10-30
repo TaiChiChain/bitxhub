@@ -25,18 +25,21 @@ var (
 		Help:      "The latency of wait epoch",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
 	}, []string{"consensus"})
+
 	ExecutedBlockCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "consensus",
 		Name:      "executed_block_counter",
 		Help:      "The number of executed blocks",
 	}, []string{"consensus"})
+
 	Consensus2ExecutorBlockCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "consensus",
 		Name:      "consensus_to_executor_block_counter",
 		Help:      "The number of consensus committed to executor blocks",
 	}, []string{"consensus"})
+
 	BatchCommitLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
 		Subsystem: "consensus",
@@ -44,6 +47,7 @@ var (
 		Help:      "The latency of batch commit",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
 	}, []string{"consensus", "type"})
+
 	// ProcessConsensusMessageDuration monitor the time from network request to consensus return result.
 	ProcessConsensusMessageDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "axiom_ledger",
@@ -52,6 +56,13 @@ var (
 		Help:      "The latency of process consensus message",
 		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 14),
 	}, []string{"consensus", "event"})
+
+	AttestationCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "axiom_ledger",
+		Subsystem: "consensus",
+		Name:      "attestation_counter",
+		Help:      "The number of attestation",
+	}, []string{"consensus"})
 )
 
 func init() {
@@ -62,4 +73,5 @@ func init() {
 	prometheus.MustRegister(Consensus2ExecutorBlockCounter)
 	prometheus.MustRegister(BatchCommitLatency)
 	prometheus.MustRegister(ProcessConsensusMessageDuration)
+	prometheus.MustRegister(AttestationCounter)
 }

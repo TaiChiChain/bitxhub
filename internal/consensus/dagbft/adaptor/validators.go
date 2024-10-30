@@ -97,20 +97,27 @@ func (m *ValidatorVerify) verifySignature(PubKeyBytes, message []byte, signature
 	return nil
 }
 
-func (m *ValidatorVerify) QuorumVerify(message []byte, signatures protocol.MultiSignature) error {
-	var weights protocol.VotePower
-	verifies := make([]func() error, 0, len(signatures))
-	votes := make(map[uint32]bool, len(signatures))
-	signatures.Range(func(signature protocol.Signature) {
-		verifies = append(verifies, func() error { return m.Verify(message, signature) })
-		weights += m.nodes[id2index(signature.Signer)].VotePower
-		votes[signature.Signer] = true
-	})
-	if len(votes) < len(signatures) {
-		return errors.New("duplicate signer")
+func (m *ValidatorVerify) QuorumVerify(message []byte, signatures protocol.Signatures) error {
+	switch signature := signatures.(type) {
+	case types.MultiSignature:
+		var weights protocol.VotePower
+		verifies := make([]func() error, 0, signature.Len())
+		votes := make(map[uint32]bool, signature.Len())
+		signature.Range(func(sig protocol.Signature, verified bool) {
+			weights += m.nodes[id2index(sig.Signer)].VotePower
+			votes[sig.Signer] = true
+			if !verified {
+				verifies = append(verifies, func() error { return m.Verify(message, sig) })
+			}
+		})
+		if len(votes) < signature.Len() {
+			return errors.New("duplicate signer")
+		}
+		if weights < m.quorumPower {
+			return fmt.Errorf("insufficient voting power %d for quorum %d", weights, m.quorumPower)
+		}
+		return concurrency.Parallel(verifies...)
+	default:
+		return fmt.Errorf("[DEMO] unsupported signature type %T", signature)
 	}
-	if weights < m.quorumPower {
-		return fmt.Errorf("insufficient voting power %d for quorum %d", weights, m.quorumPower)
-	}
-	return concurrency.Parallel(verifies...)
 }

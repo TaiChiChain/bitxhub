@@ -100,8 +100,13 @@ func NewChainState(p2pID string, p2pPubKey *crypto.Ed25519PublicKey, consensusPu
 	}
 }
 
+// todo: adapt for rbft and solo
 func (c *ChainState) UpdateCheckpoint(checkpoint *pb.QuorumCheckpoint) {
 	c.latestCheckpoint = checkpoint
+}
+
+func (c *ChainState) GetLatestCheckpoint() *pb.QuorumCheckpoint {
+	return c.latestCheckpoint
 }
 
 func (c *ChainState) GetCurrentCheckpointState() pb.ExecuteState {
@@ -159,6 +164,10 @@ func (c *ChainState) TryUpdateSelfNodeInfo() {
 }
 
 func (c *ChainState) GetNodeInfo(nodeID uint64) (*ExpandedNodeInfo, error) {
+	return c.getNodeInfo(nodeID)
+}
+
+func (c *ChainState) getNodeInfo(nodeID uint64) (*ExpandedNodeInfo, error) {
 	c.nodeInfoCacheLock.Lock()
 	defer c.nodeInfoCacheLock.Unlock()
 	expandedNodeInfo, ok := c.nodeInfoCache[nodeID]
@@ -207,6 +216,14 @@ func (c *ChainState) GetNodeIDByP2PID(p2pID string) (uint64, error) {
 
 	c.p2pID2NodeIDCache[p2pID] = nodeID
 	return nodeID, nil
+}
+
+func (c *ChainState) GetP2PIDByNodeID(id uint64) (string, error) {
+	info, err := c.getNodeInfo(id)
+	if err != nil {
+		return "", err
+	}
+	return info.P2PID, nil
 }
 
 func (c *ChainState) GetEpochInfo(epoch uint64) (*types.EpochInfo, error) {

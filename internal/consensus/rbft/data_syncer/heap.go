@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/axiomesh/axiom-bft/common/consensus"
-	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/heap"
+	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/axm_heap"
 	"github.com/sirupsen/logrus"
 )
 

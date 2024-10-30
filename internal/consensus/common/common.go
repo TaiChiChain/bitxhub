@@ -51,8 +51,11 @@ func DrainChannel[T any](ch chan T) {
 DrainLoop:
 	for {
 		select {
-		case <-ch:
-		default:
+		case _, ok := <-ch:
+			if !ok { //ch is closed //immediately return err
+				break DrainLoop
+			}
+		default: //all other case not-ready: means nothing in ch for now
 			break DrainLoop
 		}
 	}

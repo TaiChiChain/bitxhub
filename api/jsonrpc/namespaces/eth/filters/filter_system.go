@@ -54,13 +54,10 @@ const (
 	// transactions entering the pending state
 	PendingTransactionsSubscription
 
-	// BlocksSubscription queries hashes for blocks that are imported
-	BlocksSubscription
-
-	// BlocksSubscription queries hashes for blocks that are imported
+	// BlockHeadersSubscription queries hashes for blocks that are imported
 	BlockHeadersSubscription
 
-	// LastSubscription keeps track of the last index
+	// LastIndexSubscription keeps track of the last index
 	LastIndexSubscription
 )
 
@@ -116,6 +113,8 @@ type EventSystem struct {
 
 	// pendingLogsSub event.Subscription // Subscription for pending log event
 	chainSub event.Subscription // Subscription for new chain event
+
+	attestationSub event.Subscription // Subscription for new attestation event
 
 	// Channels
 	install chan *subscription // install filter for event notification
@@ -316,21 +315,6 @@ func (es *EventSystem) SubscribeNewHeads(headers chan *types.BlockHeader) *Subsc
 	return es.subscribe(sub)
 }
 
-func (es *EventSystem) SubscribeNewBlocks(blocks chan *types.Block) *Subscription {
-	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       BlocksSubscription,
-		created:   time.Now(),
-		logs:      make(chan []*types.EvmLog),
-		txs:       make(chan []*types.Transaction),
-		headers:   make(chan *types.BlockHeader),
-		blocks:    blocks,
-		installed: make(chan struct{}),
-		err:       make(chan error),
-	}
-	return es.subscribe(sub)
-}
-
 // SubscribePendingTxs creates a subscription that writes transaction txs for
 // transactions that enter the transaction pool.
 func (es *EventSystem) SubscribePendingTxs(txs chan []*types.Transaction) *Subscription {
@@ -384,9 +368,6 @@ func (es *EventSystem) handleTxsEvent(filters filterIndex, ev []*types.Transacti
 func (es *EventSystem) handleChainEvent(filters filterIndex, ev events2.ExecutedEvent) {
 	for _, f := range filters[BlockHeadersSubscription] {
 		f.headers <- ev.Block.Header
-	}
-	for _, f := range filters[BlocksSubscription] {
-		f.blocks <- ev.Block
 	}
 }
 

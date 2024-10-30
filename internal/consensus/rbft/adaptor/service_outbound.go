@@ -6,19 +6,23 @@ import (
 
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/strategy"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
-	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
-
-	"github.com/axiomesh/axiom-bft/common/consensus"
+	rbft "github.com/axiomesh/axiom-bft/common/consensus"
 	rbfttypes "github.com/axiomesh/axiom-bft/types"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+)
+
+type (
+	ValidatorID = uint64
+	Signature   = []byte
 )
 
 func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, seqNo uint64, timestamp int64, proposerNodeID uint64) {
@@ -34,7 +38,7 @@ func (a *RBFTAdaptor) Execute(requests []*types.Transaction, localList []bool, s
 	}
 }
 
-func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, checkpoints []*consensus.SignedCheckpoint, epochChanges ...*consensus.EpochChange) {
+func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, checkpoints []*rbft.SignedCheckpoint, epochChanges ...*rbft.EpochChange) {
 	a.StateUpdating = true
 	a.StateUpdateHeight = seqNo
 
@@ -53,7 +57,7 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	var isValidator bool
 	// get the validator set of the remote latest epoch
 	if len(epochChanges) != 0 {
-		lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *consensus.QuorumValidator, _ int) {
+		lo.ForEach(epochChanges[len(epochChanges)-1].GetValidators().Validators, func(v *rbft.QuorumValidator, _ int) {
 			if _, ok := peersM[v.Id]; !ok {
 				if v.PeerId != a.network.PeerID() {
 					isValidator = true
@@ -140,14 +144,14 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 			Quorum:          quorum,
 			CurHeight:       startHeight,
 			TargetHeight:    seqNo,
-			QuorumCheckpoint: &consensus.RbftQuorumCheckpoint{
-				QuorumCheckpoint: consensus.QuorumCheckpoint{
+			QuorumCheckpoint: &rbft.RbftQuorumCheckpoint{
+				QuorumCheckpoint: &rbft.QuorumCheckpoint{
 					Checkpoint: checkpoints[0].GetCheckpoint(),
 				},
 			},
-			EpochChanges: lo.Map(epochChanges, func(epochChange *consensus.EpochChange, index int) *consensustypes.EpochChange {
+			EpochChanges: lo.Map(epochChanges, func(epochChange *rbft.EpochChange, index int) *consensustypes.EpochChange {
 				return &consensustypes.EpochChange{
-					QuorumCheckpoint: &consensus.RbftQuorumCheckpoint{QuorumCheckpoint: *epochChange.GetCheckpoint()},
+					QuorumCheckpoint: &rbft.RbftQuorumCheckpoint{QuorumCheckpoint: epochChange.GetCheckpoint()},
 				}
 			}),
 		}
@@ -217,8 +221,21 @@ func (a *RBFTAdaptor) StateUpdate(lowWatermark, seqNo uint64, digest string, che
 	}
 }
 
-func (a *RBFTAdaptor) SendFilterEvent(_ rbfttypes.InformType, _ ...any) {
-	// TODO: add implement
+// SendFilterEvent posts some impotent events to application layer.
+// Users can decide to post filer event synchronously or asynchronously.
+func (a *RBFTAdaptor) SendFilterEvent(informType rbfttypes.InformType, message ...any) {
+	if informType == rbfttypes.InformTypeFilterStableCheckpoint {
+		if len(message) != 1 {
+			a.logger.Errorf("length: %d", len(message))
+			return
+		}
+		signedCheckpoints, ok := message[0].([]*rbft.SignedCheckpoint)
+		if !ok {
+			a.logger.Error("invalid format")
+			return
+		}
+		a.Checkpoint(signedCheckpoints)
+	}
 }
 
 func (a *RBFTAdaptor) PostCommitEvent(commitEvent *consensustypes.CommitEvent) {
@@ -239,4 +256,76 @@ func (a *RBFTAdaptor) postMockBlockEvent(block *types.Block, txHashList []*event
 		TxPointerList:          txHashList,
 		StateUpdatedCheckpoint: ckp,
 	})
+}
+
+func (a *RBFTAdaptor) Checkpoint(checkpoints []*rbft.SignedCheckpoint) {
+	if len(checkpoints) == 0 {
+		a.logger.Error("invalid signed checkpoint")
+		return
+	}
+
+	height := checkpoints[0].Checkpoint.Height()
+	if height <= a.stableHeight {
+		a.logger.Debugf("need not handle quorum checkpoint which height %d is smaller than stable height: %d", height, a.stableHeight)
+		return
+
+	}
+
+	var checkpoint *rbft.Checkpoint
+	uniqueSigs := make(map[ValidatorID]Signature, len(checkpoints))
+	for _, signed := range checkpoints {
+		if checkpoint == nil {
+			checkpoint = signed.Checkpoint
+		} else {
+			// todo(lrx): slash other nodes if checkpoint is not consistent?
+			if !checkpoint.Equals(signed.Checkpoint) {
+				a.logger.Errorf("inconsistent checkpoint, one: %+v, another: %+v",
+					checkpoint, signed.Checkpoint)
+				return
+			}
+		}
+		_, exist := uniqueSigs[signed.GetAuthor()]
+		// todo(lrx): slash other nodes if duplicate signature?
+		if exist {
+			a.logger.Errorf("duplicate signature in checkpoint: %d", signed.GetAuthor())
+			return
+		}
+		uniqueSigs[signed.GetAuthor()] = signed.Signature
+	}
+
+	quorumCheckpoint := &rbft.QuorumCheckpoint{
+		Checkpoint: checkpoint,
+		Signatures: lo.MapEntries(uniqueSigs, func(signer ValidatorID, sign Signature) (uint64, []byte) {
+			return signer, sign
+		}),
+	}
+
+	a.stableHeight = height
+
+	stableBlock, err := a.config.GetBlockFunc(height)
+	if err != nil {
+		a.logger.Errorf("failed to get stable block: %d", height)
+		return
+	}
+
+	a.postAttestationEvent(stableBlock, quorumCheckpoint)
+
+}
+
+func (a *RBFTAdaptor) postAttestationEvent(block *types.Block, ckp *rbft.QuorumCheckpoint) {
+	defer metrics.AttestationCounter.WithLabelValues(consensustypes.Rbft).Inc()
+	ckpt := &rbft.RbftQuorumCheckpoint{
+		QuorumCheckpoint: ckp,
+	}
+
+	proofData, err := ckpt.Marshal()
+	if err != nil {
+		a.logger.Error(err)
+		return
+	}
+	a.AttestationFeed.Send(events.AttestationEvent{
+		AttestationData: &consensustypes.Attestation{
+			Block: block,
+			Proof: &consensustypes.Proof{SignData: proofData},
+		}})
 }

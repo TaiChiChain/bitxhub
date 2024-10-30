@@ -47,6 +47,8 @@ type Consensus interface {
 	SubscribeTxEvent(events chan<- []*types.Transaction) event.Subscription
 
 	SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Subscription
+
+	SubscribeAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription
 }
 
 func New(consensusType string, opts ...common.Option) (Consensus, error) {

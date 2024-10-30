@@ -141,6 +141,21 @@ type Dagbft struct {
 	NewCertifiedCheckpointTimeout Duration `toml:"new_certified_checkpoint_timeout" mapstructure:"new_certified_checkpoint_timeout"`
 
 	FeatureConfigs `toml:"feature_configs" mapstructure:"feature_configs"`
+
+	DataSyncerConfigs DataSyncerConfigs `toml:"data_syncer_configs" mapstructure:"data_syncer_configs"`
+}
+
+type DataSyncerConfigs struct {
+	MaxCacheSize   int      `toml:"max_cache_size" mapstructure:"max_cache_size"`
+	GoroutineLimit int      `toml:"goroutine_limit" mapstructure:"goroutine_limit"`
+	BindNode       BindNode `toml:"bind_node" mapstructure:"bind_node"`
+}
+
+type BindNode struct {
+	Host string `toml:"host" mapstructure:"host"`
+	Port int    `toml:"port" mapstructure:"port"`
+	Id   int    `toml:"id" mapstructure:"id"`
+	Pid  string `toml:"pid" mapstructure:"pid"`
 }
 
 type FeatureConfigs struct {

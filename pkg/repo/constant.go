@@ -6,7 +6,10 @@
  */
 package repo
 
-import "github.com/axiomesh/axiom-kit/types"
+import (
+	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-kit/types/pb"
+)
 
 const (
 	AppName = "AxiomLedger"
@@ -114,3 +117,10 @@ const (
 	GenesisEpoch       = uint64(1)
 	ChannelSize        = 100
 )
+
+var ConsensusTypeM = map[string]pb.QuorumCheckpoint_ConsensusType{
+	ConsensusTypeSolo:    pb.QuorumCheckpoint_SOLO,
+	ConsensusTypeRbft:    pb.QuorumCheckpoint_RBFT,
+	ConsensusTypeDagBft:  pb.QuorumCheckpoint_DAGBFT,
+	ConsensusTypeSoloDev: pb.QuorumCheckpoint_SOLO,
+}

@@ -89,7 +89,7 @@ func (e *EpochManager) genGenesisEpochCheckpoint() (types.QuorumCheckpoint, erro
 	switch e.consensusType {
 	case repo.ConsensusTypeDagBft:
 		return &consensustypes.DagbftQuorumCheckpoint{
-			QuorumCheckpoint: dagtypes.QuorumCheckpoint{
+			QuorumCheckpoint: &dagtypes.QuorumCheckpoint{
 				QuorumCheckpoint: protos.QuorumCheckpoint{
 					Checkpoint: &protos.Checkpoint{
 						Epoch: e.genesisHeader.Epoch,
@@ -104,7 +104,7 @@ func (e *EpochManager) genGenesisEpochCheckpoint() (types.QuorumCheckpoint, erro
 
 	case repo.ConsensusTypeRbft:
 		return &consensus.RbftQuorumCheckpoint{
-			QuorumCheckpoint: consensus.QuorumCheckpoint{
+			QuorumCheckpoint: &consensus.QuorumCheckpoint{
 				Checkpoint: &consensus.Checkpoint{
 					Epoch: e.genesisHeader.Epoch,
 					ExecuteState: &consensus.Checkpoint_ExecuteState{

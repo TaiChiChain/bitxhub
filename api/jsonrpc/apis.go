@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"github.com/axiomesh/axiom-ledger/api/jsonrpc/namespaces/axm/attestation"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/sirupsen/logrus"
 
@@ -39,6 +40,14 @@ func GetAPIs(rep *repo.Repo, api api.CoreAPI, logger logrus.FieldLogger) ([]rpc.
 			Public:    true,
 		},
 	)
+
+	apis = append(apis,
+		rpc.API{
+			Namespace: AxmNamespace,
+			Version:   apiVersion,
+			Service:   attestation.NewAttestationAPI(rep, api, logger),
+			Public:    true,
+		})
 
 	apis = append(apis,
 		rpc.API{

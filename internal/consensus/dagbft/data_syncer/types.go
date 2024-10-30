@@ -1,23 +1,83 @@
 package data_syncer
 
 import (
-	"github.com/axiomesh/axiom-kit/types"
-	"github.com/axiomesh/axiom-ledger/internal/components/heap"
+	"container/heap"
+
+	"github.com/axiomesh/axiom-ledger/internal/components/axm_heap"
+	"github.com/axiomesh/axiom-ledger/internal/components/status"
+	consensusTypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
+	"github.com/bcds/go-hpc-dagbft/common/types"
+	"github.com/bcds/go-hpc-dagbft/common/utils/concurrency"
+	"github.com/panjf2000/ants/v2"
+	"github.com/sirupsen/logrus"
 )
 
 type event int
 
 const (
-	newBlock event = iota
+	newAttestation event = iota
 	newTxSet
+	stateUpdate
+	executed
+	syncEpoch
+	finishSyncEpoch
+	finishStateUpdate
 )
 
+const (
+	Normal status.StatusType = iota
+	InEpochSync
+	InSync
+)
+
+const (
+	cacheAbnormal status.StatusType = iota
+	cacheFull
+)
+
+type bindNode struct {
+	wsAddr string
+	p2pID  string
+	nodeId uint64
+}
 type localEvent struct {
 	EventType event
 	Event     any
 }
 
-type blockCache struct {
-	blockM      map[uint64]*types.Block
-	heightIndex *heap.NumberHeap
+type ProofCache struct {
+	quorumCheckpointM map[uint64]*consensusTypes.DagbftQuorumCheckpoint
+	heightIndex       *axm_heap.NumberHeap
+	maxSize           int
+	status            *status.StatusMgr
+}
+
+func newProofCache(maxSize int) *ProofCache {
+	ac := &ProofCache{
+		quorumCheckpointM: make(map[uint64]*consensusTypes.DagbftQuorumCheckpoint),
+		heightIndex:       new(axm_heap.NumberHeap),
+		maxSize:           maxSize,
+		status:            status.NewStatusMgr(),
+	}
+	*ac.heightIndex = make([]uint64, 0)
+	heap.Init(ac.heightIndex)
+
+	return ac
+}
+
+type stateUpdateEvent struct {
+	targetCheckpoint *types.QuorumCheckpoint
+	EpochChanges     []*types.QuorumCheckpoint
+}
+
+func newAsyncPool(size int, lg logrus.FieldLogger) (*concurrency.AsyncPool, error) {
+	pool, err := ants.NewPool(size, ants.WithLogger(&concurrency.AsyncPoolLogger{Printer: func(s string, a ...any) { lg.Panicf(s, a...) }}))
+	if err != nil {
+		return nil, err
+	}
+	ap := &concurrency.AsyncPool{
+		Pool: pool,
+	}
+
+	return ap, nil
 }

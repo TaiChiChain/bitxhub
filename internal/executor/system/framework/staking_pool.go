@@ -130,7 +130,7 @@ func (sp *StakingPool) MustGetInfo() (*staking_manager.PoolInfo, error) {
 // AddStake Add stake and mint an LiquidStakingToken,
 // pendingActive LiquidStakingToken can quick Withdraw and not need call UnlockStake
 // set PendingActiveStake = [PendingActiveStake + amount] if pool is active
-// mint a LiquidStakingToken, set LiquidStakingToken.ActiveEpoch = CurrentEpoch + 1
+// mint a LiquidStakingToken, set LiquidStakingToken.ActiveEpoch = BlockEpoch + 1
 // emit a AddStake event
 // emit a MintLiquidStakingToken event
 func (sp *StakingPool) AddStake(owner ethcommon.Address, amount *big.Int) error {
@@ -356,14 +356,14 @@ func (sp *StakingPool) WithdrawStake(liquidStakingTokenID *big.Int, liquidStakin
 // calculate stakerReward =  reward * (CommissionRateDenominator - CommissionRate / CommissionRateDenominator)
 // calculate operatorCommission = reward - stakerReward
 // set ActiveStake = [ActiveStake + PendingActiveStake - PendingInactiveStake + stakerReward]
-// set TotalLiquidStakingToken = LiquidStakingTokenRateHistory[CurrentEpoch - 1].LiquidStakingTokenAmount / LiquidStakingTokenRateHistory[CurrentEpoch - 1].StakeAmount * ActiveStake
-// set LiquidStakingTokenRateHistory[CurrentEpoch] = LiquidStakingTokenRate{StakeAmount: ActiveStake, LiquidStakingTokenAmount: TotalLiquidStakingToken}
+// set TotalLiquidStakingToken = LiquidStakingTokenRateHistory[BlockEpoch - 1].LiquidStakingTokenAmount / LiquidStakingTokenRateHistory[BlockEpoch - 1].StakeAmount * ActiveStake
+// set LiquidStakingTokenRateHistory[BlockEpoch] = LiquidStakingTokenRate{StakeAmount: ActiveStake, LiquidStakingTokenAmount: TotalLiquidStakingToken}
 // merge OperatorLiquidStakingToken:
 //
 //	calculate totalTokens = GetLockedToken(OperatorLiquidStakingTokenID)
 //
 // set OperatorLiquidStakingToken.Principal = totalTokens + operatorCommission
-// set OperatorLiquidStakingToken.ActiveEpoch = CurrentEpoch + 1
+// set OperatorLiquidStakingToken.ActiveEpoch = BlockEpoch + 1
 //
 // set CommissionRate = NextEpochCommissionRate
 func (sp *StakingPool) TurnIntoNewEpoch(oldEpoch *types.EpochInfo, newEpoch *types.EpochInfo, reward *big.Int) error {

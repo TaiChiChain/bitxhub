@@ -2,7 +2,7 @@ package snap_sync
 
 import (
 	"github.com/axiomesh/axiom-kit/types"
-	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/heap"
+	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/axm_heap"
 	"github.com/bcds/go-hpc-dagbft/common/utils/containers"
 )
 

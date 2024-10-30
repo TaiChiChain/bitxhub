@@ -125,6 +125,7 @@ func NewAxiomLedger(rep *repo.Repo, ctx context.Context, cancel context.CancelFu
 			common.WithDigest(chainMeta.BlockHash.String()),
 			common.WithGenesisDigest(genesisBlockHeader.Hash().String()),
 			common.WithGetBlockHeaderFunc(axm.ViewLedger.ChainLedger.GetBlockHeader),
+			common.WithGetBlockFunc(axm.ViewLedger.ChainLedger.GetBlock),
 			common.WithGetAccountBalanceFunc(func(address string) *big.Int {
 				return axm.ViewLedger.NewView().StateLedger.GetBalance(types.NewAddressByStr(address))
 			}),
@@ -404,6 +405,7 @@ func (axm *AxiomLedger) initChainState() error {
 			Height: chainMeta.Height,
 			Digest: chainMeta.BlockHash.String(),
 		},
+		Type: repo.ConsensusTypeM[axm.Repo.Config.Consensus.Type],
 	}
 	axm.ChainState.UpdateCheckpoint(currentCheckpoint)
 	return nil

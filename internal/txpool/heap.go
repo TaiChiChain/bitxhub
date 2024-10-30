@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/axiomesh/axiom-kit/types"
-	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/heap"
+	axm_heap "github.com/axiomesh/axiom-ledger/internal/components/axm_heap"
 )
 
 // A thread-safe wrapper of a nonceHeap.

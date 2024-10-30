@@ -15,6 +15,7 @@ import (
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	dagbft_common "github.com/axiomesh/axiom-ledger/internal/consensus/dagbft/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/precheck"
 	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
@@ -29,6 +30,7 @@ import (
 	"github.com/bcds/go-hpc-dagbft/common/utils/containers"
 	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/bcds/go-hpc-dagbft/protocol/layer"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -69,6 +71,13 @@ type BlockChain struct {
 	wg                  sync.WaitGroup
 	batchWg             sync.WaitGroup
 	batchLock           sync.Mutex
+	getBlockFn          func(height uint64) (*kittypes.Block, error)
+
+	AttestationFeed *event.Feed
+}
+
+func (b *BlockChain) LedgerType() config.LedgerType {
+	return config.SingleLedger
 }
 
 func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalConfig config.Configs, readyC chan *Ready, closeCh chan bool) (*BlockChain, error) {
@@ -96,7 +105,7 @@ func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 	stores := make(map[types.Epoch]layer.StorageFactory)
 	stores[epoch] = NewFactory(epoch, storeBuilder)
 
-	crp, err := NewCryptoImpl(config, precheck)
+	crp, err := NewCryptoImpl(config)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +130,8 @@ func newBlockchain(precheck precheck.PreCheck, config *common.Config, narwhalCon
 		waitEpochChangeCh:   make(chan struct{}),
 		metrics:             newBlockChainMetrics(),
 		batchVerifier:       newBatchVerifier(precheck, config.Logger),
+		getBlockFn:          config.GetBlockFunc,
+		AttestationFeed:     new(event.Feed),
 	}, nil
 }
 
@@ -150,7 +161,7 @@ func (b *BlockChain) listenChainEvent() {
 					defer b.wg.Done()
 					lo.ForEach(changes, func(ckpt *types.QuorumCheckpoint, index int) {
 						if ckpt != nil {
-							epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *ckpt}
+							epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: ckpt}
 							if err := b.epochService.StoreEpochState(epochChange); err != nil {
 								b.logger.Errorf("failed to store epoch state at epoch %d: %s", ckpt.Epoch(), err)
 							}
@@ -401,21 +412,54 @@ func (b *BlockChain) Checkpoint(checkpoint *types.QuorumCheckpoint, eventCh chan
 }
 
 func (b *BlockChain) checkpoint(checkpoint *types.QuorumCheckpoint) {
-	// Update active validators and crypto validatorVerifier to the new epoch
+	if checkpoint.Height() <= b.ledgerConfig.ChainState.GetCurrentCheckpointState().Height {
+		b.logger.Warningf("ignore checkpoint at height %d", checkpoint.Height())
+		return
+	}
 	if checkpoint.Checkpoint().EndsEpoch() {
 		//todo: update validators and crypto validatorVerifier
-		epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *checkpoint}
+		epochChange := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: checkpoint}
 		if err := b.epochService.StoreEpochState(epochChange); err != nil {
 			b.logger.Errorf("failed to store epoch state at epoch %d: %v", checkpoint.Epoch(), err)
 		}
 	}
+	proof := &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: checkpoint}
+	proofData, err := proof.Marshal()
+	if err != nil {
+		b.logger.Errorf("failed to marshal proof data: %v", err)
+		return
+	}
+	validators, err := b.GetLedgerValidators()
+	if err != nil {
+		b.logger.Errorf("failed to get validators: %v", err)
+		return
+	}
+
 	b.ledgerConfig.ChainState.UpdateCheckpoint(&pb.QuorumCheckpoint{
 		Epoch: checkpoint.Epoch(),
 		State: &pb.ExecuteState{
 			Height: checkpoint.Checkpoint().ExecuteState().StateHeight(),
 			Digest: checkpoint.Checkpoint().ExecuteState().StateRoot().String(),
 		},
+		Proof: proofData,
+		ValidatorSet: lo.Map(validators, func(v *protos.Validator, _ int) *pb.QuorumCheckpoint_Validator {
+			p2pId, err := b.ledgerConfig.ChainState.GetP2PIDByNodeID(uint64(v.ValidatorId))
+			if err != nil {
+				b.logger.Errorf("failed to get p2p id: %v", err)
+				return nil
+			}
+			return &pb.QuorumCheckpoint_Validator{
+				Id:      uint64(v.ValidatorId),
+				P2PId:   p2pId,
+				Primary: v.Hostname,
+				Workers: v.Workers,
+			}
+		}),
 	})
+
+	if err = dagbft_common.PostAttestationEvent(checkpoint, b.AttestationFeed, b.getBlockFn); err != nil {
+		b.logger.Errorf("failed to post attestation event: %v", err)
+	}
 }
 
 func (b *BlockChain) StateUpdate(checkpoint *types.QuorumCheckpoint, eventCh chan<- *events.StateUpdatedEvent, epochChanges ...*types.QuorumCheckpoint) error {
@@ -429,7 +473,7 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 	b.metrics.syncChainCounter.Inc()
 	targetHeight := checkpoint.Checkpoint().ExecuteState().StateHeight()
 
-	peerM := b.getRemotePeers(epochChanges)
+	peerM := dagbft_common.GetRemotePeers(epochChanges, b.ledgerConfig.ChainState)
 
 	syncTaskDoneCh := make(chan error, 1)
 	if err := retry.Retry(func(attempt uint) error {
@@ -441,11 +485,11 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 			CurHeight:    localHeight + 1,
 			TargetHeight: targetHeight,
 			QuorumCheckpoint: &consensustypes.DagbftQuorumCheckpoint{
-				QuorumCheckpoint: *checkpoint,
+				QuorumCheckpoint: checkpoint,
 			},
 			EpochChanges: lo.Map(epochChanges, func(qckpt *types.QuorumCheckpoint, index int) *consensustypes.EpochChange {
 				return &consensustypes.EpochChange{
-					QuorumCheckpoint: &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: *checkpoint},
+					QuorumCheckpoint: &consensustypes.DagbftQuorumCheckpoint{QuorumCheckpoint: checkpoint},
 				}
 			}),
 		}
@@ -516,35 +560,6 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 	}
 }
 
-func (b *BlockChain) getRemotePeers(epochChanges []*types.QuorumCheckpoint) []*synccomm.Node {
-	peersM := make(map[uint64]*synccomm.Node)
-
-	// get the validator set of the current local epoch
-	for _, validatorInfo := range b.ledgerConfig.ChainState.ValidatorSet {
-		v, err := b.ledgerConfig.ChainState.GetNodeInfo(validatorInfo.ID)
-		if err == nil {
-			if v.NodeInfo.P2PID != b.ledgerConfig.ChainState.SelfNodeInfo.P2PID {
-				peersM[validatorInfo.ID] = &synccomm.Node{Id: validatorInfo.ID, PeerID: v.P2PID}
-			}
-		}
-	}
-
-	// get the validator set of the remote latest epoch
-	if len(epochChanges) != 0 {
-		lo.ForEach(epochChanges[len(epochChanges)-1].Validators(), func(v *protos.Validator, _ int) {
-			if _, ok := peersM[uint64(v.ValidatorId)]; !ok && uint64(v.GetValidatorId()) != b.ledgerConfig.ChainState.SelfNodeInfo.ID {
-				info, err := b.ledgerConfig.ChainState.GetNodeInfo(uint64(v.ValidatorId))
-				if err != nil {
-					return
-				}
-				peersM[uint64(v.ValidatorId)] = &synccomm.Node{Id: uint64(v.ValidatorId), PeerID: info.P2PID}
-			}
-		})
-	}
-	// flatten peersM
-	return lo.Values(peersM)
-}
-
 func (b *BlockChain) GetEpoch() types.Epoch {
 	return b.ledgerConfig.ChainState.GetCurrentEpochInfo().Epoch
 }
@@ -589,5 +604,5 @@ func (b *BlockChain) GetEpochCheckpoint(epoch *types.Epoch) *types.QuorumCheckpo
 		b.logger.Errorf("failed to read epoch %d quorum chkpt: type assertion failed: %v", epoch, reflect.TypeOf(raw))
 		return nil
 	}
-	return &data.QuorumCheckpoint
+	return data.QuorumCheckpoint
 }

@@ -520,6 +520,10 @@ func (n *Node) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Sub
 	return n.stack.MockBlockFeed.Subscribe(ch)
 }
 
+func (n *Node) SubscribeAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription {
+	return n.stack.AttestationFeed.Subscribe(ch)
+}
+
 func (n *Node) GetEpochState(epoch uint64) types.QuorumCheckpoint {
 	qckpt, err := n.stack.ReadEpochState(epoch)
 	if err != nil {

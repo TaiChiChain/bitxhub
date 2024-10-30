@@ -1,9 +1,13 @@
 package types
 
 import (
+	"encoding/json"
+
 	rbft "github.com/axiomesh/axiom-bft/common/consensus"
 	dagtypes "github.com/bcds/go-hpc-dagbft/common/types"
+	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/components/timer"
@@ -22,6 +26,7 @@ const (
 const (
 	Dagbft = "dagbft"
 	Rbft   = "rbft"
+	Solo   = "solo"
 )
 
 var (
@@ -75,11 +80,6 @@ type Checkpoint struct {
 	Digest string
 }
 
-type AttestationAndBlock struct {
-	Block           *types.Block
-	AttestationData types.QuorumCheckpoint
-}
-
 var QuorumCheckpointConstructor = map[string]func() types.QuorumCheckpoint{
 	Dagbft: func() types.QuorumCheckpoint {
 		return &DagbftQuorumCheckpoint{}
@@ -89,12 +89,29 @@ var QuorumCheckpointConstructor = map[string]func() types.QuorumCheckpoint{
 	},
 }
 
+type Attestation struct {
+	Block *types.Block
+	Proof *Proof
+}
+
+type Proof struct {
+	SignData []byte
+}
+
+func (a *Attestation) Height() uint64 {
+	return a.Block.Height()
+}
+
+func (a *Attestation) Epoch() uint64 {
+	return a.Block.Header.Epoch
+}
+
 type EpochChange struct {
 	types.QuorumCheckpoint
 }
 
 type DagbftQuorumCheckpoint struct {
-	dagtypes.QuorumCheckpoint
+	*dagtypes.QuorumCheckpoint
 }
 
 func (q *DagbftQuorumCheckpoint) Epoch() uint64 {
@@ -106,10 +123,14 @@ func (q *DagbftQuorumCheckpoint) NextEpoch() uint64 {
 }
 
 func (q *DagbftQuorumCheckpoint) Marshal() ([]byte, error) {
+	if q.QuorumCheckpoint == nil {
+		return nil, errors.New("nil quorum checkpoint")
+	}
 	return q.QuorumCheckpoint.Marshal()
 }
 
 func (q *DagbftQuorumCheckpoint) Unmarshal(raw []byte) error {
+	q.QuorumCheckpoint = &dagtypes.QuorumCheckpoint{}
 	if err := q.QuorumCheckpoint.Unmarshal(raw); err != nil {
 		return err
 	}
@@ -122,4 +143,58 @@ func (q *DagbftQuorumCheckpoint) GetHeight() uint64 {
 
 func (q *DagbftQuorumCheckpoint) GetStateDigest() string {
 	return q.GetCheckpoint().GetExecuteState().GetStateRoot()
+}
+
+func (q *DagbftQuorumCheckpoint) GetSignatures() []types.Signature {
+	signatures, ok := q.Signatures().(dagtypes.MultiSignature)
+	if !ok {
+		return nil
+	}
+
+	return lo.Map(signatures.Signatures, func(sig protocol.Signature, _ int) types.Signature {
+		return types.Signature{Singer: uint64(sig.Signer), Signature: sig.Signature}
+	})
+}
+
+func (q *DagbftQuorumCheckpoint) EndEpoch() bool {
+	return q.QuorumCheckpoint.EndsEpoch()
+}
+
+type MockQuorumCheckpoint struct {
+	BlockEpoch      uint64 `json:"block_epoch"`
+	Height          uint64 `json:"height"`
+	Digest          string `json:"digest"`
+	NeedUpdateEpoch bool   `json:"need_update_epoch"`
+}
+
+func (q *MockQuorumCheckpoint) Epoch() uint64 {
+	return q.BlockEpoch
+}
+
+func (q *MockQuorumCheckpoint) NextEpoch() uint64 {
+	return q.BlockEpoch + 1
+}
+
+func (q *MockQuorumCheckpoint) Marshal() ([]byte, error) {
+	return json.Marshal(q)
+}
+
+func (q *MockQuorumCheckpoint) Unmarshal(raw []byte) error {
+	return json.Unmarshal(raw, q)
+}
+
+func (q *MockQuorumCheckpoint) GetHeight() uint64 {
+	return q.Height
+}
+
+func (q *MockQuorumCheckpoint) GetStateDigest() string {
+	return q.Digest
+}
+
+func (q *MockQuorumCheckpoint) GetSignatures() []byte {
+	return nil
+}
+
+func (q *MockQuorumCheckpoint) EndEpoch() bool {
+	return q.NeedUpdateEpoch
 }

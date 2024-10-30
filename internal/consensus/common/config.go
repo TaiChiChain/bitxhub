@@ -28,6 +28,7 @@ type Config struct {
 	Digest             string
 	GenesisDigest      string
 	GetBlockHeaderFunc func(height uint64) (*types.BlockHeader, error)
+	GetBlockFunc       func(height uint64) (*types.Block, error)
 	GetAccountBalance  func(address string) *big.Int
 	GetAccountNonce    func(address *types.Address) uint64
 	NotifyStop         func(err error)
@@ -123,6 +124,12 @@ func WithEpochStore(manager *epochmgr.EpochManager) Option {
 func WithNotifyStopCh(f func(err error)) Option {
 	return func(config *Config) {
 		config.NotifyStop = f
+	}
+}
+
+func WithGetBlockFunc(f func(height uint64) (*types.Block, error)) Option {
+	return func(config *Config) {
+		config.GetBlockFunc = f
 	}
 }
 

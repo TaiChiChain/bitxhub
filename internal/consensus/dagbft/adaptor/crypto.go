@@ -31,7 +31,7 @@ type CryptoImpl struct {
 	logger            logrus.FieldLogger
 }
 
-func NewCryptoImpl(conf *common.Config, precheck precheck.PreCheck) (*CryptoImpl, error) {
+func NewCryptoImpl(conf *common.Config) (*CryptoImpl, error) {
 	logger := conf.Logger
 	var (
 		useBls bool

@@ -34,6 +34,7 @@ type NodeDev struct {
 	GetAccountNonce GetAccountNonceFunc
 	txFeed          event.Feed
 	mockBlockFeed   event.Feed
+	attestationFeed event.Feed
 }
 
 func NewNode(config *common.Config) (*NodeDev, error) {
@@ -130,6 +131,10 @@ func (n *NodeDev) SubscribeTxEvent(events chan<- []*types.Transaction) event.Sub
 }
 
 func (n *NodeDev) SubscribeMockBlockEvent(ch chan<- events.ExecutedEvent) event.Subscription {
+	return n.mockBlockFeed.Subscribe(ch)
+}
+
+func (n *NodeDev) SubscribeAttestationEvent(ch chan<- events.AttestationEvent) event.Subscription {
 	return n.mockBlockFeed.Subscribe(ch)
 }
 

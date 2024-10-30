@@ -1051,7 +1051,7 @@ func (n *Node[T, Constraint]) recvEpochChangeProof(proof *consensus.EpochChangeP
 
 	n.statusMgr.On(InEpochSyncing)
 	for _, ec := range proof.GetEpochChanges() {
-		n.epochProofCache[ec.Checkpoint.NextEpoch()] = &consensus.RbftQuorumCheckpoint{QuorumCheckpoint: *ec.GetCheckpoint()}
+		n.epochProofCache[ec.Checkpoint.NextEpoch()] = &consensus.RbftQuorumCheckpoint{QuorumCheckpoint: ec.GetCheckpoint()}
 	}
 	n.logger.Infof("Replica %d try epoch sync to height %d, epoch %d", n.chainState.SelfNodeInfo.ID,
 		quorumCheckpoint.Height(), quorumCheckpoint.NextEpoch())
