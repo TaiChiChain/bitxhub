@@ -286,6 +286,7 @@ func (n *Node) broadcastTxs(txSetData [][]byte) error {
 		return err
 	}
 
+	n.logger.Debugf("broadcast %d txs", len(txSetData))
 	return n.txsBroadcastMsgPipe.Broadcast(context.TODO(), nil, data)
 }
 
