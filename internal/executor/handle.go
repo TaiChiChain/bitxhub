@@ -443,7 +443,7 @@ func (exec *BlockExecutor) postLogsEvent(receipts []*types.Receipt) {
 
 func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height uint64) *types.Receipt {
 	defer func() {
-		exec.ledger.StateLedger.SetNonce(tx.GetFrom(), tx.GetNonce()+1)
+		// exec.ledger.StateLedger.SetNonce(tx.GetFrom(), tx.GetNonce()+1)
 		exec.ledger.StateLedger.Finalise()
 	}()
 
