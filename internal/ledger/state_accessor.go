@@ -75,7 +75,7 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 	// return s.stateObjects[object.Address()]
 }
 
-// GetAccount get account info using account Address
+// GetAccount get account info using account address
 func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 	// start := time.Now()
 	// defer func() {
@@ -86,7 +86,7 @@ func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 		addr := address.ETHAddress()
 		value, ok := l.accounts[addr]
 		if ok {
-			l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
+			l.logger.Debugf("[GetAccount] cache hit from Accounts，addr: %v, account: %v", addr, value)
 			return value
 		}
 
@@ -142,7 +142,7 @@ func (l *StateLedgerImpl) setAccount(account IAccount) {
 	l.logger.Debugf("[Revert setAccount] addr: %v, account: %v", account.GetAddress(), account)
 }
 
-// GetBalance get account balance using account Address
+// GetBalance get account balance using account address
 func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
 	// start := time.Now()
 	// defer func() {
@@ -196,7 +196,7 @@ func (l *StateLedgerImpl) AddBalance(addr *types.Address, value *big.Int) {
 	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
 }
 
-// GetState get account state value using account Address and key
+// GetState get account state value using account address and key
 func (l *StateLedgerImpl) GetState(addr *types.Address, key []byte) (bool, []byte) {
 	return MVRead2(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), true, (&types.Hash{}).Bytes(), func(s *StateLedgerImpl) (bool, []byte) {
 		account := l.GetAccount(addr)
@@ -224,7 +224,7 @@ func (l *StateLedgerImpl) GetCommittedState(addr *types.Address, key []byte) []b
 
 }
 
-// SetState set account state value using account Address and key
+// SetState set account state value using account address and key
 func (l *StateLedgerImpl) SetState(addr *types.Address, key []byte, v []byte) {
 	account := l.GetOrCreateAccount(addr)
 	account = l.mvRecordWritten(account)
@@ -335,7 +335,7 @@ func (l *StateLedgerImpl) collectDirtyData() (map[common.Address]IAccount, *type
 	blockJournal := &types.SnapshotJournal{
 		Journals: journals,
 	}
-	l.Clear() // remove accounts that cached during executing current block
+	l.Clear() // remove Accounts that cached during executing current block
 	return dirtyAccounts, blockJournal
 }
 
@@ -766,17 +766,17 @@ func (l *StateLedgerImpl) AddLog(log *types.EvmLog) {
 
 	l.changer.append(addLogChange{txHash: log.TransactionHash})
 
-	log.LogIndex = uint64(l.logs.logSize)
-	if _, ok := l.logs.logs[*log.TransactionHash]; !ok {
-		l.logs.logs[*log.TransactionHash] = make([]*types.EvmLog, 0)
+	log.LogIndex = uint64(l.logs.LogSize)
+	if _, ok := l.logs.Logs[*log.TransactionHash]; !ok {
+		l.logs.Logs[*log.TransactionHash] = make([]*types.EvmLog, 0)
 	}
 
-	l.logs.logs[*log.TransactionHash] = append(l.logs.logs[*log.TransactionHash], log)
-	l.logs.logSize++
+	l.logs.Logs[*log.TransactionHash] = append(l.logs.Logs[*log.TransactionHash], log)
+	l.logs.LogSize++
 }
 
 func (l *StateLedgerImpl) GetLogs(txHash types.Hash, height uint64) []*types.EvmLog {
-	logs := l.logs.logs[txHash]
+	logs := l.logs.Logs[txHash]
 	for _, l := range logs {
 		l.BlockNumber = height
 	}
@@ -785,7 +785,7 @@ func (l *StateLedgerImpl) GetLogs(txHash types.Hash, height uint64) []*types.Evm
 
 func (l *StateLedgerImpl) Logs() []*types.EvmLog {
 	var logs []*types.EvmLog
-	for _, lgs := range l.logs.logs {
+	for _, lgs := range l.logs.Logs {
 		logs = append(logs, lgs...)
 	}
 	return logs
