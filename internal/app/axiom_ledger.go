@@ -399,13 +399,31 @@ func (axm *AxiomLedger) initChainState() error {
 	axm.ChainState.UpdateChainMeta(chainMeta)
 	axm.ChainState.TryUpdateSelfNodeInfo()
 
+	var proof []byte
+	if chainMeta.Height > repo.GenesisBlockNumber {
+		proof, err = axm.epochStore.GetLatestProof()
+		if err != nil {
+			return err
+		}
+	} else {
+		genesisckpt, err := axm.epochStore.GenGenesisEpochCheckpoint()
+		if err != nil {
+			return err
+		}
+		proof, err = genesisckpt.Marshal()
+		if err != nil {
+			return err
+		}
+	}
+
 	currentCheckpoint := &pb.QuorumCheckpoint{
 		Epoch: currentEpoch.Epoch,
 		State: &pb.ExecuteState{
 			Height: chainMeta.Height,
 			Digest: chainMeta.BlockHash.String(),
 		},
-		Type: repo.ConsensusTypeM[axm.Repo.Config.Consensus.Type],
+		Type:  repo.ConsensusTypeM[axm.Repo.Config.Consensus.Type],
+		Proof: proof,
 	}
 	axm.ChainState.UpdateCheckpoint(currentCheckpoint)
 	return nil

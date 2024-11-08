@@ -2,6 +2,7 @@ package data_syncer
 
 import (
 	"container/heap"
+	"fmt"
 
 	"github.com/axiomesh/axiom-ledger/internal/components/axm_heap"
 	"github.com/axiomesh/axiom-ledger/internal/components/status"
@@ -23,6 +24,16 @@ const (
 	finishSyncEpoch
 	finishStateUpdate
 )
+
+var EventTypeM = map[event]string{
+	newAttestation:    "newAttestation",
+	newTxSet:          "newTxSet",
+	stateUpdate:       "stateUpdate",
+	executed:          "executed",
+	syncEpoch:         "syncEpoch",
+	finishSyncEpoch:   "finishSyncEpoch",
+	finishStateUpdate: "finishStateUpdate",
+}
 
 const (
 	Normal status.StatusType = iota
@@ -63,6 +74,17 @@ func newProofCache(maxSize int) *ProofCache {
 	heap.Init(ac.heightIndex)
 
 	return ac
+}
+
+func (ac *ProofCache) pushProof(quorumCkpt *consensusTypes.DagbftQuorumCheckpoint, metrics *metrics) error {
+	defer ac.checkStatus()
+	if !ac.isNormal() {
+		return fmt.Errorf("cache status is abnormal")
+	}
+	ac.quorumCheckpointM[quorumCkpt.Height()] = quorumCkpt
+	ac.heightIndex.PushItem(quorumCkpt.Height())
+	metrics.attestationCacheNum.Inc()
+	return nil
 }
 
 type stateUpdateEvent struct {

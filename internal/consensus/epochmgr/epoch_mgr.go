@@ -16,6 +16,7 @@ import (
 const (
 	EpochStatePrefix = "epoch_q_chkpt."
 	EpochIndexKey    = "epoch_latest_idx"
+	ProofIndexKey    = "proof_latest_idx"
 )
 
 type EpochManager struct {
@@ -77,12 +78,34 @@ func (e *EpochManager) GetLatestEpoch() uint64 {
 	return binary.BigEndian.Uint64(data)
 }
 
+func (e *EpochManager) StoreLatestProof(proof []byte) error {
+	e.store.Put(e.genProofKey(), proof)
+	return nil
+}
+
+func (e *EpochManager) GetLatestProof() ([]byte, error) {
+	data := e.store.Get(e.genProofKey())
+	if data == nil {
+		return nil, fmt.Errorf("[EpochService] latest proof not found")
+	}
+
+	return data, nil
+}
+
 func (e *EpochManager) genEpochKey(epoch uint64) []byte {
 	return []byte("epoch." + fmt.Sprintf("%s%d", EpochStatePrefix, epoch))
 }
 
+func (e *EpochManager) genProofKey() []byte {
+	return []byte("proof." + ProofIndexKey)
+}
+
 func (e *EpochManager) genLatestEpochIndexKey() []byte {
 	return []byte("epoch." + EpochIndexKey)
+}
+
+func (e *EpochManager) GenGenesisEpochCheckpoint() (types.QuorumCheckpoint, error) {
+	return e.genGenesisEpochCheckpoint()
 }
 
 func (e *EpochManager) genGenesisEpochCheckpoint() (types.QuorumCheckpoint, error) {

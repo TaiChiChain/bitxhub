@@ -41,7 +41,6 @@ type Node struct {
 	bindNode             bindNode
 	logger               logrus.FieldLogger
 	chainState           *chainstate.ChainState
-	executedState        *pb.ExecuteState
 	getBlockFn           func(height uint64) (*types.Block, error)
 	executedEventCh      chan *events.ExecutedEvent
 	stateUpdatedEventCh  chan *events.StateUpdatedEvent
@@ -67,6 +66,7 @@ type Node struct {
 
 	recvProofCache  *ProofCache
 	AttestationFeed *eth_event.Feed
+	useBls          bool
 }
 
 func NewNode(config *common.Config, verifier protocol.ValidatorVerifier, logger logrus.FieldLogger,
@@ -107,9 +107,11 @@ func NewNode(config *common.Config, verifier protocol.ValidatorVerifier, logger 
 		recvNewAttestationCh: make(chan *consensus_types.Attestation, common.MaxChainSize),
 		recvEventCh:          make(chan *localEvent, common.MaxChainSize),
 		ap:                   ap,
+		wg:                   &sync.WaitGroup{},
 		logger:               logger,
 		metrics:              newMetrics(),
 		AttestationFeed:      new(eth_event.Feed),
+		useBls:               config.Repo.Config.Consensus.UseBlsKey,
 	}, nil
 }
 
@@ -211,6 +213,9 @@ func (n *Node) listenEvent() {
 }
 
 func (n *Node) processEvent(ev *localEvent) []*localEvent {
+	n.logger.WithField("event type", EventTypeM[ev.EventType]).Infof("process event")
+	start := time.Now()
+	defer n.logger.WithField("event type", EventTypeM[ev.EventType]).Infof("process event cost %s", time.Since(start))
 	var (
 		nextEvent []*localEvent
 		err       error
@@ -219,7 +224,10 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 	case newAttestation:
 		at, ok := ev.Event.(*consensus_types.Attestation)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
@@ -231,7 +239,10 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 	case newTxSet:
 		txSet, ok := ev.Event.([]protocol.Transaction)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
@@ -243,7 +254,10 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 	case executed:
 		ex, ok := ev.Event.(*events.ExecutedEvent)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
@@ -256,7 +270,10 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 		startEpoch := n.chainState.EpochInfo.Epoch
 		endEpoch, ok := ev.Event.(uint64)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
@@ -270,7 +287,10 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 	case finishSyncEpoch:
 		epochChanges, ok := ev.Event.(protos.EpochChangeResponse)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
@@ -301,9 +321,12 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 		})
 
 	case stateUpdate:
-		ev, ok := ev.Event.(*stateUpdateEvent)
+		st, ok := ev.Event.(*stateUpdateEvent)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
@@ -313,14 +336,14 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 			return nil
 		}
 
-		if len(ev.EpochChanges) > 0 {
-			n.logger.Infof("store epoch state at epoch %d", ev.targetCheckpoint.Epoch())
+		if len(st.EpochChanges) > 0 {
+			n.logger.Infof("store epoch state at epoch %d", st.targetCheckpoint.Epoch())
 			wg := &sync.WaitGroup{}
 			wg.Add(1)
 			go func(waitG *sync.WaitGroup) {
 				defer waitG.Done()
 				defer n.wg.Done()
-				lo.ForEach(ev.EpochChanges, func(ckpt *dagtypes.QuorumCheckpoint, index int) {
+				lo.ForEach(st.EpochChanges, func(ckpt *dagtypes.QuorumCheckpoint, index int) {
 					if ckpt != nil {
 						epochChange := &consensus_types.DagbftQuorumCheckpoint{QuorumCheckpoint: ckpt}
 						if err = n.epochService.StoreEpochState(epochChange); err != nil {
@@ -331,37 +354,57 @@ func (n *Node) processEvent(ev *localEvent) []*localEvent {
 			}(wg)
 		}
 
-		targetHeight := ev.targetCheckpoint.Height()
-		targetCheckpoint := ev.targetCheckpoint
+		targetHeight := st.targetCheckpoint.Height()
+		targetCheckpoint := st.targetCheckpoint
 		n.logger.Infof("node start state updating to target height: %d", targetHeight)
 		n.notifyConsensusStateUpdate(targetHeight, targetCheckpoint, n.stateUpdatedEventCh)
 
-		if err = n.handleStateUpdate(ev.targetCheckpoint, ev.EpochChanges...); err != nil {
+		if err = n.handleStateUpdate(st.targetCheckpoint, st.EpochChanges...); err != nil {
 			n.logger.WithField("event", ev).Errorf("handleStateUpdate err: %v", err)
 			return nil
 		}
 		n.statusMgr.On(InSync)
 
 	case finishStateUpdate:
-		ev, ok := ev.Event.(*stateUpdateEvent)
+		se, ok := ev.Event.(*events.StateUpdatedEvent)
 		if !ok {
-			n.logger.WithField("event", ev).Errorf("invalid event type")
+			n.logger.WithFields(logrus.Fields{
+				"event": ev,
+				"type":  EventTypeM[ev.EventType],
+			}).Errorf("invalid event type")
 			n.metrics.errCounter.WithLabelValues(ErrorType).Inc()
 			return nil
 		}
-		n.logger.Infof("node finish state updating to target height: %d", ev.targetCheckpoint.Height())
-		if n.popProof(ev.targetCheckpoint.Height()) == nil {
-			n.logger.Infof("node should continue update to next target height: %d", n.peakProof().Height())
+		n.logger.Infof("node finish state updating to target height: %d", se.Checkpoint.Height())
+		p := n.popProof(se.Checkpoint.Height())
+		if p == nil {
+			panic(fmt.Errorf("proof not found at height: %d", se.Checkpoint.Height()))
+		}
+		if p.StateRoot().String() != se.Checkpoint.StateRoot().String() {
+			panic(fmt.Sprintf("state root not match, expect: %s, got: %s", se.Checkpoint.StateRoot().String(), p.StateRoot().String()))
+		}
+
+		// update latest proof in chainstate and db
+		if err = n.updateLatestProof(se.Checkpoint); err != nil {
 			return nil
 		}
+		// update attestation
+		if err = dagbft_common.PostAttestationEvent(se.Checkpoint, n.AttestationFeed, n.getBlockFn, n.epochService); err != nil {
+			n.logger.WithField("event", ev).Errorf("PostAttestationEvent err: %v", err)
+			return nil
+		}
+
 		for _, at := range n.popProofList() {
 			nextEvent = append(nextEvent, &localEvent{
 				EventType: newAttestation,
 				Event:     at,
 			})
 		}
-		n.logger.Infof("node continue handle new blocks from height: %d, newAttestation event count: %d",
-			n.peakProof().Height(), len(nextEvent))
+		if len(nextEvent) > 0 {
+			n.logger.Infof("node continue handle new blocks from height: %d, newAttestation event count: %d",
+				se.Checkpoint.Height(), len(nextEvent))
+		}
+		n.updateCurrentHeight(se.Checkpoint.Height())
 		n.statusMgr.Off(InSync)
 
 		if !n.statusMgr.In(Normal) {
@@ -436,7 +479,49 @@ func (n *Node) handleExecutedEvent(ev *events.ExecutedEvent) error {
 		return fmt.Errorf("failed to pop attestation at height: %d", height)
 	}
 
-	return dagbft_common.PostAttestationEvent(ct.QuorumCheckpoint, n.AttestationFeed, n.getBlockFn)
+	if err := n.updateLatestProof(ct.QuorumCheckpoint); err != nil {
+		return err
+	}
+	return dagbft_common.PostAttestationEvent(ct.QuorumCheckpoint, n.AttestationFeed, n.getBlockFn, n.epochService)
+}
+
+func (n *Node) updateLatestProof(checkpoint *dagtypes.QuorumCheckpoint) error {
+	proof := &consensus_types.DagbftQuorumCheckpoint{QuorumCheckpoint: checkpoint}
+	proofData, err := proof.Marshal()
+	if err != nil {
+		n.logger.Errorf("failed to marshal proof data: %v", err)
+		return err
+	}
+
+	validators, err := dagbft_common.GetValidators(n.chainState, n.useBls)
+	if err != nil {
+		n.logger.Errorf("failed to get validators: %v", err)
+		return err
+	}
+
+	n.chainState.UpdateCheckpoint(&pb.QuorumCheckpoint{
+		Epoch: checkpoint.Epoch(),
+		State: &pb.ExecuteState{
+			Height: checkpoint.Checkpoint().ExecuteState().StateHeight(),
+			Digest: checkpoint.Checkpoint().ExecuteState().StateRoot().String(),
+		},
+		Proof: proofData,
+		ValidatorSet: lo.Map(validators, func(v *protos.Validator, _ int) *pb.QuorumCheckpoint_Validator {
+			p2pId, err := n.chainState.GetP2PIDByNodeID(uint64(v.ValidatorId))
+			if err != nil {
+				n.logger.Errorf("failed to get p2p id: %v", err)
+				return nil
+			}
+			return &pb.QuorumCheckpoint_Validator{
+				Id:      uint64(v.ValidatorId),
+				P2PId:   p2pId,
+				Primary: v.Hostname,
+				Workers: v.Workers,
+			}
+		}),
+	})
+
+	return n.epochService.StoreLatestProof(proofData)
 }
 
 func (n *Node) handleEpochRequest(start, end uint64) error {
@@ -493,7 +578,7 @@ func (n *Node) handleStateUpdate(target *dagtypes.QuorumCheckpoint, epochChanges
 		}).Info("State update start")
 		err := n.sync.StartSync(params, syncTaskDoneCh)
 		if err != nil {
-			n.logger.Infof("start sync failed[local:%d, target:%d]: %s", localHeight, targetHeight, err)
+			n.logger.Errorf("start sync failed[local:%d, target:%d]: %s", localHeight, targetHeight, err)
 			return err
 		}
 		return nil
@@ -501,7 +586,6 @@ func (n *Node) handleStateUpdate(target *dagtypes.QuorumCheckpoint, epochChanges
 		panic(fmt.Errorf("retry start sync failed: %v", err))
 	}
 
-	n.wg.Wait()
 	var stateUpdatedCheckpoint *consensus_types.Checkpoint
 	// wait for the sync to finish
 	for {
@@ -585,31 +669,39 @@ func convertTransactions(transactions []protocol.Transaction) [][]byte {
 }
 
 func (n *Node) handleNewAttestation(a *consensus_types.Attestation) ([]*localEvent, error) {
-	quorumckpt, err := dagbft_common.DecodeProof(a.Proof)
+	proof, err := a.GetProof()
 	if err != nil {
 		n.logger.Errorf("failed to decode quorum checkpoint: %v", err)
 		return nil, err
 	}
-	if a.Height() < n.currentHeight {
+	quorumCheckpoint, ok := proof.(*consensus_types.DagbftQuorumCheckpoint)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast quorum checkpoint")
+	}
+	newBlock, err := a.GetBlock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal block: %v", err)
+	}
+	if newBlock.Height() < n.currentHeight {
 		n.logger.Warningf("receive new block height %d is less than current height %d, just ignore it...",
-			quorumckpt.GetHeight(), n.currentHeight)
+			quorumCheckpoint.GetHeight(), n.currentHeight)
 		return nil, nil
 	}
 
-	if a.Epoch() > n.chainState.EpochInfo.Epoch {
+	if a.GetEpoch() > n.chainState.EpochInfo.Epoch {
 		n.logger.Infof("receive new block epoch %d is greater than current epoch %d, "+
-			"should wait for finishing epoch change", a.Epoch(), n.chainState.EpochInfo.Epoch)
+			"should wait for finishing epoch change", a.GetEpoch(), n.chainState.EpochInfo.Epoch)
 
 		// if cache is full, should dismiss the new attestation until cache is empty
-		if err := n.pushProof(a.Proof); err != nil {
-			n.logger.WithFields(logrus.Fields{"height": quorumckpt.GetHeight()}).Warningf("push attestation failed: %v", err)
+		if err = n.pushProof(a.Proof); err != nil {
+			n.logger.WithFields(logrus.Fields{"height": quorumCheckpoint.GetHeight()}).Warningf("push attestation failed: %v", err)
 			return nil, nil
 		}
 
-		if a.Height() > n.currentHeight && !n.statusMgr.In(InEpochSync) {
+		if newBlock.Height() > n.currentHeight && !n.statusMgr.In(InEpochSync) {
 			nextEvent := &localEvent{
 				EventType: syncEpoch,
-				Event:     a.Epoch(),
+				Event:     a.GetEpoch(),
 			}
 			return []*localEvent{nextEvent}, nil
 		}
@@ -620,22 +712,7 @@ func (n *Node) handleNewAttestation(a *consensus_types.Attestation) ([]*localEve
 	// start verify the attestation
 	err = n.verifier.verifyAttestation(a)
 	if err != nil {
-		n.logger.WithFields(logrus.Fields{"height": quorumckpt.GetHeight()}).Errorf("verify attestation failed: %v", err)
-		return nil, err
-	}
-
-	// This situation often occurs when the bound validator had performed synchronization,
-	// validator would lose some Attestation data during the synchronization,
-	// therefore, the data syncer node should also follow a synchronization process.
-	if a.Height() > n.currentHeight {
-		nextEvent := &localEvent{
-			EventType: stateUpdate,
-			Event:     quorumckpt,
-		}
-		return []*localEvent{nextEvent}, nil
-	}
-
-	if err = n.execute(a.Block, quorumckpt, n.executedEventCh); err != nil {
+		n.logger.WithFields(logrus.Fields{"height": quorumCheckpoint.GetHeight()}).Errorf("verify attestation failed: %v", err)
 		return nil, err
 	}
 
@@ -643,14 +720,36 @@ func (n *Node) handleNewAttestation(a *consensus_types.Attestation) ([]*localEve
 		return nil, err
 	}
 
-	if quorumckpt.EndEpoch() {
-		if err = n.epochService.StoreEpochState(quorumckpt); err != nil {
+	// This situation often occurs when the bound validator had performed synchronization,
+	// validator would lose some Attestation data during the synchronization,
+	// therefore, the data syncer node should also follow a synchronization process.
+	demandHeight := n.currentHeight + 1
+	if newBlock.Height() > demandHeight && !n.statusMgr.In(InSync) {
+		nextEvent := &localEvent{
+			EventType: stateUpdate,
+			Event:     &stateUpdateEvent{targetCheckpoint: quorumCheckpoint.QuorumCheckpoint},
+		}
+		return []*localEvent{nextEvent}, nil
+	}
+
+	if err = n.execute(newBlock, quorumCheckpoint, n.executedEventCh); err != nil {
+		return nil, err
+	}
+
+	if quorumCheckpoint.EndEpoch() {
+		if err = n.epochService.StoreEpochState(quorumCheckpoint); err != nil {
 			return nil, err
 		}
 		n.metrics.epochChangeNum.Inc()
 	}
 
+	n.updateCurrentHeight(newBlock.Height())
 	return nil, nil
+}
+
+func (n *Node) updateCurrentHeight(height uint64) {
+	n.currentHeight = height
+	n.logger.Debugf("update current height to %d", height)
 }
 
 func (n *Node) execute(block *types.Block, checkpoint types.QuorumCheckpoint, eventCh chan<- *events.ExecutedEvent) error {
@@ -727,23 +826,20 @@ func (ac *ProofCache) isNormal() bool {
 	return !ac.status.InOne(cacheFull, cacheAbnormal)
 }
 
-func (n *Node) pushProof(p *consensus_types.Proof) error {
+func (n *Node) pushProof(p []byte) error {
 	quorumCkpt, err := dagbft_common.DecodeProof(p)
 	if err != nil {
 		return err
 	}
-	defer n.recvProofCache.checkStatus()
-	if !n.recvProofCache.isNormal() {
-		return fmt.Errorf("cache status is abnormal")
-	}
-	n.recvProofCache.quorumCheckpointM[quorumCkpt.Height()] = quorumCkpt
-	n.recvProofCache.heightIndex.PushItem(quorumCkpt.Height())
-	n.metrics.attestationCacheNum.Inc()
-	return nil
+	n.logger.Debugf("push proof %d", quorumCkpt.Height())
+	return n.recvProofCache.pushProof(quorumCkpt, n.metrics)
 }
 
 func (n *Node) peakProof() *consensus_types.DagbftQuorumCheckpoint {
 	h := n.recvProofCache.heightIndex.PeekItem()
+	if h == math.MaxUint64 {
+		return nil
+	}
 	return n.recvProofCache.quorumCheckpointM[h]
 }
 
@@ -762,6 +858,7 @@ func (n *Node) popProofList() []*consensus_types.DagbftQuorumCheckpoint {
 			return matched
 		}
 		matched = append(matched, n.recvProofCache.quorumCheckpointM[h])
+		n.logger.Debugf("pop proof %d", h)
 		delete(n.recvProofCache.quorumCheckpointM, h)
 		n.metrics.attestationCacheNum.Desc()
 	}
@@ -770,10 +867,11 @@ func (n *Node) popProofList() []*consensus_types.DagbftQuorumCheckpoint {
 
 func (n *Node) popProof(height uint64) *consensus_types.DagbftQuorumCheckpoint {
 	defer n.recvProofCache.checkStatus()
-	if n.peakProof().Height() == height {
+	if n.peakProof() != nil && n.peakProof().Height() == height {
 		matched := n.recvProofCache.quorumCheckpointM[height]
 		delete(n.recvProofCache.quorumCheckpointM, height)
 		n.metrics.attestationCacheNum.Desc()
+		n.logger.Debugf("pop proof %d", height)
 		return matched
 	}
 	return nil

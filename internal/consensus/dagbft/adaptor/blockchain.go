@@ -457,7 +457,7 @@ func (b *BlockChain) checkpoint(checkpoint *types.QuorumCheckpoint) {
 		}),
 	})
 
-	if err = dagbft_common.PostAttestationEvent(checkpoint, b.AttestationFeed, b.getBlockFn); err != nil {
+	if err = dagbft_common.PostAttestationEvent(checkpoint, b.AttestationFeed, b.getBlockFn, b.epochService); err != nil {
 		b.logger.Errorf("failed to post attestation event: %v", err)
 	}
 }
@@ -501,7 +501,7 @@ func (b *BlockChain) update(localHeight types.Height, latestBlockHash string, ch
 		}).Info("State update start")
 		err := b.sync.StartSync(params, syncTaskDoneCh)
 		if err != nil {
-			b.logger.Infof("start sync failed[local:%b, target:%b]: %s", localHeight, targetHeight, err)
+			b.logger.Errorf("start sync failed[local:%b, target:%b]: %s", localHeight, targetHeight, err)
 			return err
 		}
 		return nil

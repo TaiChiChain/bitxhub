@@ -2,8 +2,10 @@ package types
 
 import (
 	"encoding/json"
+	"fmt"
 
 	rbft "github.com/axiomesh/axiom-bft/common/consensus"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	dagtypes "github.com/bcds/go-hpc-dagbft/common/types"
 	"github.com/bcds/go-hpc-dagbft/protocol"
 	"github.com/pkg/errors"
@@ -90,20 +92,47 @@ var QuorumCheckpointConstructor = map[string]func() types.QuorumCheckpoint{
 }
 
 type Attestation struct {
-	Block *types.Block
-	Proof *Proof
+	Epoch         uint64 `json:"epoch"`
+	ConsensusType string `json:"consensus_type"`
+	Block         []byte `json:"block"`
+	Proof         []byte `json:"proof"`
 }
 
-type Proof struct {
-	SignData []byte
+func (a *Attestation) GetBlock() (*types.Block, error) {
+	block := &types.Block{}
+	if err := block.Unmarshal(a.Block); err != nil {
+		return nil, err
+	}
+	return block, nil
 }
 
-func (a *Attestation) Height() uint64 {
-	return a.Block.Height()
+func (a *Attestation) GetProof() (types.QuorumCheckpoint, error) {
+	switch a.ConsensusType {
+	case repo.ConsensusTypeDagBft:
+		cp := &DagbftQuorumCheckpoint{}
+		if err := cp.Unmarshal(a.Proof); err != nil {
+			return nil, err
+		}
+		return cp, nil
+	case repo.ConsensusTypeRbft:
+		cp := &rbft.RbftQuorumCheckpoint{}
+		if err := cp.Unmarshal(a.Proof); err != nil {
+			return nil, err
+		}
+		return cp, nil
+	case repo.ConsensusTypeSolo:
+		cp := &MockQuorumCheckpoint{}
+		if err := cp.Unmarshal(a.Proof); err != nil {
+			return nil, err
+		}
+		return cp, nil
+	default:
+		return nil, fmt.Errorf("unsupported consensus type: %s", a.ConsensusType)
+	}
 }
 
-func (a *Attestation) Epoch() uint64 {
-	return a.Block.Header.Epoch
+func (a *Attestation) GetEpoch() uint64 {
+	return a.Epoch
 }
 
 type EpochChange struct {

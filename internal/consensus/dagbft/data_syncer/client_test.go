@@ -29,7 +29,9 @@ func TestNewClient(t *testing.T) {
 	for {
 		select {
 		case newBlock := <-recvCh:
-			t.Log(newBlock)
+			b, err := newBlock.GetBlock()
+			assert.Nil(t, err)
+			t.Log(b)
 		case <-time.After(10 * time.Second):
 			t.Fatal("timeout")
 		}

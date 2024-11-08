@@ -1297,6 +1297,7 @@ func (sm *SyncManager) makeRequesters(height uint64) {
 	request := newRequester(sm.mode, sm.ctx, peerID, height, sm.recvEventCh, pipe)
 	sm.increaseRequester(request, height)
 	request.start(sm.conf.Sync.RequesterRetryTimeout.ToDuration())
+	sm.logger.Debugf("Make requester success, height: %d, peer: %s", height, peerID)
 }
 
 func (sm *SyncManager) increaseRequester(r *requester, height uint64) {

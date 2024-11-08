@@ -6,6 +6,7 @@ import (
 
 	"github.com/axiomesh/axiom-kit/types/pb"
 	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	network "github.com/axiomesh/axiom-p2p"
 	"github.com/bcds/go-hpc-dagbft/common/types"
 	"github.com/bcds/go-hpc-dagbft/common/types/messages"
@@ -119,7 +120,16 @@ func (n *Node) recvFetchStateResponse(data []byte) error {
 	if err := proof.Unmarshal(data); err != nil {
 		return err
 	}
+	if proof.Height() == repo.GenesisBlockNumber {
+		n.logger.Infof("start at genesis block, need not sync")
+		n.statusMgr.On(Normal)
+		return nil
+	}
 	if err := n.verifier.verifyProof(proof); err != nil {
+		return err
+	}
+
+	if err := n.pushProof(data); err != nil {
 		return err
 	}
 

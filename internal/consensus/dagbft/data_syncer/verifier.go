@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/axiomesh/axiom-ledger/internal/components"
-	"github.com/axiomesh/axiom-ledger/internal/consensus/dagbft/common"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	"github.com/bcds/go-hpc-dagbft/common/utils/channel"
 	"github.com/bcds/go-hpc-dagbft/common/utils/concurrency"
@@ -34,10 +33,18 @@ func newVerifier(logger logrus.FieldLogger, verify protocol.ValidatorVerifier, c
 }
 
 func (v *verifier) verifyAttestation(info *types.Attestation) error {
-	proof := info.Proof
-	cp, err := common.DecodeProof(proof)
+	proof, err := info.GetProof()
 	if err != nil {
 		return fmt.Errorf("failed to decode proof: %w", err)
+	}
+	cp, ok := proof.(*types.DagbftQuorumCheckpoint)
+	if !ok {
+		return fmt.Errorf("invalid proof type: %T", proof)
+	}
+
+	newBlock, err := info.GetBlock()
+	if err = newBlock.Unmarshal(info.Block); err != nil {
+		return fmt.Errorf("failed to unmarshal block: %w", err)
 	}
 
 	verifies := make([]func() error, 0, v.taskNum)
@@ -45,7 +52,7 @@ func (v *verifier) verifyAttestation(info *types.Attestation) error {
 	// 1. verify block header
 	verifyHeader := func() error {
 		quorumHash := cp.GetCheckpoint().GetExecuteState().GetStateRoot()
-		recvBlockHash := info.Block.Hash().String()
+		recvBlockHash := newBlock.Hash().String()
 		if quorumHash != recvBlockHash {
 			return fmt.Errorf("quorum hash mismatch: quorum:%s != recv blcok:%s", quorumHash, recvBlockHash)
 		}
@@ -55,8 +62,8 @@ func (v *verifier) verifyAttestation(info *types.Attestation) error {
 
 	// 2. verify block body
 	verifyBody := func() error {
-		txs := info.Block.Transactions
-		txRoot := info.Block.Header.TxRoot.String()
+		txs := newBlock.Transactions
+		txRoot := newBlock.Header.TxRoot.String()
 
 		// validate txRoot
 		calcTxRoot, err := components.CalcTxsMerkleRoot(txs)

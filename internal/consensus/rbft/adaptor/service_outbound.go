@@ -15,6 +15,7 @@ import (
 	syscommon "github.com/axiomesh/axiom-ledger/internal/executor/system/common"
 	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	"github.com/axiomesh/axiom-ledger/pkg/events"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
@@ -323,9 +324,21 @@ func (a *RBFTAdaptor) postAttestationEvent(block *types.Block, ckp *rbft.QuorumC
 		a.logger.Error(err)
 		return
 	}
+
+	blockBytes, err := block.Marshal()
+	if err != nil {
+		a.logger.Error(err)
+		return
+	}
 	a.AttestationFeed.Send(events.AttestationEvent{
 		AttestationData: &consensustypes.Attestation{
-			Block: block,
-			Proof: &consensustypes.Proof{SignData: proofData},
+			Epoch:         block.Header.Epoch,
+			ConsensusType: repo.ConsensusTypeRbft,
+			Block:         blockBytes,
+			Proof:         proofData,
 		}})
+	if err = a.epochManager.StoreLatestProof(proofData); err != nil {
+		a.logger.Error(err)
+		return
+	}
 }

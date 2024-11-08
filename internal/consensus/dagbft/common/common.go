@@ -1,12 +1,16 @@
 package common
 
 import (
+	"fmt"
+
 	kittypes "github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
 	"github.com/axiomesh/axiom-ledger/internal/consensus/common/metrics"
+	"github.com/axiomesh/axiom-ledger/internal/consensus/epochmgr"
 	consensustypes "github.com/axiomesh/axiom-ledger/internal/consensus/types"
 	synccomm "github.com/axiomesh/axiom-ledger/internal/sync/common"
 	api_events "github.com/axiomesh/axiom-ledger/pkg/events"
+	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	"github.com/bcds/go-hpc-dagbft/common/types"
 	"github.com/bcds/go-hpc-dagbft/common/types/protos"
 	"github.com/ethereum/go-ethereum/event"
@@ -42,7 +46,7 @@ func GetRemotePeers(epochChanges []*types.QuorumCheckpoint, chainstate *chainsta
 	return lo.Values(peersM)
 }
 
-func PostAttestationEvent(checkpoint *types.QuorumCheckpoint, feed *event.Feed, getBlockFn func(height uint64) (*kittypes.Block, error)) error {
+func PostAttestationEvent(checkpoint *types.QuorumCheckpoint, feed *event.Feed, getBlockFn func(height uint64) (*kittypes.Block, error), epochMgr *epochmgr.EpochManager) error {
 	newBlock, err := getBlockFn(checkpoint.Height())
 	if err != nil {
 		return err
@@ -52,31 +56,75 @@ func PostAttestationEvent(checkpoint *types.QuorumCheckpoint, feed *event.Feed, 
 	if err != nil {
 		return err
 	}
+	newBlockBytes, err := newBlock.Marshal()
+	if err != nil {
+		return err
+	}
 	attestationEvent := api_events.AttestationEvent{
 		AttestationData: &consensustypes.Attestation{
-			Block: newBlock,
-			Proof: proof,
+			Epoch:         newBlock.Header.Epoch,
+			ConsensusType: repo.ConsensusTypeDagBft,
+			Block:         newBlockBytes,
+			Proof:         proof,
 		},
 	}
 	feed.Send(attestationEvent)
+	if err = epochMgr.StoreLatestProof(proof); err != nil {
+		return err
+	}
 	metrics.AttestationCounter.WithLabelValues(consensustypes.Dagbft).Inc()
 	return nil
 }
 
-func DecodeProof(proof *consensustypes.Proof) (*consensustypes.DagbftQuorumCheckpoint, error) {
+func DecodeProof(proof []byte) (*consensustypes.DagbftQuorumCheckpoint, error) {
 	ckpt := &consensustypes.DagbftQuorumCheckpoint{}
-	if err := ckpt.Unmarshal(proof.SignData); err != nil {
+	if err := ckpt.Unmarshal(proof); err != nil {
 		return nil, err
 	}
 	return ckpt, nil
 }
 
-func encodeProof(ckpt *consensustypes.DagbftQuorumCheckpoint) (*consensustypes.Proof, error) {
+func encodeProof(ckpt *consensustypes.DagbftQuorumCheckpoint) ([]byte, error) {
 	data, err := ckpt.Marshal()
 	if err != nil {
 		return nil, err
 	}
-	return &consensustypes.Proof{
-		SignData: data,
-	}, nil
+	return data, nil
+}
+
+func GetValidators(state *chainstate.ChainState, useBls bool) ([]*protos.Validator, error) {
+	var validators []*protos.Validator
+
+	var innerErr error
+	validators = lo.Map(state.ValidatorSet, func(item chainstate.ValidatorInfo, index int) *protos.Validator {
+		var (
+			pubBytes []byte
+		)
+		nodeInfo, err := state.GetNodeInfo(item.ID)
+		if err != nil {
+			innerErr = fmt.Errorf("failed to get node info: %w", err)
+		}
+
+		if useBls {
+			pubBytes, err = nodeInfo.ConsensusPubKey.Marshal()
+		} else {
+			pubBytes, err = nodeInfo.P2PPubKey.Marshal()
+		}
+		if err != nil {
+			innerErr = fmt.Errorf("failed to marshal public key: %w", err)
+		}
+		return &protos.Validator{
+			Hostname:    nodeInfo.Primary,
+			PubKey:      pubBytes,
+			ValidatorId: uint32(item.ID),
+			VotePower:   uint64(item.ConsensusVotingPower),
+			Workers:     nodeInfo.Workers,
+		}
+	})
+
+	if innerErr != nil {
+		return nil, innerErr
+	}
+
+	return validators, nil
 }

@@ -202,14 +202,6 @@ func (n *Node) ReportState(height uint64, blockHash *types.Hash, txPointerList [
 	n.postMsg(state)
 }
 
-func (n *Node) GetEpochState(_ uint64) types.QuorumCheckpoint {
-	return nil
-}
-
-func (n *Node) PersistEpochState(_ types.QuorumCheckpoint) error {
-	return nil
-}
-
 func (n *Node) Quorum(_ uint64) uint64 {
 	return 1
 }
@@ -308,14 +300,23 @@ func (n *Node) listenEvent() {
 					n.logger.Errorf("Marshal checkpoint failed: %v", err)
 					continue
 				}
+				newBlockBytes, err := newBlock.Marshal()
+				if err != nil {
+					n.logger.Errorf("Marshal block failed: %v", err)
+					continue
+				}
 				n.attestationFeed.Send(events.AttestationEvent{
 					AttestationData: &consensustypes.Attestation{
-						Block: newBlock,
-						Proof: &consensustypes.Proof{
-							SignData: proofData,
-						},
+						Epoch:         newBlock.Header.Epoch,
+						ConsensusType: repo.ConsensusTypeSolo,
+						Block:         newBlockBytes,
+						Proof:         proofData,
 					},
 				})
+
+				if err = n.config.EpochStore.StoreLatestProof(proofData); err != nil {
+					n.logger.Errorf("Store latest proof failed: %v", err)
+				}
 				metrics.AttestationCounter.WithLabelValues(consensustypes.Solo).Inc()
 
 			// receive tx from api
