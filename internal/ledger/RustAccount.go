@@ -8,13 +8,14 @@ import "C"
 import (
 	"crypto/sha256"
 	"fmt"
+	"math/big"
+	"runtime"
+	"unsafe"
+
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/ethereum/go-ethereum/common"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/holiman/uint256"
-	"math/big"
-	"runtime"
-	"unsafe"
 )
 
 type RustAccount struct {
@@ -36,6 +37,19 @@ func NewRustAccount(stateDBPtr *C.struct_EvmStateDB, address common.Address, cha
 		changer:    changer,
 		codeCache:  codeCache,
 	}
+}
+
+func (o *RustAccount) DeepCopy() IAccount {
+	res := &RustAccount{
+		stateDBPtr: o.stateDBPtr,
+		ethAddress: common.Address(o.Addr.Bytes()),
+		Addr:       types.NewAddress(o.Addr.Bytes()),
+		cAddress:   convertToCAddress(o.Addr.ETHAddress()),
+		codeCache:  o.codeCache,
+	}
+	o.changer = o.changer.ruststateChangerDeepCopy()
+
+	return res
 }
 
 func cu256ToUInt256(cu256 C.CU256) *uint256.Int {

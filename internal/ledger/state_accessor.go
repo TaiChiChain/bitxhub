@@ -61,26 +61,15 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 
 	// todo
 	// check
-	s.accounts[object.GetAddress().ETHAddress()] = DeepCopy(object.(*SimpleAccount))
+	s.accounts[object.GetAddress().ETHAddress()] = object.(*SimpleAccount).DeepCopy()
 	MVWrite(s, addrKey)
 
 	return s.accounts[object.GetAddress().ETHAddress()]
 
-	// Deepcopy is needed to ensure that objects are not written by multiple transactions at the same time, because
-	// the input state object can come from a different transaction.
-	// s.setStateObject(object.deepCopy(s))
-
-	// MVWrite(s, addrKey)
-
-	// return s.stateObjects[object.Address()]
 }
 
 // GetAccount get account info using account address
 func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
-	// start := time.Now()
-	// defer func() {
-	// 	getAccountDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	// }()
 
 	return MVRead(l, blockstm.NewAddressKey(*address), nil, func(l *StateLedgerImpl) IAccount {
 		addr := address.ETHAddress()
@@ -144,10 +133,6 @@ func (l *StateLedgerImpl) setAccount(account IAccount) {
 
 // GetBalance get account balance using account address
 func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
-	// start := time.Now()
-	// defer func() {
-	// 	getBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	// }()
 	return MVRead(l, blockstm.NewSubpathKey(*addr, BalancePath), common.Big0, func(l *StateLedgerImpl) *big.Int {
 		account := l.GetAccount(addr)
 		if account != nil {
@@ -160,7 +145,6 @@ func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
 
 // SetBalance set account balance
 func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
-	//start := time.Now()
 	account := l.GetOrCreateAccount(addr)
 	if l.mvHashmap != nil {
 		// ensure a read balance operation is recorded in mvHashmap
@@ -169,7 +153,6 @@ func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
 	account = l.mvRecordWritten(account)
 	account.SetBalance(value)
 	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
-	//setBalanceDuration.Observe(float64(time.Since(start)) / float64(time.Second))
 }
 
 func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {

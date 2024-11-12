@@ -10,6 +10,7 @@ import (
 	"github.com/axiomesh/axiom-kit/jmt"
 	"github.com/axiomesh/axiom-kit/storage/kv"
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 )
 
 // ChainLedger handles block, transaction and receipt data.
@@ -68,6 +69,8 @@ type ChainLedger interface {
 type StateLedger interface {
 	StateAccessor
 
+	StmAccessor
+
 	AddLog(log *types.EvmLog)
 
 	GetLogs(txHash types.Hash, height uint64) []*types.EvmLog
@@ -105,6 +108,10 @@ type StateLedger interface {
 	CurrentBlockHeight() uint64
 
 	GetStateDelta(blockNumber uint64) *types.StateDelta
+
+	SetFromOrigin(original StateLedger)
+
+	Reset()
 }
 
 // StateAccessor manipulates the state data
@@ -193,6 +200,9 @@ type StateAccessor interface {
 	// AddSlotToAccessList
 	AddSlotToAccessList(types.Address, types.Hash)
 
+	//Preimages
+	Preimages() map[types.Hash][]byte
+
 	// AddPreimage
 	AddPreimage(types.Hash, []byte)
 
@@ -207,6 +217,28 @@ type StateAccessor interface {
 
 	// Snapshot
 	Snapshot() int
+}
+
+type StmAccessor interface {
+	SetMVHashmap(mvhm *blockstm.MVHashMap)
+
+	GetMVHashmap() *blockstm.MVHashMap
+
+	MVWriteList() []blockstm.WriteDescriptor
+
+	MVFullWriteList() []blockstm.WriteDescriptor
+
+	MVReadMap() map[blockstm.Key]blockstm.ReadDescriptor
+
+	MVReadList() []blockstm.ReadDescriptor
+
+	HadInvalidRead() bool
+
+	DepTxIndex() int
+
+	SetIncarnation(inc int)
+
+	ApplyMVWriteSet(writes []blockstm.WriteDescriptor)
 }
 
 type IAccount interface {
@@ -251,6 +283,8 @@ type IAccount interface {
 	SetCreated(bool)
 
 	IsCreated() bool
+
+	DeepCopy() IAccount
 }
 
 var _ vm.StateDB = (*EvmStateDBAdaptor)(nil)

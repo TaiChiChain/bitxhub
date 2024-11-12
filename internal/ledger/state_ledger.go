@@ -196,16 +196,17 @@ func (l *StateLedgerImpl) Copy() StateLedger {
 	return lg
 }
 
-func (l *StateLedgerImpl) SetFromOrigin(origin *StateLedgerImpl) {
-	l.repo = origin.repo
-	l.logger = origin.logger
-	l.backend = origin.backend
-	l.pruneCache = origin.pruneCache
-	l.accountTrieCache = origin.accountTrieCache
-	l.storageTrieCache = origin.storageTrieCache
-	l.trieIndexer = origin.trieIndexer
-	l.blockHeight = origin.blockHeight
-	l.snapshot = origin.snapshot
+func (l *StateLedgerImpl) SetFromOrigin(origin StateLedger) {
+	originStateLedgerImpl := origin.(*StateLedgerImpl)
+	l.repo = originStateLedgerImpl.repo
+	l.logger = originStateLedgerImpl.logger
+	l.backend = originStateLedgerImpl.backend
+	l.pruneCache = originStateLedgerImpl.pruneCache
+	l.accountTrieCache = originStateLedgerImpl.accountTrieCache
+	l.storageTrieCache = originStateLedgerImpl.storageTrieCache
+	l.trieIndexer = originStateLedgerImpl.trieIndexer
+	l.blockHeight = originStateLedgerImpl.blockHeight
+	l.snapshot = originStateLedgerImpl.snapshot
 }
 
 func (l *StateLedgerImpl) Reset() {

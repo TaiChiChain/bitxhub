@@ -10,6 +10,8 @@ type RustStateChange interface {
 
 	// dirted returns the address modified by this state entry
 	dirtied() *types.Address
+
+	deepcopy() RustStateChange
 }
 
 type RustStateChanger struct {
@@ -21,6 +23,24 @@ func NewChanger() *RustStateChanger {
 	return &RustStateChanger{
 		dirties: make(map[types.Address]int),
 	}
+}
+
+func (s *RustStateChanger) ruststateChangerDeepCopy() *RustStateChanger {
+	// Create a new stateChanger instance
+	copyStateChanger := &RustStateChanger{
+		changes: make([]RustStateChange, len(s.changes)),
+		dirties: make(map[types.Address]int),
+	}
+
+	for i, change := range s.changes {
+		copyStateChanger.changes[i] = change.deepcopy()
+	}
+	// Copy the dirties map
+	for key, value := range s.dirties {
+		copyStateChanger.dirties[*types.NewAddress(key.Bytes())] = value
+	}
+
+	return copyStateChanger
 }
 
 func (s *RustStateChanger) Append(change RustStateChange) {
@@ -117,6 +137,13 @@ func (ch RustAccessListAddAccountChange) Revert(l *RustStateLedger) {
 	l.AccessList.DeleteAddress(*ch.address)
 }
 
+func (ch RustAccessListAddAccountChange) deepcopy() RustStateChange {
+	copyCh := RustAccessListAddAccountChange{
+		address: types.NewAddress(ch.address.Bytes()),
+	}
+	return copyCh
+}
+
 func (ch RustAccessListAddAccountChange) dirtied() *types.Address {
 	return nil
 }
@@ -127,6 +154,14 @@ func (ch RustAccessListAddSlotChange) Revert(l *RustStateLedger) {
 
 func (ch RustAccessListAddSlotChange) dirtied() *types.Address {
 	return nil
+}
+
+func (ch RustAccessListAddSlotChange) deepcopy() RustStateChange {
+	copyCh := RustAccessListAddSlotChange{
+		address: types.NewAddress(ch.address.Bytes()),
+		slot:    types.NewHash(ch.slot.Bytes()),
+	}
+	return copyCh
 }
 
 func (ch RustAddLogChange) Revert(l *RustStateLedger) {
@@ -141,6 +176,13 @@ func (ch RustAddLogChange) Revert(l *RustStateLedger) {
 
 func (ch RustAddLogChange) dirtied() *types.Address {
 	return nil
+}
+
+func (ch RustAddLogChange) deepcopy() RustStateChange {
+	copyCh := RustAddLogChange{
+		txHash: types.NewHash(ch.txHash.Bytes()),
+	}
+	return copyCh
 }
 
 //func (ch RustTransientStorageChange) Revert(l *RustStateLedger) {

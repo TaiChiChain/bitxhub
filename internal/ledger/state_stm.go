@@ -229,7 +229,7 @@ func MVWrite(s *StateLedgerImpl, k blockstm.Key) {
 		s.ensureWriteMap()
 		s.writeMap[k] = blockstm.WriteDescriptor{
 			Path: k,
-			V:    s.BlockStmVersion(),
+			V:    s.blockStmVersion(),
 			Val:  s,
 		}
 	}
@@ -347,7 +347,7 @@ func (s *StateLedgerImpl) AddEmptyMVHashMap() {
 	s.mvHashmap = mvh
 }
 
-func (s *StateLedgerImpl) BlockStmVersion() blockstm.Version {
+func (s *StateLedgerImpl) blockStmVersion() blockstm.Version {
 	return blockstm.Version{
 		TxnIndex:    s.txIndex,
 		Incarnation: s.incarnation,

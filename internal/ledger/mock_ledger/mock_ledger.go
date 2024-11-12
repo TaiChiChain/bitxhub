@@ -19,6 +19,7 @@ import (
 	ledger "github.com/axiomesh/axiom-ledger/internal/ledger"
 	common "github.com/ethereum/go-ethereum/common"
 	gomock "go.uber.org/mock/gomock"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 )
 
 // MockChainLedger is a mock of ChainLedger interface.
@@ -866,6 +867,43 @@ func (c *StateLedgerAddLogCall) DoAndReturn(f func(*types.EvmLog)) *StateLedgerA
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+func (m *MockStateLedger) Preimages() map[types.Hash][]byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Preimages")
+	ret0, _ := ret[0].(map[types.Hash][]byte)
+	return ret0
+}
+
+func (mr *MockStateLedgerMockRecorder) Preimages() *StateLedgerPreimagesCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Preimages", reflect.TypeOf((*MockStateLedger)(nil).Preimages))
+	return &StateLedgerPreimagesCall{Call: call}
+}
+
+type StateLedgerPreimagesCall struct {
+	*gomock.Call
+}
+
+
+// Return rewrite *gomock.Call.Return
+func (c *StateLedgerPreimagesCall) Return() *StateLedgerPreimagesCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *StateLedgerPreimagesCall) Do(f func(types.Hash, []byte)) *StateLedgerPreimagesCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *StateLedgerPreimagesCall) DoAndReturn(f func(types.Hash, []byte)) *StateLedgerPreimagesCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 
 // AddPreimage mocks base method.
 func (m *MockStateLedger) AddPreimage(arg0 types.Hash, arg1 []byte) {
@@ -1969,6 +2007,13 @@ func  (m *MockStateLedger) Copy() ledger.StateLedger{
 	return nil
 }
 
+func (l *MockStateLedger) SetFromOrigin(origin ledger.StateLedger) {
+	panic("not support")
+}
+
+func (l *MockStateLedger) Reset() {
+	panic("not support")
+}
 
 
 // NewView indicates an expected call of NewView.
@@ -2847,6 +2892,7 @@ func (mr *MockStateAccessorMockRecorder) AddressInAccessList(arg0 any) *StateAcc
 	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddressInAccessList", reflect.TypeOf((*MockStateAccessor)(nil).AddressInAccessList), arg0)
 	return &StateAccessorAddressInAccessListCall{Call: call}
 }
+
 
 // StateAccessorAddressInAccessListCall wrap *gomock.Call
 type StateAccessorAddressInAccessListCall struct {
@@ -4685,3 +4731,66 @@ func (c *IAccountSubBalanceCall) DoAndReturn(f func(*big.Int)) *IAccountSubBalan
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+
+func (m *MockStateLedger) SetMVHashmap(mvhm *blockstm.MVHashMap) {
+	panic("not support")
+}
+
+func (m *MockStateLedger) GetMVHashmap() *blockstm.MVHashMap {
+	return nil
+}
+
+func (m *MockStateLedger) MVWriteList() []blockstm.WriteDescriptor{
+	return nil
+}
+
+func (m *MockStateLedger) MVFullWriteList() []blockstm.WriteDescriptor{
+	return nil
+}
+
+func (m *MockStateLedger) MVReadMap() map[blockstm.Key]blockstm.ReadDescriptor{
+	return nil
+}
+
+func (m *MockStateLedger) MVReadList() []blockstm.ReadDescriptor{
+	return nil
+}
+
+func (m *MockStateLedger) HadInvalidRead() bool{
+	return false
+}
+
+func (m *MockStateLedger) DepTxIndex() int{
+	return 0
+}
+
+func (m *MockStateLedger) SetIncarnation(inc int){
+	panic("not support")
+}
+
+func (m *MockStateLedger) ApplyMVWriteSet(writes []blockstm.WriteDescriptor){
+	panic("not support")
+}
+
+
+
+
+
+
+	
+
+
+	
+
+	
+
+	
+
+
+	
+
+	
+
+	
+

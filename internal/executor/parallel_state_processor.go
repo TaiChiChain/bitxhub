@@ -79,9 +79,9 @@ type ExecutionTask struct {
 	blockHash                  types.Hash
 	tx                         *types.Transaction
 	index                      int
-	statedb                    *ledger.StateLedgerImpl // State database that stores the modified values after tx execution.
-	cleanStateDB               *ledger.StateLedgerImpl // A clean copy of the initial statedb. It should not be modified.
-	finalStateDB               *ledger.StateLedgerImpl // The final statedb.
+	statedb                    ledger.StateLedger // State database that stores the modified values after tx execution.
+	cleanStateDB               ledger.StateLedger // A clean copy of the initial statedb. It should not be modified.
+	finalStateDB               ledger.StateLedger // The final statedb.
 	header                     *types.BlockHeader
 	blockChain                 *types.Block
 	evmConfig                  vm.Config
@@ -106,8 +106,9 @@ type ExecutionTask struct {
 }
 
 func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (err error) {
-	//task.statedb = task.cleanStateDB.Copy().(*ledger.StateLedgerImpl)
-	task.statedb = task.sp.GetStateDb(task.cleanStateDB)
+	task.statedb = task.cleanStateDB.Copy()
+
+	//task.statedb = task.sp.GetStateDb(task.cleanStateDB)
 
 	task.statedb.SetTxContext(task.tx.GetHash(), task.index)
 	task.statedb.SetMVHashmap(mvh)
@@ -320,8 +321,8 @@ func (p *ParallelStateProcessor) Process(block *types.Block, ledgerNow *ledger.L
 			blockHash:         *blockHash,
 			tx:                tx,
 			index:             i,
-			cleanStateDB:      cleansdb.(*ledger.StateLedgerImpl),
-			finalStateDB:      (ledgerNow.StateLedger).(*ledger.StateLedgerImpl),
+			cleanStateDB:      cleansdb,
+			finalStateDB:      ledgerNow.StateLedger,
 			blockChain:        p.bc,
 			header:            header,
 			evmConfig:         cfg,

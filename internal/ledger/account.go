@@ -473,29 +473,29 @@ func (o *SimpleAccount) SetCreated(created bool) {
 	o.created = created
 }
 
-func DeepCopy(account *SimpleAccount) *SimpleAccount {
+func (o *SimpleAccount) DeepCopy() IAccount {
 	res := &SimpleAccount{
 		logger:         loggers.Logger(loggers.Storage),
-		Addr:           types.NewAddress(account.Addr.Bytes()),
-		blockHeight:    account.blockHeight,
-		backend:        account.backend,
-		selfDestructed: account.selfDestructed,
-		created:        account.created,
+		Addr:           types.NewAddress(o.Addr.Bytes()),
+		blockHeight:    o.blockHeight,
+		backend:        o.backend,
+		selfDestructed: o.selfDestructed,
+		created:        o.created,
 	}
-	res.originAccount = account.originAccount
-	res.dirtyAccount = InnerAccountDeepCopy(account.dirtyAccount)
+	res.originAccount = o.originAccount
+	res.dirtyAccount = InnerAccountDeepCopy(o.dirtyAccount)
 
-	res.originState = DeepCopyMapBytes(account.originState)
-	res.pendingState = DeepCopyMapBytes(account.pendingState)
-	res.dirtyState = DeepCopyMapBytes(account.dirtyState)
+	res.originState = DeepCopyMapBytes(o.originState)
+	res.pendingState = DeepCopyMapBytes(o.pendingState)
+	res.dirtyState = DeepCopyMapBytes(o.dirtyState)
 
-	res.originCode = CopyBytes(account.originCode)
-	res.dirtyCode = CopyBytes(account.dirtyCode)
+	res.originCode = CopyBytes(o.originCode)
+	res.dirtyCode = CopyBytes(o.dirtyCode)
 
-	res.storageTrieCache = account.storageTrieCache
-	res.pruneCache = account.pruneCache
-	res.changer = account.changer.stateChangerDeepCopy()
-	res.snapshot = account.snapshot
+	res.storageTrieCache = o.storageTrieCache
+	res.pruneCache = o.pruneCache
+	res.changer = o.changer.stateChangerDeepCopy()
+	res.snapshot = o.snapshot
 
 	return res
 }

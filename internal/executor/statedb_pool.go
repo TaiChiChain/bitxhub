@@ -21,19 +21,19 @@ func NewStateDbPool() *StateDbPool {
 
 }
 
-func (sp *StateDbPool) GetStateDb(original *ledger.StateLedgerImpl) *ledger.StateLedgerImpl {
+func (sp *StateDbPool) GetStateDb(original ledger.StateLedger) ledger.StateLedger {
 	instance := sp.pool.Get()
-	var resInstance *ledger.StateLedgerImpl
+	var resInstance ledger.StateLedger
 	if instance == nil {
-		resInstance = original.Copy().(*ledger.StateLedgerImpl)
+		resInstance = original.Copy()
 	} else {
-		resInstance = instance.(*ledger.StateLedgerImpl)
+		resInstance = instance.(ledger.StateLedger)
 		resInstance.SetFromOrigin(original)
 	}
 	return resInstance
 }
 
-func (sp *StateDbPool) PutBackToPool(instance *ledger.StateLedgerImpl) {
+func (sp *StateDbPool) PutBackToPool(instance ledger.StateLedger) {
 	instance.Reset()
 	sp.pool.Put(instance)
 }

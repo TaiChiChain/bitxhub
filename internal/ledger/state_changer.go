@@ -171,7 +171,7 @@ func (ch resetObjectChange) revert(l *StateLedgerImpl) {
 
 func (ch resetObjectChange) deepcopy() stateChange {
 	copyCh := resetObjectChange{
-		prev: DeepCopy(ch.prev.(*SimpleAccount)),
+		prev: ch.prev.(*SimpleAccount).DeepCopy(),
 	}
 	return copyCh
 }
