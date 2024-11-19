@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/axiomesh/axiom-ledger/internal/chainstate"
-	archive "github.com/axiomesh/axiom-ledger/internal/ledger/archive"
 	"math/big"
 	"path"
 	"time"
@@ -44,7 +43,7 @@ type StateLedgerImpl struct {
 
 	pruneCache       *prune.PruneCache
 	trieIndexer      *trie_indexer.TrieIndexer
-	archiver         *archive.Archiver
+	archiver         *Archiver
 	backend          kv.Storage
 	accountTrieCache *storagemgr.CacheWrapper
 	storageTrieCache *storagemgr.CacheWrapper
@@ -77,21 +76,9 @@ func (l *StateLedgerImpl) NewView(blockHeader *types.BlockHeader, enableSnapshot
 	l.logger.Debugf("[NewView] height: %v, stateRoot: %v", blockHeader.Number, blockHeader.StateRoot)
 
 	// if current node is an archive node, and request query historical state, then use archived history ledger as backend.
+	// todo maybe arise incompatibility in snap-sync mode
 	if l.chainState != nil && (!enableSnapshot && l.chainState.IsDataSyncer) {
-		lg := &StateLedgerImpl{
-			repo:        l.repo,
-			logger:      l.logger,
-			backend:     l.archiver.GetHistoryBackend(),
-			archiver:    l.archiver,
-			accounts:    make(map[string]IAccount),
-			preimages:   make(map[types.Hash][]byte),
-			changer:     newChanger(),
-			accessList:  NewAccessList(),
-			logs:        newEvmLogs(),
-			blockHeight: blockHeader.Number,
-		}
-		lg.refreshAccountTrie(blockHeader.StateRoot)
-		return lg, nil
+		return l.archiver.NewView(blockHeader)
 	}
 
 	minHeight, maxHeight := l.GetHistoryRange()
@@ -340,19 +327,19 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 		return nil, err
 	}
 
-	// init archive path
-	archiveHistoryStorage, err := storagemgr.Open(storagemgr.GetLedgerComponentPath(rep, storagemgr.ArchiveHistory))
-	if err != nil {
-		return nil, err
-	}
-	archiveJournalStorage, err := storagemgr.Open(storagemgr.GetLedgerComponentPath(rep, storagemgr.ArchiveJournal))
-	if err != nil {
-		return nil, err
-	}
-	archiveArgs := &archive.ArchiveArgs{
-		ArchiveHistoryStorage: archiveHistoryStorage,
-		ArchiveJournalStorage: archiveJournalStorage,
-	}
+	//// init archive path
+	//archiveHistoryStorage, err := storagemgr.Open(storagemgr.GetLedgerComponentPath(rep, storagemgr.ArchiveHistory))
+	//if err != nil {
+	//	return nil, err
+	//}
+	//archiveJournalStorage, err := storagemgr.Open(storagemgr.GetLedgerComponentPath(rep, storagemgr.ArchiveJournal))
+	//if err != nil {
+	//	return nil, err
+	//}
+	//archiveArgs := &archive.ArchiveArgs{
+	//	ArchiveHistoryStorage: archiveHistoryStorage,
+	//	ArchiveJournalStorage: archiveJournalStorage,
+	//}
 
 	ledger := &StateLedgerImpl{
 		repo:             rep,
@@ -362,7 +349,7 @@ func newStateLedger(rep *repo.Repo, stateStorage, snapshotStorage kv.Storage) (S
 		storageTrieCache: storageTrieCache,
 		pruneCache:       prune.NewPruneCache(rep, stateCachedStorage, accountTrieCache, storageTrieCache, loggers.Logger(loggers.Storage)),
 		trieIndexer:      trie_indexer.NewTrieIndexer(rep, trieIndexerKv, loggers.Logger(loggers.Storage)),
-		archiver:         archive.NewArchiver(rep, archiveArgs, loggers.Logger(loggers.Storage)),
+		archiver:         NewArchiver(rep, nil, loggers.Logger(loggers.Storage)),
 		accounts:         make(map[string]IAccount),
 		preimages:        make(map[types.Hash][]byte),
 		changer:          newChanger(),

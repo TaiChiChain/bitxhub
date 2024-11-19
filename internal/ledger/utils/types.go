@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/axiomesh/axiom-bft/common/consensus"
-	"strconv"
-
 	"github.com/axiomesh/axiom-kit/hexutil"
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"strconv"
 )
 
 const (

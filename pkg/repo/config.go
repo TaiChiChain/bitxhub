@@ -326,7 +326,7 @@ func defaultConfig() *Config {
 			ConcurrencyLimit:      10,
 			MaxChunkSize:          50,
 			FullValidation:        true,
-			ArchiveLimit:          1000,
+			ArchiveLimit:          100,
 		},
 		Consensus: Consensus{
 			Type:        ConsensusTypeRbft,
