@@ -448,10 +448,9 @@ func (exec *BlockExecutor) postLogsEvent(receipts []*types.Receipt) {
 
 func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height uint64) *types.Receipt {
 
-	exec.ledger.StateLedger.(*ledger.RustStateLedger).PrepareTranct()
+	//exec.ledger.StateLedger.(*ledger.RustStateLedger).PrepareTranct()
 
 	defer func() {
-		// exec.ledger.StateLedger.SetNonce(tx.GetFrom(), tx.GetNonce()+1)
 		exec.ledger.StateLedger.Finalise()
 	}()
 
@@ -476,7 +475,6 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 	txContext := core.NewEVMTxContext(msg)
 	exec.evm.Reset(txContext, evmStateDB)
 	exec.logger.Debugf("evm apply message, msg gas limit: %d, gas price: %s", msg.GasLimit, msg.GasPrice.Text(10))
-	//currentFromStart := time.Now()
 	result, err = core.ApplyMessage(exec.evm, msg, gp)
 	if err != nil {
 		exec.logger.Errorf("apply tx failed: %s", err.Error())
@@ -485,11 +483,11 @@ func (exec *BlockExecutor) applyTransaction(i int, tx *types.Transaction, height
 		receipt.Ret = []byte(err.Error())
 		return receipt
 	}
-	if err == nil {
-		exec.ledger.StateLedger.(*ledger.RustStateLedger).FinalizeTransact()
-	} else {
-		exec.ledger.StateLedger.(*ledger.RustStateLedger).RollbackTransact()
-	}
+	// if err == nil {
+	// 	exec.ledger.StateLedger.(*ledger.RustStateLedger).FinalizeTransact()
+	// } else {
+	// 	exec.ledger.StateLedger.(*ledger.RustStateLedger).RollbackTransact()
+	// }
 	if result.Failed() {
 		if len(result.Revert()) > 0 {
 			reason, errUnpack := abi.UnpackRevert(result.Revert())

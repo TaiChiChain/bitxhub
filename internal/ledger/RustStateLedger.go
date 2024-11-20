@@ -6,10 +6,12 @@ package ledger
 */
 import "C"
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 	"os"
 	"path"
+	"runtime"
 	"sort"
 	"unsafe"
 
@@ -18,35 +20,40 @@ import (
 	"github.com/axiomesh/axiom-kit/types"
 	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
 	"github.com/axiomesh/axiom-ledger/internal/storagemgr"
+	"github.com/axiomesh/axiom-ledger/pkg/loggers"
 	"github.com/axiomesh/axiom-ledger/pkg/repo"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	etherTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/holiman/uint256"
+	"github.com/sirupsen/logrus"
 )
 
 type RustStateLedger struct {
-	repo       *repo.Repo
-	stateDBPtr *C.struct_EvmStateDB
+	logger logrus.FieldLogger
 
+	stateDBPtr     *C.struct_EvmStateDB
 	stateDBViewPtr *C.struct_EvmStateDB
-	blockHeight    uint64
-	thash          *types.Hash
-	txIndex        int
+
+	Accounts    map[string]IAccount
+	repo        *repo.Repo
+	blockHeight uint64
+	thash       *types.Hash
+	txIndex     int
 
 	validRevisions []revision
 	nextRevisionId int
 	changer        *RustStateChanger
 
-	Accounts map[string]IAccount
-	Refund   uint64
-	Logs     *evmLogs
-
-	preimages map[types.Hash][]byte
+	AccessList *AccessList
+	preimages  map[types.Hash][]byte
+	Refund     uint64
+	Logs       *evmLogs
 
 	transientStorage transientStorage
-	AccessList       *AccessList
-	codeCache        *lru.Cache[ethcommon.Address, []byte]
+
+	codeCache *lru.Cache[ethcommon.Address, []byte]
 
 	// Block-stm related fields
 	mvHashmap    *blockstm.MVHashMap
@@ -77,6 +84,8 @@ func NewRustStateLedger(rep *repo.Repo, height uint64) *RustStateLedger {
 	stateDBViewPtr := C.evm_state_db_view(stateDbPtr)
 	codeCache, _ := lru.New[ethcommon.Address, []byte](1000)
 	return &RustStateLedger{
+		logger: loggers.Logger(loggers.Storage),
+
 		repo:           rep,
 		stateDBPtr:     stateDbPtr,
 		stateDBViewPtr: stateDBViewPtr,
@@ -150,16 +159,22 @@ func (l *RustStateLedger) Reset() {
 
 func (r *RustStateLedger) GetOrCreateAccount(address *types.Address) IAccount {
 	account := r.GetAccount(address)
-	if account == nil {
-		account := NewRustAccount(r.stateDBPtr, address.ETHAddress(), r.changer, r.codeCache)
-		r.Accounts[address.String()] = account
-		mvwrite(r, blockstm.NewAddressKey(*address))
+	if account != nil {
+		return account
+	} else {
+		rustAccount := NewRustAccount(r.stateDBPtr, address.ETHAddress(), r.changer, r.codeCache)
+		rustAccount.SetCreated(true)
+		r.changer.Append(RustCreateObjectChange{account: address})
+
+		r.Accounts[address.String()] = rustAccount
+		mvwrite(r, blockstm.NewAddressKey(address))
+		return rustAccount
 	}
-	return account
+
 }
 
 func (r *RustStateLedger) GetAccount(address *types.Address) IAccount {
-	return mvread(r, blockstm.NewAddressKey(*address), nil, func(r *RustStateLedger) IAccount {
+	return mvread(r, blockstm.NewAddressKey(address), nil, func(r *RustStateLedger) IAccount {
 		addr := address.String()
 
 		value, ok := r.Accounts[addr]
@@ -170,6 +185,27 @@ func (r *RustStateLedger) GetAccount(address *types.Address) IAccount {
 		exist := bool(C.exist(r.stateDBPtr, cAddress))
 		if exist {
 			account := NewRustAccount(r.stateDBPtr, address.ETHAddress(), r.changer, r.codeCache)
+			account.CodeHash()
+			c_hash := C.get_code_hash(r.stateDBPtr, cAddress)
+			goHash := *(*ethcommon.Hash)(unsafe.Pointer(&c_hash.bytes))
+			account.originAccount = &types.InnerAccount{
+				Nonce:   uint64(C.get_nonce(r.stateDBPtr, cAddress).low1),
+				Balance: cu256ToUInt256(C.get_balance(r.stateDBPtr, cAddress)).ToBig(),
+			}
+			isHashNotZero := goHash != ethcommon.Hash{}
+			if isHashNotZero {
+				account.originAccount.CodeHash = goHash[:]
+			}
+			if !bytes.Equal(account.originAccount.CodeHash, nil) {
+				var length C.uintptr_t
+				ptr := C.get_code(r.stateDBPtr, cAddress, &length)
+				defer C.deallocate_memory(ptr, length)
+				goSlice := C.GoBytes(unsafe.Pointer(ptr), C.int(length))
+
+				account.originCode = goSlice
+				account.dirtyCode = goSlice
+			}
+
 			r.Accounts[addr] = account
 			return account
 		} else {
@@ -179,7 +215,7 @@ func (r *RustStateLedger) GetAccount(address *types.Address) IAccount {
 }
 
 func (r *RustStateLedger) GetBalance(address *types.Address) *big.Int {
-	return mvread(r, blockstm.NewSubpathKey(*address, BalancePath), ethcommon.Big0, func(r *RustStateLedger) *big.Int {
+	return mvread(r, blockstm.NewSubpathKey(address, BalancePath), ethcommon.Big0, func(r *RustStateLedger) *big.Int {
 		account := r.GetAccount(address)
 		if account != nil {
 			return account.GetBalance()
@@ -198,7 +234,7 @@ func (r *RustStateLedger) SetBalance(address *types.Address, balance *big.Int) {
 
 	account = r.mvRecordWritten(account)
 	account.SetBalance(balance)
-	mvwrite(r, blockstm.NewSubpathKey(*address, BalancePath))
+	mvwrite(r, blockstm.NewSubpathKey(address, BalancePath))
 }
 
 func (r *RustStateLedger) SubBalance(address *types.Address, balance *big.Int) {
@@ -210,7 +246,7 @@ func (r *RustStateLedger) SubBalance(address *types.Address, balance *big.Int) {
 	if account != nil {
 		account = r.mvRecordWritten(account)
 		account.SubBalance(balance)
-		mvwrite(r, blockstm.NewSubpathKey(*address, BalancePath))
+		mvwrite(r, blockstm.NewSubpathKey(address, BalancePath))
 	}
 }
 
@@ -222,22 +258,21 @@ func (r *RustStateLedger) AddBalance(address *types.Address, balance *big.Int) {
 	}
 	account = r.mvRecordWritten(account)
 	account.AddBalance(balance)
-	mvwrite(r, blockstm.NewSubpathKey(*address, BalancePath))
+	mvwrite(r, blockstm.NewSubpathKey(address, BalancePath))
 }
 
 func (r *RustStateLedger) GetState(address *types.Address, bytes []byte) (bool, []byte) {
-	return mvread2(r, blockstm.NewStateKey(*address, *types.NewHash(bytes)), true, (&types.Hash{}).Bytes(), func(r *RustStateLedger) (bool, []byte) {
+	return mvread2(r, blockstm.NewStateKey(address, *types.NewHash(bytes)), true, (&types.Hash{}).Bytes(), func(r *RustStateLedger) (bool, []byte) {
 		account := r.GetAccount(address)
 		if account != nil {
 			return account.GetState(bytes)
 		}
 		return false, []byte{}
-
 	})
 }
 
 func (r *RustStateLedger) GetBit256State(address *types.Address, bytes []byte) ethcommon.Hash {
-	return mvread(r, blockstm.NewStateKey(*address, *types.NewHash(bytes)), ethcommon.Hash{}, func(r *RustStateLedger) ethcommon.Hash {
+	return mvread(r, blockstm.NewStateKey(address, *types.NewHash(bytes)), ethcommon.Hash{}, func(r *RustStateLedger) ethcommon.Hash {
 		account := r.GetAccount(address)
 		if account != nil {
 			return account.(*RustAccount).GetBit256State(bytes)
@@ -251,7 +286,7 @@ func (r *RustStateLedger) SetState(address *types.Address, key []byte, value []b
 
 	account = r.mvRecordWritten(account)
 	account.SetState(key, value)
-	mvwrite(r, blockstm.NewStateKey(*address, *types.NewHash(key)))
+	mvwrite(r, blockstm.NewStateKey(address, *types.NewHash(key)))
 }
 
 func (r *RustStateLedger) SetBit256State(address *types.Address, key []byte, value ethcommon.Hash) {
@@ -259,7 +294,7 @@ func (r *RustStateLedger) SetBit256State(address *types.Address, key []byte, val
 
 	account = r.mvRecordWritten(account)
 	account.(*RustAccount).SetBit256State(key, value)
-	mvwrite(r, blockstm.NewStateKey(*address, *types.NewHash(key)))
+	mvwrite(r, blockstm.NewStateKey(address, *types.NewHash(key)))
 }
 
 func (r *RustStateLedger) SetCode(address *types.Address, bytes []byte) {
@@ -267,11 +302,11 @@ func (r *RustStateLedger) SetCode(address *types.Address, bytes []byte) {
 
 	account = r.mvRecordWritten(account)
 	account.SetCodeAndHash(bytes)
-	mvwrite(r, blockstm.NewSubpathKey(*address, CodePath))
+	mvwrite(r, blockstm.NewSubpathKey(address, CodePath))
 }
 
 func (r *RustStateLedger) GetCode(address *types.Address) []byte {
-	return mvread(r, blockstm.NewSubpathKey(*address, CodePath), nil, func(r *RustStateLedger) []byte {
+	return mvread(r, blockstm.NewSubpathKey(address, CodePath), nil, func(r *RustStateLedger) []byte {
 		account := r.GetAccount(address)
 		if account != nil {
 			return account.Code()
@@ -285,11 +320,11 @@ func (r *RustStateLedger) SetNonce(address *types.Address, u uint64) {
 
 	account = r.mvRecordWritten(account)
 	account.SetNonce(u)
-	mvwrite(r, blockstm.NewSubpathKey(*address, NoncePath))
+	mvwrite(r, blockstm.NewSubpathKey(address, NoncePath))
 }
 
 func (r *RustStateLedger) GetNonce(address *types.Address) uint64 {
-	return mvread(r, blockstm.NewSubpathKey(*address, NoncePath), 0, func(l *RustStateLedger) uint64 {
+	return mvread(r, blockstm.NewSubpathKey(address, NoncePath), 0, func(l *RustStateLedger) uint64 {
 		account := l.GetAccount(address)
 		if account != nil {
 			return account.GetNonce()
@@ -299,7 +334,7 @@ func (r *RustStateLedger) GetNonce(address *types.Address) uint64 {
 }
 
 func (r *RustStateLedger) GetCodeHash(address *types.Address) *types.Hash {
-	return mvread(r, blockstm.NewSubpathKey(*address, CodePath), &types.Hash{}, func(r *RustStateLedger) *types.Hash {
+	return mvread(r, blockstm.NewSubpathKey(address, CodePath), &types.Hash{}, func(r *RustStateLedger) *types.Hash {
 		account := r.GetAccount(address)
 		if account != nil && !account.IsEmpty() {
 			return types.NewHash(account.CodeHash())
@@ -310,7 +345,7 @@ func (r *RustStateLedger) GetCodeHash(address *types.Address) *types.Hash {
 }
 
 func (r *RustStateLedger) GetCodeSize(address *types.Address) int {
-	return mvread(r, blockstm.NewSubpathKey(*address, CodePath), 0, func(l *RustStateLedger) int {
+	return mvread(r, blockstm.NewSubpathKey(address, CodePath), 0, func(l *RustStateLedger) int {
 		account := l.GetAccount(address)
 		if account != nil && !account.IsEmpty() {
 			if code := account.Code(); code != nil {
@@ -322,11 +357,21 @@ func (r *RustStateLedger) GetCodeSize(address *types.Address) int {
 }
 
 func (r *RustStateLedger) AddRefund(gas uint64) {
-	C.add_refund(r.stateDBPtr, C.uint64_t(gas))
+	r.changer.Append(RustRefundChange{prev: r.Refund})
+	r.Refund += gas
+
+	// Commit processing
+	//C.add_refund(r.stateDBPtr, C.uint64_t(gas))
 }
 
 func (r *RustStateLedger) SubRefund(gas uint64) {
-	C.sub_refund(r.stateDBPtr, C.uint64_t(gas))
+	r.changer.Append(RustRefundChange{prev: r.Refund})
+	if gas > r.Refund {
+		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, r.Refund))
+	}
+	r.Refund -= gas
+	// Commit processing
+	//C.sub_refund(r.stateDBPtr, C.uint64_t(gas))
 }
 
 func (r *RustStateLedger) GetRefund() uint64 {
@@ -334,17 +379,63 @@ func (r *RustStateLedger) GetRefund() uint64 {
 }
 
 func (r *RustStateLedger) GetCommittedState(address *types.Address, bytes []byte) []byte {
-	account := r.GetOrCreateAccount(address)
-	return account.GetCommittedState(bytes)
+	return mvread(r, blockstm.NewStateKey(address, *types.NewHash(bytes)), nil, func(r *RustStateLedger) []byte {
+		account := r.GetAccount(address)
+		if account != nil {
+			return account.GetCommittedState(bytes)
+		}
+		return (&types.Hash{}).Bytes()
+	})
+
 }
 
 func (r *RustStateLedger) GetBit256CommittedState(address *types.Address, bytes []byte) ethcommon.Hash {
-	account := r.GetOrCreateAccount(address)
-	return account.(*RustAccount).GetBit256CommittedState(bytes)
+	return mvread(r, blockstm.NewStateKey(address, *types.NewHash(bytes)), ethcommon.Hash{}, func(r *RustStateLedger) ethcommon.Hash {
+		account := r.GetAccount(address)
+		if account != nil {
+			return account.(*RustAccount).GetBit256CommittedState(bytes)
+		}
+		return ethcommon.Hash{}
+	})
 }
 
 func (r *RustStateLedger) Commit() (*types.Hash, error) {
+	accounts := r.collectDirtyData()
+	for _, acc := range accounts {
+		account := acc.(*RustAccount)
+
+		// update balance
+		u, _ := uint256.FromBig(account.dirtyAccount.Balance)
+		C.set_balance(account.stateDBPtr, account.cAddress, convertToCU256(u))
+
+		// update nonce
+		C.set_nonce(account.stateDBPtr, account.cAddress, convertToCU256(uint256.NewInt(account.dirtyAccount.Nonce)))
+
+		// update state
+		for k, value := range account.pendingState {
+			key := hashKey([]byte(k))
+			valuePtr := (*C.uchar)(unsafe.Pointer(&value[0]))
+			valueLen := C.uintptr_t(len(value))
+			C.set_any_size_state(account.stateDBPtr, account.cAddress, convertToCH256(key), valuePtr, valueLen)
+			runtime.KeepAlive(value)
+		}
+
+		// update code
+		if !bytes.Equal(account.originCode, account.dirtyCode) && account.dirtyCode != nil {
+			code := account.dirtyCode
+			//account.codeCache.Add(account.ethAddress, code)
+			codePtr := (*C.uchar)(unsafe.Pointer(&code[0]))
+			codeLen := C.uintptr_t(len(code))
+			C.set_code(account.stateDBPtr, account.cAddress, codePtr, codeLen)
+		}
+		if account.selfDestructed {
+			C.self_destruct(account.stateDBPtr, account.cAddress)
+		}
+
+	}
+	r.logger.Info("stateDBPtr:", r.stateDBPtr)
 	committedRes := C.commit(r.stateDBPtr)
+	r.logger.Info("committedRes:", committedRes)
 	rootHash := *(*[32]byte)(unsafe.Pointer(&committedRes.root_hash.bytes))
 	committed_height := committedRes.committed_version
 	if r.blockHeight != uint64(committed_height) {
@@ -355,18 +446,21 @@ func (r *RustStateLedger) Commit() (*types.Hash, error) {
 }
 
 func (r *RustStateLedger) SelfDestruct(address *types.Address) bool {
-	account := r.GetOrCreateAccount(address)
+	account := r.GetAccount(address)
+	if account == nil {
+		return false
+	}
 	account.SetSelfDestructed(true)
 	account.SetBalance(new(big.Int))
 
-	mvwrite(r, blockstm.NewSubpathKey(*address, SuicidePath))
-	mvwrite(r, blockstm.NewSubpathKey(*address, BalancePath))
+	mvwrite(r, blockstm.NewSubpathKey(address, SuicidePath))
+	mvwrite(r, blockstm.NewSubpathKey(address, BalancePath))
 	return true
 }
 
 func (r *RustStateLedger) HasSelfDestructed(address *types.Address) bool {
 
-	return mvread(r, blockstm.NewSubpathKey(*address, SuicidePath), false, func(l *RustStateLedger) bool {
+	return mvread(r, blockstm.NewSubpathKey(address, SuicidePath), false, func(l *RustStateLedger) bool {
 		account := r.GetAccount(address)
 		if account != nil {
 			return account.SelfDestructed()
@@ -387,12 +481,13 @@ func (r *RustStateLedger) Selfdestruct6780(address *types.Address) {
 }
 
 func (r *RustStateLedger) Exist(address *types.Address) bool {
-	exist := !r.GetOrCreateAccount(address).IsEmpty()
+	exist := r.GetAccount(address) != nil
 	return exist
 }
 
 func (r *RustStateLedger) Empty(address *types.Address) bool {
-	empty := r.GetOrCreateAccount(address).IsEmpty()
+	account := r.GetAccount(address)
+	empty := account == nil || account.IsEmpty()
 	return empty
 }
 
@@ -457,15 +552,23 @@ func (r *RustStateLedger) Preimages() map[types.Hash][]byte {
 }
 
 func (r *RustStateLedger) AddPreimage(address types.Hash, preimage []byte) {
-	preimagePtr := (*C.uchar)(unsafe.Pointer(&preimage[0]))
-	preimageLen := C.uintptr_t(len(preimage))
-	C.add_preimage(r.stateDBPtr, convertToCH256(address.ETHHash()), preimagePtr, preimageLen)
+
+	if _, ok := r.preimages[address]; !ok {
+		r.changer.Append(RustAddPreimageChange{hash: address})
+		pi := make([]byte, len(preimage))
+		copy(pi, preimage)
+		r.preimages[address] = pi
+	}
+
+	// Commit processing
+	// preimagePtr := (*C.uchar)(unsafe.Pointer(&preimage[0]))
+	// preimageLen := C.uintptr_t(len(preimage))
+	// C.add_preimage(r.stateDBPtr, convertToCH256(address.ETHHash()), preimagePtr, preimageLen)
 }
 
 func (r *RustStateLedger) SetTxContext(thash *types.Hash, ti int) {
 	r.thash = thash
 	r.txIndex = ti
-
 }
 
 func (r *RustStateLedger) Clear() {
@@ -559,6 +662,12 @@ func (r *RustStateLedger) Close() {
 }
 
 func (r *RustStateLedger) Finalise() {
+	for _, account := range r.Accounts {
+		account.Finalise()
+
+		account.SetCreated(false)
+	}
+
 	r.ClearChangerAndRefund()
 }
 
@@ -617,6 +726,11 @@ func (r *RustStateLedger) GetStateDelta(blockNumber uint64) *types.StateDelta {
 }
 
 var _ StateLedger = (*RustStateLedger)(nil)
+
+func (r *RustStateLedger) setAccount(account IAccount) {
+	r.Accounts[account.GetAddress().String()] = account
+	//r.logger.Debugf("[Revert setAccount] addr: %v, account: %v", account.GetAddress(), account)
+}
 
 func (r *RustStateLedger) SetMVHashmap(mvhm *blockstm.MVHashMap) {
 	r.mvHashmap = mvhm
@@ -688,10 +802,6 @@ func (r *RustStateLedger) SetIncarnation(inc int) {
 }
 
 func mvread[T any](r *RustStateLedger, k blockstm.Key, defaultV T, readStorage func(r *RustStateLedger) T) (v T) {
-	// start := time.Now()
-	// defer func() {
-	// 	mvReadDuration.Observe(float64(time.Since(start)) / float64(time.Second))
-	// }()
 	if r.mvHashmap == nil {
 		return readStorage(r)
 	}
@@ -826,7 +936,7 @@ func mvwrite(r *RustStateLedger, k blockstm.Key) {
 	}
 }
 
-func revertWrite(r *RustStateLedger, k blockstm.Key) {
+func RustRevertWrite(r *RustStateLedger, k blockstm.Key) {
 	r.revertedKeys[k] = struct{}{}
 }
 
@@ -892,7 +1002,7 @@ func (r *RustStateLedger) mvRecordWritten(object IAccount) IAccount {
 		return object
 	}
 
-	addrKey := blockstm.NewAddressKey(*object.GetAddress())
+	addrKey := blockstm.NewAddressKey(object.GetAddress())
 
 	if mvwritten(r, addrKey) {
 		return object
@@ -904,4 +1014,28 @@ func (r *RustStateLedger) mvRecordWritten(object IAccount) IAccount {
 	mvwrite(r, addrKey)
 
 	return r.Accounts[object.GetAddress().String()]
+}
+
+func (r *RustStateLedger) collectDirtyData() map[ethcommon.Address]IAccount {
+	dirtyAccounts := make(map[ethcommon.Address]IAccount)
+	for _, acc := range r.Accounts {
+		account := acc.(*RustAccount)
+		if account.originAccount.InnerAccountChanged(account.dirtyAccount) || account.selfDestructed {
+			dirtyAccounts[account.ethAddress] = account
+		}
+
+		if account.originCode == nil && account.originAccount != nil && account.originAccount.CodeHash != nil {
+			if v, ok := account.codeCache.Get(account.ethAddress); ok {
+				account.originCode = v
+			} else {
+				var length C.uintptr_t
+				ptr := C.get_code(account.stateDBPtr, account.cAddress, &length)
+				defer C.deallocate_memory(ptr, length)
+				goSlice := C.GoBytes(unsafe.Pointer(ptr), C.int(length))
+				account.originCode = goSlice
+			}
+		}
+	}
+	r.Clear()
+	return dirtyAccounts
 }

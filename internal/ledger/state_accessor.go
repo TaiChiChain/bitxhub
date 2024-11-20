@@ -36,7 +36,7 @@ func (l *StateLedgerImpl) GetOrCreateAccount(addr *types.Address) IAccount {
 		l.changer.append(createObjectChange{account: addr})
 		l.accounts[addr.ETHAddress()] = account
 
-		MVWrite(l, blockstm.NewAddressKey(*addr))
+		MVWrite(l, blockstm.NewAddressKey(addr))
 		l.logger.Debugf("[GetOrCreateAccount] create account, addr: %v", addr)
 	} else {
 		l.logger.Debugf("[GetOrCreateAccount] get account, addr: %v", addr)
@@ -53,7 +53,7 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 		return object
 	}
 
-	addrKey := blockstm.NewAddressKey(*object.GetAddress())
+	addrKey := blockstm.NewAddressKey(object.GetAddress())
 
 	if MVWritten(s, addrKey) {
 		return object
@@ -61,21 +61,28 @@ func (s *StateLedgerImpl) mvRecordWritten(object IAccount) IAccount {
 
 	// todo
 	// check
-	s.accounts[object.GetAddress().ETHAddress()] = object.(*SimpleAccount).DeepCopy()
+	s.accounts[object.GetAddress().ETHAddress()] = object.DeepCopy()
 	MVWrite(s, addrKey)
 
 	return s.accounts[object.GetAddress().ETHAddress()]
 
+	// Deepcopy is needed to ensure that objects are not written by multiple transactions at the same time, because
+	// the input state object can come from a different transaction.
+	// s.setStateObject(object.deepCopy(s))
+
+	// MVWrite(s, addrKey)
+
+	// return s.stateObjects[object.Address()]
 }
 
 // GetAccount get account info using account address
 func (l *StateLedgerImpl) GetAccount(address *types.Address) IAccount {
 
-	return MVRead(l, blockstm.NewAddressKey(*address), nil, func(l *StateLedgerImpl) IAccount {
+	return MVRead(l, blockstm.NewAddressKey(address), nil, func(l *StateLedgerImpl) IAccount {
 		addr := address.ETHAddress()
 		value, ok := l.accounts[addr]
 		if ok {
-			l.logger.Debugf("[GetAccount] cache hit from Accounts，addr: %v, account: %v", addr, value)
+			l.logger.Debugf("[GetAccount] cache hit from accounts，addr: %v, account: %v", addr, value)
 			return value
 		}
 
@@ -133,7 +140,7 @@ func (l *StateLedgerImpl) setAccount(account IAccount) {
 
 // GetBalance get account balance using account address
 func (l *StateLedgerImpl) GetBalance(addr *types.Address) *big.Int {
-	return MVRead(l, blockstm.NewSubpathKey(*addr, BalancePath), common.Big0, func(l *StateLedgerImpl) *big.Int {
+	return MVRead(l, blockstm.NewSubpathKey(addr, BalancePath), common.Big0, func(l *StateLedgerImpl) *big.Int {
 		account := l.GetAccount(addr)
 		if account != nil {
 			return account.GetBalance()
@@ -152,7 +159,7 @@ func (l *StateLedgerImpl) SetBalance(addr *types.Address, value *big.Int) {
 	}
 	account = l.mvRecordWritten(account)
 	account.SetBalance(value)
-	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+	MVWrite(l, blockstm.NewSubpathKey(addr, BalancePath))
 }
 
 func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {
@@ -164,7 +171,7 @@ func (l *StateLedgerImpl) SubBalance(addr *types.Address, value *big.Int) {
 	if account != nil {
 		account = l.mvRecordWritten(account)
 		account.SubBalance(value)
-		MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+		MVWrite(l, blockstm.NewSubpathKey(addr, BalancePath))
 	}
 }
 
@@ -176,12 +183,12 @@ func (l *StateLedgerImpl) AddBalance(addr *types.Address, value *big.Int) {
 	}
 	account = l.mvRecordWritten(account)
 	account.AddBalance(value)
-	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+	MVWrite(l, blockstm.NewSubpathKey(addr, BalancePath))
 }
 
 // GetState get account state value using account address and key
 func (l *StateLedgerImpl) GetState(addr *types.Address, key []byte) (bool, []byte) {
-	return MVRead2(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), true, (&types.Hash{}).Bytes(), func(s *StateLedgerImpl) (bool, []byte) {
+	return MVRead2(l, blockstm.NewStateKey(addr, *types.NewHash(key)), true, (&types.Hash{}).Bytes(), func(s *StateLedgerImpl) (bool, []byte) {
 		account := l.GetAccount(addr)
 		if account != nil {
 			return account.GetState(key)
@@ -196,7 +203,7 @@ func (l *StateLedgerImpl) setTransientState(addr types.Address, key, value []byt
 }
 
 func (l *StateLedgerImpl) GetCommittedState(addr *types.Address, key []byte) []byte {
-	return MVRead(l, blockstm.NewStateKey(*addr, *types.NewHash(key)), (&types.Hash{}).Bytes(), func(l *StateLedgerImpl) []byte {
+	return MVRead(l, blockstm.NewStateKey(addr, *types.NewHash(key)), (&types.Hash{}).Bytes(), func(l *StateLedgerImpl) []byte {
 
 		account := l.GetAccount(addr)
 		if account != nil {
@@ -212,7 +219,7 @@ func (l *StateLedgerImpl) SetState(addr *types.Address, key []byte, v []byte) {
 	account := l.GetOrCreateAccount(addr)
 	account = l.mvRecordWritten(account)
 	account.SetState(key, v)
-	MVWrite(l, blockstm.NewStateKey(*addr, *types.NewHash(key)))
+	MVWrite(l, blockstm.NewStateKey(addr, *types.NewHash(key)))
 }
 
 // SetCode set contract code
@@ -220,12 +227,12 @@ func (l *StateLedgerImpl) SetCode(addr *types.Address, code []byte) {
 	account := l.GetOrCreateAccount(addr)
 	account = l.mvRecordWritten(account)
 	account.SetCodeAndHash(code)
-	MVWrite(l, blockstm.NewSubpathKey(*addr, CodePath))
+	MVWrite(l, blockstm.NewSubpathKey(addr, CodePath))
 }
 
 // GetCode get contract code
 func (l *StateLedgerImpl) GetCode(addr *types.Address) []byte {
-	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), nil, func(l *StateLedgerImpl) []byte {
+	return MVRead(l, blockstm.NewSubpathKey(addr, CodePath), nil, func(l *StateLedgerImpl) []byte {
 		account := l.GetAccount(addr)
 		if account != nil {
 			return account.Code()
@@ -235,7 +242,7 @@ func (l *StateLedgerImpl) GetCode(addr *types.Address) []byte {
 }
 
 func (l *StateLedgerImpl) GetCodeHash(addr *types.Address) *types.Hash {
-	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), &types.Hash{}, func(l *StateLedgerImpl) *types.Hash {
+	return MVRead(l, blockstm.NewSubpathKey(addr, CodePath), &types.Hash{}, func(l *StateLedgerImpl) *types.Hash {
 		account := l.GetAccount(addr)
 		if account != nil && !account.IsEmpty() {
 			return types.NewHash(account.CodeHash())
@@ -247,7 +254,7 @@ func (l *StateLedgerImpl) GetCodeHash(addr *types.Address) *types.Hash {
 }
 
 func (l *StateLedgerImpl) GetCodeSize(addr *types.Address) int {
-	return MVRead(l, blockstm.NewSubpathKey(*addr, CodePath), 0, func(l *StateLedgerImpl) int {
+	return MVRead(l, blockstm.NewSubpathKey(addr, CodePath), 0, func(l *StateLedgerImpl) int {
 		account := l.GetAccount(addr)
 
 		if account != nil && !account.IsEmpty() {
@@ -279,7 +286,7 @@ func (l *StateLedgerImpl) GetRefund() uint64 {
 
 // GetNonce get account nonce
 func (l *StateLedgerImpl) GetNonce(addr *types.Address) uint64 {
-	return MVRead(l, blockstm.NewSubpathKey(*addr, NoncePath), 0, func(l *StateLedgerImpl) uint64 {
+	return MVRead(l, blockstm.NewSubpathKey(addr, NoncePath), 0, func(l *StateLedgerImpl) uint64 {
 		account := l.GetAccount(addr)
 		if account != nil {
 			return account.GetNonce()
@@ -294,7 +301,7 @@ func (l *StateLedgerImpl) SetNonce(addr *types.Address, nonce uint64) {
 	account := l.GetOrCreateAccount(addr)
 	account = l.mvRecordWritten(account)
 	account.SetNonce(nonce)
-	MVWrite(l, blockstm.NewSubpathKey(*addr, NoncePath))
+	MVWrite(l, blockstm.NewSubpathKey(addr, NoncePath))
 }
 
 func (l *StateLedgerImpl) Clear() {
@@ -540,14 +547,14 @@ func (l *StateLedgerImpl) SelfDestruct(addr *types.Address) bool {
 	account.SetSelfDestructed(true)
 	account.SetBalance(new(big.Int))
 
-	MVWrite(l, blockstm.NewSubpathKey(*addr, SuicidePath))
-	MVWrite(l, blockstm.NewSubpathKey(*addr, BalancePath))
+	MVWrite(l, blockstm.NewSubpathKey(addr, SuicidePath))
+	MVWrite(l, blockstm.NewSubpathKey(addr, BalancePath))
 
 	return true
 }
 
 func (l *StateLedgerImpl) HasSelfDestructed(addr *types.Address) bool {
-	return MVRead(l, blockstm.NewSubpathKey(*addr, SuicidePath), false, func(l *StateLedgerImpl) bool {
+	return MVRead(l, blockstm.NewSubpathKey(addr, SuicidePath), false, func(l *StateLedgerImpl) bool {
 		account := l.GetAccount(addr)
 		if account != nil {
 			l.logger.Debugf("[HasSelfDestructed] addr: %v, selfDestructed: %v", addr, account.SelfDestructed())
@@ -677,7 +684,7 @@ func (l *StateLedgerImpl) PrepareBlock(lastStateRoot *types.Hash, currentExecuti
 	storagemgr.ResetCachedStorageMetrics()
 	ResetTriePreloaderMetrics()
 	l.resetMetrics()
-	l.logger.Debugf("[PrepareBlock] height: %v, hash: %v", currentExecutingHeight, lastStateRoot)
+	l.logger.Debugf("[PrepareBlock] height: %v, hash: 	%v", currentExecutingHeight, lastStateRoot)
 }
 
 func (l *StateLedgerImpl) resetMetrics() {

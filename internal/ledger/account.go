@@ -494,7 +494,7 @@ func (o *SimpleAccount) DeepCopy() IAccount {
 
 	res.storageTrieCache = o.storageTrieCache
 	res.pruneCache = o.pruneCache
-	res.changer = o.changer.stateChangerDeepCopy()
+	res.changer = newChanger()
 	res.snapshot = o.snapshot
 
 	return res

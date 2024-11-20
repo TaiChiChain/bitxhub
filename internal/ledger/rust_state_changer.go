@@ -1,7 +1,11 @@
 package ledger
 
 import (
+	"math/big"
+
 	"github.com/axiomesh/axiom-kit/types"
+	"github.com/axiomesh/axiom-ledger/internal/ledger/blockstm"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type RustStateChange interface {
@@ -10,8 +14,6 @@ type RustStateChange interface {
 
 	// dirted returns the address modified by this state entry
 	dirtied() *types.Address
-
-	deepcopy() RustStateChange
 }
 
 type RustStateChanger struct {
@@ -23,24 +25,6 @@ func NewChanger() *RustStateChanger {
 	return &RustStateChanger{
 		dirties: make(map[types.Address]int),
 	}
-}
-
-func (s *RustStateChanger) ruststateChangerDeepCopy() *RustStateChanger {
-	// Create a new stateChanger instance
-	copyStateChanger := &RustStateChanger{
-		changes: make([]RustStateChange, len(s.changes)),
-		dirties: make(map[types.Address]int),
-	}
-
-	for i, change := range s.changes {
-		copyStateChanger.changes[i] = change.deepcopy()
-	}
-	// Copy the dirties map
-	for key, value := range s.dirties {
-		copyStateChanger.dirties[*types.NewAddress(key.Bytes())] = value
-	}
-
-	return copyStateChanger
 }
 
 func (s *RustStateChanger) Append(change RustStateChange) {
@@ -78,23 +62,52 @@ func (s *RustStateChanger) Reset() {
 }
 
 type (
+	RustCreateObjectChange struct {
+		account *types.Address
+	}
 
-	//RustResetObjectChange struct {
-	//	prev IAccount
-	//}
-	//
-	//RustRefundChange struct {
-	//	prev uint64
-	//}
+	RustResetObjectChange struct {
+		prev IAccount
+	}
+
+	RustSuicideChange struct {
+		account     *types.Address
+		prev        bool
+		prevbalance *big.Int
+	}
+
+	RustBalanceChange struct {
+		account *types.Address
+		prev    *big.Int
+	}
+
+	RustNonceChange struct {
+		account *types.Address
+		prev    uint64
+	}
+
+	RustStorageChange struct {
+		account       *types.Address
+		key, prevalue []byte
+	}
+
+	RustCodeChange struct {
+		account  *types.Address
+		prevcode []byte
+	}
+
+	RustRefundChange struct {
+		prev uint64
+	}
 
 	RustAddLogChange struct {
 		txHash *types.Hash
 	}
 
-	//RustAddPreimageChange struct {
-	//	hash types.Hash
-	//}
-	//
+	RustAddPreimageChange struct {
+		hash types.Hash
+	}
+
 	RustAccessListAddAccountChange struct {
 		address *types.Address
 	}
@@ -103,45 +116,96 @@ type (
 		address *types.Address
 		slot    *types.Hash
 	}
-	//
-	//RustTransientStorageChange struct {
-	//	account       *types.Address
-	//	key, prevalue []byte
-	//}
+
+	RustTransientStorageChange struct {
+		account       *types.Address
+		key, prevalue []byte
+	}
 )
 
-//func (ch RustCreateObjectChange) Revert(l *RustStateLedger) {
-//	delete(l.Accounts, ch.account.String())
-//}
-//
-//func (ch RustCreateObjectChange) dirtied() *types.Address {
-//	return ch.account
-//}
-
-//	func (ch RustRefundChange) Revert(l *RustStateLedger) {
-//		l.Refund = ch.prev
-//	}
-//
-//	func (ch RustRefundChange) dirtied() *types.Address {
-//		return nil
-//	}
-//
-//	func (ch RustAddPreimageChange) Revert(l *RustStateLedger) {
-//		delete(l.Preimages, ch.hash)
-//	}
-//
-//	func (ch RustAddPreimageChange) dirtied() *types.Address {
-//		return nil
-//	}
-func (ch RustAccessListAddAccountChange) Revert(l *RustStateLedger) {
-	l.AccessList.DeleteAddress(*ch.address)
+func (ch RustCreateObjectChange) Revert(r *RustStateLedger) {
+	delete(r.Accounts, ch.account.String())
+	RustRevertWrite(r, blockstm.NewAddressKey(ch.account))
 }
 
-func (ch RustAccessListAddAccountChange) deepcopy() RustStateChange {
-	copyCh := RustAccessListAddAccountChange{
-		address: types.NewAddress(ch.address.Bytes()),
-	}
-	return copyCh
+func (ch RustCreateObjectChange) dirtied() *types.Address {
+	return ch.account
+}
+
+func (ch RustResetObjectChange) Revert(r *RustStateLedger) {
+	r.setAccount(ch.prev)
+	RustRevertWrite(r, blockstm.NewAddressKey(ch.prev.GetAddress()))
+}
+
+// nolint
+func (ch RustResetObjectChange) dirtied() *types.Address {
+	return nil
+}
+
+func (ch RustSuicideChange) Revert(r *RustStateLedger) {
+	acc := r.GetOrCreateAccount(ch.account)
+	account := acc.(*RustAccount)
+	account.selfDestructed = ch.prev
+	account.setBalance(ch.prevbalance)
+	RustRevertWrite(r, blockstm.NewSubpathKey(ch.account, SuicidePath))
+}
+
+func (ch RustSuicideChange) dirtied() *types.Address {
+	return ch.account
+}
+
+func (ch RustBalanceChange) Revert(r *RustStateLedger) {
+	r.GetOrCreateAccount(ch.account).(*RustAccount).setBalance(ch.prev)
+}
+
+func (ch RustBalanceChange) dirtied() *types.Address {
+	return ch.account
+}
+
+func (ch RustNonceChange) Revert(r *RustStateLedger) {
+	r.GetOrCreateAccount(ch.account).(*RustAccount).setNonce(ch.prev)
+}
+
+func (ch RustNonceChange) dirtied() *types.Address {
+	return ch.account
+}
+
+func (ch RustCodeChange) Revert(r *RustStateLedger) {
+	r.GetOrCreateAccount(ch.account).(*RustAccount).setCodeAndHash(ch.prevcode)
+	RustRevertWrite(r, blockstm.NewSubpathKey(ch.account, CodePath))
+}
+
+func (ch RustCodeChange) dirtied() *types.Address {
+	return ch.account
+}
+
+func (ch RustStorageChange) Revert(r *RustStateLedger) {
+	r.GetOrCreateAccount(ch.account).(*RustAccount).setState(ch.key, ch.prevalue)
+	RustRevertWrite(r, blockstm.NewStateKey(ch.account, *types.NewHash(ch.key)))
+}
+
+func (ch RustStorageChange) dirtied() *types.Address {
+	return ch.account
+}
+
+func (ch RustRefundChange) Revert(r *RustStateLedger) {
+	r.Refund = ch.prev
+}
+
+func (ch RustRefundChange) dirtied() *types.Address {
+	return nil
+}
+
+func (ch RustAddPreimageChange) Revert(r *RustStateLedger) {
+	delete(r.preimages, ch.hash)
+}
+
+func (ch RustAddPreimageChange) dirtied() *types.Address {
+	return nil
+}
+
+func (ch RustAccessListAddAccountChange) Revert(l *RustStateLedger) {
+	l.AccessList.DeleteAddress(*ch.address)
 }
 
 func (ch RustAccessListAddAccountChange) dirtied() *types.Address {
@@ -154,14 +218,6 @@ func (ch RustAccessListAddSlotChange) Revert(l *RustStateLedger) {
 
 func (ch RustAccessListAddSlotChange) dirtied() *types.Address {
 	return nil
-}
-
-func (ch RustAccessListAddSlotChange) deepcopy() RustStateChange {
-	copyCh := RustAccessListAddSlotChange{
-		address: types.NewAddress(ch.address.Bytes()),
-		slot:    types.NewHash(ch.slot.Bytes()),
-	}
-	return copyCh
 }
 
 func (ch RustAddLogChange) Revert(l *RustStateLedger) {
@@ -178,17 +234,10 @@ func (ch RustAddLogChange) dirtied() *types.Address {
 	return nil
 }
 
-func (ch RustAddLogChange) deepcopy() RustStateChange {
-	copyCh := RustAddLogChange{
-		txHash: types.NewHash(ch.txHash.Bytes()),
-	}
-	return copyCh
+func (ch RustTransientStorageChange) Revert(r *RustStateLedger) {
+	r.setTransientState(*ch.account, common.BytesToHash(ch.key), common.BytesToHash(ch.prevalue))
 }
 
-//func (ch RustTransientStorageChange) Revert(l *RustStateLedger) {
-//	l.setTransientState(*ch.account, ch.key, ch.prevalue)
-//}
-//
-//func (ch RustTransientStorageChange) dirtied() *types.Address {
-//	return nil
-//}
+func (ch RustTransientStorageChange) dirtied() *types.Address {
+	return nil
+}

@@ -19,8 +19,8 @@ func valueFor(txIdx, inc int) []byte {
 	return []byte(fmt.Sprintf("%ver:%ver:%ver", txIdx*5, txIdx+inc, inc*5))
 }
 
-func getCommonAddress(i int) types.Address {
-	return *types.NewAddress(common.BigToAddress(big.NewInt(int64(i % randomness))).Bytes())
+func getCommonAddress(i int) *types.Address {
+	return types.NewAddress(common.BigToAddress(big.NewInt(int64(i % randomness))).Bytes())
 }
 
 func TestHelperFunctions(t *testing.T) {

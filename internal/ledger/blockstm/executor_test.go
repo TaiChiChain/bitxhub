@@ -188,14 +188,14 @@ func longTailTimeGenerator(min time.Duration, max time.Duration, i int, j int) f
 }
 
 var randomPathGenerator = func(sender types.Address, i int, j int, total int) Key {
-	return NewStateKey(*types.NewAddress(common.BigToAddress((big.NewInt(int64(i % 10)))).Bytes()), *types.NewHash(common.BigToHash((big.NewInt(int64(total)))).Bytes()))
+	return NewStateKey(types.NewAddress(common.BigToAddress((big.NewInt(int64(i % 10)))).Bytes()), *types.NewHash(common.BigToHash((big.NewInt(int64(total)))).Bytes()))
 }
 
 var dexPathGenerator = func(sender types.Address, i int, j int, total int) Key {
 	if j == total-1 || j == 2 {
-		return NewSubpathKey(*types.NewAddress(common.BigToAddress(big.NewInt(int64(0))).Bytes()), 1)
+		return NewSubpathKey(types.NewAddress(common.BigToAddress(big.NewInt(int64(0))).Bytes()), 1)
 	} else {
-		return NewSubpathKey(*types.NewAddress(common.BigToAddress(big.NewInt(int64(j))).Bytes()), 1)
+		return NewSubpathKey(types.NewAddress(common.BigToAddress(big.NewInt(int64(j))).Bytes()), 1)
 	}
 }
 
@@ -216,11 +216,11 @@ func taskFactory(numTask int, sender Sender, readsPerT int, writesPerT int, nonI
 		// Set first two ops to always read and write nonce
 		ops := make([]Op, 0, readsPerT+writesPerT+nonIOPerT)
 
-		ops = append(ops, Op{opType: readType, key: NewSubpathKey(s, 2), duration: readTime(i, 0), val: senderNonces[s]})
+		ops = append(ops, Op{opType: readType, key: NewSubpathKey(&s, 2), duration: readTime(i, 0), val: senderNonces[s]})
 
 		senderNonces[s]++
 
-		ops = append(ops, Op{opType: writeType, key: NewSubpathKey(s, 2), duration: writeTime(i, 1), val: senderNonces[s]})
+		ops = append(ops, Op{opType: writeType, key: NewSubpathKey(&s, 2), duration: writeTime(i, 1), val: senderNonces[s]})
 
 		for j := 0; j < readsPerT-1; j++ {
 			ops = append(ops, Op{opType: readType})

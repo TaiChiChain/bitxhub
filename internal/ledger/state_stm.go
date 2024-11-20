@@ -76,13 +76,13 @@ func (s *StateLedgerImpl) ensureWriteMap() {
 	}
 }
 
-func (s *StateLedgerImpl) ClearReadMap() {
-	s.readMap = make(map[blockstm.Key]blockstm.ReadDescriptor)
-}
+// func (s *StateLedgerImpl) ClearReadMap() {
+// 	s.readMap = make(map[blockstm.Key]blockstm.ReadDescriptor)
+// }
 
-func (s *StateLedgerImpl) ClearWriteMap() {
-	s.writeMap = make(map[blockstm.Key]blockstm.WriteDescriptor)
-}
+// func (s *StateLedgerImpl) ClearWriteMap() {
+// 	s.writeMap = make(map[blockstm.Key]blockstm.WriteDescriptor)
+// }
 
 func (s *StateLedgerImpl) HadInvalidRead() bool {
 	return s.dep >= 0
@@ -229,7 +229,7 @@ func MVWrite(s *StateLedgerImpl, k blockstm.Key) {
 		s.ensureWriteMap()
 		s.writeMap[k] = blockstm.WriteDescriptor{
 			Path: k,
-			V:    s.blockStmVersion(),
+			V:    s.BlockStmVersion(),
 			Val:  s,
 		}
 	}
@@ -347,7 +347,7 @@ func (s *StateLedgerImpl) AddEmptyMVHashMap() {
 	s.mvHashmap = mvh
 }
 
-func (s *StateLedgerImpl) blockStmVersion() blockstm.Version {
+func (s *StateLedgerImpl) BlockStmVersion() blockstm.Version {
 	return blockstm.Version{
 		TxnIndex:    s.txIndex,
 		Incarnation: s.incarnation,

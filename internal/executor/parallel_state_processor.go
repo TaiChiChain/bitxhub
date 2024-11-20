@@ -143,17 +143,12 @@ func (task *ExecutionTask) Execute(mvh *blockstm.MVHashMap, incarnation int) (er
 
 		reads := task.statedb.MVReadMap()
 
-		if _, ok := reads[blockstm.NewSubpathKey(*types.NewAddress(task.blockContext.Coinbase.Bytes()), ledger.BalancePath)]; ok {
+		if _, ok := reads[blockstm.NewSubpathKey(types.NewAddress(task.blockContext.Coinbase.Bytes()), ledger.BalancePath)]; ok {
 			log.Info("Coinbase is in MVReadMap", "address", task.blockContext.Coinbase)
 
 			task.shouldRerunWithoutFeeDelay = true
 		}
 
-		// if _, ok := reads[blockstm.NewSubpathKey(task.result.BurntContractAddress, ledger.BalancePath)]; ok {
-		// 	log.Info("BurntContractAddress is in MVReadMap", "address", task.result.BurntContractAddress)
-
-		// 	task.shouldRerunWithoutFeeDelay = true
-		// }
 	} else {
 		task.result, task.resultErr = core.ApplyMessage(evm, &task.msg, new(core.GasPool).AddGas(task.gasLimit))
 	}

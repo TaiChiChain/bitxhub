@@ -295,6 +295,7 @@ func TestChainLedger_Commit(t *testing.T) {
 			lg.StateLedger.(*StateLedgerImpl).Logs()
 			lg.StateLedger.(*StateLedgerImpl).GetCodeHash(account)
 			lg.StateLedger.(*StateLedgerImpl).GetCodeSize(account)
+
 			currentAccount := lg.StateLedger.(*StateLedgerImpl).GetAccount(account)
 			lg.StateLedger.(*StateLedgerImpl).setAccount(currentAccount)
 			lg.StateLedger.(*StateLedgerImpl).AddBalance(account, big.NewInt(1))
