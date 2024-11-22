@@ -522,3 +522,15 @@ func (o *RustAccount) IsCreated() bool {
 func (o *RustAccount) SetCreated(created bool) {
 	o.created = created
 }
+
+func (o *RustAccount) getStateJournal() map[string][]byte {
+	prevStates := make(map[string][]byte)
+
+	for key, value := range o.pendingState {
+		origVal := o.originState[key]
+		if !bytes.Equal(origVal, value) {
+			prevStates[key] = origVal
+		}
+	}
+	return prevStates
+}

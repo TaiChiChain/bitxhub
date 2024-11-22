@@ -433,9 +433,7 @@ func (r *RustStateLedger) Commit() (*types.Hash, error) {
 		}
 
 	}
-	r.logger.Info("stateDBPtr:", r.stateDBPtr)
 	committedRes := C.commit(r.stateDBPtr)
-	r.logger.Info("committedRes:", committedRes)
 	rootHash := *(*[32]byte)(unsafe.Pointer(&committedRes.root_hash.bytes))
 	committed_height := committedRes.committed_version
 	if r.blockHeight != uint64(committed_height) {
@@ -681,6 +679,8 @@ func (r *RustStateLedger) NewView(blockHeader *types.BlockHeader, enableSnapshot
 		stateDBPtr:     r.stateDBViewPtr,
 		stateDBViewPtr: r.stateDBViewPtr,
 		Accounts:       make(map[string]IAccount),
+		changer:        NewChanger(),
+		AccessList:     NewAccessList(),
 		Logs:           newEvmLogs(),
 		blockHeight:    blockHeader.Number,
 	}, nil
@@ -1020,7 +1020,9 @@ func (r *RustStateLedger) collectDirtyData() map[ethcommon.Address]IAccount {
 	dirtyAccounts := make(map[ethcommon.Address]IAccount)
 	for _, acc := range r.Accounts {
 		account := acc.(*RustAccount)
-		if account.originAccount.InnerAccountChanged(account.dirtyAccount) || account.selfDestructed {
+
+		prevStates := account.getStateJournal()
+		if account.originAccount.InnerAccountChanged(account.dirtyAccount) || len(prevStates) != 0 || account.selfDestructed {
 			dirtyAccounts[account.ethAddress] = account
 		}
 
