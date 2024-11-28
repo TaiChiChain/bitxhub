@@ -166,30 +166,29 @@ func (o *RustAccount) GetState(k []byte) (bool, []byte) {
 	return valueLen != 0, goSlice
 }
 
-func (o *RustAccount) GetBit256State(key []byte) common.Hash {
+func (o *RustAccount) GetBit256State(key []byte) (bool, []byte) {
 	// GetState From Logical Account
 	if value, exist := o.dirtyState[string(key)]; exist {
 		o.logger.Debugf("[GetState] get from dirty, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
-		return common.BytesToHash(value)
+		return value != nil, value
 	}
 
 	if value, exist := o.pendingState[string(key)]; exist {
 		o.logger.Debugf("[GetState] get from pending, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
-		return common.BytesToHash(value)
+		return value != nil, value
 	}
 
 	if value, exist := o.originState[string(key)]; exist {
 		o.logger.Debugf("[GetState] get from origin, addr: %v, key: %v, state: %v", o.Addr, &bytesLazyLogger{bytes: key}, &bytesLazyLogger{bytes: value})
-		return common.BytesToHash(value)
+		return value != nil, value
 	}
 
 	hash_key := hashKey(key)
 	cH256 := C.get_state(o.stateDBPtr, o.cAddress, convertToCH256(hash_key))
 	goHash := *(*common.Hash)(unsafe.Pointer(&cH256.bytes))
-
 	o.originState[string(key)] = goHash.Bytes()
+	return len(goHash.Bytes()) != 0, goHash.Bytes()
 
-	return goHash
 }
 
 func (o *RustAccount) setBalance(balance *big.Int) {

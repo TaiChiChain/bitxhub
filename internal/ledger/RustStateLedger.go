@@ -271,13 +271,13 @@ func (r *RustStateLedger) GetState(address *types.Address, bytes []byte) (bool, 
 	})
 }
 
-func (r *RustStateLedger) GetBit256State(address *types.Address, bytes []byte) ethcommon.Hash {
-	return mvread(r, blockstm.NewStateKey(address, *types.NewHash(bytes)), ethcommon.Hash{}, func(r *RustStateLedger) ethcommon.Hash {
+func (r *RustStateLedger) GetBit256State(address *types.Address, bytes []byte) (bool, []byte) {
+	return mvread2(r, blockstm.NewStateKey(address, *types.NewHash(bytes)), true, (&types.Hash{}).Bytes(), func(r *RustStateLedger) (bool, []byte) {
 		account := r.GetAccount(address)
 		if account != nil {
 			return account.(*RustAccount).GetBit256State(bytes)
 		}
-		return ethcommon.Hash{}
+		return false, []byte{}
 	})
 }
 

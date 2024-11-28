@@ -71,7 +71,11 @@ func (esa EvmStateDBAdaptor) GetCommittedState(addr common.Address, hash common.
 }
 
 func (esa EvmStateDBAdaptor) GetState(addr common.Address, hash common.Hash) common.Hash {
-	return esa.StateLedger.(*RustStateLedger).GetBit256State(types.NewAddress(addr.Bytes()), hash.Bytes())
+	ok, ret := esa.StateLedger.(*RustStateLedger).GetState(types.NewAddress(addr.Bytes()), hash.Bytes())
+	if !ok {
+		return common.Hash{}
+	}
+	return common.BytesToHash(ret)
 }
 
 func (esa EvmStateDBAdaptor) SetState(addr common.Address, key, value common.Hash) {
